@@ -3,10 +3,10 @@ export default async function handler(req, res) {
 
   const { capital, experiencia, canal, nicho, riesgo } = req.body;
 
-  const prompt = 'Sos un experto en importacion desde China hacia Argentina con 15 anios de experiencia. Analizas perfiles de importadores y recomiendas productos especificos.\n\nPERFIL DEL USUARIO:\n- Capital disponible: ' + capital + '\n- Experiencia importando: ' + experiencia + '\n- Canal de venta: ' + canal + '\n- Nicho preferido: ' + nicho + '\n- Tolerancia al riesgo: ' + riesgo + '\n\nResponde SOLO con un objeto JSON valido, sin markdown, sin texto extra. El formato exacto:\n{\n  "productos": [\n    {\n      "nombre": "Nombre del producto",\n      "descripcion": "2 oraciones explicando por que es ideal para este perfil y como se vende en Argentina",\n      "margen": "X%",\n      "margenTipo": "positive",\n      "demanda": "Alta",\n      "demandaTipo": "positive",\n      "riesgo": "Bajo",\n      "riesgoTipo": "positive",\n      "score": 85,\n      "scoreTipo": "high",\n      "topPick": true,\n      "tags": ["tag1", "tag2", "tag3"]\n    }\n  ],\n  "resumen": "3-4 oraciones de analisis estrategico personalizado para este perfil.",\n  "subtitulo": "Frase corta personalizada segun el perfil"\n}\n\nDevuelve exactamente 3 productos ordenados por score descendente. El primero tiene topPick true, los demas false. El score es de 0 a 100. margenTipo/demandaTipo/riesgoTipo pueden ser positive, warning o negative. scoreTipo puede ser high, mid o low. Los tags deben ser cortos (max 3 palabras). Se especifico con nombres de productos reales. Adapta todo al mercado argentino 2025-2026.';
+  const prompt = 'Sos un experto en importacion desde China hacia Argentina con 15 anios de experiencia. Analizas perfiles de importadores y recomiendas productos especificos.\n\nPERFIL DEL USUARIO:\n- Capital disponible: ' + capital + '\n- Experiencia importando: ' + experiencia + '\n- Canal de venta: ' + canal + '\n- Nicho preferido: ' + nicho + '\n- Tolerancia al riesgo: ' + riesgo + '\n\nResponde SOLO con un objeto JSON valido, sin markdown, sin texto extra. Solo el JSON puro comenzando con { y terminando con }.\n\nFormato exacto:{"productos":[{"nombre":"Nombre especifico","descripcion":"2 oraciones","margen":"X%-X%","margenTipo":"positive","demanda":"Alta","demandaTipo":"positive","riesgo":"Bajo","riesgoTipo":"positive","score":85,"scoreTipo":"high","topPick":true,"tags":["tag1","tag2"]}],"resumen":"3-4 oraciones de analisis","subtitulo":"Frase corta"}\n\nExactamente 3 productos por score descendente. Primero topPick true, los demas false. score 0-100. scoreTipo: high>=80 mid 60-79 low<60. Tipos: positive warning negative. Tags max 3 palabras. Nombres reales especificos. Mercado argentino 2025-2026.';
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -20,17 +20,26 @@ export default async function handler(req, res) {
       })
     });
 
-    const data = await response.json();
-    
-    if (!data.content || !data.content[0]) {
-      return res.status(500).json({ error: 'No response from AI' });
+    const data = await apiRes.json();
+
+    if (data.error) {
+      return res.status(500).json({ error: 'API error: ' + data.error.message });
     }
 
-    const raw = data.content.map(function(i){ return i.text || ''; }).join('');
-    const clean = raw.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean);
+    if (!data.content || !data.content[0] || !data.content[0].text) {
+      return res.status(500).json({ error: 'Empty response', debug: JSON.stringify(data).substring(0, 300) });
+    }
+
+    let raw = data.content[0].text.trim();
+    raw = raw.replace(/^```jsons*/i, '').replace(/^```s*/i, '').replace(/s*```$/i, '').trim();
+    const start = raw.indexOf('{');
+    const end = raw.lastIndexOf('}');
+    if (start === -1 || end === -1) {
+      return res.status(500).json({ error: 'No JSON in response', raw: raw.substring(0, 200) });
+    }
+    const parsed = JSON.parse(raw.substring(start, end + 1));
     res.status(200).json(parsed);
   } catch (err) {
-    res.status(500).json({ error: 'Error al procesar el analisis: ' + err.message });
+    res.status(500).json({ error: err.message });
   }
 }
