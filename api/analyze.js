@@ -3,7 +3,7 @@ export default async function handler(req, res) {
 
   const { capital, experiencia, canal, nicho, riesgo } = req.body;
 
-  const prompt = 'Sos un experto en importacion desde China hacia Argentina con 15 anios de experiencia. Analizas perfiles de importadores y recomiendas productos especificos.\n\nPERFIL DEL USUARIO:\n- Capital disponible: ' + capital + '\n- Experiencia importando: ' + experiencia + '\n- Canal de venta: ' + canal + '\n- Nicho preferido: ' + nicho + '\n- Tolerancia al riesgo: ' + riesgo + '\n\nResponde SOLO con un objeto JSON valido, sin markdown, sin texto extra. Solo el JSON puro comenzando con { y terminando con }.\n\nFormato exacto:{"productos":[{"nombre":"Nombre especifico","descripcion":"2 oraciones","margen":"X%-X%","margenTipo":"positive","demanda":"Alta","demandaTipo":"positive","riesgo":"Bajo","riesgoTipo":"positive","score":85,"scoreTipo":"high","topPick":true,"tags":["tag1","tag2"]}],"resumen":"3-4 oraciones de analisis","subtitulo":"Frase corta"}\n\nExactamente 3 productos por score descendente. Primero topPick true, los demas false. score 0-100. scoreTipo: high>=80 mid 60-79 low<60. Tipos: positive warning negative. Tags max 3 palabras. Nombres reales especificos. Mercado argentino 2025-2026.';
+  const prompt = 'Sos un experto en importacion desde China hacia Argentina con 15 anios de experiencia. Analizas perfiles de importadores y recomiendas productos especificos.\n\nPERFIL DEL USUARIO:\n- Capital disponible: ' + capital + '\n- Experiencia importando: ' + experiencia + '\n- Canal de venta: ' + canal + '\n- Nicho preferido: ' + nicho + '\n- Tolerancia al riesgo: ' + riesgo + '\n\nResponde SOLO con un objeto JSON valido, sin markdown, sin texto extra. Solo el JSON puro comenzando con { y terminando con }.\n\nFormato:{"productos":[{"nombre":"Nombre especifico","descripcion":"2 oraciones","margen":"X%-X%","margenTipo":"positive","demanda":"Alta","demandaTipo":"positive","riesgo":"Bajo","riesgoTipo":"positive","score":85,"scoreTipo":"high","topPick":true,"tags":["tag1","tag2"]}],"resumen":"3-4 oraciones de analisis","subtitulo":"Frase corta"}\n\nExactamente 3 productos por score descendente. Primero topPick true, los demas false. score 0-100. scoreTipo: high>=80 mid 60-79 low<60. Tipos: positive warning negative. Tags max 3 palabras. Nombres reales especificos. Mercado argentino 2025-2026.';
 
   try {
     const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -14,7 +14,7 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-haiku-4-5',
         max_tokens: 1200,
         messages: [{ role: 'user', content: prompt }]
       })
