@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ProductFinder IA Innovasmart</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--gold:#C9A84C;--gold-dim:#8a6e2f;--dark:#0a0a0a;--dark-2:#111111;--dark-3:#1a1a1a;--dark-4:#222222;--text:#e8e0d0;--text-dim:#8a8070;--red:#c0392b;--green:#27ae60;--radius:8px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--dark);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
+.container{max-width:760px;margin:0 auto;padding:40px 20px 80px}
+header{text-align:center;padding:60px 0 48px}
+.brand{font-size:11px;font-weight:500;letter-spacing:4px;text-transform:uppercase;color:var(--gold);margin-bottom:20px;opacity:0;animation:fadeUp 0.6s ease forwards}
+header h1{font-family:'Playfair Display',serif;font-size:clamp(2rem,6vw,3.2rem);font-weight:900;line-height:1.1;margin-bottom:16px;opacity:0;animation:fadeUp 0.6s ease 0.1s forwards}
+header h1 span{color:var(--gold);display:block}
+header p{font-size:15px;color:var(--text-dim);max-width:480px;margin:0 auto;line-height:1.7;opacity:0;animation:fadeUp 0.6s ease 0.2s forwards}
+.divider{width:60px;height:2px;background:linear-gradient(90deg,transparent,var(--gold),transparent);margin:28px auto;opacity:0;animation:fadeUp 0.6s ease 0.15s forwards}
+.form-card{background:var(--dark-2);border:1px solid #2a2a2a;border-radius:12px;padding:36px;margin-bottom:32px;opacity:0;animation:fadeUp 0.6s ease 0.3s forwards}
+.form-grid{display:grid;gap:20px}
+.field label{display:block;font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:8px}
+.field select{width:100%;background:var(--dark-3);border:1px solid #2e2e2e;border-radius:var(--radius);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:12px 16px;outline:none;transition:border-color 0.2s;appearance:none}
+.field select:focus{border-color:var(--gold-dim)}
+.field select option{background:var(--dark-3)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:520px){.two-col{grid-template-columns:1fr}}
+.btn-analyze{width:100%;padding:16px;background:linear-gradient(135deg,var(--gold-dim),var(--gold));color:#0a0a0a;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;border:none;border-radius:var(--radius);cursor:pointer;margin-top:8px;transition:opacity 0.2s,transform 0.1s}
+.btn-analyze:hover{opacity:0.9}.btn-analyze:active{transform:scale(0.99)}.btn-analyze:disabled{opacity:0.5;cursor:not-allowed}
+.btn-analyze .btn-loader{display:none;width:18px;height:18px;border:2px solid #0a0a0a;border-top-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto}
+.btn-analyze.loading .btn-text{display:none}.btn-analyze.loading .btn-loader{display:block}
+#results{display:none;opacity:0;animation:fadeUp 0.5s ease forwards}
+#results.visible{display:block}
+.results-header{text-align:center;margin-bottom:28px}
+.results-header h2{font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:700;margin-bottom:8px}
+.results-header p{font-size:13px;color:var(--text-dim)}
+.products-grid{display:grid;gap:16px;margin-bottom:28px}
+.product-card{background:var(--dark-2);border:1px solid #2a2a2a;border-radius:10px;padding:24px;position:relative;transition:border-color 0.2s}
+.product-card:hover{border-color:var(--gold-dim)}.product-card.top-pick{border-color:var(--gold-dim)}
+.top-badge{position:absolute;top:-10px;left:20px;background:var(--gold);color:#0a0a0a;font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:3px 10px;border-radius:20px}
+.product-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:12px}
+.product-name{font-family:'Playfair Display',serif;font-size:1.15rem;font-weight:700;line-height:1.3}
+.score-badge{flex-shrink:0;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;border:2px solid}
+.score-high{border-color:var(--green);color:var(--green)}.score-mid{border-color:var(--gold);color:var(--gold)}.score-low{border-color:var(--text-dim);color:var(--text-dim)}
+.product-desc{font-size:13px;color:var(--text-dim);line-height:1.6;margin-bottom:16px}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.metric{background:var(--dark-3);border-radius:6px;padding:10px 8px;text-align:center}
+.metric-label{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);margin-bottom:4px}
+.metric-value{font-size:13px;font-weight:600}.metric-value.positive{color:var(--green)}.metric-value.warning{color:var(--gold)}.metric-value.negative{color:var(--red)}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:20px;background:var(--dark-4);color:var(--text-dim);border:1px solid #2e2e2e}
+.summary-box{background:linear-gradient(135deg,#1a1500,#1a1a0a);border:1px solid var(--gold-dim);border-radius:10px;padding:24px;margin-bottom:24px}
+.summary-box h3{font-family:'Playfair Display',serif;font-size:1rem;color:var(--gold);margin-bottom:12px}
+.summary-box p{font-size:13px;line-height:1.8;color:var(--text-dim)}
+.cta-box{background:var(--dark-2);border:1px solid #2a2a2a;border-radius:10px;padding:28px;text-align:center}
+.cta-box h3{font-family:'Playfair Display',serif;font-size:1.3rem;margin-bottom:8px}
+.cta-box p{font-size:13px;color:var(--text-dim);margin-bottom:20px;line-height:1.6}
+.btn-cta{display:inline-block;padding:14px 32px;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;border-radius:var(--radius);cursor:pointer;text-decoration:none;transition:background 0.2s,color 0.2s}
+.btn-cta:hover{background:var(--gold);color:#0a0a0a}
+.btn-reset{display:block;margin:20px auto 0;background:none;border:none;color:var(--text-dim);font-size:12px;cursor:pointer;text-decoration:underline;font-family:'DM Sans',sans-serif}
+.error-box{background:#1a0808;border:1px solid var(--red);border-radius:8px;padding:16px 20px;font-size:13px;color:#e88;margin-top:12px;display:none}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+footer{text-align:center;padding:40px 0 20px;font-size:11px;color:var(--text-dim);letter-spacing:1px}
+footer span{color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+<div class="brand">Innovasmart ProductFinder IA</div>
+<h1>Descubri que<span>producto importar</span></h1>
+<div class="divider"></div>
+<p>Responde 5 preguntas y la IA analiza rentabilidad, riesgo y demanda para recomendarte los mejores productos para importar desde China.</p>
+</header>
+<div class="form-card" id="formSection">
+<div class="form-grid">
+<div class="two-col">
+<div class="field"><label>Capital disponible (USD)</label><select id="capital"><option value="">Selecciona...</option><option value="bajo">500 a 1500</option><option value="medio">1500 a 5000</option><option value="alto">5000 a 15000</option><option value="grande">mas de 15000</option></select></div>
+<div class="field"><label>Experiencia importando</label><select id="experiencia"><option value="">Selecciona...</option><option value="ninguna">Sin experiencia</option><option value="poca">1-2 importaciones</option><option value="media">3-10 importaciones</option><option value="avanzada">mas de 10 importaciones</option></select></div>
+</div>
+<div class="field"><label>Canal de venta principal</label><select id="canal"><option value="">Selecciona...</option><option value="mercadolibre">Mercado Libre</option><option value="instagram">Instagram TikTok Shop</option><option value="local">Local Negocio fisico</option><option value="mayorista">Venta mayorista revendedores</option><option value="ecommerce">E-commerce propio</option></select></div>
+<div class="field"><label>Nicho o categoria de interes</label><select id="nicho"><option value="">Selecciona...</option><option value="tecnologia">Tecnologia Gadgets</option><option value="hogar">Hogar Decoracion</option><option value="belleza">Belleza Estetica</option><option value="deportes">Deportes Outdoor</option><option value="mascotas">Mascotas</option><option value="ninos">Juguetes Ninos</option><option value="automotor">Automotor Accesorios</option><option value="cualquiera">Sin preferencia que mas rente</option></select></div>
+<div class="field"><label>Tolerancia al riesgo</label><select id="riesgo"><option value="">Selecciona...</option><option value="bajo">Bajo prefiero productos probados</option><option value="medio">Medio acepto algo de incertidumbre</option><option value="alto">Alto busco el proximo trend</option></select></div>
+<button class="btn-analyze" id="analyzeBtn" onclick="analyzeProfile()"><span class="btn-text">Analizar mi perfil</span><span class="btn-loader"></span></button>
+<div class="error-box" id="errorBox"></div>
+</div>
+</div>
+<div id="results">
+<div class="results-header"><h2>Tu analisis personalizado</h2><p id="resultsSubtitle">Basado en tu perfil de importador</p></div>
+<div class="products-grid" id="productsGrid"></div>
+<div class="summary-box" id="summaryBox"></div>
+<div class="cta-box">
+<h3>Queres ir mas a fondo?</h3>
+<p>Esta herramienta te da el punto de partida. Para un analisis completo con proveedores validados, costos reales y estrategia de lanzamiento, habla con Matias directamente.</p>
+<a href="https://wa.me/541160374306?text=Hola%20Matias%2C%20use%20el%20ProductFinder%20y%20quiero%20una%20asesoria%20completa" class="btn-cta" target="_blank">Quiero una asesoria</a>
+</div>
+<button class="btn-reset" onclick="resetForm()">Hacer otro analisis</button>
+</div>
+</div>
+<footer><p>2026 <span>Innovasmart</span> Todos los derechos reservados</p></footer>
+<script>
+async function analyzeProfile(){
+var capital=document.getElementById('capital').value;
+var experiencia=document.getElementById('experiencia').value;
+var canal=document.getElementById('canal').value;
+var nicho=document.getElementById('nicho').value;
+var riesgo=document.getElementById('riesgo').value;
+var errorBox=document.getElementById('errorBox');
+errorBox.style.display='none';
+if(!capital||!experiencia||!canal||!nicho||!riesgo){errorBox.textContent='Completa todos los campos.';errorBox.style.display='block';return;}
+var btn=document.getElementById('analyzeBtn');
+btn.disabled=true;btn.classList.add('loading');
+try{
+var response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({capital:capital,experiencia:experiencia,canal:canal,nicho:nicho,riesgo:riesgo})});
+if(!response.ok)throw new Error('Error');
+var parsed=await response.json();
+renderResults(parsed);
+}catch(err){
+errorBox.textContent='Hubo un error. Intenta de nuevo.';
+errorBox.style.display='block';
+btn.disabled=false;btn.classList.remove('loading');
+}
+}
+function renderResults(data){
+document.getElementById('resultsSubtitle').textContent=data.subtitulo||'';
+var grid=document.getElementById('productsGrid');
+grid.innerHTML='';
+data.productos.forEach(function(p){
+var card=document.createElement('div');
+card.className='product-card'+(p.topPick?' top-pick':'');
+card.innerHTML=(p.topPick?'<div class="top-badge">Mejor opcion</div>':'')+
+'<div class="product-top"><div class="product-name">'+p.nombre+'</div><div class="score-badge score-'+p.scoreTipo+'">'+p.score+'</div></div>'+
+'<p class="product-desc">'+p.descripcion+'</p>'+
+'<div class="metrics"><div class="metric"><div class="metric-label">Margen</div><div class="metric-value '+p.margenTipo+'">'+p.margen+'</div></div><div class="metric"><div class="metric-label">Demanda</div><div class="metric-value '+p.demandaTipo+'">'+p.demanda+'</div></div><div class="metric"><div class="metric-label">Riesgo</div><div class="metric-value '+p.riesgoTipo+'">'+p.riesgo+'</div></div></div>'+
+'<div class="tags">'+p.tags.map(function(t){return'<span class="tag">'+t+'</span>';}).join('')+'</div>';
+grid.appendChild(card);
+});
+document.getElementById('summaryBox').innerHTML='<h3>Analisis estrategico</h3><p>'+data.resumen+'</p>';
+document.getElementById('formSection').style.display='none';
+var results=document.getElementById('results');
+results.classList.add('visible');
+setTimeout(function(){results.style.opacity='1';},50);
+window.scrollTo({top:0,behavior:'smooth'});
+}
+function resetForm(){
+document.getElementById('formSection').style.display='block';
+var results=document.getElementById('results');
+results.classList.remove('visible');results.style.opacity='0';
+document.getElementById('analyzeBtn').disabled=false;
+document.getElementById('analyzeBtn').classList.remove('loading');
+window.scrollTo({top:0,behavior:'smooth'});
+}
+</script>
+</body>
+</html>
