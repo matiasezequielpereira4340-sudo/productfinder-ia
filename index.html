@@ -773,7 +773,7 @@ function renderUsersTable(users){
     else if(!u.active){badge='<span class="badge inactive">Inactivo</span>';}
     else if(expired){badge='<span class="badge expired">Expirado</span>';}
     else{badge='<span class="badge active">Activo</span>';}
-    const expiryStr=isAdminUser?'Sin expiración':(expiry?expiry.toLocaleDateString('es-AR')+' ('+daysLeft+'d)":'N/A');
+    const expiryStr=isAdminUser?'Sin expiración':(expiry?expiry.toLocaleDateString('es-AR')+' ('+daysLeft+'d)':'N/A');
     const created=u.createdAt?new Date(u.createdAt).toLocaleDateString('es-AR'):'-';
     const toggleBtn=isAdminUser?'':`<button class="btn-sm btn-toggle ${u.active?'deactivate':''}" onclick="toggleUser('${u.username}',${u.active?'false':'true'})">${u.active?'Desactivar':'Activar'}</button>`;
     const delBtn=isAdminUser?'':`<button class="btn-sm btn-delete" onclick="deleteUser('${u.username}')">Eliminar</button>`;
