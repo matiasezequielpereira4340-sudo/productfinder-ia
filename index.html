@@ -682,7 +682,7 @@ function renderMRResult(r){
   });
   const trendsCtx=document.getElementById('trendsChart');
   if(window._trendsChart)window._trendsChart.destroy();
-  window._trendsChart=new Chart(trendsCtx,{type:'line',data:{labels:months,datasets:[{data:trendData,borderColor:'#C9A84C',borderWidth:2.5,backgroundColor:'rgba(201,168,76,0.12)',fill:true,tension:0.4,pointRadius:2,pointBackgroundColor:'#C9A84C'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}},y:{min:0,max:100,ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}}}}}});
+  window._trendsChart=new Chart(trendsCtx,{type:'line',data:{labels:months,datasets:[{data:trendData,borderColor:'#C9A84C',borderWidth:2.5,backgroundColor:'rgba(201,168,76,0.12)',fill:true,tension:0.4,pointRadius:2,pointBackgroundColor:'#C9A84C'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}},y:{min:0,max:100,ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}}}}});
   const s2=mrData.step2||{};
   const pMin=s2.precioMinARS||0;
   const pProm=s2.precioPromedioARS||0;
