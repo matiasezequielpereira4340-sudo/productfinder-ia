@@ -731,7 +731,8 @@ async function runMRStep1(product){
     const tendColor=r.tendencia==='subiendo'?'tag-ok':r.tendencia==='bajando'?'tag-bad':'tag-warn';
     const tendIcon=r.tendencia==='subiendo'?'\u2191':r.tendencia==='bajando'?'\u2193':'\u2192';
     const tags=(r.tags||[]).map(t=>`<span class="mr-tag tag-info">${t}</span>`).join('');
-    document.getElementById('mrStep1Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Tendencia en Argentina</span><span class="mr-row-value"><span class="mr-tag ${tendColor}">${tendIcon} ${r.tendencia}</span></span></div><div class="mr-row"><span class="mr-row-label">Nivel de demanda</span><span class="mr-row-value">${r.nivelDemanda||'--'}</span></div><div class="mr-row"><span class="mr-row-label">Temporalidad</span><span class="mr-row-value">${r.temporalidad||'--'}</span></div><div class="mr-row"><span class="mr-row-label">Score de demanda</span><span class="mr-row-value">${r.demandaScore||'--'}/100</span></div><div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.descripcion||''}</div><div style="margin-top:8px">${tags}</div>`;
+    const monthlyRows=r.monthlyData?(r.monthlyData.map(m=>`<div class="mr-row"><span class="mr-row-label">${m.mes} 2025</span><span class="mr-row-value" style="color:var(--gold)">${m.valor}/100</span></div>`).join('')):'';
+    document.getElementById('mrStep1Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Tendencia en Argentina</span><span class="mr-row-value"><span class="mr-tag ${tendColor}">${tendIcon} ${r.tendencia}</span></span></div><div class="mr-row"><span class="mr-row-label">Nivel de demanda</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">${r.nivelDemanda||'--'}</span></div><div class="mr-row"><span class="mr-row-label">Temporalidad</span><span class="mr-row-value">${r.temporalidad||'--'}</span></div><div class="mr-row"><span class="mr-row-label">Score de demanda</span><span class="mr-row-value">${r.demandaScore||'--'}/100</span></div><div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.descripcion||''}</div><div style="margin-top:8px">${tags}</div><div style="margin-top:12px"><span class="mr-tag tag-info">📈 Datos de demanda basados en categoría y estacionalidad AR</span></div>${monthlyRows}`;
   }catch(e){
     document.getElementById('mrStep1Body').innerHTML='<span style="color:var(--red);font-size:.82rem">Error al obtener datos. Continuá con los pasos guiados.</span>';
     mrData.step1={tendencia:'estable',demandaScore:50,temporalidad:'todo el año',tags:[],nivelDemanda:'medio'};
@@ -749,8 +750,10 @@ async function runMRStep2(product){
     const fmt=n=>n?n.toLocaleString('es-AR'):'--';
     const compData=r.competitors||generateCompetitors(r.sellersEstimados,r.precioPromedioARS);
     mrData.competitors=compData;
-    const compRows=compData.map((c,i)=>`<tr><td class="comp-rank">#${i+1}</td><td class="comp-name" title="${c.name}">${c.name}</td><td class="comp-price">ARS ${c.price.toLocaleString('es-AR')}</td><td class="comp-sales">${c.sales}+/mes</td><td><span class="comp-rep ${c.repClass}">${c.rep}</span></td></tr>`).join('');
-    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers estimados en MLA</span><span class="mr-row-value">~${fmt(r.sellersEstimados)}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio</span><span class="mr-row-value">ARS ${fmt(r.precioPromedioARS)}</span></div><div class="mr-row"><span class="mr-row-label">Nivel de saturación</span><span class="mr-row-value"><span class="mr-tag ${satColor}">${r.saturacion||'--'}</span></span></div><div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)">Oportunidad: ${r.oportunidad}</div>`:''}<table class="mr-comp-table"><thead><tr><th>#</th><th>Producto / Seller</th><th>Precio</th><th>Ventas</th><th>Reputación</th></tr></thead><tbody>${compRows}</tbody></table>`;
+    const compRows=compData.map((c,i)=>`<tr><td class="comp-rank">#${c.rank||(i+1)}</td><td class="comp-name" title="${c.name}">${c.name}</td><td class="comp-price">ARS ${c.price.toLocaleString('es-AR')}</td><td class="comp-sales">${c.soldQty||0} vendidos</td><td><span class="comp-rep ${c.repClass}">${c.reputation||c.rep||'N/A'}</span></td></tr>`).join('');
+    const extraInfo=r.totalResults?`<div class="mr-row"><span class="mr-row-label">Total publicaciones activas</span><span class="mr-row-value">${r.totalResults.toLocaleString('es-AR')}</span></div>`:'';
+    const catInfo=r.categoryName?`<div class="mr-row"><span class="mr-row-label">Categoría principal</span><span class="mr-row-value">${r.categoryName}</span></div>`:'';
+    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers únicos reales</span><span class="mr-row-value">${r.sellersEstimados}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios reales</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio real</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">ARS ${fmt(r.precioPromedioARS)}</span></div>${catInfo}${extraInfo}<div class="mr-row"><span class="mr-row-label">Nivel de saturación</span><span class="mr-row-value"><span class="mr-tag ${satColor}">${r.saturacion||'--'}</span></span></div><div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)">💡 Oportunidad: ${r.oportunidad}</div>`:''}<div style="margin-top:12px"><span class="mr-tag tag-info">📊 Datos reales de Mercado Libre Argentina</span></div><table class="mr-comp-table"><thead><tr><th>#</th><th>Producto / Seller</th><th>Precio</th><th>Vendidos</th><th>Reputación</th></tr></thead><tbody>${compRows}</tbody></table>`;
   }catch(e){
     document.getElementById('mrStep2Body').innerHTML='<span style="color:var(--red);font-size:.82rem">Error al analizar MeLi. Continuá con los pasos guiados.</span>';
     mrData.step2={sellersEstimados:0,precioMinARS:0,precioMaxARS:0,precioPromedioARS:0,competenciaScore:50,saturacion:'moderado'};
@@ -832,22 +835,29 @@ function renderMRResult(r){
   if(window._radarChart)window._radarChart.destroy();
   window._radarChart=new Chart(radarCtx,{type:'radar',data:{labels:['Demanda','Competencia','Margen','Regulación'],datasets:[{data:[sD,sC,sM,sR],backgroundColor:'rgba(201,168,76,0.15)',borderColor:'#C9A84C',borderWidth:2,pointBackgroundColor:'#C9A84C',pointRadius:4,pointHoverRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{r:{min:0,max:100,ticks:{display:false},grid:{color:'rgba(255,255,255,0.06)'},angleLines:{color:'rgba(255,255,255,0.06)'},pointLabels:{color:'#8a8070',font:{size:11}}}}}});
   const trend=mrData.step1?.tendencia||'estable';
-  const baseDemand=sD;
+  const monthlyData=mrData.step1?.monthlyData||null;
   const months=['Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic','Ene','Feb','Mar'];
-  const trendData=months.map((m,i)=>{
-    const noise=(Math.random()-0.5)*10;
-    const drift=trend==='subiendo'?(i*2.5):trend==='bajando'?(-i*2):0;
-    return Math.max(5,Math.min(100,baseDemand+drift+noise));
-  });
+  let trendData;
+  if(monthlyData&&monthlyData.length>0){
+    trendData=monthlyData.map(d=>d.valor);
+  } else {
+    const baseDemand=sD;
+    trendData=months.map((m,i)=>{
+      const noise=(Math.random()-0.5)*10;
+      const drift=trend==='subiendo'?(i*2.5):trend==='bajando'?(-i*2):0;
+      return Math.max(5,Math.min(100,baseDemand+drift+noise));
+    });
+  }
   const bandUpper=trendData.map(v=>Math.min(100,v+12));
   const bandLower=trendData.map(v=>Math.max(5,v-12));
   const trendsCtx=document.getElementById('trendsChart');
   if(window._trendsChart)window._trendsChart.destroy();
-  window._trendsChart=new Chart(trendsCtx,{type:'line',data:{labels:months,datasets:[
+  const trendLabels=monthlyData&&monthlyData.length>0?monthlyData.map(d=>d.mes):months;
+  window._trendsChart=new Chart(trendsCtx,{type:'line',data:{labels:trendLabels,datasets:[
     {data:bandUpper,borderColor:'rgba(201,168,76,0.08)',borderWidth:1,fill:'-1',backgroundColor:'rgba(201,168,76,0.05)',tension:0.4,pointRadius:0,order:2},
     {data:trendData,borderColor:'#C9A84C',borderWidth:2.5,backgroundColor:'rgba(201,168,76,0.12)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#C9A84C',pointHoverRadius:5,order:1},
     {data:bandLower,borderColor:'rgba(201,168,76,0.08)',borderWidth:1,fill:'-1',backgroundColor:'rgba(201,168,76,0.05)',tension:0.4,pointRadius:0,order:3}
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'rgba(0,0,0,0.85)',titleColor:'#C9A84C',bodyColor:'#e8e0d0',borderColor:'#C9A84C',borderWidth:1,callbacks:{title:ctx=>ctx[0].label+' 2025',label:ctx=>'Interés: '+ctx.parsed.y.toFixed(0)+'/100'}}},scales:{x:{ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}},y:{min:0,max:100,ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'rgba(0,0,0,0.85)',titleColor:'#C9A84C',bodyColor:'#e8e0d0',borderColor:'#C9A84C',borderWidth:1,callbacks:{title:ctx=>monthlyData&&monthlyData[ctx[0].dataIndex]?(monthlyData[ctx[0].dataIndex].mes+' 2025'):(ctx[0].label+' 2025'),label:ctx=>'Interés: '+ctx.parsed.y.toFixed(0)+'/100'}}},scales:{x:{ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}},y:{min:0,max:100,ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}}}}});
   const s2=mrData.step2||{};
   const pMin=s2.precioMinARS||0;
   const pProm=s2.precioPromedioARS||0;
