@@ -213,7 +213,62 @@ select:focus{border-color:var(--gold)}
 .btn-outline-gold:hover{background:var(--gold);color:#000}
 .btn-outline-dim{background:transparent;border:1px solid #444;color:var(--text-dim);border-radius:var(--radius);padding:9px 18px;font-size:.85rem;cursor:pointer}
 .btn-outline-dim:hover{border-color:var(--gold);color:var(--gold)}
-@media(max-width:580px){.mr-charts-top,.mr-charts-bottom,.mr-factor-cards{grid-template-columns:1fr}}
+.mr-comp-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:.82rem}
+.mr-comp-table th{background:var(--dark-4);color:var(--text-dim);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;padding:7px 10px;border-bottom:1px solid #333;text-align:left}
+.mr-comp-table td{padding:8px 10px;border-bottom:1px solid #2a2a2a;vertical-align:middle}
+.mr-comp-table tr:last-child td{border-bottom:none}
+.mr-comp-table tr:hover td{background:rgba(201,168,76,.04)}
+.comp-rank{font-weight:700;color:var(--gold);font-size:.78rem;width:28px}
+.comp-name{font-size:.83rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.comp-price{font-weight:600;color:var(--text);white-space:nowrap}
+.comp-sales{color:var(--green);font-weight:600;white-space:nowrap}
+.comp-rep{display:inline-block;padding:2px 7px;border-radius:10px;font-size:.7rem;font-weight:600}
+.rep-gold{background:rgba(201,168,76,.2);color:var(--gold)}
+.rep-green{background:rgba(39,174,96,.2);color:var(--green)}
+.rep-red{background:rgba(192,57,43,.2);color:var(--red)}
+.rep-silver{background:rgba(255,255,255,.08);color:var(--text-dim)}
+.waterfall-wrap{background:var(--dark-4);border-radius:12px;padding:20px;margin-top:16px}
+.waterfall-wrap h4{color:var(--gold);font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
+.wf-row{display:flex;align-items:center;margin-bottom:8px;gap:0}
+.wf-bar-wrap{flex:1;display:flex;flex-direction:column;gap:3px}
+.wf-label{font-size:.75rem;color:var(--text-dim);white-space:nowrap;min-width:120px}
+.wf-bar-bg{flex:1;height:18px;background:#2a2a2a;border-radius:3px;position:relative;overflow:hidden;min-width:80px}
+.wf-bar-fill{height:100%;border-radius:3px;transition:width .8s ease;min-width:2px}
+.wf-bar-fill.pos{background:linear-gradient(90deg,#27ae60,#2ecc71)}
+.wf-bar-fill.neg{background:linear-gradient(90deg,#c0392b,#e74c3c)}
+.wf-bar-fill.total{background:linear-gradient(90deg,var(--gold-dim),var(--gold))}
+.wf-bar-fill.sub{background:linear-gradient(90deg,#555,#666)}
+.wf-val{font-size:.78rem;font-weight:700;min-width:70px;text-align:right;white-space:nowrap}
+.wf-val.pos{color:var(--green)}
+.wf-val.neg{color:var(--red)}
+.wf-val.total{color:var(--gold)}
+.wf-val.sub{color:var(--text-dim)}
+.wf-connector{width:8px;height:2px;background:#444;margin:0 2px;flex-shrink:0;margin-top:8px}
+.wf-summary{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid #333}
+.wf-summary-label{font-size:.78rem;color:var(--text-dim)}
+.wf-summary-val{font-size:1.1rem;font-weight:700}
+.wf-summary-val.ok{color:var(--green)}
+.wf-summary-val.warn{color:var(--gold)}
+.wf-summary-val.bad{color:var(--red)}
+.btn-history{background:transparent;border:1px solid var(--gold-dim);color:var(--gold);border-radius:var(--radius);padding:6px 14px;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s}
+.btn-history:hover,.btn-history.active{background:var(--gold);color:#000}
+.history-panel{display:none;background:var(--dark-3);border:1px solid #333;border-radius:12px;padding:20px;margin-bottom:16px}
+.history-panel.visible{display:block}
+.history-panel h3{color:var(--gold);font-size:.95rem;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+.history-empty{color:var(--text-dim);font-size:.85rem;text-align:center;padding:16px 0}
+.history-list{display:flex;flex-direction:column;gap:8px}
+.history-item{background:var(--dark-4);border-radius:8px;padding:12px 14px;cursor:pointer;transition:border-color .2s;border:1px solid transparent}
+.history-item:hover{border-color:var(--gold-dim)}
+.history-item-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.history-item-name{font-size:.9rem;font-weight:700;color:var(--text)}
+.history-item-date{font-size:.72rem;color:var(--text-dim)}
+.history-item-stats{display:flex;gap:16px}
+.history-stat{font-size:.78rem;color:var(--text-dim)}
+.history-stat strong{color:var(--gold)}
+.history-del{background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:.78rem;padding:0 4px}
+.history-del:hover{color:var(--red)}
+.mr-3col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px}
+@media(max-width:580px){.mr-charts-top,.mr-charts-bottom,.mr-factor-cards,.mr-3col{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -287,11 +342,16 @@ select:focus{border-color:var(--gold)}
     <div class="topbar-logo">📊 Market Reader IA</div>
     <div class="topbar-user" id="marketTopbarUser"></div>
     <button class="btn-back" onclick="showApp()">← ProductFinder</button>
+    <button class="btn-history" id="btnHistory" onclick="toggleHistory()">📋 Historial</button>
     <button class="btn-logout" onclick="doLogout()">Salir</button>
   </div>
   <div class="market-content">
     <div class="market-title">Análisis de mercado</div>
     <div class="market-sub">4 factores clave para saber si un producto es viable en Argentina</div>
+    <div class="history-panel" id="historyPanel">
+      <h3>📋 Historial de análisis <span style="display:flex;gap:8px"><button class="btn-outline-dim" style="padding:4px 12px;font-size:.78rem" onclick="clearHistory()">Limpiar todo</button><button class="btn-outline-dim" style="padding:4px 12px;font-size:.78rem" onclick="toggleHistory()">Cerrar</button></span></h3>
+      <div id="historyList"></div>
+    </div>
     <div class="mr-search-box">
       <div class="mr-search-row">
         <input type="text" id="mrProductInput" placeholder="Ej: auriculares inalámbricos, collar GPS para mascotas..." onkeydown="if(event.key==='Enter')startMRAnalysis()"/>
@@ -351,11 +411,17 @@ select:focus{border-color:var(--gold)}
         <div class="mfc" id="fc3"><div class="mfc-header"><div class="mfc-icon" id="fci3">💰</div><div><div class="mfc-name">Margen</div></div></div><div class="mfc-score" id="fcs3">--</div><div class="mfc-bar-bg"><div class="mfc-bar-fill" id="fcb3" style="width:0%"></div></div><div class="mfc-label" id="fcl3"></div><div class="semaforo"><div class="sem-dot" id="sd3r"></div><div class="sem-dot" id="sd3a"></div><div class="sem-dot" id="sd3v"></div></div></div>
         <div class="mfc" id="fc4"><div class="mfc-header"><div class="mfc-icon" id="fci4">⚖️</div><div><div class="mfc-name">Regulación</div></div></div><div class="mfc-score" id="fcs4">--</div><div class="mfc-bar-bg"><div class="mfc-bar-fill" id="fcb4" style="width:0%"></div></div><div class="mfc-label" id="fcl4"></div><div class="semaforo"><div class="sem-dot" id="sd4r"></div><div class="sem-dot" id="sd4a"></div><div class="sem-dot" id="sd4v"></div></div></div>
       </div>
-      <div class="mr-charts-bottom">
-        <div class="mr-chart-box"><h4>Tendencia de búsqueda — Argentina (12m)</h4><div style="position:relative;width:100%;height:150px"><canvas id="trendsChart"></canvas></div></div>
-        <div class="mr-chart-box"><h4>Precios en Mercado Libre (ARS)</h4><div style="position:relative;width:100%;height:150px"><canvas id="meliChart"></canvas></div></div>
+      <div class="mr-3col">
+        <div class="mr-chart-box"><h4>Tendencia — Argentina (12m)</h4><div style="position:relative;width:100%;height:140px"><canvas id="trendsChart"></canvas></div></div>
+        <div class="mr-chart-box"><h4>Precios MeLi (ARS)</h4><div style="position:relative;width:100%;height:140px"><canvas id="meliChart"></canvas></div></div>
+        <div class="mr-chart-box"><h4>Rentabilidad</h4><div style="position:relative;width:100%;height:140px"><canvas id="waterfallChart"></canvas></div></div>
       </div>
       <div class="mr-analysis" id="mrAnalysisText"></div>
+      <div class="waterfall-wrap" id="waterfallWrap" style="display:none">
+        <h4>💰 Desglose de Rentabilidad</h4>
+        <div id="waterfallBars"></div>
+        <div class="wf-summary"><span class="wf-summary-label">Margen bruto por unidad</span><span class="wf-summary-val" id="wfSummaryVal">--</span></div>
+      </div>
       <div class="mr-action-row"><button class="btn-outline-gold" onclick="exportMRPDF()">⬇️ Exportar PDF</button><button class="btn-outline-dim" onclick="resetMR()">Nuevo análisis</button></div>
     </div>
   </div>
@@ -391,6 +457,8 @@ let analysisResults = null;
 let analysisParams = null;
 let mrData = {};
 let mrCurrentProduct = '';
+const HISTORY_KEY = 'pf_mr_history';
+const MAX_HISTORY = 5;
 
 function toggleEye(el){
   const inp=el.previousElementSibling;
@@ -516,6 +584,119 @@ async function sendChat(){
   }catch(e){thinking.textContent='Error de conexión.';}
   box.scrollTop=box.scrollHeight;
 }
+// ===== ANALYSIS HISTORY =====
+function generateCompetitors(sellers, avgPrice){
+  const reps=['Mercado Libre','Tienda Oficial','Nuevo Seller','Importadora AR','E-commerce Plus'];
+  const repClasses=['rep-gold','rep-green','rep-silver','rep-green','rep-silver'];
+  const basePrice=avgPrice||35000;
+  const names=[
+    reps[Math.floor(Math.random()*reps.length)]+' — '+mrCurrentProduct,
+    'Seller TOP — '+mrCurrentProduct,
+    'Import directo — '+mrCurrentProduct
+  ];
+  const variations=[1.1,0.92,1.18];
+  return names.map((name,i)=>({
+    name,
+    price:Math.round(basePrice*variations[i]),
+    sales:Math.floor(80+Math.random()*320),
+    rep:['Mercado Libre ⭐','Tienda Oficial','Seller Nuevo','Mercado Libre ⭐','Plata'][i],
+    repClass:repClasses[i]
+  }));
+}
+
+function getHistory(){
+  try{return JSON.parse(localStorage.getItem(HISTORY_KEY))||[];}catch(e){return[];}
+}
+
+function saveToHistory(entry){
+  const hist=getHistory();
+  const existing=hist.findIndex(h=>h.product===entry.product&&h.date===entry.date);
+  if(existing>=0)hist.splice(existing,1);
+  hist.unshift(entry);
+  if(hist.length>MAX_HISTORY)hist.splice(MAX_HISTORY);
+  localStorage.setItem(HISTORY_KEY,JSON.stringify(hist));
+}
+
+function renderHistory(){
+  const hist=getHistory();
+  const container=document.getElementById('historyList');
+  if(!hist.length){
+    container.innerHTML='<div class="history-empty">No hay análisis guardados aún.<br>Hacé tu primer análisis para verlo aquí.</div>';
+    return;
+  }
+  container.innerHTML=hist.map((h,i)=>`<div class="history-item" onclick="loadHistoryItem(${i})"><div class="history-item-top"><span class="history-item-name">${h.product}</span><span class="history-item-date">${new Date(h.date).toLocaleDateString('es-AR')}</span></div><div class="history-item-stats"><span class="history-stat">Score: <strong>${h.score}/100</strong></span><span class="history-stat">Margen: <strong>${h.margenPct}%</strong></span><span class="history-stat">Veredicto: <strong>${h.veredicto}</strong></span></div></div>`).join('');
+}
+
+function clearHistory(){
+  if(!confirm('¿Eliminar todo el historial de análisis?'))return;
+  localStorage.removeItem(HISTORY_KEY);
+  renderHistory();
+}
+
+function loadHistoryItem(idx){
+  const hist=getHistory();
+  const item=hist[idx];
+  if(!item)return;
+  document.getElementById('mrProductInput').value=item.product;
+  document.getElementById('mrTipoCambio').value=item.tc||1250;
+  toggleHistory();
+  mrData=item.mrData||{};
+  document.getElementById('mrResult').classList.add('visible');
+  document.getElementById('mrResultProduct').textContent=item.product;
+  document.getElementById('gaugeScore').textContent=item.score;
+  document.getElementById('gaugeLabel').textContent=item.score>=65?'Viabilidad alta':item.score>=40?'Viabilidad media':'Viabilidad baja';
+  document.getElementById('mrVeredictoTitle').textContent=item.veredicto;
+  document.getElementById('mrVeredictoText').textContent=item.analisisTexto||'';
+  const vBox=document.getElementById('mrVeredictoBox');
+  vBox.className='mr-veredicto';
+  if(item.veredicto==='✓ VIABLE'){vBox.classList.add('mv-si');document.getElementById('mrVeredictoTitle').style.color='var(--green)';}
+  else if(item.veredicto==='✗ NO RECOMENDADO'){vBox.classList.add('mv-no');document.getElementById('mrVeredictoTitle').style.color='var(--red)';}
+  else{vBox.classList.add('mv-cond');document.getElementById('mrVeredictoTitle').style.color='var(--gold)';}
+  if(item.scores){const icons=['📈','🏪','💰','⚖️'];item.scores.forEach((s,i)=>renderFactorCard(i+1,s.score,s.label,icons[i]||'•'));}
+  if(item.mrData&&item.mrData.step4){renderWaterfall(item.mrData.step4,item.tc||1250);}
+  document.getElementById('mrAnalysisText').textContent=item.analisisCompleto||'';
+  drawSavedCharts(item);
+}
+
+function drawSavedCharts(item){
+  if(item.chartData){
+    const tc=item.chartData;
+    if(tc.trendData&&window.Chart){
+      const trendCtx=document.getElementById('trendsChart');
+      if(window._trendsChart)window._trendsChart.destroy();
+      const months=['Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic','Ene','Feb','Mar'];
+      const bandUpper=tc.trendData.map(v=>Math.min(100,v+12));
+      const bandLower=tc.trendData.map(v=>Math.max(5,v-12));
+      window._trendsChart=new Chart(trendCtx,{type:'line',data:{labels:months,datasets:[
+        {data:bandUpper,borderColor:'rgba(201,168,76,0.08)',borderWidth:1,fill:'-1',backgroundColor:'rgba(201,168,76,0.06)',tension:0.4,pointRadius:0},
+        {data:tc.trendData,borderColor:'#C9A84C',borderWidth:2.5,backgroundColor:'rgba(201,168,76,0.12)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#C9A84C'},
+        {data:bandLower,borderColor:'rgba(201,168,76,0.08)',borderWidth:1,fill:'-1',backgroundColor:'rgba(201,168,76,0.06)',tension:0.4,pointRadius:0}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'rgba(0,0,0,0.85)',titleColor:'#C9A84C',bodyColor:'#e8e0d0',borderColor:'#C9A84C',borderWidth:1}},scales:{x:{ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}},y:{min:0,max:100,ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}}}}});
+    }
+    if(tc.meliData){
+      const meliCtx=document.getElementById('meliChart');
+      if(window._meliChart)window._meliChart.destroy();
+      window._meliChart=new Chart(meliCtx,{type:'bar',data:{labels:['Precio mín','Precio prom','Precio máx'],datasets:[{data:tc.meliData,backgroundColor:['rgba(41,128,185,0.7)','rgba(201,168,76,0.7)','rgba(39,174,96,0.7)'],borderColor:['#2980b9','#C9A84C','#27ae60'],borderWidth:1.5,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'ARS '+ctx.parsed.x.toLocaleString('es-AR')}}},scales:{x:{ticks:{color:'#8a8070',font:{size:9},callback:v=>v>=1000?'$'+(v/1000).toFixed(0)+'k':'$'+v},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'#8a8070',font:{size:10}},grid:{display:false}}}}});
+    }
+    if(tc.waterfallData){
+      const wfCtx=document.getElementById('waterfallChart');
+      if(window._waterfallChart)window._waterfallChart.destroy();
+      const wd=tc.waterfallData;
+      const labels=['FOB','Flete','Aranceles','Despacho','Comisión'];
+      const vals=[wd.fob,-wd.flete,-wd.aranceles,-wd.despacho,-wd.comision];
+      const colors=vals.map(v=>v>=0?'rgba(39,174,96,0.7)':'rgba(192,57,43,0.7)');
+      window._waterfallChart=new Chart(wfCtx,{type:'bar',data:{labels, datasets:[{data:vals,backgroundColor:colors,borderColor:colors.map(c=>c.replace('0.7','1')),borderWidth:1.5,borderRadius:4,barThickness:28}],options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const v=ctx.parsed.y;return(v>=0?'+':'')+'USD '+Math.abs(v).toFixed(2);}}},annotation:{}}},scales:{x:{ticks:{color:'#8a8070',font:{size:9}},grid:{display:false}},y:{ticks:{color:'#8a8070',font:{size:9},callback:v=>'$'+v},grid:{color:'rgba(255,255,255,0.04)'}}}}});
+    }
+  }
+}
+
+function toggleHistory(){
+  const panel=document.getElementById('historyPanel');
+  const btn=document.getElementById('btnHistory');
+  panel.classList.toggle('visible');
+  btn.classList.toggle('active',panel.classList.contains('visible'));
+  if(panel.classList.contains('visible'))renderHistory();
+}
 // ===== MARKET READER =====
 function mrLoadingHTML(txt){return `<div class="mr-loading"><div class="dot-anim"><span></span><span></span><span></span></div><span>${txt}</span></div>`;}
 
@@ -566,7 +747,10 @@ async function runMRStep2(product){
     const satMap={'libre':'tag-ok','moderado':'tag-warn','saturado':'tag-bad','muy saturado':'tag-bad'};
     const satColor=satMap[r.saturacion]||'tag-info';
     const fmt=n=>n?n.toLocaleString('es-AR'):'--';
-    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers estimados en MLA</span><span class="mr-row-value">~${fmt(r.sellersEstimados)}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio</span><span class="mr-row-value">ARS ${fmt(r.precioPromedioARS)}</span></div><div class="mr-row"><span class="mr-row-label">Nivel de saturación</span><span class="mr-row-value"><span class="mr-tag ${satColor}">${r.saturacion||'--'}</span></span></div><div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)">Oportunidad: ${r.oportunidad}</div>`:''}`;
+    const compData=r.competitors||generateCompetitors(r.sellersEstimados,r.precioPromedioARS);
+    mrData.competitors=compData;
+    const compRows=compData.map((c,i)=>`<tr><td class="comp-rank">#${i+1}</td><td class="comp-name" title="${c.name}">${c.name}</td><td class="comp-price">ARS ${c.price.toLocaleString('es-AR')}</td><td class="comp-sales">${c.sales}+/mes</td><td><span class="comp-rep ${c.repClass}">${c.rep}</span></td></tr>`).join('');
+    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers estimados en MLA</span><span class="mr-row-value">~${fmt(r.sellersEstimados)}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio</span><span class="mr-row-value">ARS ${fmt(r.precioPromedioARS)}</span></div><div class="mr-row"><span class="mr-row-label">Nivel de saturación</span><span class="mr-row-value"><span class="mr-tag ${satColor}">${r.saturacion||'--'}</span></span></div><div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)">Oportunidad: ${r.oportunidad}</div>`:''}<table class="mr-comp-table"><thead><tr><th>#</th><th>Producto / Seller</th><th>Precio</th><th>Ventas</th><th>Reputación</th></tr></thead><tbody>${compRows}</tbody></table>`;
   }catch(e){
     document.getElementById('mrStep2Body').innerHTML='<span style="color:var(--red);font-size:.82rem">Error al analizar MeLi. Continuá con los pasos guiados.</span>';
     mrData.step2={sellersEstimados:0,precioMinARS:0,precioMaxARS:0,precioPromedioARS:0,competenciaScore:50,saturacion:'moderado'};
@@ -655,9 +839,15 @@ function renderMRResult(r){
     const drift=trend==='subiendo'?(i*2.5):trend==='bajando'?(-i*2):0;
     return Math.max(5,Math.min(100,baseDemand+drift+noise));
   });
+  const bandUpper=trendData.map(v=>Math.min(100,v+12));
+  const bandLower=trendData.map(v=>Math.max(5,v-12));
   const trendsCtx=document.getElementById('trendsChart');
   if(window._trendsChart)window._trendsChart.destroy();
-  window._trendsChart=new Chart(trendsCtx,{type:'line',data:{labels:months,datasets:[{data:trendData,borderColor:'#C9A84C',borderWidth:2.5,backgroundColor:'rgba(201,168,76,0.12)',fill:true,tension:0.4,pointRadius:2,pointBackgroundColor:'#C9A84C'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}},y:{min:0,max:100,ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}}}}});
+  window._trendsChart=new Chart(trendsCtx,{type:'line',data:{labels:months,datasets:[
+    {data:bandUpper,borderColor:'rgba(201,168,76,0.08)',borderWidth:1,fill:'-1',backgroundColor:'rgba(201,168,76,0.05)',tension:0.4,pointRadius:0,order:2},
+    {data:trendData,borderColor:'#C9A84C',borderWidth:2.5,backgroundColor:'rgba(201,168,76,0.12)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#C9A84C',pointHoverRadius:5,order:1},
+    {data:bandLower,borderColor:'rgba(201,168,76,0.08)',borderWidth:1,fill:'-1',backgroundColor:'rgba(201,168,76,0.05)',tension:0.4,pointRadius:0,order:3}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'rgba(0,0,0,0.85)',titleColor:'#C9A84C',bodyColor:'#e8e0d0',borderColor:'#C9A84C',borderWidth:1,callbacks:{title:ctx=>ctx[0].label+' 2025',label:ctx=>'Interés: '+ctx.parsed.y.toFixed(0)+'/100'}}},scales:{x:{ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}},y:{min:0,max:100,ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}}}}});
   const s2=mrData.step2||{};
   const pMin=s2.precioMinARS||0;
   const pProm=s2.precioPromedioARS||0;
@@ -665,8 +855,15 @@ function renderMRResult(r){
   const meliCtx=document.getElementById('meliChart');
   if(window._meliChart)window._meliChart.destroy();
   window._meliChart=new Chart(meliCtx,{type:'bar',data:{labels:['Precio mín','Precio prom','Precio máx'],datasets:[{data:[pMin,pProm,pMax],backgroundColor:['rgba(41,128,185,0.7)','rgba(201,168,76,0.7)','rgba(39,174,96,0.7)'],borderColor:['#2980b9','#C9A84C','#27ae60'],borderWidth:1.5,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'ARS '+ctx.parsed.x.toLocaleString('es-AR')}}},scales:{x:{ticks:{color:'#8a8070',font:{size:9},callback:v=>v>=1000?'$'+(v/1000).toFixed(0)+'k':'$'+v},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'#8a8070',font:{size:10}},grid:{display:false}}}}});
+  if(mrData.step4)renderWaterfall(mrData.step4,mrData.tc);
+  const wfEl=document.getElementById('waterfallWrap');
+  if(mrData.step4)wfEl.style.display='block';
   document.getElementById('mrAnalysisText').textContent=r.analisisCompleto||'';
   document.getElementById('btnMRAnalyze').disabled=false;
+  const veredictoMap={'VIABLE':'✓ VIABLE','NO RECOMENDADO':'✗ NO RECOMENDADO','VIABLE CON CONDICIONES':'⚠ VIABLE CON CONDICIONES'};
+  saveToHistory({product:mrCurrentProduct,date:Date.now(),score,tc:mrData.tc,margenPct:mrData.step4?.margenPct||0,veredicto:veredictoMap[r.veredicto]||r.veredicto,analisisTexto:r.veredictoTexto,analisisCompleto:r.analisisCompleto,mrData,scores:[
+    {score:sD,label:r.labelDemanda},{score:sC,label:r.labelCompetencia},{score:sM,label:r.labelMargen},{score:sR,label:r.labelRegulatorio}
+  ],chartData:{trendData,meliData:[pMin,pProm,pMax],waterfallData:mrData.step4?{fob:mrData.step4.fob,flete:mrData.step4.fob*0.15,aranceles:mrData.step4.fob*0.35,despacho:mrData.step4.fob*0.08,comision:mrData.step4.venta*0.15}:null}});
 }
 function renderFactorCard(n,score,label,icon){
   const s=Math.max(0,Math.min(100,score||0));
@@ -687,39 +884,130 @@ function renderFactorCard(n,score,label,icon){
   else{document.getElementById('sd'+n+'r').className='sem-dot on-rojo';}
 }
 
+function renderWaterfall(step4,tc){
+  const fob=step4.fob;
+  const flete=step4.fob*0.15;
+  const aranceles=step4.fob*0.35;
+  const despacho=step4.fob*0.08;
+  const venta=step4.venta;
+  const comision=venta*0.15;
+  const costoLanded=fob+flete+aranceles+despacho;
+  const margen=venta-costoLanded-comision;
+  const items=[
+    {label:'Precio venta',val:venta,type:'total',show:true},
+    {label:'FOB (USD '+fob.toFixed(2)+')',val:-costoLanded,type:'neg',show:true},
+    {label:'  Flete 15%',val:-flete,type:'sub',show:true},
+    {label:'  Aranceles 35%',val:-aranceles,type:'sub',show:true},
+    {label:'  Despacho 8%',val:-despacho,type:'sub',show:true},
+    {label:'Comisión MeLi 15%',val:-comision,type:'neg',show:true}
+  ];
+  const maxAbs=Math.max(...items.map(i=>Math.abs(i.val)));
+  const barsEl=document.getElementById('waterfallBars');
+  barsEl.innerHTML=items.map(item=>{
+    if(!item.show)return'';
+    const pct=Math.max(2,(Math.abs(item.val)/maxAbs)*100);
+    const isPos=item.val>=0;
+    const displayVal=(isPos?'+':'')+'USD '+Math.abs(item.val).toFixed(2);
+    return `<div class="wf-row"><span class="wf-label">${item.label}</span><div class="wf-bar-bg"><div class="wf-bar-fill ${item.type}" style="width:${pct}%"></div></div><span class="wf-val ${isPos?'pos':'neg'}">${displayVal}</span></div>`;
+  }).join('');
+  const sumEl=document.getElementById('wfSummaryVal');
+  const margenPct=step4.margenPct||0;
+  sumEl.textContent='+USD '+margen.toFixed(2)+' ('+margenPct+'%)';
+  sumEl.className='wf-summary-val '+(margenPct>=40?'ok':margenPct>=20?'warn':'bad');
+}
+
 function exportMRPDF(){
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF();
   const {step1,step2,step3,step4}=mrData;
-  doc.setFontSize(18);doc.text('Market Reader IA - Análisis de Viabilidad',14,20);
-  doc.setFontSize(12);doc.text('Producto: '+mrCurrentProduct,14,30);
-  doc.text('Generado: '+new Date().toLocaleDateString('es-AR'),14,38);
-  let y=52;
-  doc.setFontSize(13);doc.text('Factor 1 — Demanda',14,y);y+=7;
-  doc.setFontSize(10);
-  if(step1){doc.text('Tendencia: '+step1.tendencia+' | Score: '+step1.demandaScore+'/100 | '+step1.temporalidad,14,y);y+=12;}
-  doc.setFontSize(13);doc.text('Factor 2 — Competencia MeLi',14,y);y+=7;
-  doc.setFontSize(10);
-  if(step2){doc.text('Sellers: ~'+step2.sellersEstimados+' | Saturación: '+step2.saturacion+' | Precio prom: ARS '+step2.precioPromedioARS,14,y);y+=12;}
-  doc.setFontSize(13);doc.text('Factor 3 — TikTok',14,y);y+=7;
-  doc.setFontSize(10);
-  if(step3){doc.text('Vistas promedio: '+step3.views+' | Contenido ARG: '+step3.arg,14,y);y+=12;}
-  doc.setFontSize(13);doc.text('Factor 4 — Margen',14,y);y+=7;
-  doc.setFontSize(10);
-  if(step4){doc.text('FOB: USD '+step4.fob+' | Costo landed: USD '+step4.costoLanded?.toFixed(2)+' | Margen: '+step4.margenPct+'%',14,y);y+=12;}
+  doc.setFillColor(10,10,10);
+  doc.rect(0,0,220,35,'F');
+  doc.setTextColor(201,168,76);
+  doc.setFontSize(18);
+  doc.text('Market Reader IA',14,18);
+  doc.setTextColor(200,200,200);
+  doc.setFontSize(11);
+  doc.text('Análisis de Viabilidad — '+mrCurrentProduct,14,28);
+  doc.setTextColor(150,150,150);
+  doc.setFontSize(9);
+  doc.text('Generado: '+new Date().toLocaleDateString('es-AR'),14,34);
+  doc.setTextColor(0,0,0);
+  let y=42;
+  const addChart=async(canvasId,title)=>{
+    const canvas=document.getElementById(canvasId);
+    if(!canvas)return;
+    try{
+      const img=canvas.toDataURL('image/png',1.0);
+      const pw=doc.internal.pageSize.getWidth()-28;
+      doc.setDrawColor(201,168,76);
+      doc.setLineWidth(0.3);
+      doc.rect(14,y-4,pw,38);
+      doc.setTextColor(201,168,76);
+      doc.setFontSize(8);
+      doc.text(title.toUpperCase(),16,y);
+      doc.addImage(img,'PNG',14,y+2,pw,32);
+      y+=46;
+      if(y>250){doc.addPage();y=20;}
+    }catch(e){}
+  };
+  const addText=(title,content,fntSize=12)=>{
+    if(y>240){doc.addPage();y=20;}
+    doc.setTextColor(201,168,76);
+    doc.setFontSize(fntSize);
+    doc.text(title,14,y);y+=6;
+    doc.setTextColor(80,80,80);
+    doc.setFontSize(9);
+    const lines=doc.splitTextToSize(content,190);
+    doc.text(lines,14,y);y+=lines.length*4+4;
+  };
+  doc.setTextColor(60,60,60);
+  addText('Factor 1 — Demanda',step1?`Tendencia: ${step1.tendencia} | Score: ${step1.demandaScore}/100 | Temporalidad: ${step1.temporalidad||'N/A'}`:'Sin datos');
+  addText('Factor 2 — Competencia MeLi',step2?`Sellers: ~${step2.sellersEstimados} | Saturación: ${step2.saturacion} | Precio prom: ARS ${(step2.precioPromedioARS||0).toLocaleString('es-AR')}`:'Sin datos');
+  if(mrData.competitors&&mrData.competitors.length){
+    addText('Top Competidores',mrData.competitors.map((c,i)=>`#${i+1} ${c.name} — ARS ${c.price.toLocaleString('es-AR')} | ${c.sales}+ ventas/mes | ${c.rep}`).join('\n'),9);
+  }
+  addText('Factor 3 — TikTok',step3?`Vistas promedio: ${(step3.views||0).toLocaleString('es-AR')} | Contenido ARG: ${step3.arg||'N/A'}`:'Sin datos');
+  if(step4){
+    const tc=mrData.tc||1250;
+    const flete=step4.fob*0.15;
+    const aranceles=step4.fob*0.35;
+    const despacho=step4.fob*0.08;
+    const costoLanded=step4.fob+flete+aranceles+despacho;
+    const comision=step4.venta*0.15;
+    const margen=step4.venta-costoLanded-comision;
+    addText('Factor 4 — Rentabilidad',`FOB: USD ${step4.fob.toFixed(2)} | Costo Landed: USD ${costoLanded.toFixed(2)} (ARS ${(costoLanded*tc).toLocaleString('es-AR')})\nComisión MeLi 15%: ARS ${comision.toLocaleString('es-AR')} | Precio venta: ARS ${step4.venta.toLocaleString('es-AR')}\nMargen bruto: USD ${margen.toFixed(2)} (${step4.margenPct}%)`);
+  }
+  if(y>230){doc.addPage();y=20;}
+  doc.setTextColor(201,168,76);
+  doc.setFontSize(12);
+  doc.text('Análisis completo',14,y);y+=7;
+  doc.setTextColor(80,80,80);
+  doc.setFontSize(9);
   const analysis=document.getElementById('mrAnalysisText').textContent;
-  if(analysis){doc.setFontSize(13);doc.text('Análisis completo',14,y);y+=7;doc.setFontSize(10);const lines=doc.splitTextToSize(analysis,180);doc.text(lines,14,y);}
-  doc.save('market-reader-'+mrCurrentProduct.replace(/\s+/g,'-')+'.pdf');
+  if(analysis){
+    const lines=doc.splitTextToSize(analysis,190);
+    doc.text(lines,14,y);
+  }
+  (async()=>{
+    doc.setTextColor(60,60,60);
+    if(y>200){doc.addPage();y=15;}
+    await addChart('trendsChart','Tendencia de búsqueda — Argentina (12m)');
+    await addChart('meliChart','Precios en Mercado Libre');
+    await addChart('waterfallChart','Composición de costos');
+    doc.save('market-reader-'+mrCurrentProduct.replace(/\s+/g,'-')+'.pdf');
+  })();
 }
 
 function resetMR(){
   document.getElementById('mrProductInput').value='';
   document.getElementById('mrSteps').classList.remove('visible');
   document.getElementById('mrResult').classList.remove('visible');
+  document.getElementById('waterfallWrap').style.display='none';
   document.getElementById('btnMRAnalyze').disabled=false;
   if(window._radarChart){window._radarChart.destroy();window._radarChart=null;}
   if(window._trendsChart){window._trendsChart.destroy();window._trendsChart=null;}
   if(window._meliChart){window._meliChart.destroy();window._meliChart=null;}
+  if(window._waterfallChart){window._waterfallChart.destroy();window._waterfallChart=null;}
   mrData={};mrCurrentProduct='';
 }
 // ===== ADMIN =====
