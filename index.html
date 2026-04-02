@@ -543,20 +543,12 @@ function resetMRGuidedStep(n){
 }
 async function runMRStep1(product){
   try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',max_tokens:800,
-        system:'Sos un experto en mercado argentino. Respondé SOLO con JSON válido sin markdown ni texto extra. Claves exactas: {"tendencia":"subiendo|estable|bajando","descripcion":"string max 90 chars","demandaScore":number 0-100,"temporalidad":"todo el año|estacional|nicho","tags":["tag1","tag2","tag3"],"nivelDemanda":"bajo|medio|alto|muy alto"}',
-        messages:[{role:'user',content:`Analizá la demanda real del mercado argentino 2026 para: "${product}". Considerá popularidad, búsquedas, tendencias en redes y comportamiento del consumidor argentino. JSON:`}]
-      })
-    });
-    const d=await res.json();
-    const r=JSON.parse(d.content?.[0]?.text?.replace(/```json|```/g,'')||'{}'  );
+    const res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'demanda',product})});
+    const r=await res.json();
+    if(!res.ok) throw new Error(r.error||'Error en step demanda');
     mrData.step1=r;
     const tendColor=r.tendencia==='subiendo'?'tag-ok':r.tendencia==='bajando'?'tag-bad':'tag-warn';
-    const tendIcon=r.tendencia==='subiendo'?'↑':r.tendencia==='bajando'?'↓':'→';
+    const tendIcon=r.tendencia==='subiendo'?'\u2191':r.tendencia==='bajando'?'\u2193':'\u2192';
     const tags=(r.tags||[]).map(t=>`<span class="mr-tag tag-info">${t}</span>`).join('');
     document.getElementById('mrStep1Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Tendencia en Argentina</span><span class="mr-row-value"><span class="mr-tag ${tendColor}">${tendIcon} ${r.tendencia}</span></span></div><div class="mr-row"><span class="mr-row-label">Nivel de demanda</span><span class="mr-row-value">${r.nivelDemanda||'--'}</span></div><div class="mr-row"><span class="mr-row-label">Temporalidad</span><span class="mr-row-value">${r.temporalidad||'--'}</span></div><div class="mr-row"><span class="mr-row-label">Score de demanda</span><span class="mr-row-value">${r.demandaScore||'--'}/100</span></div><div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.descripcion||''}</div><div style="margin-top:8px">${tags}</div>`;
   }catch(e){
@@ -564,29 +556,23 @@ async function runMRStep1(product){
     mrData.step1={tendencia:'estable',demandaScore:50,temporalidad:'todo el año',tags:[],nivelDemanda:'medio'};
   }
 }
+
 async function runMRStep2(product){
   try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',max_tokens:800,
-        system:'Sos un experto en Mercado Libre Argentina (MLA). Respondé SOLO con JSON válido sin markdown ni texto extra. Claves exactas: {"sellersEstimados":number,"precioMinARS":number,"precioMaxARS":number,"precioPromedioARS":number,"competenciaScore":number 0-100,"descripcion":"string max 100 chars","oportunidad":"string max 80 chars","saturacion":"libre|moderado|saturado|muy saturado"}',
-        messages:[{role:'user',content:`Estimá el nivel de competencia y precios actuales en Mercado Libre Argentina (MLA) para: "${product}". Usá tu conocimiento del mercado MLA 2025-2026. JSON:`}]
-      })
-    });
-    const d=await res.json();
-    const r=JSON.parse(d.content?.[0]?.text?.replace(/```json|```/g,'')||'{}'  );
+    const res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'competencia',product})});
+    const r=await res.json();
+    if(!res.ok) throw new Error(r.error||'Error en step competencia');
     mrData.step2=r;
     const satMap={'libre':'tag-ok','moderado':'tag-warn','saturado':'tag-bad','muy saturado':'tag-bad'};
     const satColor=satMap[r.saturacion]||'tag-info';
     const fmt=n=>n?n.toLocaleString('es-AR'):'--';
-    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers estimados en MLA</span><span class="mr-row-value">~${fmt(r.sellersEstimados)}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} – ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio</span><span class="mr-row-value">ARS ${fmt(r.precioPromedioARS)}</span></div><div class="mr-row"><span class="mr-row-label">Nivel de saturación</span><span class="mr-row-value"><span class="mr-tag ${satColor}">${r.saturacion||'--'}</span></span></div><div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)">Oportunidad: ${r.oportunidad}</div>`:''}`;
+    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers estimados en MLA</span><span class="mr-row-value">~${fmt(r.sellersEstimados)}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio</span><span class="mr-row-value">ARS ${fmt(r.precioPromedioARS)}</span></div><div class="mr-row"><span class="mr-row-label">Nivel de saturación</span><span class="mr-row-value"><span class="mr-tag ${satColor}">${r.saturacion||'--'}</span></span></div><div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)">Oportunidad: ${r.oportunidad}</div>`:''}`;
   }catch(e){
     document.getElementById('mrStep2Body').innerHTML='<span style="color:var(--red);font-size:.82rem">Error al analizar MeLi. Continuá con los pasos guiados.</span>';
     mrData.step2={sellersEstimados:0,precioMinARS:0,precioMaxARS:0,precioPromedioARS:0,competenciaScore:50,saturacion:'moderado'};
   }
 }
+
 function confirmMRStep3(){
   const views=parseFloat(document.getElementById('mrTiktokViews').value)||0;
   const arg=document.getElementById('mrTiktokArg').value;
@@ -621,28 +607,17 @@ async function runMRFinalAnalysis(){
   document.getElementById('mrResultProduct').textContent=mrCurrentProduct;
   const {step1,step2,step3,step4}=mrData;
   try{
-    const prompt=`Sos un analista experto en importaciones China-Argentina. Hacé un análisis completo de viabilidad para: "${mrCurrentProduct}".
-Datos recopilados:
-- DEMANDA: tendencia=${step1?.tendencia}, demandaScore=${step1?.demandaScore}/100, temporalidad=${step1?.temporalidad}, nivelDemanda=${step1?.nivelDemanda}
-- COMPETENCIA MELI: sellers≈${step2?.sellersEstimados}, saturacion=${step2?.saturacion}, competenciaScore=${step2?.competenciaScore}/100, precio promedio ARS ${step2?.precioPromedioARS}
-- TIKTOK: vistas promedio top3=${step3?.views||'no informado'}, contenido Argentina=${step3?.arg||'no informado'}
-- MARGEN: FOB USD ${step4?.fob}, costo landed USD ${step4?.costoLanded?.toFixed(2)}, precio venta ARS ${step4?.venta}, margen bruto ${step4?.margenPct}%, ventas/mes top sellers MeLi=${step4?.ventas||'no informado'}
-- Canal: ${mrData.canal}, Capital disponible: USD ${mrData.capital}
-Respondé SOLO con JSON válido sin markdown:
-{"scoreTotal":number 0-100,"scoresDemanda":number 0-100,"scoresCompetencia":number 0-100,"scoresMargen":number 0-100,"scoresRegulatorio":number 0-100,"labelDemanda":"string corto","labelCompetencia":"string corto","labelMargen":"string corto","labelRegulatorio":"string corto","veredicto":"VIABLE|VIABLE CON CONDICIONES|NO RECOMENDADO","veredictoTexto":"2-3 oraciones directas en español rioplatense","analisisCompleto":"análisis detallado de los 4 factores, riesgos principales y próximos pasos. Máx 350 palabras. Rioplatense, directo."}`;
-    const res=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})
-    });
-    const d=await res.json();
-    const r=JSON.parse(d.content?.[0]?.text?.replace(/```json|```/g,'')||'{}'  );
+    const prompt=`Sos un analista experto en importaciones China-Argentina. Hacé un análisis completo de viabilidad para: "${mrCurrentProduct}". Datos recopilados: - DEMANDA: tendencia=${step1?.tendencia}, demandaScore=${step1?.demandaScore}/100, temporalidad=${step1?.temporalidad}, nivelDemanda=${step1?.nivelDemanda} - COMPETENCIA MELI: sellers\u2248${step2?.sellersEstimados}, saturacion=${step2?.saturacion}, competenciaScore=${step2?.competenciaScore}/100, precio promedio ARS ${step2?.precioPromedioARS} - TIKTOK: vistas promedio top3=${step3?.views||'no informado'}, contenido Argentina=${step3?.arg||'no informado'} - MARGEN: FOB USD ${step4?.fob}, costo landed USD ${step4?.costoLanded?.toFixed(2)}, precio venta ARS ${step4?.venta}, margen bruto ${step4?.margenPct}%, ventas/mes top sellers MeLi=${step4?.ventas||'no informado'} - Canal: ${mrData.canal}, Capital disponible: USD ${mrData.capital} Respondé SOLO con JSON válido sin markdown: {"scoreTotal":number 0-100,"scoresDemanda":number 0-100,"scoresCompetencia":number 0-100,"scoresMargen":number 0-100,"scoresRegulatorio":number 0-100,"labelDemanda":"string corto","labelCompetencia":"string corto","labelMargen":"string corto","labelRegulatorio":"string corto","veredicto":"VIABLE|VIABLE CON CONDICIONES|NO RECOMENDADO","veredictoTexto":"2-3 oraciones directas en español rioplatense","analisisCompleto":"análisis detallado de los 4 factores, riesgos principales y próximos pasos. Máx 350 palabras. Rioplatense, directo."}`;
+    const res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'final',prompt})});
+    const r=await res.json();
+    if(!res.ok) throw new Error(r.error||'Error en análisis final');
     renderMRResult(r);
   }catch(e){
     document.getElementById('mrAnalysisText').textContent='Error al generar el análisis. Revisá tu conexión e intentá de nuevo.';
     document.getElementById('btnMRAnalyze').disabled=false;
   }
 }
+
 function renderMRResult(r){
   const score=Math.max(0,Math.min(100,r.scoreTotal||0));
   const gaugeArc=251;
