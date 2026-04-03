@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ProductFinder IA - Innovasmart</title>
+<title>Lectura de Mercado</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
@@ -98,9 +98,9 @@ select:focus{border-color:var(--gold)}
 .admin-section h3{color:var(--gold);margin-bottom:16px;font-size:1rem;border-bottom:1px solid #333;padding-bottom:8px}
 .create-user-form{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end}
 .form-field label{display:block;color:var(--text-dim);font-size:.8rem;margin-bottom:5px}
-.form-field input,.form-field select{width:100%;background:var(--dark-4);border:1px solid #333;border-radius:var(--radius);padding:10px 12px;color:var(--text);font-size:.9rem;outline:none}
+.form-field input,.form-field select{width:100%;background:var(--dark-4);border:1px solid #333;border-radius:var(--radius);padding:13px 16px;color:var(--text);font-size:1rem;outline:none}
 .form-field input:focus,.form-field select:focus{border-color:var(--gold)}
-.btn-create{background:var(--gold);color:#000;border:none;border-radius:var(--radius);padding:11px 20px;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn-create{background:var(--gold);color:#000;border:none;border-radius:var(--radius);padding:13px 24px;font-weight:700;cursor:pointer;white-space:nowrap;font-size:1rem;letter-spacing:.03em}
 .users-table{width:100%;border-collapse:collapse}
 .users-table th{background:var(--dark-4);color:var(--text-dim);font-size:.8rem;text-align:left;padding:10px 12px;border-bottom:1px solid #333}
 .users-table td{padding:10px 12px;border-bottom:1px solid #2a2a2a;font-size:.88rem}
@@ -126,9 +126,9 @@ select:focus{border-color:var(--gold)}
 .market-sub{color:var(--text-dim);margin-bottom:28px;font-size:.95rem}
 .mr-search-box{background:var(--dark-3);border:1px solid #333;border-radius:12px;padding:24px;margin-bottom:20px}
 .mr-search-row{display:flex;gap:10px;margin-bottom:16px}
-.mr-search-row input{flex:1;background:var(--dark-4);border:1px solid #333;border-radius:var(--radius);padding:12px 16px;color:var(--text);font-size:.95rem;outline:none}
+.mr-search-row input{flex:1;background:var(--dark-4);border:1px solid #333;border-radius:var(--radius);padding:16px 20px;color:var(--text);font-size:1.1rem;outline:none}
 .mr-search-row input:focus{border-color:var(--gold)}
-.btn-mr-analyze{background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#000;border:none;border-radius:var(--radius);padding:12px 24px;font-size:.95rem;font-weight:700;cursor:pointer;white-space:nowrap;transition:opacity .2s}
+.btn-mr-analyze{background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#000;border:none;border-radius:var(--radius);padding:16px 30px;font-size:1.05rem;font-weight:700;cursor:pointer;white-space:nowrap;transition:opacity .2s}
 .btn-mr-analyze:disabled{opacity:.5;cursor:not-allowed}
 .mr-params{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 .mr-param label{display:block;color:var(--text-dim);font-size:.75rem;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
@@ -275,9 +275,9 @@ select:focus{border-color:var(--gold)}
 <!-- LOGIN SCREEN -->
 <div id="loginScreen" class="screen active">
   <div class="login-box">
-    <div class="login-logo">🔍</div>
-    <div class="login-title">ProductFinder IA</div>
-    <div class="login-sub">Encontrá los mejores productos para importar</div>
+    <div class="login-logo">📊</div>
+    <div class="login-title">Lectura de Mercado</div>
+    <div class="login-sub">Analizá la viabilidad de tu próximo producto</div>
     <div class="form-group">
       <label>Usuario</label>
       <input type="text" id="loginUser" placeholder="Ingresá tu usuario" autocomplete="username">
@@ -294,10 +294,10 @@ select:focus{border-color:var(--gold)}
 <!-- APP SCREEN -->
 <div id="appScreen" class="screen">
   <div class="topbar">
-    <div class="topbar-logo">🔍 ProductFinder IA</div>
+    <div class="topbar-logo">📊 Lectura de Mercado</div>
     <div class="topbar-user" id="topbarUser"></div>
     <div class="topbar-expiry" id="topbarExpiry" style="display:none"></div>
-    <button class="btn-market" onclick="showMarket()">📊 Market Reader</button>
+    <button class="btn-market" onclick="showMarket()">📈 Analizador</button>
     <button class="btn-admin-panel" id="btnAdminPanel" style="display:none" onclick="showAdmin()">👑 Admin</button>
     <button class="btn-logout" onclick="doLogout()">Salir</button>
   </div>
@@ -553,7 +553,7 @@ function exportPDF(){
   if(!analysisResults)return;
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF();
-  doc.setFontSize(18);doc.text('ProductFinder IA - Análisis de Importación',14,20);
+  doc.setFontSize(18);doc.text('Lectura de Mercado - Análisis de Importación',14,20);
   doc.setFontSize(11);doc.text('Generado: '+new Date().toLocaleDateString('es-AR'),14,30);
   let y=45;
   analysisResults.forEach((p,i)=>{
