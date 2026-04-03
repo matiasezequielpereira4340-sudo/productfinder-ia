@@ -97,7 +97,10 @@ export default async function handler(req, res) {
       active: true
     };
     users.push(newUser);
-    await persistUsers(users, projectId, token);
+    const persisted = await persistUsers(users, projectId, token);
+    if (!persisted) {
+      return res.status(500).json({ error: 'Error al guardar usuario. Verificá que VERCEL_PROJECT_ID y VERCEL_TOKEN estén configurados en las variables de entorno de Vercel.' });
+    }
     return res.status(201).json({ success: true, message: 'Usuario creado correctamente' });
   }
 
@@ -116,7 +119,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, message: 'Estado actualizado' });
     } else if (action === 'delete') {
       users.splice(idx, 1);
-      await persistUsers(users, projectId, token);
+      const persistedDel = await persistUsers(users, projectId, token);
+      if (!persistedDel) return res.status(500).json({ error: 'Error al guardar cambios. Verificá variables de entorno de Vercel.' });
       return res.status(200).json({ success: true, message: 'Usuario eliminado' });
     }
     return res.status(400).json({ error: 'Acción inválida' });
