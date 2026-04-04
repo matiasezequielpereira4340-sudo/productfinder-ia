@@ -9,703 +9,832 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 :root{
-  --bg:#0d0d0d;--bg2:#141414;--bg3:#1a1a1a;--bg4:#222;
-  --border:#2a2a2a;--border2:#333;
-  --gold:#C9A84C;--gold2:#e8c96a;--gold-dim:rgba(201,168,76,0.15);
+  --bg:#0d0d0d;--bg2:#141414;--bg3:#1a1a1a;--bg4:#222;--bg5:#282828;
+  --border:#2a2a2a;--border2:#333;--border3:#444;
+  --gold:#C9A84C;--gold2:#e8c96a;--gold-dim:rgba(201,168,76,0.12);
   --green:#27ae60;--green2:#2ecc71;--red:#c0392b;--red2:#e74c3c;
-  --blue:#2980b9;--orange:#e67e22;
-  --text:#e8e0d0;--text2:#b0a090;--text3:#7a7060;
+  --blue:#2980b9;--orange:#e67e22;--purple:#8e44ad;
+  --text:#e8e0d0;--text2:#b0a090;--text3:#7a7060;--text4:#4a4035;
   --radius:10px;--radius2:6px;
-  --shadow:0 4px 24px rgba(0,0,0,0.4);
+  --shadow:0 4px 24px rgba(0,0,0,0.5);
 }
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;}
-.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
-.topbar-brand{display:flex;align-items:center;gap:10px;font-size:1.15rem;font-weight:700;color:var(--gold);}
-.topbar-brand span{font-size:1.4rem;}
-.topbar-sub{font-size:.78rem;color:var(--text3);font-weight:400;}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,0.4);}
+.topbar-brand{display:flex;align-items:center;gap:10px;font-size:1.1rem;font-weight:800;color:var(--gold);letter-spacing:-.3px;}
+.topbar-brand .sub{font-size:.72rem;color:var(--text3);font-weight:400;margin-left:4px;}
 .topbar-right{display:flex;gap:8px;align-items:center;}
-.btn{padding:8px 16px;border-radius:var(--radius2);border:none;cursor:pointer;font-size:.85rem;font-weight:600;transition:.15s;}
+.btn{padding:8px 16px;border-radius:var(--radius2);border:none;cursor:pointer;font-size:.85rem;font-weight:600;transition:.15s;line-height:1;}
 .btn-gold{background:var(--gold);color:#1a1000;}
 .btn-gold:hover{background:var(--gold2);}
 .btn-outline{background:transparent;border:1px solid var(--border2);color:var(--text2);}
 .btn-outline:hover{border-color:var(--gold);color:var(--gold);}
 .btn-green{background:var(--green);color:#fff;}
 .btn-green:hover{background:var(--green2);}
-.btn-red{background:var(--red);color:#fff;padding:4px 10px;font-size:.78rem;}
-.btn-red:hover{background:var(--red2);}
-.btn-sm{padding:5px 12px;font-size:.78rem;}
-main{max-width:1100px;margin:0 auto;padding:28px 20px 60px;}
-.hero{text-align:center;padding:32px 0 24px;}
-.hero h1{font-size:2rem;font-weight:800;color:var(--gold);letter-spacing:-.5px;}
-.hero p{color:var(--text2);margin-top:6px;font-size:1rem;}
-.section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:18px;}
-.section-title{font-size:.9rem;font-weight:700;color:var(--gold);margin-bottom:16px;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.5px;}
+.btn-red{background:rgba(192,57,43,.2);color:var(--red2);border:1px solid rgba(192,57,43,.3);}
+.btn-red:hover{background:var(--red);}
+.btn-sm{padding:5px 10px;font-size:.76rem;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+main{max-width:1080px;margin:0 auto;padding:24px 20px 80px;}
+.hero{text-align:center;padding:28px 0 20px;}
+.hero h1{font-size:1.9rem;font-weight:800;color:var(--gold);}
+.hero p{color:var(--text2);margin-top:6px;font-size:.95rem;}
+.section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px;}
+.section-title{font-size:.78rem;font-weight:700;color:var(--gold);margin-bottom:14px;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.6px;}
+.section-title .badge{background:var(--gold-dim);color:var(--gold);padding:2px 8px;border-radius:20px;font-size:.68rem;}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
 .grid4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;}
-@media(max-width:700px){.grid2,.grid3,.grid4{grid-template-columns:1fr 1fr;}}
-@media(max-width:480px){.grid2,.grid3,.grid4{grid-template-columns:1fr;}}
-label{display:block;font-size:.78rem;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;}
-input[type=text],input[type=number],select,textarea{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius2);color:var(--text);padding:10px 13px;font-size:.95rem;font-family:inherit;outline:none;transition:.15s;}
-input:focus,select:focus,textarea:focus{border-color:var(--gold);box-shadow:0 0 0 2px rgba(201,168,76,.12);}
+.grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+@media(max-width:800px){.grid3,.grid4,.grid5{grid-template-columns:1fr 1fr;}.grid2{grid-template-columns:1fr;}}
+@media(max-width:480px){.grid2,.grid3,.grid4,.grid5{grid-template-columns:1fr;}}
+.field{}
+label{display:block;font-size:.72rem;color:var(--text3);margin-bottom:4px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;}
+input[type=text],input[type=number],select,textarea{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius2);color:var(--text);padding:9px 12px;font-size:.9rem;font-family:inherit;outline:none;transition:.15s;}
+input:focus,select:focus,textarea:focus{border-color:var(--gold);box-shadow:0 0 0 2px rgba(201,168,76,.1);}
 input[type=number]{-moz-appearance:textfield;}
 input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
-.input-prefix{position:relative;}
-.input-prefix span{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:.9rem;pointer-events:none;}
-.input-prefix input{padding-left:30px;}
-.row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;}
-.divider{border:none;border-top:1px solid var(--border);margin:16px 0;}
-.tag{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:.75rem;font-weight:600;}
+.pfx{position:relative;}
+.pfx .pfx-sym{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:.85rem;pointer-events:none;z-index:1;}
+.pfx input{padding-left:26px;}
+.pfx .sfx-sym{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:.82rem;pointer-events:none;}
+.pfx input.has-sfx{padding-right:28px;}
+.hint{font-size:.7rem;color:var(--text4);margin-top:3px;line-height:1.3;}
+.hint.warn{color:var(--orange);}
+.divider{border:none;border-top:1px solid var(--border);margin:14px 0;}
+.tag{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:.72rem;font-weight:600;}
 .tag-ok{background:rgba(39,174,96,.15);color:var(--green2);}
 .tag-warn{background:rgba(201,168,76,.15);color:var(--gold);}
 .tag-bad{background:rgba(192,57,43,.15);color:var(--red2);}
 .tag-info{background:rgba(41,128,185,.15);color:#5dade2;}
-.result-box{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:16px;}
-.result-num{font-size:1.6rem;font-weight:800;color:var(--gold);}
-.result-label{font-size:.75rem;color:var(--text3);margin-top:2px;text-transform:uppercase;letter-spacing:.4px;}
+.tag-purple{background:rgba(142,68,173,.15);color:#bb8fce;}
+.result-box{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:14px 16px;}
+.result-icon{font-size:1.3rem;margin-bottom:4px;}
+.result-num{font-size:1.45rem;font-weight:800;color:var(--gold);}
+.result-label{font-size:.7rem;color:var(--text3);margin-top:2px;text-transform:uppercase;letter-spacing:.4px;}
+.result-sub{font-size:.72rem;color:var(--text4);margin-top:3px;}
 .result-num.ok{color:var(--green2);}
 .result-num.warn{color:var(--gold);}
 .result-num.bad{color:var(--red2);}
-.waterfall{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
-.wf-row{display:flex;align-items:center;gap:10px;}
-.wf-lbl{min-width:200px;font-size:.82rem;color:var(--text2);}
-.wf-bar-bg{flex:1;background:var(--bg4);border-radius:4px;height:18px;overflow:hidden;}
-.wf-bar-fill{height:100%;border-radius:4px;transition:.4s;}
-.wf-fill-pos{background:rgba(39,174,96,.7);}
+.waterfall{display:flex;flex-direction:column;gap:5px;}
+.wf-row{display:flex;align-items:center;gap:8px;}
+.wf-lbl{min-width:220px;font-size:.8rem;color:var(--text2);}
+.wf-bar-bg{flex:1;background:var(--bg4);border-radius:4px;height:16px;overflow:hidden;min-width:40px;}
+.wf-bar-fill{height:100%;border-radius:4px;transition:.5s;}
+.wf-fill-pos{background:rgba(39,174,96,.75);}
 .wf-fill-neg{background:rgba(192,57,43,.6);}
-.wf-fill-total{background:rgba(201,168,76,.7);}
-.wf-val{min-width:110px;text-align:right;font-size:.82rem;font-weight:600;}
+.wf-fill-total{background:rgba(201,168,76,.8);}
+.wf-fill-orange{background:rgba(230,126,34,.6);}
+.wf-val{min-width:130px;text-align:right;font-size:.8rem;font-weight:600;}
 .wf-val.pos{color:var(--green2);}
 .wf-val.neg{color:var(--red2);}
 .wf-val.total{color:var(--gold);}
-.products-table{width:100%;border-collapse:collapse;font-size:.83rem;margin-top:8px;}
-.products-table th{background:var(--bg4);color:var(--text3);padding:8px 10px;text-align:left;font-size:.72rem;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--border2);}
-.products-table td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
-.products-table tr:hover td{background:var(--bg3);}
-.products-table tr.totals-row td{background:var(--bg4);font-weight:700;border-top:2px solid var(--gold);color:var(--gold);}
-.period-tabs{display:flex;gap:4px;background:var(--bg3);padding:4px;border-radius:var(--radius2);margin-bottom:16px;width:fit-content;}
-.period-tab{padding:6px 16px;border-radius:4px;cursor:pointer;font-size:.82rem;font-weight:600;color:var(--text3);transition:.15s;border:none;background:transparent;}
-.period-tab.active{background:var(--gold);color:#1a1000;}
-.period-tab:hover:not(.active){color:var(--text);}
-.add-row-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px;background:var(--bg3);border-radius:var(--radius2);border:1px dashed var(--border2);}
-.add-row-bar input{flex:1;min-width:100px;}
-.empty-state{text-align:center;padding:32px;color:var(--text3);}
-.empty-state span{font-size:2rem;display:block;margin-bottom:8px;}
-.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+.wf-val.orange{color:var(--orange);}
+.ptable{width:100%;border-collapse:collapse;font-size:.8rem;}
+.ptable th{background:var(--bg4);color:var(--text3);padding:7px 9px;text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--border2);white-space:nowrap;}
+.ptable td{padding:8px 9px;border-bottom:1px solid var(--border);vertical-align:middle;}
+.ptable tr:hover td{background:var(--bg3);}
+.ptable .total-row td{background:var(--bg4);font-weight:700;border-top:2px solid var(--gold);color:var(--gold);}
+.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;}
 @media(max-width:700px){.summary-grid{grid-template-columns:1fr 1fr;}}
-.notice{background:var(--gold-dim);border:1px solid rgba(201,168,76,.3);border-radius:var(--radius2);padding:10px 14px;font-size:.82rem;color:var(--text2);margin-bottom:16px;}
-.help-text{font-size:.76rem;color:var(--text3);margin-top:4px;}
-.pdf-preview{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:20px;margin-top:16px;}
-.pdf-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
-.pdf-title{font-size:1rem;font-weight:700;color:var(--gold);}
-.pdf-sub{font-size:.78rem;color:var(--text3);}
-.ml-comision-note{font-size:.72rem;color:var(--text3);margin-top:3px;}
-.toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
-.toggle-switch{position:relative;display:inline-block;width:36px;height:20px;}
-.toggle-switch input{opacity:0;width:0;height:0;}
-.toggle-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:var(--border2);transition:.2s;border-radius:20px;}
-.toggle-slider:before{position:absolute;content:"";height:14px;width:14px;left:3px;bottom:3px;background:#fff;transition:.2s;border-radius:50%;}
-input:checked+.toggle-slider{background:var(--gold);}
-input:checked+.toggle-slider:before{transform:translateX(16px);}
-.toggle-label{font-size:.82rem;color:var(--text2);}
+.notice{background:var(--gold-dim);border:1px solid rgba(201,168,76,.25);border-radius:var(--radius2);padding:9px 13px;font-size:.78rem;color:var(--text2);margin-bottom:14px;line-height:1.5;}
+.notice.blue{background:rgba(41,128,185,.1);border-color:rgba(41,128,185,.25);color:#7fb3d3;}
+.notice.red{background:rgba(192,57,43,.1);border-color:rgba(192,57,43,.25);color:#e59595;}
+.collapse-toggle{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;width:100%;}
+.collapse-toggle .arrow{transition:.2s;font-size:.8rem;color:var(--text3);}
+.collapse-toggle.open .arrow{transform:rotate(180deg);}
+.collapse-body{margin-top:14px;}
+.collapse-body.hidden{display:none;}
+.ml-rates-table{width:100%;border-collapse:collapse;font-size:.78rem;margin-top:8px;}
+.ml-rates-table th{background:var(--bg4);color:var(--text3);padding:5px 8px;text-align:left;font-size:.68rem;border-bottom:1px solid var(--border2);}
+.ml-rates-table td{padding:5px 8px;border-bottom:1px solid var(--border);color:var(--text2);}
+.ml-rates-table .hl{color:var(--gold);font-weight:700;}
+.chip-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+.chip{padding:4px 10px;border-radius:20px;font-size:.74rem;font-weight:600;border:1px solid;cursor:pointer;transition:.15s;}
+.chip.active-chip{background:var(--gold);color:#1a1000;border-color:var(--gold);}
+.chip.inactive-chip{background:transparent;color:var(--text3);border-color:var(--border2);}
+.chip:hover:not(.active-chip){border-color:var(--gold);color:var(--gold);}
+.cuotas-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px;}
+@media(max-width:600px){.cuotas-grid{grid-template-columns:1fr 1fr;}}
+.cuota-btn{background:var(--bg4);border:1px solid var(--border2);border-radius:var(--radius2);padding:6px 8px;text-align:center;cursor:pointer;transition:.15s;}
+.cuota-btn.active{border-color:var(--gold);background:var(--gold-dim);}
+.cuota-btn .cuota-num{font-size:.9rem;font-weight:700;color:var(--text);}
+.cuota-btn .cuota-costo{font-size:.68rem;color:var(--red2);margin-top:2px;}
+.cuota-btn .cuota-label{font-size:.65rem;color:var(--text3);margin-top:1px;}
 </style>
 </head>
 <body>
 <div class="topbar">
-  <div class="topbar-brand"><span>💰</span> MargenClear <span class="topbar-sub">Calculador de ganancia real · MercadoLibre</span></div>
+  <div class="topbar-brand">💰 MargenClear <span class="sub">— Ganancia real MercadoLibre Argentina</span></div>
   <div class="topbar-right">
-    <button class="btn btn-outline btn-sm" onclick="clearAll()">🗑 Limpiar todo</button>
-    <button class="btn btn-gold btn-sm" onclick="exportPDF()">⬇️ Exportar PDF</button>
+    <button class="btn btn-outline btn-sm" onclick="clearAll()">🗑 Limpiar</button>
+    <button class="btn btn-gold btn-sm" onclick="exportPDF()">⬇️ PDF cliente</button>
   </div>
 </div>
 <main>
-  <div class="hero">
-    <h1>💰 MargenClear</h1>
-    <p>Calculá la ganancia real de tus productos en MercadoLibre descontando <strong>todos</strong> los costos.</p>
+<div class="hero">
+  <h1>💰 MargenClear</h1>
+  <p>Calculá la <strong>ganancia real</strong> descontando <em>todos</em> los costos de MercadoLibre Argentina.</p>
+</div>
+
+<!-- REFERENCIA COMISIONES MELI -->
+<div class="section">
+  <div class="collapse-toggle" onclick="toggleCollapse('refMeli')" id="toggle-refMeli">
+    <div class="section-title" style="margin:0">📋 Referencia: comisiones y cargos reales de MercadoLibre Argentina <span class="badge">info</span></div>
+    <span class="arrow">▼</span>
+  </div>
+  <div class="collapse-body hidden" id="body-refMeli">
+    <div class="notice blue" style="margin-top:12px">Estas son las tarifas vigentes 2025 de MeLi Argentina. Usalas como referencia para configurar tu cálculo.</div>
+    <div class="grid2" style="margin-top:8px">
+      <div>
+        <div style="font-size:.75rem;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px">Comisión por tipo de publicación</div>
+        <table class="ml-rates-table">
+          <thead><tr><th>Tipo</th><th>Comisión</th><th>Cuotas s/int.</th><th>Posición</th></tr></thead>
+          <tbody>
+            <tr><td>Gratuita</td><td class="hl">0%</td><td>—</td><td>Mínima</td></tr>
+            <tr><td>Clásica</td><td class="hl">13.5%</td><td>Hasta 6</td><td>Media</td></tr>
+            <tr><td>Premium</td><td class="hl">16%</td><td>Hasta 12</td><td>Alta</td></tr>
+            <tr><td>Moda/Ropa</td><td class="hl">16%</td><td>Hasta 12</td><td>Media</td></tr>
+            <tr><td>Autos/Inmuebles</td><td class="hl">Fijo por aviso</td><td>—</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div style="font-size:.75rem;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px">Cargo por cuotas (sobre precio de venta)</div>
+        <table class="ml-rates-table">
+          <thead><tr><th>Cuotas</th><th>Cargo al vendedor</th><th>Tipo publi.</th></tr></thead>
+          <tbody>
+            <tr><td>1 cuota</td><td class="hl">0%</td><td>Todas</td></tr>
+            <tr><td>2-3 cuotas s/int.</td><td class="hl">+3%</td><td>Clásica+</td></tr>
+            <tr><td>4-6 cuotas s/int.</td><td class="hl">+5.5%</td><td>Clásica+</td></tr>
+            <tr><td>7-9 cuotas s/int.</td><td class="hl">+9%</td><td>Premium</td></tr>
+            <tr><td>10-12 cuotas s/int.</td><td class="hl">+12%</td><td>Premium</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="grid2" style="margin-top:12px">
+      <div>
+        <div style="font-size:.75rem;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px">Logística / Envío MercadoLibre</div>
+        <table class="ml-rates-table">
+          <thead><tr><th>Modalidad</th><th>Costo vendedor</th></tr></thead>
+          <tbody>
+            <tr><td>Envío gratis (obligatorio &gt;ARS 9.000)</td><td class="hl">Absorbe vendedor (aprox. ARS 1.200–3.500)</td></tr>
+            <tr><td>MercadoEnvíos (hasta 1kg)</td><td class="hl">ARS 800–1.200</td></tr>
+            <tr><td>MercadoEnvíos (1–5kg)</td><td class="hl">ARS 1.200–2.500</td></tr>
+            <tr><td>MercadoEnvíos Full</td><td class="hl">ARS 600–1.800 + almacenaje</td></tr>
+            <tr><td>Retiro en punto</td><td class="hl">ARS 400–700</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div style="font-size:.75rem;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px">Impuestos y percepciones</div>
+        <table class="ml-rates-table">
+          <thead><tr><th>Concepto</th><th>Tasa</th><th>Quién paga</th></tr></thead>
+          <tbody>
+            <tr><td>IVA sobre comisión</td><td class="hl">21%</td><td>Todos</td></tr>
+            <tr><td>Ingresos Brutos (IIBB)</td><td class="hl">3%–5%</td><td>Monotributo/RI</td></tr>
+            <tr><td>Percepción AFIP (RG 2937)</td><td class="hl">0.5%–1%</td><td>RI / Excluidos</td></tr>
+            <tr><td>Impuesto a las Ganancias</td><td class="hl">35% sobre renta</td><td>RI</td></tr>
+            <tr><td>Retención IVA (MeLi)</td><td class="hl">1%–21%</td><td>RI (se compensa)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIG GLOBAL -->
+<div class="section">
+  <div class="section-title">⚙️ Configuración global</div>
+  <div class="grid4">
+    <div class="field">
+      <label>Tipo de cambio USD → ARS</label>
+      <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="tipoCambio" value="1250" min="1" oninput="recalcAll()"></div>
+    </div>
+    <div class="field">
+      <label>Período del informe</label>
+      <select id="periodo" onchange="recalcAll()">
+        <option value="semanal">Semanal (7 días)</option>
+        <option value="quincenal" selected>Quincenal (15 días)</option>
+        <option value="mensual">Mensual (30 días)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Nombre del cliente / negocio</label>
+      <input type="text" id="clienteNombre" placeholder="Ej: Tienda AuriculAR">
+    </div>
+    <div class="field">
+      <label>Fecha del informe</label>
+      <input type="text" id="fechaInforme">
+    </div>
+  </div>
+</div>
+
+<!-- DESCUENTOS MELI -->
+<div class="section">
+  <div class="section-title">🏪 Descuentos MercadoLibre <span class="badge">todos los cargos reales</span></div>
+
+  <!-- Tipo publicacion y comision -->
+  <div style="margin-bottom:14px">
+    <label>Tipo de publicación (aplica a todos los productos por defecto)</label>
+    <div class="chip-row">
+      <div class="chip active-chip" id="chip-clasica" onclick="selectTipoPub('clasica')">Clásica — 13.5%</div>
+      <div class="chip inactive-chip" id="chip-premium" onclick="selectTipoPub('premium')">Premium — 16%</div>
+      <div class="chip inactive-chip" id="chip-moda" onclick="selectTipoPub('moda')">Moda — 16%</div>
+      <div class="chip inactive-chip" id="chip-gratuita" onclick="selectTipoPub('gratuita')">Gratuita — 0%</div>
+      <div class="chip inactive-chip" id="chip-custom" onclick="selectTipoPub('custom')">Personalizada</div>
+    </div>
+    <div id="custom-comision-row" style="display:none;margin-top:8px;max-width:200px">
+      <label>Comisión personalizada (%)</label>
+      <div class="pfx"><span class="sfx-sym">%</span><input type="number" class="has-sfx" id="comisionCustom" value="13.5" step="0.5" min="0" max="100" oninput="recalcAll()"></div>
+    </div>
+    <input type="hidden" id="comisionMeli" value="13.5">
+  </div>
+  <div class="divider"></div>
+
+  <!-- IVA + cuotas + envio -->
+  <div class="grid3" style="margin-bottom:14px">
+    <div class="field">
+      <label>IVA sobre comisión MeLi (%)</label>
+      <div class="pfx"><span class="sfx-sym">%</span><input type="number" class="has-sfx" id="ivaComision" value="21" min="0" max="100" oninput="recalcAll()"></div>
+      <div class="hint">MeLi factura IVA 21% sobre su comisión. Siempre aplica.</div>
+    </div>
+    <div class="field">
+      <label>Modalidad de envío</label>
+      <select id="modalidadEnvio" onchange="onEnvioChange()">
+        <option value="gratis_meli">Envío gratis por MeLi (vendedor absorbe)</option>
+        <option value="meli_cargo">MercadoEnvíos (MeLi cobra al comprador)</option>
+        <option value="propio">Envío propio / acuerdo</option>
+        <option value="retiro">Retiro en punto / local</option>
+        <option value="full">MercadoEnvíos Full</option>
+      </select>
+      <div class="hint" id="envioHint">El costo lo absorbés vos como vendedor.</div>
+    </div>
+    <div class="field">
+      <label>Costo de envío estimado (ARS/unidad)</label>
+      <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="costoEnvio" value="1500" min="0" oninput="recalcAll()"></div>
+      <div class="hint">Promedio para tus productos. Ver referencia arriba.</div>
+    </div>
   </div>
 
-  <!-- CONFIGURACION GLOBAL -->
-  <div class="section">
-    <div class="section-title">⚙️ Configuración global</div>
-    <div class="grid4">
-      <div>
-        <label>Tipo de cambio USD → ARS</label>
-        <div class="input-prefix"><span>$</span><input type="number" id="tipoCambio" value="1250" min="1" oninput="recalcAll()"></div>
+  <!-- Cuotas -->
+  <div style="margin-bottom:14px">
+    <label>Cuotas sin interés que ofrecés (cargo al vendedor)</label>
+    <div class="cuotas-grid">
+      <div class="cuota-btn active" id="cuota-1" onclick="selectCuotas(1)">
+        <div class="cuota-num">1 cuota</div><div class="cuota-costo">+0%</div><div class="cuota-label">sin cargo</div>
       </div>
-      <div>
-        <label>Período del informe</label>
-        <select id="periodo" onchange="recalcAll()">
-          <option value="semanal">Semanal (7 días)</option>
-          <option value="quincenal" selected>Quincenal (15 días)</option>
-          <option value="mensual">Mensual (30 días)</option>
-        </select>
+      <div class="cuota-btn" id="cuota-3" onclick="selectCuotas(3)">
+        <div class="cuota-num">3 cuotas</div><div class="cuota-costo">+3%</div><div class="cuota-label">cargo vendedor</div>
       </div>
-      <div>
-        <label>Nombre del cliente / negocio</label>
-        <input type="text" id="clienteNombre" placeholder="Ej: Tienda AuriculAR" oninput="updateHeaderPreview()">
+      <div class="cuota-btn" id="cuota-6" onclick="selectCuotas(6)">
+        <div class="cuota-num">6 cuotas</div><div class="cuota-costo">+5.5%</div><div class="cuota-label">cargo vendedor</div>
       </div>
-      <div>
-        <label>Fecha del informe</label>
-        <input type="text" id="fechaInforme" id="fechaInforme" oninput="updateHeaderPreview()">
+      <div class="cuota-btn" id="cuota-9" onclick="selectCuotas(9)">
+        <div class="cuota-num">9 cuotas</div><div class="cuota-costo">+9%</div><div class="cuota-label">cargo vendedor</div>
+      </div>
+      <div class="cuota-btn" id="cuota-12" onclick="selectCuotas(12)">
+        <div class="cuota-num">12 cuotas</div><div class="cuota-costo">+12%</div><div class="cuota-label">cargo vendedor</div>
       </div>
     </div>
-    <hr class="divider">
-    <div class="grid4">
-      <div>
-        <label>Comisión MeLi estándar (%)</label>
-        <div class="input-prefix"><span>%</span><input type="number" id="comisionMeli" value="13.5" step="0.5" min="0" max="100" oninput="recalcAll()"></div>
-        <div class="ml-comision-note">Clásico: 13.5% · Premium: 16% · Moda: 16%</div>
-      </div>
-      <div>
-        <label>IVA sobre comisión (%)</label>
-        <div class="input-prefix"><span>%</span><input type="number" id="ivaComision" value="21" step="1" min="0" max="100" oninput="recalcAll()"></div>
-      </div>
-      <div>
-        <label>Costo envío promedio (ARS)</label>
-        <div class="input-prefix"><span>$</span><input type="number" id="costoEnvio" value="0" min="0" oninput="recalcAll()"></div>
-        <div class="ml-comision-note">0 = envío por MeLi (incluido en comisión)</div>
-      </div>
-      <div>
-        <label>Impuesto a las ganancias (%)</label>
-        <div class="input-prefix"><span>%</span><input type="number" id="impGanancias" value="0" step="1" min="0" oninput="recalcAll()"></div>
-        <div class="ml-comision-note">Opcional. Responsable inscripto.</div>
-      </div>
-    </div>
-    <hr class="divider">
-    <div class="grid4">
-      <div>
-        <label>Gastos fijos mensuales (ARS)</label>
-        <div class="input-prefix"><span>$</span><input type="number" id="gastosFijos" value="0" min="0" oninput="recalcAll()"></div>
-        <div class="ml-comision-note">Alquiler, empleados, servicios, etc.</div>
-      </div>
-      <div>
-        <label>Otros gastos variables (%)</label>
-        <div class="input-prefix"><span>%</span><input type="number" id="otrosVar" value="0" step="0.5" min="0" oninput="recalcAll()"></div>
-        <div class="ml-comision-note">Embalaje, etiquetas, etc. sobre venta.</div>
-      </div>
-      <div>
-        <label>Inversión publicitaria (ARS/mes)</label>
-        <div class="input-prefix"><span>$</span><input type="number" id="publicidad" value="0" min="0" oninput="recalcAll()"></div>
-      </div>
-      <div>
-        <label>Otros costos fijos (ARS/mes)</label>
-        <div class="input-prefix"><span>$</span><input type="number" id="otrosFijos" value="0" min="0" oninput="recalcAll()"></div>
-      </div>
-    </div>
+    <input type="hidden" id="cuotasSelec" value="1">
+    <input type="hidden" id="cargoCuotas" value="0">
+    <div class="hint warn" id="cuotas-hint" style="margin-top:6px">Sin cargo por cuotas.</div>
   </div>
+  <div class="divider"></div>
 
-  <!-- AGREGAR PRODUCTOS -->
-  <div class="section">
-    <div class="section-title">📦 Agregar producto</div>
-    <div class="grid3" style="margin-bottom:12px">
-      <div>
-        <label>Nombre del producto</label>
-        <input type="text" id="pNombre" placeholder="Ej: Auriculares Bluetooth XM4">
-      </div>
-      <div>
-        <label>Precio de venta en MeLi (ARS)</label>
-        <div class="input-prefix"><span>$</span><input type="number" id="pPrecioVenta" placeholder="45000" min="0"></div>
-      </div>
-      <div>
-        <label>Costo del producto (ARS)</label>
-        <div class="input-prefix"><span>$</span><input type="number" id="pCosto" placeholder="12000" min="0"></div>
-        <div class="ml-comision-note">Si comprás en USD, multiplicá por el tipo de cambio.</div>
-      </div>
+  <!-- Impuestos -->
+  <div style="margin-bottom:6px;font-size:.76rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px">Impuestos y percepciones</div>
+  <div class="grid4">
+    <div class="field">
+      <label>Ingresos Brutos — IIBB (%)</label>
+      <div class="pfx"><span class="sfx-sym">%</span><input type="number" class="has-sfx" id="iibb" value="3" step="0.5" min="0" oninput="recalcAll()"></div>
+      <div class="hint">Se aplica sobre el precio de venta. Varía por provincia (3%–5%).</div>
     </div>
-    <div class="grid4" style="margin-bottom:12px">
-      <div>
-        <label>Unidades en stock</label>
-        <input type="number" id="pStock" placeholder="50" min="0">
-      </div>
-      <div>
-        <label>Ventas estimadas por día</label>
-        <input type="number" id="pVentasDia" placeholder="3" min="0" step="0.1">
-        <div class="ml-comision-note">Promedio diario de unidades vendidas.</div>
-      </div>
-      <div>
-        <label>Costo envío propio (ARS) — opcional</label>
-        <div class="input-prefix"><span>$</span><input type="number" id="pEnvio" placeholder="0" min="0"></div>
-        <div class="ml-comision-note">Sobreescribe el global solo para este producto.</div>
-      </div>
-      <div>
-        <label>Comisión MeLi propia (%) — opcional</label>
-        <div class="input-prefix"><span>%</span><input type="number" id="pComision" placeholder="" step="0.5" min="0"></div>
-        <div class="ml-comision-note">Deja vacío para usar la global.</div>
-      </div>
+    <div class="field">
+      <label>Percepción AFIP RG 2937 (%)</label>
+      <div class="pfx"><span class="sfx-sym">%</span><input type="number" class="has-sfx" id="percAfip" value="0" step="0.1" min="0" oninput="recalcAll()"></div>
+      <div class="hint">Solo responsables inscriptos o excluidos de monotributo. 0.5%–1%.</div>
     </div>
-    <button class="btn btn-green" onclick="addProduct()" style="margin-top:4px">➕ Agregar producto</button>
+    <div class="field">
+      <label>Impuesto a las ganancias (%)</label>
+      <div class="pfx"><span class="sfx-sym">%</span><input type="number" class="has-sfx" id="impGanancias" value="0" step="1" min="0" oninput="recalcAll()"></div>
+      <div class="hint">Sobre ganancia neta. RI: 35%. Monotributo: 0% (ya incluido en cuota).</div>
+    </div>
+    <div class="field">
+      <label>Devoluciones estimadas (%)</label>
+      <div class="pfx"><span class="sfx-sym">%</span><input type="number" class="has-sfx" id="devoluciones" value="2" step="0.5" min="0" oninput="recalcAll()"></div>
+      <div class="hint">% de ventas con devolución (promedio MeLi: 2%–5%). Impacta la ganancia real.</div>
+    </div>
   </div>
+</div>
 
-  <!-- TABLA DE PRODUCTOS -->
-  <div class="section" id="tableSection">
-    <div class="section-title">📊 Productos cargados</div>
-    <div id="productsContainer"><div class="empty-state"><span>📦</span>Todavía no cargaste ningún producto.<br>Usá el formulario de arriba para empezar.</div></div>
+<!-- GASTOS OPERATIVOS -->
+<div class="section">
+  <div class="section-title">🏢 Gastos operativos propios</div>
+  <div class="grid4">
+    <div class="field">
+      <label>Gastos fijos mensuales (ARS)</label>
+      <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="gastosFijos" value="0" min="0" oninput="recalcAll()"></div>
+      <div class="hint">Alquiler, empleados, servicios, contabilidad.</div>
+    </div>
+    <div class="field">
+      <label>Publicidad / MeLi Ads (ARS/mes)</label>
+      <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="publicidad" value="0" min="0" oninput="recalcAll()"></div>
+      <div class="hint">Inversión en Mercado Ads u otras plataformas.</div>
+    </div>
+    <div class="field">
+      <label>Otros fijos (ARS/mes)</label>
+      <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="otrosFijos" value="0" min="0" oninput="recalcAll()"></div>
+    </div>
+    <div class="field">
+      <label>Otros variables (% sobre venta)</label>
+      <div class="pfx"><span class="sfx-sym">%</span><input type="number" class="has-sfx" id="otrosVar" value="0" step="0.5" min="0" oninput="recalcAll()"></div>
+      <div class="hint">Embalaje, etiquetas, etc.</div>
+    </div>
   </div>
+</div>
 
-  <!-- RESUMEN EJECUTIVO -->
-  <div class="section" id="summarySection" style="display:none">
-    <div class="section-title">📈 Resumen ejecutivo — <span id="periodoLabel">Quincenal</span></div>
-    <div class="summary-grid" id="summaryCards"></div>
-    <hr class="divider">
-    <div class="section-title" style="margin-bottom:12px">💧 Cascada de costos (total del período)</div>
-    <div id="waterfallContainer"></div>
-    <hr class="divider">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <div class="section-title" style="margin-bottom:0">📋 Detalle por producto</div>
+<!-- AGREGAR PRODUCTO -->
+<div class="section">
+  <div class="section-title">📦 Agregar producto</div>
+  <div class="grid3" style="margin-bottom:10px">
+    <div class="field">
+      <label>Nombre del producto</label>
+      <input type="text" id="pNombre" placeholder="Ej: Auriculares Bluetooth XM4">
     </div>
-    <div id="detailTableContainer"></div>
+    <div class="field">
+      <label>Precio de venta en MeLi (ARS)</label>
+      <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="pPrecioVenta" placeholder="45000" min="0"></div>
+    </div>
+    <div class="field">
+      <label>Costo del producto (ARS)</label>
+      <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="pCosto" placeholder="12000" min="0"></div>
+      <div class="hint">Si comprás en USD multiplicá por el tipo de cambio arriba.</div>
+    </div>
   </div>
+  <div class="grid4" style="margin-bottom:12px">
+    <div class="field">
+      <label>Stock disponible (uds)</label>
+      <input type="number" id="pStock" placeholder="50" min="0">
+    </div>
+    <div class="field">
+      <label>Ventas estimadas / día</label>
+      <input type="number" id="pVentasDia" placeholder="3" min="0" step="0.1">
+    </div>
+    <div class="field">
+      <label>Tipo de pub. propio (opcional)</label>
+      <select id="pTipoPub">
+        <option value="">Usar global</option>
+        <option value="clasica">Clásica — 13.5%</option>
+        <option value="premium">Premium — 16%</option>
+        <option value="moda">Moda — 16%</option>
+        <option value="gratuita">Gratuita — 0%</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Envío propio (ARS, opcional)</label>
+      <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="pEnvio" placeholder="" min="0"></div>
+      <div class="hint">Vacío = usa el global.</div>
+    </div>
+  </div>
+  <button class="btn btn-green" onclick="addProduct()">➕ Agregar producto</button>
+</div>
 
-  <!-- PDF EXPORT CONFIG -->
-  <div class="section" id="pdfSection" style="display:none">
-    <div class="section-title">🖨️ Configurar PDF para cliente</div>
-    <div class="notice">El PDF incluye: portada con datos del cliente, resumen ejecutivo, cascada de costos, tabla de productos y análisis de rentabilidad.</div>
-    <div class="grid3">
-      <div>
-        <label>Logo / texto cabecera</label>
-        <input type="text" id="pdfBrand" placeholder="Ej: InnovaSmart AR" value="MargenClear">
-      </div>
-      <div>
-        <label>Email de contacto (PDF)</label>
-        <input type="text" id="pdfEmail" placeholder="tu@email.com">
-      </div>
-      <div>
-        <label>WhatsApp (PDF)</label>
-        <input type="text" id="pdfWa" placeholder="+54 11 ...">
-      </div>
+<!-- TABLA PRODUCTOS -->
+<div class="section">
+  <div class="section-title">📊 Productos cargados</div>
+  <div id="productsContainer"><div style="text-align:center;padding:28px;color:var(--text3)">📦 Todavía no cargaste ningún producto. Usá el formulario de arriba.</div></div>
+</div>
+
+<!-- RESUMEN -->
+<div class="section" id="summarySection" style="display:none">
+  <div class="section-title">📈 Resumen ejecutivo — <span id="periodoLabel">Quincenal</span></div>
+  <div class="summary-grid" id="summaryCards"></div>
+  <hr class="divider">
+  <div class="section-title" style="margin-bottom:10px">💧 Cascada de costos — total del período</div>
+  <div id="waterfallContainer"></div>
+  <hr class="divider">
+  <div class="section-title" style="margin-bottom:8px">📋 Detalle por producto</div>
+  <div id="detailTableContainer"></div>
+</div>
+
+<!-- PDF CONFIG -->
+<div class="section" id="pdfSection" style="display:none">
+  <div class="section-title">🖨️ Configurar informe PDF para cliente</div>
+  <div class="notice">PDF con portada profesional, resumen ejecutivo, desglose completo de costos y ficha por producto. Listo para enviar al cliente.</div>
+  <div class="grid3">
+    <div class="field">
+      <label>Marca / empresa</label>
+      <input type="text" id="pdfBrand" value="MargenClear" placeholder="Tu marca">
     </div>
-    <div style="margin-top:12px">
-      <label>Nota personalizada para el cliente</label>
-      <textarea id="pdfNota" rows="3" placeholder="Ej: Este informe corresponde al período 01/04 al 15/04. Cualquier consulta escribinos al WhatsApp."></textarea>
+    <div class="field">
+      <label>Email de contacto</label>
+      <input type="text" id="pdfEmail" placeholder="tu@email.com">
     </div>
-    <button class="btn btn-gold" onclick="exportPDF()" style="margin-top:12px">⬇️ Generar y descargar PDF</button>
+    <div class="field">
+      <label>WhatsApp</label>
+      <input type="text" id="pdfWa" placeholder="+54 11 ...">
+    </div>
   </div>
+  <div class="field" style="margin-top:10px">
+    <label>Nota personalizada para el cliente</label>
+    <textarea id="pdfNota" rows="2" placeholder="Ej: Informe quincenal 01/04–15/04. Cualquier consulta al WhatsApp."></textarea>
+  </div>
+  <button class="btn btn-gold" style="margin-top:12px" onclick="exportPDF()">⬇️ Generar y descargar PDF</button>
+</div>
 
 </main>
 <script>
-// ===== STATE =====
+// ========== STATE ==========
 let products = [];
 let nextId = 1;
+const TIPO_COM = { clasica: 13.5, premium: 16, moda: 16, gratuita: 0, custom: null };
+const CARGO_CUOTAS = { 1:0, 3:3, 6:5.5, 9:9, 12:12 };
+let currentTipoPub = 'clasica';
+let currentCuotas = 1;
 
-// ===== INIT =====
+// ========== INIT ==========
 document.addEventListener('DOMContentLoaded', () => {
-  const today = new Date();
-  document.getElementById('fechaInforme').value = today.toLocaleDateString('es-AR');
+  document.getElementById('fechaInforme').value = new Date().toLocaleDateString('es-AR');
   loadFromStorage();
   recalcAll();
 });
+function saveToStorage() { try { localStorage.setItem('mc2_products', JSON.stringify(products)); } catch(e){} }
+function loadFromStorage() { try { const d = JSON.parse(localStorage.getItem('mc2_products')||'[]'); products = d; nextId = products.length ? Math.max(...products.map(p=>p.id))+1 : 1; } catch(e){ products=[]; } }
 
-function saveToStorage() {
-  try { localStorage.setItem('mc_products', JSON.stringify(products)); } catch(e){}
-}
-function loadFromStorage() {
-  try {
-    const d = JSON.parse(localStorage.getItem('mc_products') || '[]');
-    products = d;
-    nextId = products.length ? Math.max(...products.map(p=>p.id)) + 1 : 1;
-  } catch(e) { products = []; }
+// ========== COLLAPSE ==========
+function toggleCollapse(id) {
+  const body = document.getElementById('body-'+id);
+  const toggle = document.getElementById('toggle-'+id);
+  body.classList.toggle('hidden');
+  toggle.classList.toggle('open');
 }
 
-// ===== GLOBALS =====
+// ========== TIPO PUBLICACION ==========
+function selectTipoPub(tipo) {
+  currentTipoPub = tipo;
+  ['clasica','premium','moda','gratuita','custom'].forEach(t => {
+    document.getElementById('chip-'+t).className = t === tipo ? 'chip active-chip' : 'chip inactive-chip';
+  });
+  const customRow = document.getElementById('custom-comision-row');
+  customRow.style.display = tipo === 'custom' ? '' : 'none';
+  if (tipo !== 'custom') {
+    document.getElementById('comisionMeli').value = TIPO_COM[tipo];
+  }
+  recalcAll();
+}
+function getComisionBase() {
+  if (currentTipoPub === 'custom') return parseFloat(document.getElementById('comisionCustom').value) || 0;
+  return TIPO_COM[currentTipoPub] || 0;
+}
+function getTipoPubComision(tipoPub) {
+  if (!tipoPub || tipoPub === '') return getComisionBase();
+  return TIPO_COM[tipoPub] || getComisionBase();
+}
+
+// ========== CUOTAS ==========
+function selectCuotas(n) {
+  currentCuotas = n;
+  [1,3,6,9,12].forEach(c => {
+    document.getElementById('cuota-'+c).className = c===n ? 'cuota-btn active' : 'cuota-btn';
+  });
+  const cargo = CARGO_CUOTAS[n] || 0;
+  document.getElementById('cargoCuotas').value = cargo;
+  document.getElementById('cuotasSelec').value = n;
+  const hint = document.getElementById('cuotas-hint');
+  hint.textContent = n===1 ? 'Sin cargo por cuotas.' : n+' cuotas sin interés: cargo de '+cargo+'% sobre el precio de venta al vendedor.';
+  hint.className = 'hint' + (n>1 ? ' warn' : '');
+  recalcAll();
+}
+
+// ========== ENVIO ==========
+function onEnvioChange() {
+  const mod = document.getElementById('modalidadEnvio').value;
+  const hints = {
+    gratis_meli: 'El costo lo absorbés vos. Obligatorio para productos con precio &gt; ARS 9.000.',
+    meli_cargo: 'El costo de envío lo paga el comprador. Podés poner 0 en el campo de abajo.',
+    propio: 'Envío propio: ingresá tu costo real.',
+    retiro: 'Costo de logística hasta el punto de retiro.',
+    full: 'MercadoEnvíos Full: incluye costo de fulfillment + almacenaje.'
+  };
+  document.getElementById('envioHint').innerHTML = hints[mod] || '';
+  if (mod === 'meli_cargo') document.getElementById('costoEnvio').value = 0;
+  recalcAll();
+}
+
+// ========== GLOBALS ==========
 function getGlobals() {
   const tc = parseFloat(document.getElementById('tipoCambio').value) || 1250;
   const periodo = document.getElementById('periodo').value;
-  const dias = periodo === 'semanal' ? 7 : periodo === 'quincenal' ? 15 : 30;
-  const comisionBase = parseFloat(document.getElementById('comisionMeli').value) || 13.5;
+  const dias = periodo==='semanal'?7:periodo==='quincenal'?15:30;
+  const comisionBase = getComisionBase();
   const iva = parseFloat(document.getElementById('ivaComision').value) || 21;
-  const comisionTotal = comisionBase * (1 + iva / 100);
-  const envioGlobal = parseFloat(document.getElementById('costoEnvio').value) || 0;
+  const cargoCuotas = parseFloat(document.getElementById('cargoCuotas').value) || 0;
+  const comisionTotalPct = comisionBase * (1 + iva/100) + cargoCuotas;
+  const costoEnvio = parseFloat(document.getElementById('costoEnvio').value) || 0;
+  const iibb = parseFloat(document.getElementById('iibb').value) || 0;
+  const percAfip = parseFloat(document.getElementById('percAfip').value) || 0;
   const impGan = parseFloat(document.getElementById('impGanancias').value) || 0;
+  const devoluciones = parseFloat(document.getElementById('devoluciones').value) || 0;
+  const otrosVar = parseFloat(document.getElementById('otrosVar').value) || 0;
   const gastosFijos = parseFloat(document.getElementById('gastosFijos').value) || 0;
   const publicidad = parseFloat(document.getElementById('publicidad').value) || 0;
   const otrosFijos = parseFloat(document.getElementById('otrosFijos').value) || 0;
-  const otrosVar = parseFloat(document.getElementById('otrosVar').value) || 0;
   const totalFijosMes = gastosFijos + publicidad + otrosFijos;
-  const totalFijosPeriodo = totalFijosMes * (dias / 30);
-  return { tc, periodo, dias, comisionBase, iva, comisionTotal, envioGlobal, impGan, otrosVar, totalFijosMes, totalFijosPeriodo };
+  const totalFijosPeriodo = totalFijosMes * (dias/30);
+  return { tc, periodo, dias, comisionBase, iva, cargoCuotas, comisionTotalPct, costoEnvio, iibb, percAfip, impGan, devoluciones, otrosVar, totalFijosMes, totalFijosPeriodo };
 }
 
-// ===== CALCULAR UN PRODUCTO =====
-function calcProduct(p, globals) {
-  const { dias, comisionTotal, envioGlobal, impGan, otrosVar } = globals;
+// ========== CALC PRODUCT ==========
+function calcProduct(p, g) {
   const precio = p.precioVenta;
   const costo = p.costo;
-  const ventasDia = p.ventasDia;
-  const comision = p.comisionPropia > 0 ? p.comisionPropia * (1 + (parseFloat(document.getElementById('ivaComision').value)||21)/100) : comisionTotal;
-  const envio = p.envioPropio >= 0 ? p.envioPropio : envioGlobal;
-  const unidadesPeriodo = ventasDia * dias;
-  const unidadesStock = p.stock;
-
-  // Por unidad
-  const comisionARS = precio * comision / 100;
-  const envioARS = envio;
-  const otrosVarARS = precio * otrosVar / 100;
-  const costoTotal = costo + comisionARS + envioARS + otrosVarARS;
-  const ganBruta = precio - costo;
-  const ganNeta = precio - costoTotal;
-  const impGanARS = ganNeta > 0 ? ganNeta * impGan / 100 : 0;
-  const ganReal = ganNeta - impGanARS;
-  const margenPct = precio > 0 ? (ganReal / precio) * 100 : 0;
-  const roi = costo > 0 ? (ganReal / costo) * 100 : 0;
-
+  const ventasDia = p.ventasDia || 0;
+  // Comisión del producto (puede tener tipo propio)
+  const comisionBaseProd = p.tipoPub ? getTipoPubComision(p.tipoPub) : getComisionBase();
+  const comisionTotalProd = comisionBaseProd * (1 + g.iva/100) + g.cargoCuotas;
+  const envio = (p.envioPropio !== null && p.envioPropio >= 0) ? p.envioPropio : g.costoEnvio;
+  // Por unidad — todos los descuentos
+  const comisionARS   = precio * comisionTotalProd / 100;           // comisión + IVA + cuotas
+  const iibbARS       = precio * g.iibb / 100;                      // IIBB sobre venta
+  const percAfipARS   = precio * g.percAfip / 100;                  // Percepción AFIP
+  const otrosVarARS   = precio * g.otrosVar / 100;                  // Otros variables
+  const envioARS      = envio;                                       // Costo envío
+  // Desglose comisión para mostrar
+  const comisionPura  = precio * comisionBaseProd / 100;
+  const ivaComisionARS= precio * comisionBaseProd * g.iva/100 / 100;
+  const cargoCuotasARS= precio * g.cargoCuotas / 100;
+  // Ganancia antes de ganancias e impacto devoluciones
+  const costosTotalesARS = costo + comisionARS + iibbARS + percAfipARS + otrosVarARS + envioARS;
+  const ganBruta      = precio - costo;
+  const ganAntesDev   = precio - costosTotalesARS;
+  // Impacto devoluciones: en % de ventas, si devuelven el comprador ya no paga pero vos perdiste el costo
+  const impactoDevARS = precio * g.devoluciones / 100 * 0.3; // aprox 30% del valor en pérdida neta por devolución
+  const ganNeta       = ganAntesDev - impactoDevARS;
+  const impGanARS     = ganNeta > 0 ? ganNeta * g.impGan / 100 : 0;
+  const ganReal       = ganNeta - impGanARS;
+  const margenPct     = precio > 0 ? (ganReal / precio) * 100 : 0;
+  const roi           = costo > 0 ? (ganReal / costo) * 100 : 0;
   // Período
-  const ventasPeriodo = Math.min(unidadesPeriodo, unidadesStock > 0 ? unidadesStock : Infinity);
-  const ingresosPeriodo = precio * ventasPeriodo;
-  const costoPeriodo = costo * ventasPeriodo;
-  const comisionPeriodo = comisionARS * ventasPeriodo;
-  const envioPeriodo = envioARS * ventasPeriodo;
-  const otrosVarPeriodo = otrosVarARS * ventasPeriodo;
-  const ganRealPeriodo = ganReal * ventasPeriodo;
-  const diasParaAgotarStock = unidadesStock > 0 && ventasDia > 0 ? (unidadesStock / ventasDia) : null;
-  const puntoEquilibrio = ganReal > 0 ? Math.ceil((globals.totalFijosPeriodo / products.length) / ganReal) : null;
-
+  const unidadesPeriodo = Math.min(ventasDia * g.dias, p.stock > 0 ? p.stock : Infinity);
+  const ingresosPeriodo   = precio * unidadesPeriodo;
+  const costoPeriodo      = costo * unidadesPeriodo;
+  const comisionPeriodo   = comisionARS * unidadesPeriodo;
+  const iibbPeriodo       = iibbARS * unidadesPeriodo;
+  const percAfipPeriodo   = percAfipARS * unidadesPeriodo;
+  const envioPeriodo      = envioARS * unidadesPeriodo;
+  const otrosVarPeriodo   = otrosVarARS * unidadesPeriodo;
+  const impactoDevPeriodo = impactoDevARS * unidadesPeriodo;
+  const ganRealPeriodo    = ganReal * unidadesPeriodo;
+  const diasStock         = p.stock > 0 && ventasDia > 0 ? p.stock / ventasDia : null;
   return {
-    id: p.id, nombre: p.nombre,
-    precio, costo, ventasDia, stock: unidadesStock,
-    comisionARS, envioARS, otrosVarARS, impGanARS,
-    costoTotal, ganBruta, ganNeta, ganReal,
+    id:p.id, nombre:p.nombre,
+    precio, costo, ventasDia, stock:p.stock,
+    comisionPura, ivaComisionARS, cargoCuotasARS, comisionARS,
+    iibbARS, percAfipARS, envioARS, otrosVarARS, impactoDevARS, impGanARS,
+    costosTotalesARS, ganBruta, ganNeta, ganReal,
     margenPct, roi,
-    ventasPeriodo, ingresosPeriodo, costoPeriodo, comisionPeriodo, envioPeriodo, otrosVarPeriodo, ganRealPeriodo,
-    diasParaAgotarStock, puntoEquilibrio
+    unidadesPeriodo, ingresosPeriodo, costoPeriodo, comisionPeriodo,
+    iibbPeriodo, percAfipPeriodo, envioPeriodo, otrosVarPeriodo, impactoDevPeriodo, ganRealPeriodo,
+    diasStock,
+    comisionBaseProd, comisionTotalProd
   };
 }
 
-// ===== ADD PRODUCT =====
+// ========== ADD / DELETE ==========
 function addProduct() {
   const nombre = document.getElementById('pNombre').value.trim();
-  const precioVenta = parseFloat(document.getElementById('pPrecioVenta').value) || 0;
-  const costo = parseFloat(document.getElementById('pCosto').value) || 0;
-  const stock = parseFloat(document.getElementById('pStock').value) || 0;
-  const ventasDia = parseFloat(document.getElementById('pVentasDia').value) || 0;
-  const envioPropio = document.getElementById('pEnvio').value !== '' ? parseFloat(document.getElementById('pEnvio').value) : -1;
-  const comisionPropia = document.getElementById('pComision').value !== '' ? parseFloat(document.getElementById('pComision').value) : 0;
+  const precioVenta = parseFloat(document.getElementById('pPrecioVenta').value)||0;
+  const costo = parseFloat(document.getElementById('pCosto').value)||0;
+  const stock = parseFloat(document.getElementById('pStock').value)||0;
+  const ventasDia = parseFloat(document.getElementById('pVentasDia').value)||0;
+  const tipoPub = document.getElementById('pTipoPub').value||'';
+  const envioVal = document.getElementById('pEnvio').value;
+  const envioPropio = envioVal !== '' ? parseFloat(envioVal) : null;
   if (!nombre) { alert('Ingresá el nombre del producto'); return; }
-  if (precioVenta <= 0) { alert('Ingresá el precio de venta'); return; }
-  if (costo <= 0) { alert('Ingresá el costo del producto'); return; }
-  products.push({ id: nextId++, nombre, precioVenta, costo, stock, ventasDia, envioPropio, comisionPropia });
+  if (precioVenta<=0) { alert('Ingresá el precio de venta'); return; }
+  if (costo<=0) { alert('Ingresá el costo del producto'); return; }
+  products.push({ id:nextId++, nombre, precioVenta, costo, stock, ventasDia, tipoPub, envioPropio });
   saveToStorage();
-  ['pNombre','pPrecioVenta','pCosto','pStock','pVentasDia','pEnvio','pComision'].forEach(id => { document.getElementById(id).value = ''; });
+  ['pNombre','pPrecioVenta','pCosto','pStock','pVentasDia','pEnvio'].forEach(id=>{ document.getElementById(id).value=''; });
+  document.getElementById('pTipoPub').value='';
   recalcAll();
 }
+function deleteProduct(id) { products=products.filter(p=>p.id!==id); saveToStorage(); recalcAll(); }
+function clearAll() { if(!confirm('¿Borrar todos los productos?'))return; products=[]; nextId=1; saveToStorage(); recalcAll(); }
 
-function deleteProduct(id) {
-  products = products.filter(p => p.id !== id);
-  saveToStorage();
-  recalcAll();
-}
-
-function clearAll() {
-  if (!confirm('¿Borrar todos los productos cargados?')) return;
-  products = [];
-  nextId = 1;
-  saveToStorage();
-  recalcAll();
-}
-
-// ===== RECALC ALL =====
+// ========== RECALC ==========
 function recalcAll() {
-  const globals = getGlobals();
-  const calcs = products.map(p => calcProduct(p, globals));
-  renderProductsTable(calcs);
-  if (calcs.length > 0) {
-    renderSummary(calcs, globals);
-    document.getElementById('summarySection').style.display = '';
-    document.getElementById('pdfSection').style.display = '';
-    const labels = { semanal: 'Semanal (7 días)', quincenal: 'Quincenal (15 días)', mensual: 'Mensual (30 días)' };
-    document.getElementById('periodoLabel').textContent = labels[globals.periodo];
+  const g = getGlobals();
+  const calcs = products.map(p=>calcProduct(p,g));
+  renderProductsTable(calcs, g);
+  if (calcs.length>0) {
+    renderSummary(calcs, g);
+    document.getElementById('summarySection').style.display='';
+    document.getElementById('pdfSection').style.display='';
+    const labels={semanal:'Semanal (7 días)',quincenal:'Quincenal (15 días)',mensual:'Mensual (30 días)'};
+    document.getElementById('periodoLabel').textContent=labels[g.periodo];
   } else {
-    document.getElementById('summarySection').style.display = 'none';
-    document.getElementById('pdfSection').style.display = 'none';
+    document.getElementById('summarySection').style.display='none';
+    document.getElementById('pdfSection').style.display='none';
   }
 }
 
-function updateHeaderPreview() {}
-
-// ===== RENDER TABLE =====
-function renderProductsTable(calcs) {
+// ========== RENDER TABLE ==========
+function renderProductsTable(calcs, g) {
   const container = document.getElementById('productsContainer');
-  if (!calcs.length) {
-    container.innerHTML = '<div class="empty-state"><span>📦</span>Todavía no cargaste ningún producto.<br>Usá el formulario de arriba para empezar.</div>';
-    return;
-  }
-  const ars = n => 'ARS ' + Math.round(n).toLocaleString('es-AR');
-  const pct = n => n.toFixed(1) + '%';
-  const colorClass = n => n >= 40 ? 'ok' : n >= 20 ? 'warn' : 'bad';
-  let rows = calcs.map(c => `
-    <tr>
-      <td><strong>${c.nombre}</strong></td>
-      <td>${ars(c.precio)}</td>
-      <td>${ars(c.costo)}</td>
-      <td style="color:var(--red2)">-${ars(c.comisionARS)}</td>
-      <td style="color:var(--red2)">${c.envioARS > 0 ? '-'+ars(c.envioARS) : '<span style="color:var(--text3)">—</span>'}</td>
-      <td><strong class="${colorClass(c.margenPct)}">${pct(c.margenPct)}</strong></td>
-      <td><span class="tag ${colorClass(c.ganReal)}">${ars(c.ganReal)}</span></td>
-      <td style="color:var(--text2)">${c.stock > 0 ? c.stock+' uds' : '—'}</td>
-      <td style="color:var(--text2)">${c.diasParaAgotarStock ? Math.round(c.diasParaAgotarStock)+'d' : '—'}</td>
-      <td><button class="btn btn-red btn-sm" onclick="deleteProduct(${c.id})">✕</button></td>
-    </tr>
-  `).join('');
-  container.innerHTML = `
-    <div style="overflow-x:auto">
-    <table class="products-table">
-      <thead><tr>
-        <th>Producto</th><th>Precio</th><th>Costo</th><th>Comisión MeLi</th><th>Envío</th>
-        <th>Margen</th><th>Gan. real/u</th><th>Stock</th><th>Días stock</th><th></th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    </div>`;
+  if (!calcs.length) { container.innerHTML='<div style="text-align:center;padding:28px;color:var(--text3)">📦 Todavía no cargaste ningún producto.</div>'; return; }
+  const ars = n => 'ARS '+Math.round(n).toLocaleString('es-AR');
+  const cc = n => n>=35?'ok':n>=18?'warn':'bad';
+  let rows = calcs.map(c=>`<tr>
+    <td><strong>${c.nombre}</strong><br><span style="font-size:.7rem;color:var(--text3)">${c.comisionBaseProd}% + IVA + ${g.cargoCuotas}% cuotas</span></td>
+    <td>${ars(c.precio)}</td>
+    <td>${ars(c.costo)}</td>
+    <td style="color:var(--red2)">-${ars(c.comisionPura)}<br><span style="font-size:.68rem;color:var(--text3)">+${ars(c.ivaComisionARS)} IVA${c.cargoCuotasARS>0?' +'+ars(c.cargoCuotasARS)+' cuotas':''}</span></td>
+    <td style="color:var(--red2)">-${ars(c.envioARS)}</td>
+    <td style="color:var(--orange)">-${ars(c.iibbARS)}${c.percAfipARS>0?'<br><span style="font-size:.68rem">-'+ars(c.percAfipARS)+'</span>':''}</td>
+    <td><strong class="${cc(c.margenPct)}">${c.margenPct.toFixed(1)}%</strong></td>
+    <td><span class="tag tag-${cc(c.margenPct)}">${ars(c.ganReal)}</span></td>
+    <td style="color:var(--text2)">${c.stock>0?c.stock+' uds':'—'}</td>
+    <td><button class="btn btn-red btn-sm" onclick="deleteProduct(${c.id})">✕</button></td>
+  </tr>`).join('');
+  container.innerHTML=`<div style="overflow-x:auto"><table class="ptable">
+    <thead><tr>
+      <th>Producto</th><th>Precio</th><th>Costo</th>
+      <th>Comisión MeLi<br><span style="font-weight:400;text-transform:none">comis.+IVA+cuotas</span></th>
+      <th>Envío</th><th>IIBB/AFIP</th>
+      <th>Margen</th><th>Gan. real/u</th><th>Stock</th><th></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
 }
 
-// ===== RENDER SUMMARY =====
-function renderSummary(calcs, globals) {
-  const ars = n => 'ARS ' + Math.round(n).toLocaleString('es-AR');
-  const totalIngresos = calcs.reduce((a,c) => a + c.ingresosPeriodo, 0);
-  const totalCostoProducto = calcs.reduce((a,c) => a + c.costoPeriodo, 0);
-  const totalComision = calcs.reduce((a,c) => a + c.comisionPeriodo, 0);
-  const totalEnvio = calcs.reduce((a,c) => a + c.envioPeriodo, 0);
-  const totalOtrosVar = calcs.reduce((a,c) => a + c.otrosVarPeriodo, 0);
-  const totalGanBruta = calcs.reduce((a,c) => a + c.ganBruta * c.ventasPeriodo, 0);
-  const totalGanReal = calcs.reduce((a,c) => a + c.ganRealPeriodo, 0);
-  const ganConFijos = totalGanReal - globals.totalFijosPeriodo;
-  const margenTotal = totalIngresos > 0 ? (ganConFijos / totalIngresos) * 100 : 0;
-  const colorClass = n => n >= 40 ? 'ok' : n >= 20 ? 'warn' : 'bad';
-
-  // Summary cards
-  const cards = [
-    { label: 'Ingresos totales', val: ars(totalIngresos), icon: '💵', cls: '' },
-    { label: 'Ganancia bruta', val: ars(totalGanBruta), icon: '📊', cls: '' },
-    { label: 'Ganancia neta real', val: ars(ganConFijos), icon: '💰', cls: colorClass(margenTotal) },
-    { label: 'Margen neto %', val: margenTotal.toFixed(1) + '%', icon: '📈', cls: colorClass(margenTotal) },
-  ];
-  document.getElementById('summaryCards').innerHTML = cards.map(c => `
-    <div class="result-box">
-      <div style="font-size:1.4rem;margin-bottom:4px">${c.icon}</div>
-      <div class="result-num ${c.cls}">${c.val}</div>
-      <div class="result-label">${c.label}</div>
-    </div>`).join('');
-
+// ========== RENDER SUMMARY ==========
+function renderSummary(calcs, g) {
+  const ars = n => 'ARS '+Math.round(n).toLocaleString('es-AR');
+  const tI   = calcs.reduce((a,c)=>a+c.ingresosPeriodo,0);
+  const tCP  = calcs.reduce((a,c)=>a+c.costoPeriodo,0);
+  const tCom = calcs.reduce((a,c)=>a+c.comisionPeriodo,0);
+  const tEnv = calcs.reduce((a,c)=>a+c.envioPeriodo,0);
+  const tIIBB= calcs.reduce((a,c)=>a+c.iibbPeriodo,0);
+  const tAfip= calcs.reduce((a,c)=>a+c.percAfipPeriodo,0);
+  const tDev = calcs.reduce((a,c)=>a+c.impactoDevPeriodo,0);
+  const tOtV = calcs.reduce((a,c)=>a+c.otrosVarPeriodo,0);
+  const tGB  = calcs.reduce((a,c)=>a+c.ganBruta*c.unidadesPeriodo,0);
+  const tGR  = calcs.reduce((a,c)=>a+c.ganRealPeriodo,0);
+  const tGRF = tGR - g.totalFijosPeriodo;
+  const mPct = tI>0?(tGRF/tI)*100:0;
+  const cc   = n => n>=35?'ok':n>=18?'warn':'bad';
+  // Cards
+  document.getElementById('summaryCards').innerHTML=[
+    {icon:'💵',label:'Ingresos brutos',val:ars(tI),sub:'',cls:''},
+    {icon:'📊',label:'Ganancia bruta',val:ars(tGB),sub:'sin ningún descuento MeLi',cls:''},
+    {icon:'💰',label:'Ganancia neta real',val:ars(tGRF),sub:'descontando TODO',cls:cc(mPct)},
+    {icon:'📈',label:'Margen neto %',val:mPct.toFixed(1)+'%',sub:'sobre ingresos',cls:cc(mPct)},
+  ].map(c=>`<div class="result-box"><div class="result-icon">${c.icon}</div><div class="result-num ${c.cls}">${c.val}</div><div class="result-label">${c.label}</div>${c.sub?'<div class="result-sub">'+c.sub+'</div>':''}</div>`).join('');
   // Waterfall
-  const maxVal = totalIngresos;
-  const wfItems = [
-    { label: 'Ingresos (ventas)', val: totalIngresos, type: 'total' },
-    { label: '— Costo del producto', val: -totalCostoProducto, type: 'neg' },
-    { label: '— Comisión MercadoLibre', val: -totalComision, type: 'neg' },
-    { label: '— Costo de envío', val: -totalEnvio, type: 'neg' },
-    { label: '— Otros variables', val: -totalOtrosVar, type: 'neg' },
-    { label: '— Gastos fijos (período)', val: -globals.totalFijosPeriodo, type: 'neg' },
-    { label: '= Ganancia neta real', val: ganConFijos, type: ganConFijos >= 0 ? 'pos' : 'neg' },
-  ].filter(i => Math.abs(i.val) > 0);
-  document.getElementById('waterfallContainer').innerHTML = '<div class="waterfall">' + wfItems.map(item => {
-    const pct = Math.max(2, Math.abs(item.val) / maxVal * 100);
-    const cls = item.type === 'total' ? 'wf-fill-total' : item.type === 'pos' ? 'wf-fill-pos' : 'wf-fill-neg';
-    const valCls = item.type === 'total' ? 'total' : item.val >= 0 ? 'pos' : 'neg';
-    const prefix = item.val >= 0 ? '+' : '';
-    return `<div class="wf-row">
-      <span class="wf-lbl">${item.label}</span>
-      <div class="wf-bar-bg"><div class="wf-bar-fill ${cls}" style="width:${pct}%"></div></div>
-      <span class="wf-val ${valCls}">${prefix}${ars(item.val)}</span>
-    </div>`;
-  }).join('') + '</div>';
-
+  const maxV = tI;
+  const wfItems=[
+    {label:'💵 Ingresos (ventas)',val:tI,type:'total'},
+    {label:'— Costo del producto',val:-tCP,type:'neg'},
+    {label:'— Comisión MeLi (comis.+IVA+cuotas)',val:-tCom,type:'neg'},
+    {label:'— Envíos',val:-tEnv,type:'neg'},
+    {label:'— Ingresos Brutos (IIBB)',val:-tIIBB,type:'orange'},
+    {label:'— Percepción AFIP',val:-tAfip,type:'orange'},
+    {label:'— Otros variables',val:-tOtV,type:'neg'},
+    {label:'— Impacto devoluciones',val:-tDev,type:'neg'},
+    {label:'— Gastos fijos (período)',val:-g.totalFijosPeriodo,type:'neg'},
+    {label:'= GANANCIA NETA REAL',val:tGRF,type:tGRF>=0?'pos':'neg'},
+  ].filter(i=>Math.abs(i.val)>0.5);
+  document.getElementById('waterfallContainer').innerHTML='<div class="waterfall">'+wfItems.map(item=>{
+    const pct=Math.max(2,Math.abs(item.val)/maxV*100);
+    const fillCls=item.type==='total'?'wf-fill-total':item.type==='pos'?'wf-fill-pos':item.type==='orange'?'wf-fill-orange':'wf-fill-neg';
+    const valCls=item.type==='total'?'total':item.val>=0?'pos':item.type==='orange'?'orange':'neg';
+    const prefix=item.val>=0?'+':'';
+    return `<div class="wf-row"><span class="wf-lbl">${item.label}</span><div class="wf-bar-bg"><div class="wf-bar-fill ${fillCls}" style="width:${pct}%"></div></div><span class="wf-val ${valCls}">${prefix}${ars(item.val)}</span></div>`;
+  }).join('')+'</div>';
   // Detail table
-  const detailRows = calcs.map(c => {
-    const ganPeriodo = c.ganRealPeriodo;
-    const cls = colorClass(c.margenPct);
+  const rows=calcs.map(c=>{
+    const cls=cc(c.margenPct);
     return `<tr>
       <td><strong>${c.nombre}</strong></td>
-      <td>${Math.round(c.ventasPeriodo)} uds</td>
+      <td>${Math.round(c.unidadesPeriodo)} uds</td>
       <td>${ars(c.ingresosPeriodo)}</td>
       <td style="color:var(--red2)">-${ars(c.costoPeriodo)}</td>
       <td style="color:var(--red2)">-${ars(c.comisionPeriodo)}</td>
       <td style="color:var(--red2)">-${ars(c.envioPeriodo)}</td>
-      <td><strong class="${cls}">${ars(ganPeriodo)}</strong></td>
-      <td><span class="tag tag-${cls === 'ok' ? 'ok' : cls === 'warn' ? 'warn' : 'bad'}">${c.margenPct.toFixed(1)}%</span></td>
+      <td style="color:var(--orange)">-${ars(c.iibbPeriodo+c.percAfipPeriodo)}</td>
+      <td><strong class="${cls}">${ars(c.ganRealPeriodo)}</strong></td>
+      <td><span class="tag tag-${cls}">${c.margenPct.toFixed(1)}%</span></td>
       <td>${c.roi.toFixed(0)}%</td>
     </tr>`;
   }).join('');
-  const totalsRow = `<tr class="totals-row">
+  const totRow=`<tr class="total-row">
     <td><strong>TOTAL</strong></td>
-    <td>${calcs.reduce((a,c)=>a+c.ventasPeriodo,0).toFixed(0)} uds</td>
-    <td>${ars(totalIngresos)}</td>
-    <td>-${ars(totalCostoProducto)}</td>
-    <td>-${ars(totalComision)}</td>
-    <td>-${ars(totalEnvio)}</td>
-    <td>${ars(ganConFijos)}</td>
-    <td>${margenTotal.toFixed(1)}%</td>
+    <td>${calcs.reduce((a,c)=>a+c.unidadesPeriodo,0).toFixed(0)} uds</td>
+    <td>${ars(tI)}</td>
+    <td>-${ars(tCP)}</td>
+    <td>-${ars(tCom)}</td>
+    <td>-${ars(tEnv)}</td>
+    <td>-${ars(tIIBB+tAfip)}</td>
+    <td>${ars(tGRF)}</td>
+    <td>${mPct.toFixed(1)}%</td>
     <td>—</td>
   </tr>`;
-  document.getElementById('detailTableContainer').innerHTML = `<div style="overflow-x:auto">
-    <table class="products-table">
-      <thead><tr><th>Producto</th><th>Ventas período</th><th>Ingresos</th><th>Costo prod.</th><th>Comisión</th><th>Envío</th><th>Ganancia</th><th>Margen</th><th>ROI</th></tr></thead>
-      <tbody>${detailRows}${totalsRow}</tbody>
-    </table></div>`;
+  document.getElementById('detailTableContainer').innerHTML=`<div style="overflow-x:auto"><table class="ptable">
+    <thead><tr><th>Producto</th><th>Ventas período</th><th>Ingresos</th><th>Costo prod.</th><th>Comisión</th><th>Envío</th><th>IIBB+AFIP</th><th>Ganancia</th><th>Margen</th><th>ROI</th></tr></thead>
+    <tbody>${rows}${totRow}</tbody>
+  </table></div>`;
 }
 
-// ===== EXPORT PDF =====
+// ========== EXPORT PDF ==========
 function exportPDF() {
   if (!products.length) { alert('Agregá al menos un producto antes de exportar.'); return; }
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const globals = getGlobals();
-  const calcs = products.map(p => calcProduct(p, globals));
-  const brand = document.getElementById('pdfBrand')?.value || 'MargenClear';
-  const emailPDF = document.getElementById('pdfEmail')?.value || '';
-  const waPDF = document.getElementById('pdfWa')?.value || '';
-  const nota = document.getElementById('pdfNota')?.value || '';
-  const cliente = document.getElementById('clienteNombre')?.value || 'Cliente';
-  const fecha = document.getElementById('fechaInforme')?.value || new Date().toLocaleDateString('es-AR');
-  const periodoLabels = { semanal: 'Semanal', quincenal: 'Quincenal', mensual: 'Mensual' };
-  const periodoLabel = periodoLabels[globals.periodo];
-  const ars = n => 'ARS ' + Math.round(n).toLocaleString('es-AR');
-  const W = 210; const H = 297;
-
-  // --- PORTADA ---
-  doc.setFillColor(13, 13, 13);
-  doc.rect(0, 0, W, H, 'F');
-  doc.setFillColor(201, 168, 76);
-  doc.rect(0, 0, W, 4, 'F');
-  doc.setFontSize(32); doc.setTextColor(201, 168, 76);
-  doc.text('💰 MargenClear', W/2, 60, { align: 'center' });
-  doc.setFontSize(14); doc.setTextColor(180, 160, 130);
-  doc.text('Informe de Ganancia Real — MercadoLibre', W/2, 72, { align: 'center' });
-  doc.setFontSize(11); doc.setTextColor(120, 110, 100);
-  doc.text('Período: ' + periodoLabel + ' · Fecha: ' + fecha, W/2, 82, { align: 'center' });
-  doc.setFillColor(30, 30, 30);
-  doc.roundedRect(30, 100, W - 60, 40, 4, 4, 'F');
-  doc.setFontSize(13); doc.setTextColor(200, 190, 170);
-  doc.text('Preparado para:', 40, 115);
-  doc.setFontSize(16); doc.setTextColor(201, 168, 76);
-  doc.text(cliente, 40, 128);
-  if (nota) {
-    doc.setFillColor(25, 25, 25);
-    doc.roundedRect(30, 155, W - 60, 30, 3, 3, 'F');
-    doc.setFontSize(9); doc.setTextColor(150, 140, 120);
-    const notaLines = doc.splitTextToSize(nota, W - 70);
-    doc.text(notaLines, 40, 164);
-  }
-  doc.setFontSize(9); doc.setTextColor(100, 90, 80);
-  let contactY = 260;
-  doc.text(brand, W/2, contactY, { align: 'center' });
-  if (emailPDF) { contactY += 6; doc.text('✉ ' + emailPDF, W/2, contactY, { align: 'center' }); }
-  if (waPDF) { contactY += 6; doc.text('💬 ' + waPDF, W/2, contactY, { align: 'center' }); }
-  doc.setFillColor(201, 168, 76);
-  doc.rect(0, H - 4, W, 4, 'F');
-
-  // --- PÁGINA 2: RESUMEN ---
-  doc.addPage();
-  doc.setFillColor(13, 13, 13); doc.rect(0, 0, W, H, 'F');
-  doc.setFillColor(201, 168, 76); doc.rect(0, 0, W, 2, 'F');
-  let y = 16;
-  doc.setFontSize(14); doc.setTextColor(201, 168, 76);
-  doc.text('📈 Resumen Ejecutivo — ' + periodoLabel, 14, y); y += 10;
-
-  const totalIngresos = calcs.reduce((a,c)=>a+c.ingresosPeriodo,0);
-  const totalCostoProducto = calcs.reduce((a,c)=>a+c.costoPeriodo,0);
-  const totalComision = calcs.reduce((a,c)=>a+c.comisionPeriodo,0);
-  const totalEnvio = calcs.reduce((a,c)=>a+c.envioPeriodo,0);
-  const totalGanBruta = calcs.reduce((a,c)=>a+c.ganBruta*c.ventasPeriodo,0);
-  const totalGanReal = calcs.reduce((a,c)=>a+c.ganRealPeriodo,0);
-  const ganConFijos = totalGanReal - globals.totalFijosPeriodo;
-  const margenTotal = totalIngresos > 0 ? (ganConFijos / totalIngresos) * 100 : 0;
-
-  const summaryItems = [
-    ['Ingresos totales', ars(totalIngresos)],
-    ['Costo total de productos', '-' + ars(totalCostoProducto)],
-    ['Comisiones MercadoLibre', '-' + ars(totalComision)],
-    ['Costos de envío', '-' + ars(totalEnvio)],
-    ['Gastos fijos período', '-' + ars(globals.totalFijosPeriodo)],
-    ['GANANCIA NETA REAL', ars(ganConFijos)],
-    ['Margen neto %', margenTotal.toFixed(1) + '%'],
-  ];
-
-  summaryItems.forEach(([lbl, val], i) => {
-    const isTotal = i === summaryItems.length - 2;
-    if (isTotal) { doc.setFillColor(201, 168, 76); doc.rect(14, y - 4, W - 28, 10, 'F'); doc.setTextColor(20, 15, 0); }
-    else { doc.setFillColor(i % 2 === 0 ? 22 : 28, i % 2 === 0 ? 22 : 28, i % 2 === 0 ? 22 : 28); doc.rect(14, y - 4, W - 28, 9, 'F'); doc.setTextColor(200, 190, 170); }
-    doc.setFontSize(10);
-    doc.text(lbl, 18, y + 1);
-    doc.text(val, W - 16, y + 1, { align: 'right' });
-    y += 9;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  const g = getGlobals();
+  const calcs = products.map(p=>calcProduct(p,g));
+  const brand = document.getElementById('pdfBrand')?.value||'MargenClear';
+  const emailPDF = document.getElementById('pdfEmail')?.value||'';
+  const waPDF = document.getElementById('pdfWa')?.value||'';
+  const nota = document.getElementById('pdfNota')?.value||'';
+  const cliente = document.getElementById('clienteNombre')?.value||'Cliente';
+  const fecha = document.getElementById('fechaInforme')?.value||new Date().toLocaleDateString('es-AR');
+  const periodoLabels={semanal:'Semanal',quincenal:'Quincenal',mensual:'Mensual'};
+  const periodoLabel=periodoLabels[g.periodo];
+  const W=210; const H=297;
+  const ars = n=>'ARS '+Math.round(n).toLocaleString('es-AR');
+  const tI=calcs.reduce((a,c)=>a+c.ingresosPeriodo,0);
+  const tCP=calcs.reduce((a,c)=>a+c.costoPeriodo,0);
+  const tCom=calcs.reduce((a,c)=>a+c.comisionPeriodo,0);
+  const tEnv=calcs.reduce((a,c)=>a+c.envioPeriodo,0);
+  const tIIBB=calcs.reduce((a,c)=>a+c.iibbPeriodo,0);
+  const tAfip=calcs.reduce((a,c)=>a+c.percAfipPeriodo,0);
+  const tDev=calcs.reduce((a,c)=>a+c.impactoDevPeriodo,0);
+  const tOtV=calcs.reduce((a,c)=>a+c.otrosVarPeriodo,0);
+  const tGB=calcs.reduce((a,c)=>a+c.ganBruta*c.unidadesPeriodo,0);
+  const tGR=calcs.reduce((a,c)=>a+c.ganRealPeriodo,0);
+  const tGRF=tGR-g.totalFijosPeriodo;
+  const mPct=tI>0?(tGRF/tI)*100:0;
+  // PORTADA
+  doc.setFillColor(13,13,13); doc.rect(0,0,W,H,'F');
+  doc.setFillColor(201,168,76); doc.rect(0,0,W,5,'F');
+  doc.setFontSize(30); doc.setTextColor(201,168,76);
+  doc.text('💰 MargenClear', W/2, 55, {align:'center'});
+  doc.setFontSize(13); doc.setTextColor(160,145,120);
+  doc.text('Informe de Ganancia Real — MercadoLibre Argentina', W/2, 67, {align:'center'});
+  doc.setFontSize(10); doc.setTextColor(100,90,75);
+  doc.text('Período: '+periodoLabel+' · Fecha: '+fecha, W/2, 77, {align:'center'});
+  doc.setFillColor(28,26,22); doc.roundedRect(28,92,W-56,42,4,4,'F');
+  doc.setFontSize(11); doc.setTextColor(160,145,120); doc.text('Preparado para:', 38,106);
+  doc.setFontSize(17); doc.setTextColor(201,168,76); doc.text(cliente, 38,120);
+  if (nota) { doc.setFillColor(22,20,16); doc.roundedRect(28,148,W-56,32,3,3,'F'); doc.setFontSize(8); doc.setTextColor(120,110,90); const nLines=doc.splitTextToSize(nota,W-66); doc.text(nLines,38,158); }
+  // Resumen en portada
+  doc.setFillColor(22,20,16); doc.roundedRect(28,192,W-56,52,3,3,'F');
+  doc.setFontSize(9); doc.setTextColor(100,90,75); doc.text('RESUMEN EJECUTIVO',38,202);
+  const pItems=[['Ingresos brutos',ars(tI)],['Ganancia bruta',ars(tGB)],['Ganancia neta real',ars(tGRF)],['Margen neto',mPct.toFixed(1)+'%']];
+  pItems.forEach(([l,v],i)=>{ const y=210+i*8; doc.setFontSize(9); doc.setTextColor(150,138,115); doc.text(l,38,y); doc.setTextColor(201,168,76); doc.text(v,W-30,y,{align:'right'}); });
+  doc.setFontSize(8); doc.setTextColor(80,72,58); let cY=264; doc.text(brand,W/2,cY,{align:'center'}); if(emailPDF){cY+=6;doc.text('✉ '+emailPDF,W/2,cY,{align:'center'});}; if(waPDF){cY+=6;doc.text('💬 '+waPDF,W/2,cY,{align:'center'});}
+  doc.setFillColor(201,168,76); doc.rect(0,H-5,W,5,'F');
+  // PÁG 2 — DESGLOSE
+  doc.addPage(); doc.setFillColor(13,13,13); doc.rect(0,0,W,H,'F'); doc.setFillColor(201,168,76); doc.rect(0,0,W,2,'F');
+  let y=16; doc.setFontSize(13); doc.setTextColor(201,168,76); doc.text('💧 Desglose completo de costos — '+periodoLabel,14,y); y+=10;
+  const wfData=[['Ingresos (ventas)',tI,true],['Costo del producto',-tCP,false],['Comisión MeLi (comis.+IVA+cuotas)',-tCom,false],['Envíos',-tEnv,false],['Ingresos Brutos (IIBB)',-tIIBB,false],['Percepción AFIP',-tAfip,false],['Otros variables',-tOtV,false],['Impacto devoluciones',-tDev,false],['Gastos fijos período',-g.totalFijosPeriodo,false],['GANANCIA NETA REAL',tGRF,tGRF>=0]].filter(i=>Math.abs(i[1])>0.5);
+  const maxBarW=65; const maxBarVal=tI;
+  wfData.forEach(([lbl,val,isPos])=>{
+    if(y>275){doc.addPage();doc.setFillColor(13,13,13);doc.rect(0,0,W,H,'F');y=16;}
+    const barW=Math.max(1,Math.abs(val)/maxBarVal*maxBarW);
+    const isTotal=lbl==='Ingresos (ventas)';
+    const r=isTotal?201:isPos?39:192; const gg=isTotal?168:isPos?174:57; const b=isTotal?76:isPos?96:43;
+    doc.setFillColor(r,gg,b); doc.rect(82,y-5,barW,6,'F');
+    doc.setFontSize(8); doc.setTextColor(150,138,115); doc.text(lbl,16,y);
+    doc.setTextColor(isPos||isTotal?201:231,isPos||isTotal?168:76,isPos||isTotal?76:60);
+    doc.text((val>=0?'+':'')+ars(val),W-14,y,{align:'right'});
+    y+=9;
   });
-  y += 8;
-
-  // Waterfall bars (text-based)
-  doc.setFontSize(12); doc.setTextColor(201, 168, 76);
-  doc.text('💧 Desglose de Costos', 14, y); y += 8;
-  const wfItems = [
-    { label: 'Ingresos', val: totalIngresos },
-    { label: 'Costo productos', val: -totalCostoProducto },
-    { label: 'Comisión MeLi', val: -totalComision },
-    { label: 'Envíos', val: -totalEnvio },
-    { label: 'Gastos fijos', val: -globals.totalFijosPeriodo },
-    { label: 'Ganancia neta', val: ganConFijos },
-  ].filter(i => Math.abs(i.val) > 0);
-  const maxBar = Math.max(...wfItems.map(i => Math.abs(i.val)));
-  const barMaxW = 80;
-  wfItems.forEach(item => {
-    const barW = Math.max(2, Math.abs(item.val) / maxBar * barMaxW);
-    const isPos = item.val >= 0;
-    doc.setFillColor(isPos ? 39 : 192, isPos ? 174 : 57, isPos ? 96 : 43);
-    doc.rect(80, y - 4, barW, 6, 'F');
-    doc.setFontSize(8); doc.setTextColor(160, 150, 130);
-    doc.text(item.label, 16, y);
-    doc.setTextColor(isPos ? 46 : 231, isPos ? 204 : 76, isPos ? 113 : 60);
-    doc.text((isPos ? '+' : '') + ars(item.val), W - 16, y, { align: 'right' });
-    y += 9;
+  // PÁG 3 — PRODUCTOS
+  doc.addPage(); doc.setFillColor(13,13,13); doc.rect(0,0,W,H,'F'); doc.setFillColor(201,168,76); doc.rect(0,0,W,2,'F');
+  y=16; doc.setFontSize(13); doc.setTextColor(201,168,76); doc.text('📦 Detalle por producto',14,y); y+=7;
+  doc.setFontSize(8); doc.setTextColor(100,90,75); doc.text('TC: ARS '+g.tc.toLocaleString('es-AR')+' · Comisión base: '+getComisionBase()+'% + IVA '+g.iva+'% · Cuotas: '+currentCuotas+' · IIBB: '+g.iibb+'% · Envío: ARS '+g.costoEnvio.toLocaleString('es-AR'),14,y); y+=9;
+  calcs.forEach((c,idx)=>{
+    if(y>250){doc.addPage();doc.setFillColor(13,13,13);doc.rect(0,0,W,H,'F');y=16;}
+    doc.setFillColor(28,26,22); doc.roundedRect(14,y,W-28,56,3,3,'F');
+    doc.setFontSize(11); doc.setTextColor(201,168,76); doc.text((idx+1)+'. '+c.nombre,20,y+9);
+    const colW=(W-48)/4;
+    const cols=[['Precio venta','ARS '+Math.round(c.precio).toLocaleString('es-AR')],['Costo prod.','ARS '+Math.round(c.costo).toLocaleString('es-AR')],['Comisión MeLi','-ARS '+Math.round(c.comisionARS).toLocaleString('es-AR')],['Envío','-ARS '+Math.round(c.envioARS).toLocaleString('es-AR')]];
+    const cols2=[['IIBB+AFIP','-ARS '+Math.round(c.iibbARS+c.percAfipARS).toLocaleString('es-AR')],['Devoluciones','-ARS '+Math.round(c.impactoDevARS).toLocaleString('es-AR')],['Gan. real/u','ARS '+Math.round(c.ganReal).toLocaleString('es-AR')],['Margen',c.margenPct.toFixed(1)+'%']];
+    const cols3=[['Ventas período',Math.round(c.unidadesPeriodo)+' uds'],['Gan. período','ARS '+Math.round(c.ganRealPeriodo).toLocaleString('es-AR')],['ROI',c.roi.toFixed(0)+'%'],['Stock',c.stock>0?c.stock+' uds':'—']];
+    [cols,cols2,cols3].forEach((row,ri)=>{ row.forEach((col,i)=>{ const cx=20+i*colW; const ry=y+18+ri*13; doc.setFontSize(6.5);doc.setTextColor(100,90,75);doc.text(col[0].toUpperCase(),cx,ry); doc.setFontSize(8.5);doc.setTextColor(ri===1&&i===2?39:200,ri===1&&i===2?174:190,ri===1&&i===2?96:170);doc.text(col[1],cx,ry+5); }); });
+    y+=62;
   });
-
-  // --- PÁGINA 3: DETALLE POR PRODUCTO ---
-  doc.addPage();
-  doc.setFillColor(13, 13, 13); doc.rect(0, 0, W, H, 'F');
-  doc.setFillColor(201, 168, 76); doc.rect(0, 0, W, 2, 'F');
-  y = 16;
-  doc.setFontSize(14); doc.setTextColor(201, 168, 76);
-  doc.text('📦 Detalle por producto — ' + periodoLabel, 14, y); y += 8;
-  doc.setFontSize(9); doc.setTextColor(150, 140, 120);
-  doc.text('Tipo de cambio: ARS ' + globals.tc.toLocaleString('es-AR') + ' · Comisión MeLi: ' + globals.comisionBase + '% + IVA', 14, y); y += 8;
-
-  calcs.forEach((c, idx) => {
-    if (y > 250) { doc.addPage(); doc.setFillColor(13,13,13); doc.rect(0,0,W,H,'F'); y = 16; }
-    doc.setFillColor(30, 28, 24);
-    doc.roundedRect(14, y, W - 28, 44, 3, 3, 'F');
-    doc.setFontSize(11); doc.setTextColor(201, 168, 76);
-    doc.text((idx + 1) + '. ' + c.nombre, 20, y + 8);
-    const colW = (W - 48) / 4;
-    const cols = [
-      ['Precio venta', 'ARS ' + Math.round(c.precio).toLocaleString('es-AR')],
-      ['Costo total', 'ARS ' + Math.round(c.costoTotal).toLocaleString('es-AR')],
-      ['Gan. real/u', 'ARS ' + Math.round(c.ganReal).toLocaleString('es-AR')],
-      ['Margen', c.margenPct.toFixed(1) + '%'],
-    ];
-    const col2 = [
-      ['Comisión MeLi/u', 'ARS ' + Math.round(c.comisionARS).toLocaleString('es-AR')],
-      ['Ventas período', Math.round(c.ventasPeriodo) + ' uds'],
-      ['Ganancia período', 'ARS ' + Math.round(c.ganRealPeriodo).toLocaleString('es-AR')],
-      ['ROI', c.roi.toFixed(0) + '%'],
-    ];
-    cols.forEach((col, i) => {
-      const cx = 20 + i * colW;
-      doc.setFontSize(7); doc.setTextColor(120, 110, 90); doc.text(col[0], cx, y + 18);
-      doc.setFontSize(9); doc.setTextColor(200, 190, 170); doc.text(col[1], cx, y + 25);
-      doc.setFontSize(7); doc.setTextColor(120, 110, 90); doc.text(col2[i][0], cx, y + 33);
-      doc.setFontSize(9); doc.setTextColor(200, 190, 170); doc.text(col2[i][1], cx, y + 40);
-    });
-    y += 52;
-  });
-
-  // Footer all pages
-  const totalPages = doc.internal.getNumberOfPages();
-  for (let p = 1; p <= totalPages; p++) {
-    doc.setPage(p);
-    doc.setFontSize(8); doc.setTextColor(80, 74, 60);
-    doc.text('MargenClear · ' + brand + ' · Pág. ' + p + '/' + totalPages, W/2, H - 6, { align: 'center' });
-  }
-
-  const safeName = cliente.replace(/[^a-zA-Z0-9]/g, '_') || 'cliente';
-  const safeDate = fecha.replace(/\//g, '-');
-  doc.save('MargenClear_' + safeName + '_' + safeDate + '.pdf');
+  // Footer
+  const total=doc.internal.getNumberOfPages();
+  for(let pg=1;pg<=total;pg++){ doc.setPage(pg); doc.setFontSize(7);doc.setTextColor(70,65,55); doc.text('MargenClear · '+brand+' · Pág '+pg+'/'+total+' · Generado '+fecha,W/2,H-4,{align:'center'}); }
+  const safeName=cliente.replace(/[^a-zA-Z0-9]/g,'_')||'cliente';
+  const safeDate=fecha.replace(/\//g,'-');
+  doc.save('MargenClear_'+safeName+'_'+safeDate+'.pdf');
 }
 </script>
 </body>
-</html>
+        </html>
