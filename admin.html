@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+  <html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin — InnovasmartMargen</title>
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#f0f0f0;min-height:100vh}
+    .topbar{background:#111;border-bottom:1px solid #222;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+    .logo{font-weight:800;font-size:18px;color:#FFE600}
+        .badge-admin{background:#1a1200;border:1px solid #FFE600;color:#FFE600;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;margin-left:10px}
+    .btn{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none}
+    .btn-ghost{background:transparent;border:1px solid #333;color:#aaa}
+        .btn-ghost:hover{border-color:#FFE600;color:#FFE600}
+          .btn-yellow{background:#FFE600;color:#000}
+          .btn-yellow:hover{opacity:.9}
+    .btn-red{background:#7f1d1d;color:#fca5a5;border:1px solid #991b1b}
+        .btn-sm{padding:5px 12px;font-size:12px}
+
+    .main{max-width:1000px;margin:0 auto;padding:28px 24px}
+    .section{margin-bottom:40px}
+    .section-title{font-size:13px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px;font-weight:600;display:flex;align-items:center;justify-content:space-between}
+
+    /* Nuevo usuario */
+    .new-user-form{background:#111;border:1px solid #1e1e1e;border-radius:12px;padding:24px;margin-bottom:32px}
+    .form-row{display:grid;grid-template-columns:1fr 1fr 120px auto;gap:12px;align-items:end}
+    .field label{display:block;font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;font-weight:600}
+    .field input,.field select{width:100%;background:#0a0a0a;border:1px solid #2a2a2a;border-radius:8px;padding:10px 12px;color:#f0f0f0;font-size:14px;outline:none;transition:border-color .15s}
+        .field input:focus,.field select:focus{border-color:#FFE600}
+          .field select option{background:#111}
+    .success-msg{background:#052e16;border:1px solid #166534;border-radius:8px;padding:10px 14px;font-size:13px;color:#4ade80;margin-top:12px;display:none}
+    .error-msg{background:#1a0505;border:1px solid #7f1d1d;border-radius:8px;padding:10px 14px;font-size:13px;color:#fca5a5;margin-top:12px;display:none}
+
+    /* Tabla clientes */
+          .table-wrap{border-radius:10px;border:1px solid #1e1e1e;overflow:hidden}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    thead th{background:#111;padding:10px 14px;text-align:left;color:#666;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+    tbody tr{border-top:1px solid #1a1a1a}
+    tbody tr:hover{background:#111}
+    tbody td{padding:10px 14px;color:#ccc}
+    .badge{padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700}
+    .badge-green{background:#052e16;color:#4ade80}
+    .badge-yellow{background:#1a1200;color:#FFE600}
+    .badge-red{background:#2d0a0a;color:#f87171}
+    .badge-gray{background:#1a1a1a;color:#555}
+    .badge-blue{background:#0a1a2a;color:#60a5fa}
+
+    /* Stats */
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px}
+    .stat-card{background:#111;border:1px solid #1e1e1e;border-radius:12px;padding:20px}
+    .stat-label{font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+    .stat-value{font-size:26px;font-weight:800;color:#f0f0f0}
+    .stat-card.yellow .stat-value{color:#FFE600}
+
+    .loading{text-align:center;padding:40px;color:#555;font-size:14px}
+    .empty{text-align:center;padding:40px;color:#444;font-size:14px}
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div style="display:flex;align-items:center">
+    <span class="logo">💰 InnovasmartMargen</span>
+    <span class="badge-admin">ADMIN</span>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-ghost" onclick="cargarClientes()">↻ Actualizar</button>
+          <button class="btn btn-ghost" onclick="logout()">Salir</button>
+        </div>
+      </div>
+
+      <div class="main">
+
+        <!-- Stats -->
+        <div class="stats" id="statsGrid">
+          <div class="stat-card yellow"><div class="stat-label">Clientes totales</div><div class="stat-value" id="statTotal">—</div></div>
+          <div class="stat-card"><div class="stat-label">MeLi conectado</div><div class="stat-value" id="statConectados">—</div></div>
+          <div class="stat-card"><div class="stat-label">Activos</div><div class="stat-value" id="statActivos">—</div></div>
+          <div class="stat-card"><div class="stat-label">Expirados</div><div class="stat-value" id="statExpirados">—</div></div>
+        </div>
+
+        <!-- Nuevo usuario -->
+        <div class="section">
+          <div class="section-title">Crear nuevo cliente</div>
+    <div class="new-user-form">
+      <div class="form-row">
+        <div class="field">
+          <label>Usuario</label>
+          <input type="text" id="newUser" placeholder="nombre_cliente">
+              </div>
+              <div class="field">
+                <label>Contraseña</label>
+                <input type="password" id="newPass" placeholder="contraseña">
+              </div>
+              <div class="field">
+                <label>Dias acceso</label>
+                <select id="newDias">
+                  <option value="30">30 días</option>
+                  <option value="60">60 días</option>
+                  <option value="90">90 días</option>
+                  <option value="180">180 días</option>
+                  <option value="365">1 año</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>&nbsp;</label>
+                <button class="btn btn-yellow" onclick="crearUsuario()">+ Crear</button>
+              </div>
+            </div>
+            <div class="success-msg" id="successMsg"></div>
+            <div class="error-msg" id="errorMsg"></div>
+          </div>
+        </div>
+
+        <!-- Lista clientes -->
+        <div class="section">
+          <div class="section-title">
+            <span>Clientes</span>
+            <span id="clienteCount" style="color:#555;font-size:12px;text-transform:none;font-weight:400"></span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Usuario</th>
+                  <th>Creado</th>
+                  <th>Expira</th>
+                  <th>Días rest.</th>
+            <th>Estado</th>
+            <th>MeLi</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tablaClientes">
+          <tr><td colspan="7" class="loading">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <script>
+        const ADMIN_KEY = 'pf-admin-secret-2024';
+
+  // Guard: solo admin puede entrar
+  const role = localStorage.getItem('pf_role');
+  if (role !== 'admin') {
+    window.location.replace('/login.html');
+  }
+
+  function logout() {
+        localStorage.clear();
+    window.location.replace('/login.html');
+  }
+
+  function diasRestantes(createdAt, expiryDays) {
+        if (!createdAt || !expiryDays) return null;
+    const expira = new Date(createdAt).getTime() + expiryDays * 86400000;
+    return Math.ceil((expira - Date.now()) / 86400000);
+  }
+
+  function formatFecha(iso) {
+        if (!iso) return '—';
+    return new Date(iso).toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'2-digit'});
+  }
+
+  // -----------------------------------------------
+  // Cargar clientes
+  // -----------------------------------------------
+  async function cargarClientes() {
+    document.getElementById('tablaClientes').innerHTML =
+            '<tr><td colspan="7" class="loading">Cargando...</td></tr>';
+
+    try {
+      const res = await fetch('/api/users', {
+                headers: {'x-admin-key': ADMIN_KEY}
+        });
+      const data = await res.json();
+      const users = data.users || [];
+
+      // Actualizar stats
+      document.getElementById('statTotal').textContent = users.length;
+
+      let activos = 0, expirados = 0, conectados = 0;
+      const meliStatus = {};
+
+      // Verificar conexion MeLi para cada uno (en paralelo, max 5)
+      const checks = users.map(u =>
+        fetch('/api/meli-check?user_id=' + encodeURIComponent(u.username))
+          .then(r => r.json())
+          .then(d => { meliStatus[u.username] = d; })
+          .catch(() => { meliStatus[u.username] = {connected: false}; })
+      );
+      await Promise.all(checks);
+
+      users.forEach(u => {
+                const dias = diasRestantes(u.createdAt, u.expiryDays);
+                if (!u.active || (dias !== null && dias <= 0)) expirados++;
+        else activos++;
+        if (meliStatus[u.username]?.connected) conectados++;
+  });
+
+      document.getElementById('statActivos').textContent = activos;
+      document.getElementById('statExpirados').textContent = expirados;
+      document.getElementById('statConectados').textContent = conectados;
+      document.getElementById('clienteCount').textContent = users.length + ' clientes';
+
+      if (!users.length) {
+        document.getElementById('tablaClientes').innerHTML =
+                    '<tr><td colspan="7" class="empty">No hay clientes todavia. Crea el primero arriba.</td></tr>';
+        return;
+      }
+
+      document.getElementById('tablaClientes').innerHTML = users.map(u => {
+                const dias = diasRestantes(u.createdAt, u.expiryDays);
+        const expiraDate = u.createdAt && u.expiryDays
+          ? new Date(new Date(u.createdAt).getTime() + u.expiryDays * 86400000)
+          : null;
+
+        let estadoBadge;
+        if (!u.active) estadoBadge = '<span class="badge badge-gray">Desactivado</span>';
+        else if (dias !== null && dias <= 0) estadoBadge = '<span class="badge badge-red">Expirado</span>';
+        else if (dias !== null && dias <= 7) estadoBadge = '<span class="badge badge-yellow">Expira pronto</span>';
+        else estadoBadge = '<span class="badge badge-green">Activo</span>';
+
+        const meliInfo = meliStatus[u.username];
+        const meliBadge = meliInfo?.connected
+          ? '<span class="badge badge-blue">Conectado</span>'
+          : '<span class="badge badge-gray">Sin conectar</span>';
+
+        const diasStr = dias === null ? '—'
+          : dias <= 0 ? '<span style="color:#f87171">Expirado</span>'
+          : dias <= 7 ? `<span style="color:#fb923c">${dias}d</span>`
+                    : `<span style="color:#4ade80">${dias}d</span>`;
+
+        return `<tr>
+                    <td style="font-weight:600;color:#f0f0f0">${u.username}</td>
+                    <td>${formatFecha(u.createdAt)}</td>
+                    <td>${expiraDate ? formatFecha(expiraDate.toISOString()) : '—'}</td>
+                    <td>${diasStr}</td>
+                    <td>${estadoBadge}</td>
+                    <td>${meliBadge}</td>
+                    <td>
+                      <div style="display:flex;gap:6px">
+                        <button class="btn btn-ghost btn-sm" onclick="verDashboard('${u.username}')" title="Ver dashboard">📊</button>
+                        <button class="btn btn-ghost btn-sm" onclick="toggleUsuario('${u.username}',${u.active})" title="${u.active ? 'Desactivar' : 'Activar'}">${u.active ? '🔒' : '🔓'}</button>
+                        <button class="btn btn-red btn-sm" onclick="eliminarUsuario('${u.username}')" title="Eliminar">🗑</button>
+                      </div>
+                    </td>
+                  </tr>`;
+}).join('');
+
+} catch(e) {
+        document.getElementById('tablaClientes').innerHTML =
+          `<tr><td colspan="7" class="empty">Error: ${e.message}</td></tr>`;
+                                                     }
+}
+
+  // -----------------------------------------------
+  // Crear usuario
+  // -----------------------------------------------
+  async function crearUsuario() {
+        const username = document.getElementById('newUser').value.trim();
+    const password = document.getElementById('newPass').value;
+    const expiryDays = document.getElementById('newDias').value;
+    const successEl = document.getElementById('successMsg');
+    const errorEl = document.getElementById('errorMsg');
+
+    successEl.style.display = 'none';
+    errorEl.style.display = 'none';
+
+    if (!username || !password) {
+      errorEl.textContent = 'Completá usuario y contraseña';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/users', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','x-admin-key': ADMIN_KEY},
+                body: JSON.stringify({username, password, expiryDays: parseInt(expiryDays)})
+        });
+      const data = await res.json();
+
+      if (!res.ok) {
+        errorEl.textContent = data.error || 'Error al crear usuario';
+        errorEl.style.display = 'block';
+        return;
+}
+
+      successEl.textContent = `✓ Usuario "${username}" creado. Mandále el link de login: productfinder-ia.vercel.app/login.html`;
+      successEl.style.display = 'block';
+      document.getElementById('newUser').value = '';
+      document.getElementById('newPass').value = '';
+      cargarClientes();
+
+} catch(e) {
+      errorEl.textContent = 'Error: ' + e.message;
+      errorEl.style.display = 'block';
+}
+}
+
+  // -----------------------------------------------
+  // Toggle activo/inactivo
+  // -----------------------------------------------
+  async function toggleUsuario(username, currentActive) {
+    try {
+      await fetch('/api/users', {
+        method: 'DELETE',
+        headers: {'Content-Type':'application/json','x-admin-key': ADMIN_KEY},
+        body: JSON.stringify({username, action: 'toggle'})
+});
+      cargarClientes();
+} catch(e) {
+      alert('Error: ' + e.message);
+}
+}
+
+  // -----------------------------------------------
+  // Eliminar usuario
+  // -----------------------------------------------
+  async function eliminarUsuario(username) {
+    if (!confirm(`¿Eliminar al usuario "${username}"? Esta accion no se puede deshacer.`)) return;
+    try {
+      await fetch('/api/users', {
+        method: 'DELETE',
+        headers: {'Content-Type':'application/json','x-admin-key': ADMIN_KEY},
+        body: JSON.stringify({username, action: 'delete'})
+});
+      cargarClientes();
+} catch(e) {
+      alert('Error: ' + e.message);
+}
+}
+
+  // -----------------------------------------------
+  // Ver dashboard de un cliente
+  // -----------------------------------------------
+  function verDashboard(username) {
+    // Guardar temporalmente el user para el dashboard
+    const currentUser = localStorage.getItem('pf_user');
+    localStorage.setItem('pf_view_as', username);
+    window.open('/dashboard.html?view_as=' + encodeURIComponent(username), '_blank');
+}
+
+  // Init
+  cargarClientes();
+</script>
+</body>
+</html>
