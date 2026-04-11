@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+  <html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — InnovasmartMargen</title>
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#f0f0f0;min-height:100vh}
+    .topbar{background:#111;border-bottom:1px solid #222;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+    .topbar-left{display:flex;align-items:center;gap:12px}
+    .logo-text{font-weight:800;font-size:18px;color:#FFE600}
+    .user-chip{background:#1a1a1a;border:1px solid #2a2a2a;padding:6px 12px;border-radius:20px;font-size:13px;color:#aaa}
+    .user-chip span{color:#FFE600;font-weight:600}
+      .btn-sm{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:opacity .15s}
+    .btn-yellow{background:#FFE600;color:#000}
+      .btn-ghost{background:transparent;border:1px solid #333;color:#aaa}
+    .btn-ghost:hover{border-color:#FFE600;color:#FFE600}
+
+      .main{max-width:1100px;margin:0 auto;padding:24px}
+    .section-title{font-size:13px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px;font-weight:600}
+
+    /* Periodo selector */
+    .period-bar{display:flex;align-items:center;gap:8px;margin-bottom:28px;flex-wrap:wrap}
+    .period-bar label{font-size:13px;color:#888}
+    .period-btn{padding:7px 16px;border-radius:8px;border:1px solid #2a2a2a;background:#1a1a1a;color:#aaa;font-size:13px;cursor:pointer;transition:all .15s}
+    .period-btn.active,.period-btn:hover{border-color:#FFE600;color:#FFE600;background:#1a1a1a}
+      .refresh-btn{margin-left:auto;background:#1a1a1a;border:1px solid #2a2a2a;color:#aaa;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px}
+    .refresh-btn:hover{border-color:#FFE600;color:#FFE600}
+
+      /* KPIs */
+      .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:32px}
+    .kpi-card{background:#111;border:1px solid #1e1e1e;border-radius:12px;padding:20px 22px}
+    .kpi-label{font-size:12px;color:#666;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px}
+    .kpi-value{font-size:28px;font-weight:800;line-height:1}
+    .kpi-sub{font-size:12px;color:#555;margin-top:6px}
+    .kpi-card.highlight{border-color:#FFE600;background:#141200}
+          .kpi-card.highlight .kpi-value{color:#FFE600}
+          .kpi-card.warn{border-color:#f87171}
+    .kpi-card.warn .kpi-value{color:#f87171}
+          .kpi-card.ok .kpi-value{color:#4ade80}
+
+          /* Alertas */
+    .alert-bar{background:#1a0a0a;border:1px solid #7f1d1d;border-radius:10px;padding:12px 16px;margin-bottom:24px;font-size:13px;color:#fca5a5;display:flex;align-items:center;gap:10px}
+    .alert-bar.hidden{display:none}
+    .alert-bar.info{background:#0a1020;border-color:#1e3a5f;color:#93c5fd}
+
+    /* Tabs */
+    .tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid #1e1e1e;padding-bottom:0}
+    .tab{padding:10px 18px;font-size:14px;cursor:pointer;color:#666;border-bottom:2px solid transparent;transition:all .15s;margin-bottom:-1px}
+    .tab.active{color:#FFE600;border-bottom-color:#FFE600}
+    .tab:hover:not(.active){color:#ccc}
+    .tab-content{display:none}
+    .tab-content.active{display:block}
+
+          /* Tabla ventas */
+    .table-wrap{overflow-x:auto;border-radius:10px;border:1px solid #1e1e1e}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    thead th{background:#111;padding:10px 14px;text-align:left;color:#666;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+    tbody tr{border-top:1px solid #1a1a1a;transition:background .1s}
+    tbody tr:hover{background:#111}
+    tbody td{padding:10px 14px;color:#ccc;white-space:nowrap}
+    .badge{padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700}
+    .badge-green{background:#052e16;color:#4ade80}
+    .badge-yellow{background:#1a1200;color:#FFE600}
+        .badge-red{background:#2d0a0a;color:#f87171}
+        .badge-gray{background:#1a1a1a;color:#666}
+    .margen-bar{display:flex;align-items:center;gap:8px}
+    .margen-track{flex:1;height:6px;background:#1a1a1a;border-radius:3px;min-width:60px}
+    .margen-fill{height:100%;border-radius:3px;transition:width .3s}
+    .no-costo{color:#555;font-style:italic;font-size:12px}
+
+    /* Tabla stock */
+    .stock-badge-full{background:#0a1a2a;color:#60a5fa;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700}
+    .stock-badge-propio{background:#0a1a0a;color:#4ade80;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700}
+    .stock-zero{color:#f87171;font-weight:700}
+          .stock-low{color:#fb923c;font-weight:700}
+
+          /* Loading */
+          .loading-overlay{position:fixed;inset:0;background:rgba(10,10,10,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:999}
+    .loading-overlay.hidden{display:none}
+    .spinner{width:44px;height:44px;border:3px solid #222;border-top-color:#FFE600;border-radius:50%;animation:spin .7s linear infinite}
+          @keyframes spin{to{transform:rotate(360deg)}}
+    .loading-text{color:#888;font-size:14px}
+
+    /* Empty state */
+    .empty{text-align:center;padding:60px 20px;color:#555}
+    .empty-icon{font-size:48px;margin-bottom:12px}
+    .connect-cta{margin-top:16px;display:inline-block;background:#FFE600;color:#000;padding:12px 24px;border-radius:10px;font-weight:700;font-size:14px;text-decoration:none}
+      </style>
+        </head>
+        <body>
+
+        <!-- LOADING -->
+        <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loadingText">Cargando datos...</div>
+      </div>
+
+      <!-- TOPBAR -->
+      <div class="topbar">
+        <div class="topbar-left">
+          <span class="logo-text">💰 InnovasmartMargen</span>
+          <div class="user-chip">Usuario: <span id="userLabel">—</span></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-sm btn-ghost" onclick="window.location='/meli-connect.html'">🔗 Reconectar MeLi</button>
+    <button class="btn-sm btn-ghost" onclick="logout()">Salir</button>
+        </div>
+      </div>
+
+      <!-- MAIN -->
+      <div class="main">
+
+        <!-- PERIODO -->
+        <div class="period-bar">
+          <label>Período:</label>
+          <button class="period-btn" onclick="setPeriodo(15,this)">15 días</button>
+          <button class="period-btn active" onclick="setPeriodo(30,this)">30 días</button>
+          <button class="period-btn" onclick="setPeriodo(60,this)">60 días</button>
+          <button class="period-btn" onclick="setPeriodo(90,this)">90 días</button>
+          <button class="refresh-btn" onclick="cargarTodo()">↻ Actualizar</button>
+        </div>
+
+        <!-- ALERTA SIN CONEXION MELI -->
+        <div class="alert-bar hidden" id="alertaConexion">
+          ⚠️ <span id="alertaConexionMsg">No se encontró conexión con MercadoLibre.</span>
+    <a href="/meli-connect.html" style="color:#fca5a5;margin-left:8px;font-weight:700">Conectar ahora →</a>
+        </div>
+
+        <!-- ALERTA SIN COSTOS -->
+        <div class="alert-bar info hidden" id="alertaCostos">
+          ℹ️ <strong id="alertaCostosNum">0</strong> productos sin costo de compra cargado — el margen neto real no puede calcularse para esos productos.
+          <a href="#" onclick="irATab('stock')" style="color:#93c5fd;margin-left:8px">Ver productos →</a>
+        </div>
+
+        <!-- KPIs -->
+        <div class="section-title">Resumen del período</div>
+  <div class="kpi-grid" id="kpiGrid">
+          <div class="kpi-card"><div class="kpi-label">Órdenes</div><div class="kpi-value" id="kpiOrdenes">—</div><div class="kpi-sub">ventas pagadas</div></div>
+          <div class="kpi-card"><div class="kpi-label">Ingresos brutos</div><div class="kpi-value" id="kpiIngresos">—</div><div class="kpi-sub">lo que cobró MeLi</div></div>
+    <div class="kpi-card"><div class="kpi-label">Comisiones MeLi</div><div class="kpi-value" id="kpiComisiones">—</div><div class="kpi-sub">lo que se llevó MeLi</div></div>
+    <div class="kpi-card"><div class="kpi-label">Costos de envío</div><div class="kpi-value" id="kpiEnvios">—</div><div class="kpi-sub">MercadoEnvíos</div></div>
+          <div class="kpi-card highlight"><div class="kpi-label">Ganancia neta</div><div class="kpi-value" id="kpiGanancia">—</div><div class="kpi-sub">después de todo</div></div>
+    <div class="kpi-card"><div class="kpi-label">Tipo de cambio</div><div class="kpi-value" id="kpiTC">—</div><div class="kpi-sub">ARS/USD usado</div></div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <div class="tab active" onclick="irATab('ventas')">📦 Ventas</div>
+          <div class="tab" onclick="irATab('stock')">📊 Stock</div>
+        </div>
+
+        <!-- TAB VENTAS -->
+        <div class="tab-content active" id="tab-ventas">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Producto</th>
+                  <th>Cant.</th>
+                  <th>Precio venta</th>
+                  <th>Comisión</th>
+                  <th>Envío</th>
+                  <th>Costo prod.</th>
+                  <th>Ganancia neta</th>
+                  <th>Margen %</th>
+                </tr>
+              </thead>
+              <tbody id="tablaVentas">
+                <tr><td colspan="9" class="empty">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TAB STOCK -->
+        <div class="tab-content" id="tab-stock">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Precio</th>
+                  <th>Stock Propio</th>
+                  <th>Stock Full</th>
+                  <th>Total</th>
+                  <th>Estado</th>
+                  <th>Link</th>
+                </tr>
+              </thead>
+              <tbody id="tablaStock">
+                <tr><td colspan="7" class="empty">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <script>
+        // -----------------------------------------------
+        // Estado
+        // -----------------------------------------------
+        let userId = localStorage.getItem('pf_user') || '';
+  let diasActual = 30;
+  let datosVentas = null;
+  let datosStock = null;
+
+  document.getElementById('userLabel').textContent = userId || 'Sin usuario';
+
+  // -----------------------------------------------
+  // Utilidades
+  // -----------------------------------------------
+  const ars = n => '$' + Math.round(n).toLocaleString('es-AR');
+
+  function margenColor(pct) {
+        if (pct >= 25) return '#4ade80';
+    if (pct >= 10) return '#FFE600';
+    return '#f87171';
+  }
+
+  function margenBadgeClass(pct) {
+        if (pct >= 25) return 'badge-green';
+    if (pct >= 10) return 'badge-yellow';
+    return 'badge-red';
+  }
+
+  function formatFecha(iso) {
+        if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit' });
+  }
+
+  function loading(show, txt) {
+        document.getElementById('loadingOverlay').classList.toggle('hidden', !show);
+    if (txt) document.getElementById('loadingText').textContent = txt;
+  }
+
+  // -----------------------------------------------
+  // Tabs
+  // -----------------------------------------------
+  function irATab(nombre) {
+        document.querySelectorAll('.tab').forEach((t,i) => {
+      const names = ['ventas','stock'];
+      t.classList.toggle('active', names[i] === nombre);
+      });
+    document.querySelectorAll('.tab-content').forEach(c => {
+            c.classList.toggle('active', c.id === 'tab-' + nombre);
+  });
+  }
+
+  // -----------------------------------------------
+  // Periodo
+  // -----------------------------------------------
+  function setPeriodo(dias, btn) {
+        diasActual = dias;
+    document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    cargarTodo();
+  }
+
+  // -----------------------------------------------
+  // Cargar todo
+  // -----------------------------------------------
+  async function cargarTodo() {
+    if (!userId) {
+      document.getElementById('alertaConexion').classList.remove('hidden');
+      document.getElementById('alertaConexionMsg').textContent =
+                'No hay usuario logueado. Conectá tu cuenta primero.';
+      loading(false);
+      return;
+    }
+
+    loading(true, 'Trayendo ventas de MercadoLibre...');
+    try {
+      await cargarVentas();
+    } catch(e) {
+      mostrarErrorConexion(e.message);
+    }
+
+    loading(true, 'Trayendo stock en tiempo real...');
+    try {
+      await cargarStock();
+    } catch(e) {
+      console.warn('Error stock:', e.message);
+    }
+
+    loading(false);
+  }
+
+  // -----------------------------------------------
+  // Cargar ventas
+  // -----------------------------------------------
+  async function cargarVentas() {
+    const res = await fetch(`/api/meli-ventas?user_id=${encodeURIComponent(userId)}&dias=${diasActual}`);
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      if (data.error && data.error.includes('token')) {
+        mostrarErrorConexion('Tu sesión de MercadoLibre expiró.');
+} else {
+        mostrarErrorConexion(data.error || 'Error al traer ventas');
+}
+      return;
+}
+
+    datosVentas = data;
+    renderKPIs(data.resumen);
+    renderTablaVentas(data.ventas);
+
+    // Alerta productos sin costo
+    const sinCosto = data.resumen.productos_sin_costo;
+    if (sinCosto > 0) {
+      document.getElementById('alertaCostos').classList.remove('hidden');
+      document.getElementById('alertaCostosNum').textContent = sinCosto;
+}
+}
+
+  // -----------------------------------------------
+  // Render KPIs
+  // -----------------------------------------------
+  function renderKPIs(r) {
+    document.getElementById('kpiOrdenes').textContent = r.total_ordenes;
+    document.getElementById('kpiIngresos').textContent = ars(r.total_ingresos_ars);
+    document.getElementById('kpiComisiones').textContent = ars(r.total_comisiones_ars);
+    document.getElementById('kpiEnvios').textContent = ars(r.total_envios_ars);
+    document.getElementById('kpiTC').textContent = '$' + r.tipo_cambio_usado.toLocaleString('es-AR');
+
+    const gEl = document.getElementById('kpiGanancia');
+    gEl.textContent = ars(r.ganancia_bruta_ars);
+    const card = gEl.closest('.kpi-card');
+    card.className = 'kpi-card ' + (r.ganancia_bruta_ars >= 0 ? 'highlight' : 'warn');
+}
+
+  // -----------------------------------------------
+  // Render tabla ventas
+  // -----------------------------------------------
+  function renderTablaVentas(ventas) {
+    const tbody = document.getElementById('tablaVentas');
+    if (!ventas || !ventas.length) {
+      tbody.innerHTML = `<tr><td colspan="9"><div class="empty"><div class="empty-icon">📭</div>Sin ventas en este período</div></td></tr>`;
+      return;
+}
+    tbody.innerHTML = ventas.map(v => {
+      const margenBadge = v.tiene_costo_cargado
+        ? `<div class="margen-bar">
+            <div class="margen-track"><div class="margen-fill" style="width:${Math.max(0,Math.min(100,v.margen_pct))}%;background:${margenColor(v.margen_pct)}"></div></div>
+            <span class="badge ${margenBadgeClass(v.margen_pct)}">${v.margen_pct}%</span>
+           </div>`
+        : `<span class="no-costo">sin costo</span>`;
+
+      const costoProd = v.tiene_costo_cargado
+        ? ars(v.costo_producto_ars + v.costo_embalaje_ars)
+        : '<span class="no-costo">—</span>';
+
+      return `<tr>
+        <td>${formatFecha(v.fecha)}</td>
+        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis" title="${v.titulo}">${v.titulo}</td>
+        <td>${v.cantidad}</td>
+        <td>${ars(v.precio_venta)}</td>
+        <td style="color:#f87171">${ars(v.comision_meli)}</td>
+        <td style="color:#fb923c">${ars(v.costo_envio)}</td>
+        <td>${costoProd}</td>
+        <td style="font-weight:700;color:${v.ganancia_neta >= 0 ? '#4ade80' : '#f87171'}">${ars(v.ganancia_neta)}</td>
+        <td>${margenBadge}</td>
+      </tr>`;
+}).join('');
+}
+
+  // -----------------------------------------------
+  // Cargar stock
+  // -----------------------------------------------
+  async function cargarStock() {
+    const res = await fetch(`/api/meli-stock?user_id=${encodeURIComponent(userId)}`);
+    const data = await res.json();
+    if (!res.ok || !data.success) return;
+    datosStock = data;
+    renderTablaStock(data.productos);
+}
+
+  // -----------------------------------------------
+  // Render tabla stock
+  // -----------------------------------------------
+  function renderTablaStock(productos) {
+    const tbody = document.getElementById('tablaStock');
+    if (!productos || !productos.length) {
+      tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-icon">📦</div>Sin productos activos</div></td></tr>`;
+      return;
+}
+    tbody.innerHTML = productos.map(p => {
+      let estadoBadge;
+      if (p.alerta_sin_stock) estadoBadge = `<span class="badge badge-red">Sin stock</span>`;
+      else if (p.alerta_stock_bajo) estadoBadge = `<span class="badge badge-yellow">Stock bajo</span>`;
+      else estadoBadge = `<span class="badge badge-green">OK</span>`;
+
+      const stockPropioEl = p.stock_propio > 0
+        ? `<span class="stock-badge-propio">${p.stock_propio}</span>`
+        : `<span class="stock-zero">0</span>`;
+
+      const stockFullEl = p.stock_full > 0
+        ? `<span class="stock-badge-full">Full: ${p.stock_full}</span>`
+        : `<span style="color:#333">—</span>`;
+
+      const totalEl = p.stock_total === 0
+        ? `<span class="stock-zero">0</span>`
+        : p.stock_total <= 3
+          ? `<span class="stock-low">${p.stock_total}</span>`
+          : `<span style="color:#ccc">${p.stock_total}</span>`;
+
+      return `<tr>
+        <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis" title="${p.titulo}">${p.titulo}</td>
+        <td>${ars(p.precio)}</td>
+        <td>${stockPropioEl}</td>
+        <td>${stockFullEl}</td>
+        <td>${totalEl}</td>
+        <td>${estadoBadge}</td>
+        <td>${p.url_meli ? `<a href="${p.url_meli}" target="_blank" style="color:#60a5fa;font-size:12px">Ver →</a>` : '—'}</td>
+      </tr>`;
+}).join('');
+}
+
+  // -----------------------------------------------
+  // Error de conexion MeLi
+  // -----------------------------------------------
+  function mostrarErrorConexion(msg) {
+    loading(false);
+    document.getElementById('alertaConexion').classList.remove('hidden');
+    document.getElementById('alertaConexionMsg').textContent = msg;
+}
+
+  // -----------------------------------------------
+  // Logout
+  // -----------------------------------------------
+  function logout() {
+    localStorage.removeItem('pf_user');
+    window.location = '/index.html';
+}
+
+  // -----------------------------------------------
+  // Init
+  // -----------------------------------------------
+  if (!userId) {
+    loading(false);
+    document.getElementById('alertaConexion').classList.remove('hidden');
+} else {
+    cargarTodo();
+}
+</script>
+</body>
+</html>
