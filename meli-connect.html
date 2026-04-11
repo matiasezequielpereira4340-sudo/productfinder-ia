@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+  <html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conectar MercadoLibre — InnovasmartMargen</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f0f;
+      color: #f0f0f0;
+            min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+}
+    .card {
+            background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 16px;
+      padding: 48px 40px;
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+}
+    .logo { font-size: 48px; margin-bottom: 16px; }
+    h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; color: #FFE600; }
+        .subtitle { color: #888; font-size: 15px; margin-bottom: 36px; line-height: 1.5; }
+    .steps {
+            background: #111;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 32px;
+      text-align: left;
+}
+    .steps h3 { font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
+    .step {
+            display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: #ccc;
+      }
+    .step:last-child { margin-bottom: 0; }
+    .step-num {
+            background: #FFE600;
+            color: #000;
+      font-weight: 700;
+      font-size: 12px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+}
+    .btn-connect {
+            display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: #FFE600;
+            color: #000;
+      font-weight: 700;
+      font-size: 16px;
+      padding: 16px 32px;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.15s, box-shadow 0.15s;
+      width: 100%;
+      justify-content: center;
+}
+    .btn-connect:hover {
+            transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(255,230,0,0.3);
+    }
+    .btn-connect:active { transform: translateY(0); }
+    .btn-connect svg { width: 24px; height: 24px; }
+    .security-note {
+            margin-top: 20px;
+      font-size: 12px;
+      color: #555;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+        }
+
+            /* Estado: exito */
+    .state-success .main-content { display: none; }
+    .state-success .success-content { display: block; }
+    .success-content { display: none; }
+    .success-icon { font-size: 64px; margin-bottom: 16px; }
+          .success-title { font-size: 22px; font-weight: 700; color: #4ade80; margin-bottom: 8px; }
+    .success-sub { color: #888; font-size: 14px; margin-bottom: 28px; }
+    .meli-user-badge {
+      background: #111;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 14px;
+      color: #ccc;
+      margin-bottom: 24px;
+}
+    .meli-user-badge span { color: #FFE600; font-weight: 600; }
+          .btn-secondary {
+            display: inline-block;
+      background: transparent;
+      border: 1px solid #333;
+      color: #ccc;
+      padding: 12px 24px;
+      border-radius: 10px;
+            font-size: 14px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: border-color 0.15s;
+}
+    .btn-secondary:hover { border-color: #FFE600; color: #FFE600; }
+
+    /* Estado: error */
+    .state-error .main-content { display: none; }
+    .state-error .error-content { display: block; }
+            .error-content { display: none; }
+    .error-icon { font-size: 64px; margin-bottom: 16px; }
+    .error-title { font-size: 22px; font-weight: 700; color: #f87171; margin-bottom: 8px; }
+    .error-msg { color: #888; font-size: 14px; margin-bottom: 28px; background: #111; padding: 12px; border-radius: 8px; }
+
+    /* Loading */
+    .loading { display: none; }
+    .loading-spinner {
+            width: 40px; height: 40px;
+      border: 3px solid #333;
+      border-top-color: #FFE600;
+              border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+}
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+      </head>
+      <body>
+
+      <div class="card" id="card">
+
+        <!-- ESTADO NORMAL -->
+        <div class="main-content">
+          <div class="logo">🔗</div>
+          <h1>Conectá tu cuenta de MercadoLibre</h1>
+    <p class="subtitle">
+      Autorizá el acceso para que podamos traer tus ventas, comisiones y stock en tiempo real.
+            <strong style="color:#f0f0f0">No guardamos tu contraseña.</strong>
+    </p>
+
+    <div class="steps">
+            <h3>¿Qué va a pasar?</h3>
+            <div class="step">
+              <div class="step-num">1</div>
+              <div>Te redirigimos a MercadoLibre para que inicies sesión con tu cuenta</div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div>MeLi te pregunta si autorizás la app — hacés clic en <strong>Permitir</strong></div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div>Volvés acá automáticamente y listo — tus datos quedan conectados</div>
+      </div>
+    </div>
+
+    <a href="#" class="btn-connect" id="btnConnect" onclick="startAuth(event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+              <path d="M2 17l10 5 10-5"/>
+              <path d="M2 12l10 5 10-5"/>
+            </svg>
+            Conectar con MercadoLibre
+    </a>
+
+    <div class="security-note">
+      🔒 Conexión segura via OAuth 2.0 — podés revocar el acceso en cualquier momento
+    </div>
+        </div>
+
+        <!-- ESTADO CARGANDO -->
+        <div class="loading" id="loadingState">
+          <div class="loading-spinner"></div>
+          <p style="color:#888;font-size:14px">Conectando con MercadoLibre...</p>
+        </div>
+
+        <!-- ESTADO EXITO -->
+        <div class="success-content" id="successState">
+          <div class="success-icon">✅</div>
+          <div class="success-title">¡Cuenta conectada!</div>
+    <p class="success-sub">Tu cuenta de MercadoLibre quedó vinculada correctamente.</p>
+    <div class="meli-user-badge" id="meliUserBadge">
+      MeLi User ID: <span id="meliUserId">—</span>
+    </div>
+    <a href="/margen.html" class="btn-connect" style="margin-bottom:12px">
+            Ir al calculador de margen →
+          </a>
+          <br>
+          <a href="#" onclick="startAuth(event)" class="btn-secondary">
+            Reconectar otra cuenta
+    </a>
+  </div>
+
+  <!-- ESTADO ERROR -->
+  <div class="error-content" id="errorState">
+    <div class="error-icon">⚠️</div>
+    <div class="error-title">No se pudo conectar</div>
+          <div class="error-msg" id="errorMsg">Error desconocido</div>
+          <a href="#" onclick="startAuth(event)" class="btn-connect" style="margin-bottom:12px">
+            Intentar de nuevo
+          </a>
+          <br>
+          <a href="mailto:soporte@innovasmart.com" class="btn-secondary">
+            Contactar soporte
+    </a>
+        </div>
+
+      </div>
+
+      <script>
+        // Obtener parametros de la URL
+        const params = new URLSearchParams(window.location.search);
+  const success = params.get('success');
+  const error = params.get('error');
+  const meliUser = params.get('meli_user');
+
+  if (success === '1') {
+    document.getElementById('card').className = 'card state-success';
+    document.getElementById('successState').style.display = 'block';
+    document.getElementById('meliUserId').textContent = meliUser || 'Conectado';
+  } else if (error) {
+    document.getElementById('card').className = 'card state-error';
+    document.getElementById('errorState').style.display = 'block';
+    const msgs = {
+            'access_denied': 'Cancelaste la autorización. Podés intentarlo de nuevo cuando quieras.',
+            'token_failed': 'Hubo un problema al obtener el token de MercadoLibre. Intentá de nuevo.',
+            'invalid_operator_user_id': 'La cuenta que usaste no es la dueña de la tienda. Tiene que ser el titular.',
+      };
+    document.getElementById('errorMsg').textContent =
+            msgs[error] || 'Error: ' + decodeURIComponent(error);
+}
+
+  async function startAuth(e) {
+        e.preventDefault();
+    document.querySelector('.main-content').style.display = 'none';
+    document.getElementById('successState').style.display = 'none';
+    document.getElementById('errorState').style.display = 'none';
+    document.getElementById('loadingState').style.display = 'block';
+
+    try {
+      // Obtener user_id del localStorage si esta logueado
+      const userId = localStorage.getItem('pf_user') || 'default';
+      const res = await fetch('/api/meli-auth?user_id=' + encodeURIComponent(userId));
+      const data = await res.json();
+      if (data.auth_url) {
+        window.location.href = data.auth_url;
+      } else {
+        throw new Error(data.error || 'No se pudo generar la URL');
+      }
+    } catch (err) {
+      document.getElementById('loadingState').style.display = 'none';
+      document.querySelector('.main-content').style.display = 'block';
+      alert('Error: ' + err.message);
+    }
+  }
+</script>
+
+  </body>
+  </html>
