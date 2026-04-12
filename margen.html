@@ -566,7 +566,7 @@ function calcProduct(p, g) {
   const ivaComisionARS= precio * comisionBaseProd * g.iva/100 / 100;
   const cargoCuotasARS= precio * g.cargoCuotas / 100;
   // Ganancia antes de ganancias e impacto devoluciones
-  const costosTotalesARS = costo + comisionARS + iibbARS + percAfipARS + otrosVarARS + envioARS;
+  const costosTotalesARS = costo + comisionARS + iibbARS + percAfipARS + otrosVarARS + envioARS + (p.empaqueARS||0);
   const ganBruta      = precio - costo;
   const ganAntesDev   = precio - costosTotalesARS;
   // Impacto devoluciones: en % de ventas, si devuelven el comprador ya no paga pero vos perdiste el costo
@@ -589,7 +589,7 @@ function calcProduct(p, g) {
   const ganRealPeriodo    = ganReal * unidadesPeriodo;
   const diasStock         = p.stock > 0 && ventasDia > 0 ? p.stock / ventasDia : null;
   return {
-    id:p.id, nombre:p.nombre,
+    id:p.id, nombre:p.nombre, empaqueARS:(p.empaqueARS||0),
     precio, costo, ventasDia, stock:p.stock,
     comisionPura, ivaComisionARS, cargoCuotasARS, comisionARS,
     iibbARS, percAfipARS, envioARS, otrosVarARS, impactoDevARS, impGanARS,
@@ -615,9 +615,9 @@ function addProduct() {
   if (!nombre) { alert('Ingresá el nombre del producto'); return; }
   if (precioVenta<=0) { alert('Ingresá el precio de venta'); return; }
   if (costo<=0) { alert('Ingresá el costo del producto'); return; }
-  products.push({ id:nextId++, nombre, precioVenta, costo, stock, ventasDia, tipoPub, envioPropio });
+  products.push({ id:nextId++, nombre, precioVenta, costo, stock, ventasDia, tipoPub, envioPropio, empaqueARS: parseFloat(document.getElementById('pEmpaque')?.value)||0 });
   saveToStorage();
-  ['pNombre','pPrecioVenta','pCosto','pStock','pVentasDia','pEnvio'].forEach(id=>{ document.getElementById(id).value=''; });
+  ['pNombre','pPrecioVenta','pCosto','pStock','pVentasDia','pEnvio','pEmpaque'].forEach(id=>{ document.getElementById(id).value=''; });
   document.getElementById('pTipoPub').value='';
   recalcAll();
 }
@@ -650,7 +650,7 @@ function renderProductsTable(calcs, g) {
   let rows = calcs.map(c=>`<tr>
     <td><strong>${c.nombre}</strong><br><span style="font-size:.7rem;color:var(--text3)">${c.comisionBaseProd}% + IVA + ${g.cargoCuotas}% cuotas</span></td>
     <td>${ars(c.precio)}</td>
-    <td>${ars(c.costo)}</td>
+    <td>${ars(c.costo)}</td><td style="color:var(--red2)">-${ars(c.empaqueARS)}</td>
     <td style="color:var(--red2)">-${ars(c.comisionPura)}<br><span style="font-size:.68rem;color:var(--text3)">+${ars(c.ivaComisionARS)} IVA${c.cargoCuotasARS>0?' +'+ars(c.cargoCuotasARS)+' cuotas':''}</span></td>
     <td style="color:var(--red2)">-${ars(c.envioARS)}</td>
     <td style="color:var(--orange)">-${ars(c.iibbARS)}${c.percAfipARS>0?'<br><span style="font-size:.68rem">-'+ars(c.percAfipARS)+'</span>':''}</td>
@@ -661,7 +661,7 @@ function renderProductsTable(calcs, g) {
   </tr>`).join('');
   container.innerHTML=`<div style="overflow-x:auto"><table class="ptable">
     <thead><tr>
-      <th>Producto</th><th>Precio</th><th>Costo</th>
+      <th>Producto</th><th>Precio</th><th>Costo</th><th>Empaque</th>
       <th>Comisión MeLi<br><span style="font-weight:400;text-transform:none">comis.+IVA+cuotas</span></th>
       <th>Envío</th><th>IIBB/AFIP</th>
       <th>Margen</th><th>Gan. real/u</th><th>Stock</th><th></th>
@@ -697,7 +697,7 @@ function renderSummary(calcs, g) {
   const maxV = tI;
   const wfItems=[
     {label:'💵 Ingresos (ventas)',val:tI,type:'total'},
-    {label:'— Costo del producto',val:-tCP,type:'neg'},
+    {label:'— Costo del producto',val:-tCP,type:'neg'},{label:'— Empaque / embalaje',val:-calcs.reduce((a,c)=>a+c.empaqueARS*c.unidadesPeriodo,0),type:'neg'},
     {label:'— Comisión MeLi (comis.+IVA+cuotas)',val:-tCom,type:'neg'},
     {label:'— Envíos',val:-tEnv,type:'neg'},
     {label:'— Ingresos Brutos (IIBB)',val:-tIIBB,type:'orange'},
@@ -850,7 +850,7 @@ async function cargarDesdeMeLi() {
     data.productos.forEach(p => {
       if (!products.some(x => x.nombre === p.titulo)) {
         const tp = p.tipo_publicacion === 'gold_pro' ? 'premium' : (p.tipo_publicacion === 'gold_special' ? 'clasica' : '');
-        products.push({ id: Date.now()+Math.random(), nombre: p.titulo, precioVenta: p.precio, costo: 0, stock: p.stock_total||0, ventasDia: 1, tipoPub: tp, envioPropio: null });
+        products.push({ id: Date.now()+Math.random(), nombre: p.titulo, precioVenta: p.precio, costo: 0, stock: p.stock_total||0, ventasDia: 1, tipoPub: tp, envioPropio: null, empaqueARS: 1500 });
         n++;
       }
     });
