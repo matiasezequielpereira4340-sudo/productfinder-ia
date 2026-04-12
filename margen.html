@@ -835,6 +835,40 @@ function exportPDF() {
   const safeDate=fecha.replace(/\//g,'-');
   doc.save('MargenClear_'+safeName+'_'+safeDate+'.pdf');
 }
+
+// ========== IMPORTAR DESDE MERCADOLIBRE ==========
+async function cargarDesdeMeLi() {
+  const userId = localStorage.getItem('pf_user');
+  if (!userId) { alert('Iniciá sesión primero.'); return; }
+  const btn = document.getElementById('btnCargarMeLi');
+  if (btn) { btn.textContent = 'Cargando...'; btn.disabled = true; }
+  try {
+    const res = await fetch('/api/meli-stock?user_id=' + encodeURIComponent(userId));
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Sin datos');
+    let n = 0;
+    data.productos.forEach(p => {
+      if (!productos.some(x => x.nombre === p.titulo)) {
+        const tp = p.tipo_publicacion === 'gold_pro' ? 'premium' : (p.tipo_publicacion === 'gold_special' ? 'clasica' : '');
+        productos.push({ id: Date.now()+Math.random(), nombre: p.titulo, precioVenta: p.precio, costo: 0, stock: p.stock_total||0, ventasDia: 1, tipoPub: tp, envioPropio: null });
+        n++;
+      }
+    });
+    saveToStorage(); recalcAll();
+    alert(n > 0 ? n + ' productos importados!\nCompletá el COSTO de cada uno para ver la ganancia real.' : 'Ya estaban todos cargados.');
+  } catch(e) { alert('Error: ' + e.message); }
+  finally { if (btn) { btn.textContent = '🔄 Importar mis productos de MeLi'; btn.disabled = false; } }
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const b = document.createElement('button');
+  b.id='btnCargarMeLi'; b.className='btn';
+  b.style.cssText='background:#FFE600;color:#000;font-weight:700;width:100%;margin-bottom:16px;font-size:16px;padding:14px;border-radius:8px;cursor:pointer;';
+  b.textContent='🔄 Importar mis productos de MeLi';
+  b.onclick=cargarDesdeMeLi;
+  const section = document.querySelector('#productSection') || document.querySelector('.section') || document.querySelector('h3');
+  if(section) section.parentNode.insertBefore(b, section);
+  else document.body.prepend(b);
+});
 </script>
 </body>
         </html>
