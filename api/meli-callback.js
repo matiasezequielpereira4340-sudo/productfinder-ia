@@ -23,10 +23,10 @@ async function saveTokens(data) {
         updated_at: new Date().toISOString()
   };
 
-  const res = await fetch(SUPABASE_URL + '/rest/v1/meli_tokens', {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/meli_tokens?on_conflict=user_id', {
         method: 'POST',
         headers: {
-                'Content-Type': 'application/json' || null,
+                'Content-Type': 'application/json',
                 'apikey': serviceKey,
                 'Authorization': 'Bearer ' + serviceKey,
                 'Prefer': 'resolution=merge-duplicates'
