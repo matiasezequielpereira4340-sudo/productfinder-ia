@@ -18,7 +18,7 @@ async function saveTokens(data) {
         user_id: String(data.user_id),
         meli_user_id: String(data.meli_user_id),
         access_token: data.access_token,
-        refresh_token: data.refresh_token,
+        refresh_token: data.refresh_token || null,
         expires_at: new Date(Date.now() + data.expires_in * 1000).toISOString(),
         updated_at: new Date().toISOString()
   };
@@ -26,7 +26,7 @@ async function saveTokens(data) {
   const res = await fetch(SUPABASE_URL + '/rest/v1/meli_tokens', {
         method: 'POST',
         headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json' || null,
                 'apikey': serviceKey,
                 'Authorization': 'Bearer ' + serviceKey,
                 'Prefer': 'resolution=merge-duplicates'
