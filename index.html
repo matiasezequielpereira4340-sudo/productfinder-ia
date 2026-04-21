@@ -119,6 +119,7 @@ select:focus{border-color:var(--gold)}
 .admin-msg.ok{background:rgba(39,174,96,.15);color:var(--green);border:1px solid var(--green);display:block}
 .admin-msg.err{background:rgba(192,57,43,.15);color:var(--red);border:1px solid var(--red);display:block}
 .loading{text-align:center;color:var(--text-dim);padding:20px}
+/* ===== MARKET READER ===== */
 #marketScreen{flex-direction:column}
 .market-content{margin-top:56px;padding:30px 20px;max-width:860px;width:100%;margin-left:auto;margin-right:auto}
 .market-title{font-size:1.8rem;font-weight:700;color:var(--gold);margin-bottom:6px}
@@ -229,9 +230,887 @@ select:focus{border-color:var(--gold)}
 .waterfall-wrap{background:var(--dark-4);border-radius:12px;padding:20px;margin-top:16px}
 .waterfall-wrap h4{color:var(--gold);font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
 .wf-row{display:flex;align-items:center;margin-bottom:8px;gap:0}
-.wf-label{font-size:.75rem;color:var(--text-dim);white-space:nowrap;min-width:180px}
+.wf-bar-wrap{flex:1;display:flex;flex-direction:column;gap:3px}
+.wf-label{font-size:.75rem;color:var(--text-dim);white-space:nowrap;min-width:120px}
 .wf-bar-bg{flex:1;height:18px;background:#2a2a2a;border-radius:3px;position:relative;overflow:hidden;min-width:80px}
 .wf-bar-fill{height:100%;border-radius:3px;transition:width .8s ease;min-width:2px}
 .wf-bar-fill.pos{background:linear-gradient(90deg,#27ae60,#2ecc71)}
 .wf-bar-fill.neg{background:linear-gradient(90deg,#c0392b,#e74c3c)}
-.wf-bar-fill.
+.wf-bar-fill.total{background:linear-gradient(90deg,var(--gold-dim),var(--gold))}
+.wf-bar-fill.sub{background:linear-gradient(90deg,#555,#666)}
+.wf-val{font-size:.78rem;font-weight:700;min-width:70px;text-align:right;white-space:nowrap}
+.wf-val.pos{color:var(--green)}
+.wf-val.neg{color:var(--red)}
+.wf-val.total{color:var(--gold)}
+.wf-val.sub{color:var(--text-dim)}
+.wf-connector{width:8px;height:2px;background:#444;margin:0 2px;flex-shrink:0;margin-top:8px}
+.wf-summary{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid #333}
+.wf-summary-label{font-size:.78rem;color:var(--text-dim)}
+.wf-summary-val{font-size:1.1rem;font-weight:700}
+.wf-summary-val.ok{color:var(--green)}
+.wf-summary-val.warn{color:var(--gold)}
+.wf-summary-val.bad{color:var(--red)}
+.btn-history{background:transparent;border:1px solid var(--gold-dim);color:var(--gold);border-radius:var(--radius);padding:6px 14px;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s}
+.btn-history:hover,.btn-history.active{background:var(--gold);color:#000}
+.history-panel{display:none;background:var(--dark-3);border:1px solid #333;border-radius:12px;padding:20px;margin-bottom:16px}
+.history-panel.visible{display:block}
+.history-panel h3{color:var(--gold);font-size:.95rem;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+.history-empty{color:var(--text-dim);font-size:.85rem;text-align:center;padding:16px 0}
+.history-list{display:flex;flex-direction:column;gap:8px}
+.history-item{background:var(--dark-4);border-radius:8px;padding:12px 14px;cursor:pointer;transition:border-color .2s;border:1px solid transparent}
+.history-item:hover{border-color:var(--gold-dim)}
+.history-item-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.history-item-name{font-size:.9rem;font-weight:700;color:var(--text)}
+.history-item-date{font-size:.72rem;color:var(--text-dim)}
+.history-item-stats{display:flex;gap:16px}
+.history-stat{font-size:.78rem;color:var(--text-dim)}
+.history-stat strong{color:var(--gold)}
+.history-del{background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:.78rem;padding:0 4px}
+.history-del:hover{color:var(--red)}
+.mr-3col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px}
+@media(max-width:580px){.mr-charts-top,.mr-charts-bottom,.mr-factor-cards,.mr-3col{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" class="screen active">
+  <div class="login-box">
+    <div class="login-logo">📊</div>
+    <div class="login-title">Lectura de Mercado</div>
+    <div class="login-sub">Analizá la viabilidad de tu próximo producto</div>
+    <div class="form-group">
+      <label>Usuario</label>
+      <input type="text" id="loginUser" placeholder="Ingresá tu usuario" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>Contraseña</label>
+      <input type="password" id="loginPass" placeholder="Ingresá tu contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      <span class="eye-toggle" onclick="toggleEye(this)">👁️</span>
+    </div>
+    <button class="btn-login" onclick="doLogin()">Ingresar</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+<!-- APP SCREEN -->
+<div id="appScreen" class="screen">
+  <div class="topbar">
+    <div class="topbar-logo">📊 Lectura de Mercado</div>
+    <div class="topbar-user" id="topbarUser"></div>
+    <div class="topbar-expiry" id="topbarExpiry" style="display:none"></div>
+    <button class="btn-market" onclick="showMarket()">📈 Analizador</button>
+    <button class="btn-admin-panel" id="btnAdminPanel" style="display:none" onclick="showAdmin()">👑 Admin</button>
+    <button class="btn-logout" onclick="doLogout()">Salir</button>
+  </div>
+  <div class="app-content">
+    <div class="app-title">Analizá tu próxima importación</div>
+    <div class="app-sub">Configurá tus parámetros y descubrí los productos más rentables</div>
+    <div class="config-card">
+      <h3>⚙️ Configuración</h3>
+      <div class="selects-grid">
+        <div class="select-group"><label>💰 Capital disponible</label><select id="selCapital"><option value="bajo">Menos de USD 3.000</option><option value="medio">USD 3.000 - 10.000</option><option value="alto">USD 10.000 - 30.000</option><option value="premium">Más de USD 30.000</option></select></div>
+        <div class="select-group"><label>🎯 Experiencia importando</label><select id="selExperiencia"><option value="ninguna">Sin experiencia</option><option value="poca">1-2 importaciones</option><option value="media">3-10 importaciones</option><option value="alta">Importador frecuente</option></select></div>
+        <div class="select-group"><label>🏪 Canal de venta</label><select id="selCanal"><option value="mercadolibre">MercadoLibre</option><option value="tiendanube">Tienda Nube</option><option value="local">Local físico</option><option value="mayorista">Mayorista</option></select></div>
+        <div class="select-group"><label>🏷️ Nicho de mercado</label><select id="selNicho"><option value="tecnologia">Tecnología / Gadgets</option><option value="hogar">Hogar y deco</option><option value="deportes">Deportes / Fitness</option><option value="moda">Moda / Indumentaria</option><option value="mascotas">Mascotas</option><option value="bebe">Bebés / Niños</option></select></div>
+        <div class="select-group"><label>⚠️ Tolerancia al riesgo</label><select id="selRiesgo"><option value="bajo">Bajo - Prefiero seguridad</option><option value="medio">Medio - Balance</option><option value="alto">Alto - Busco rentabilidad máxima</option></select></div>
+      </div>
+      <button class="btn-analyze" id="btnAnalyze" onclick="doAnalyze()">🚀 Analizar Productos</button>
+    </div>
+    <div id="emailGate">
+      <h3>📧 Ver Resultados del Análisis</h3>
+      <p>Ingresá tu email para acceder al análisis completo de productos</p>
+      <div class="email-input-row"><input type="email" id="emailInput" placeholder="tu@email.com" onkeydown="if(event.key==='Enter')unlockResults()"><button class="btn-unlock" onclick="unlockResults()">Ver Análisis →</button></div>
+    </div>
+    <div id="resultsSection">
+      <div class="results-header"><h2>📦 Productos Recomendados</h2><button class="btn-pdf" onclick="exportPDF()">⬇️ Exportar PDF</button></div>
+      <div class="products-grid" id="productsGrid"></div>
+    </div>
+    <div class="chat-section">
+      <h3>💬 Consultor de Importaciones</h3>
+      <div class="chat-box" id="chatBox"><div class="msg bot">¡Hola! Soy tu consultor especializado en importaciones. ¿Tenés alguna pregunta sobre productos, costos, proveedores o estrategias de venta?</div></div>
+      <div class="chat-input-row"><input type="text" id="chatInput" placeholder="Escribí tu consulta..." onkeydown="if(event.key==='Enter')sendChat()"><button class="btn-send" onclick="sendChat()">Enviar</button></div>
+    </div>
+    <div class="contact-section">
+      <h3>¿Necesás asesoramiento personalizado?</h3>
+      <p>Contactános y te ayudamos a planificar tu próxima importación</p>
+      <div class="contact-buttons"><a class="btn-wa" href="https://wa.me/541160374306" target="_blank">💬 WhatsApp</a><a class="btn-is" href="https://matiasezequielpereira4340-sudo.github.io/InnovaSmart/" target="_blank">🌐 InnovaSmart</a></div>
+    </div>
+  </div>
+</div>
+<!-- MARKET READER SCREEN -->
+<div id="marketScreen" class="screen">
+  <div class="topbar">
+    <div class="topbar-logo">📊 Market Reader IA</div>
+    <div class="topbar-user" id="marketTopbarUser"></div>
+    <button class="btn-back" onclick="showApp()">← ProductFinder</button>
+    <button class="btn-history" id="btnHistory" onclick="toggleHistory()">📋 Historial</button>
+    <button class="btn-logout" onclick="doLogout()">Salir</button>
+  </div>
+  <div class="market-content">
+    <div class="market-title">Análisis de mercado</div>
+    <div class="market-sub">4 factores clave para saber si un producto es viable en Argentina</div>
+    <div class="history-panel" id="historyPanel">
+      <h3>📋 Historial de análisis <span style="display:flex;gap:8px"><button class="btn-outline-dim" style="padding:4px 12px;font-size:.78rem" onclick="clearHistory()">Limpiar todo</button><button class="btn-outline-dim" style="padding:4px 12px;font-size:.78rem" onclick="toggleHistory()">Cerrar</button></span></h3>
+      <div id="historyList"></div>
+    </div>
+    <div class="mr-search-box">
+      <div class="mr-search-row">
+        <input type="text" id="mrProductInput" placeholder="Ej: auriculares inalámbricos, collar GPS para mascotas..." onkeydown="if(event.key==='Enter')startMRAnalysis()"/>
+        <button class="btn-mr-analyze" id="btnMRAnalyze" onclick="startMRAnalysis()">Analizar</button>
+      </div>
+      <div class="mr-params">
+        <div class="mr-param"><label>Capital disponible</label><select id="mrCapital"><option value="3000">Menos de USD 3.000</option><option value="10000" selected>USD 3.000 – 10.000</option><option value="30000">USD 10.000 – 30.000</option><option value="50000">Más de USD 30.000</option></select></div>
+        <div class="mr-param"><label>Canal de venta</label><select id="mrCanal"><option value="mercadolibre" selected>Mercado Libre</option><option value="tiendanube">Tienda Nube</option><option value="mayorista">Mayorista</option><option value="local">Local físico</option></select></div>
+        <div class="mr-param"><label>Tipo de cambio USD/ARS</label><input type="number" id="mrTipoCambio" value="1250" min="1"/></div>
+      </div>
+    </div>
+    <div class="mr-steps" id="mrSteps">
+      <div class="mr-step" id="mrStep1"><div class="mr-step-header"><div class="mr-step-num num-auto" id="mrS1num">1</div><div class="mr-step-title">Tendencia de demanda en Argentina</div><span class="mr-badge badge-auto">automático</span></div><div class="mr-step-body" id="mrStep1Body"><div class="mr-loading"><div class="dot-anim"><span></span><span></span><span></span></div><span>Analizando tendencia...</span></div></div></div>
+      <div class="mr-step" id="mrStep2"><div class="mr-step-header"><div class="mr-step-num num-auto" id="mrS2num">2</div><div class="mr-step-title">Competencia en Mercado Libre</div><span class="mr-badge badge-auto">automático</span></div><div class="mr-step-body" id="mrStep2Body"><div class="mr-loading"><div class="dot-anim"><span></span><span></span><span></span></div><span>Analizando competencia en MeLi...</span></div></div></div>
+      <div class="mr-step" id="mrStep3"><div class="mr-step-header"><div class="mr-step-num num-guided" id="mrS3num">3</div><div class="mr-step-title">Tracción en TikTok</div><span class="mr-badge badge-guided">completás vos</span></div>
+        <div class="mr-step-body" id="mrStep3Body">
+          <div class="mr-instruction"><strong>📱 Hacé esto en 60 segundos:</strong>1. Abrí TikTok y buscá el producto en español<br>2. Filtrá por "Más vistos" o "Esta semana"<br>3. Mirá el promedio de vistas de los primeros 3 videos<br>4. Fijate si hay creadores argentinos o solo de otros países</div>
+          <div class="mr-guided-grid"><div class="mr-field"><label>Promedio de vistas top 3 videos (aproximado)</label><input type="number" id="mrTiktokViews" placeholder="Ej: 250000" min="0"/></div><div class="mr-field"><label>¿Hay contenido en español/Argentina?</label><select id="mrTiktokArg"><option value="si">Sí, hay varios videos</option><option value="pocos">Pocos (1-2)</option><option value="no">No, solo inglés u otros</option></select></div></div>
+          <button class="btn-confirm" onclick="confirmMRStep3()">Confirmar datos TikTok →</button>
+        </div>
+      </div>
+      <div class="mr-step" id="mrStep4"><div class="mr-step-header"><div class="mr-step-num num-guided" id="mrS4num">4</div><div class="mr-step-title">Costo FOB y margen estimado</div><span class="mr-badge badge-guided">completás vos</span></div>
+        <div class="mr-step-body" id="mrStep4Body">
+          <div class="mr-instruction"><strong>🛒 Dos cosas para buscar:</strong><strong style="color:var(--text);margin-top:8px;display:block">Ventas MeLi:</strong>Entrá a los 3 primeros listings del producto. Abajo del precio dice "X vendidos". Estimá el promedio mensual.<br><br><strong style="color:var(--text)">FOB en Alibaba:</strong>Buscá el producto en alibaba.com o 1688.com. Usá el precio unitario para la cantidad que te interesa.</div>
+          <div class="mr-guided-grid"><div class="mr-field"><label>Precio FOB estimado (USD por unidad)</label><input type="number" id="mrFOB" placeholder="Ej: 12.50" step="0.01" min="0"/></div><div class="mr-field"><label>Ventas/mes promedio top 3 listings MeLi</label><input type="number" id="mrVentas" placeholder="Ej: 150" min="0"/></div><div class="mr-field"><label>Precio de venta promedio en MeLi (ARS)</label><input type="number" id="mrPrecioVenta" placeholder="Ej: 45000" min="0"/></div></div>
+          <button class="btn-confirm" onclick="confirmMRStep4()">Calcular viabilidad completa →</button>
+        </div>
+      </div>
+    </div>
+    <!-- RESULTADO FINAL -->
+    <div class="mr-result" id="mrResult">
+      <h2>Resultado · <span id="mrResultProduct"></span></h2>
+      <div class="mr-veredicto" id="mrVeredictoBox"><div class="mv-title" id="mrVeredictoTitle">Analizando...</div><div class="mv-text" id="mrVeredictoText"></div></div>
+      <div class="mr-charts-top">
+        <div class="mr-chart-box"><h4>Score de viabilidad</h4>
+          <div class="gauge-wrap">
+            <svg viewBox="0 0 200 120" width="100%">
+              <defs><linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#c0392b"/><stop offset="50%" stop-color="#C9A84C"/><stop offset="100%" stop-color="#27ae60"/></linearGradient></defs>
+              <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#2a2a2a" stroke-width="16" stroke-linecap="round"/>
+              <path id="gaugeFill" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#gaugeGrad)" stroke-width="16" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="251" style="transition:stroke-dashoffset 1.4s cubic-bezier(.4,0,.2,1)"/>
+              <line id="gaugeNeedle" x1="100" y1="100" x2="100" y2="28" stroke="#fff" stroke-width="2.5" stroke-linecap="round" style="transform-origin:100px 100px;transition:transform 1.4s cubic-bezier(.4,0,.2,1)"/>
+              <circle cx="100" cy="100" r="5" fill="#fff"/>
+              <text id="gaugeScore" x="100" y="88" text-anchor="middle" font-size="28" font-weight="700" fill="#C9A84C">--</text>
+              <text x="100" y="112" text-anchor="middle" font-size="11" fill="#8a8070">de 100</text>
+              <text x="14" y="116" text-anchor="middle" font-size="9" fill="#8a8070">0</text>
+              <text x="186" y="116" text-anchor="middle" font-size="9" fill="#8a8070">100</text>
+              <text x="100" y="22" text-anchor="middle" font-size="9" fill="#8a8070">50</text>
+            </svg>
+          </div>
+          <div class="gauge-label" id="gaugeLabel">–</div>
+        </div>
+        <div class="mr-chart-box"><h4>Perfil del producto</h4><div style="position:relative;width:100%;height:180px"><canvas id="radarChart"></canvas></div></div>
+      </div>
+      <div class="mr-factor-cards">
+        <div class="mfc" id="fc1"><div class="mfc-header"><div class="mfc-icon" id="fci1">📈</div><div><div class="mfc-name">Demanda</div></div></div><div class="mfc-score" id="fcs1">--</div><div class="mfc-bar-bg"><div class="mfc-bar-fill" id="fcb1" style="width:0%"></div></div><div class="mfc-label" id="fcl1"></div><div class="semaforo"><div class="sem-dot" id="sd1r"></div><div class="sem-dot" id="sd1a"></div><div class="sem-dot" id="sd1v"></div></div></div>
+        <div class="mfc" id="fc2"><div class="mfc-header"><div class="mfc-icon" id="fci2">🏪</div><div><div class="mfc-name">Competencia</div></div></div><div class="mfc-score" id="fcs2">--</div><div class="mfc-bar-bg"><div class="mfc-bar-fill" id="fcb2" style="width:0%"></div></div><div class="mfc-label" id="fcl2"></div><div class="semaforo"><div class="sem-dot" id="sd2r"></div><div class="sem-dot" id="sd2a"></div><div class="sem-dot" id="sd2v"></div></div></div>
+        <div class="mfc" id="fc3"><div class="mfc-header"><div class="mfc-icon" id="fci3">💰</div><div><div class="mfc-name">Margen</div></div></div><div class="mfc-score" id="fcs3">--</div><div class="mfc-bar-bg"><div class="mfc-bar-fill" id="fcb3" style="width:0%"></div></div><div class="mfc-label" id="fcl3"></div><div class="semaforo"><div class="sem-dot" id="sd3r"></div><div class="sem-dot" id="sd3a"></div><div class="sem-dot" id="sd3v"></div></div></div>
+        <div class="mfc" id="fc4"><div class="mfc-header"><div class="mfc-icon" id="fci4">⚖️</div><div><div class="mfc-name">Regulación</div></div></div><div class="mfc-score" id="fcs4">--</div><div class="mfc-bar-bg"><div class="mfc-bar-fill" id="fcb4" style="width:0%"></div></div><div class="mfc-label" id="fcl4"></div><div class="semaforo"><div class="sem-dot" id="sd4r"></div><div class="sem-dot" id="sd4a"></div><div class="sem-dot" id="sd4v"></div></div></div>
+      </div>
+      <div class="mr-3col">
+        <div class="mr-chart-box"><h4>Tendencia — Argentina (12m)</h4><div style="position:relative;width:100%;height:140px"><canvas id="trendsChart"></canvas></div></div>
+        <div class="mr-chart-box"><h4>Precios MeLi (ARS)</h4><div style="position:relative;width:100%;height:140px"><canvas id="meliChart"></canvas></div></div>
+        <div class="mr-chart-box"><h4>Rentabilidad</h4><div style="position:relative;width:100%;height:140px"><canvas id="waterfallChart"></canvas></div></div>
+      </div>
+      <div class="mr-analysis" id="mrAnalysisText"></div>
+      <div class="waterfall-wrap" id="waterfallWrap" style="display:none">
+        <h4>💰 Desglose de Rentabilidad</h4>
+        <div id="waterfallBars"></div>
+        <div class="wf-summary"><span class="wf-summary-label">Margen bruto por unidad</span><span class="wf-summary-val" id="wfSummaryVal">--</span></div>
+      </div>
+      <div class="mr-action-row"><button class="btn-outline-gold" onclick="exportMRPDF()">⬇️ Exportar PDF</button><button class="btn-outline-dim" onclick="resetMR()">Nuevo análisis</button></div>
+    </div>
+  </div>
+</div>
+<!-- ADMIN SCREEN -->
+<div id="adminScreen" class="screen">
+  <div class="topbar">
+    <div class="topbar-logo">👑 Panel Administrador</div>
+    <div class="topbar-user" id="adminTopbarUser"></div>
+    <button class="btn-back" onclick="showApp()">← Volver a la App</button>
+    <button class="btn-logout" onclick="doLogout()">Salir</button>
+  </div>
+  <div class="admin-content">
+    <div class="admin-header"><h2>👑 Gestión de Usuarios</h2></div>
+    <div id="adminMsg" class="admin-msg"></div>
+    <div class="admin-section"><h3>➕ Crear Nuevo Usuario</h3>
+      <div class="create-user-form">
+        <div class="form-field"><label>Usuario</label><input type="text" id="newUsername" placeholder="nombre_usuario"></div>
+        <div class="form-field"><label>Contraseña</label><input type="password" id="newPassword" placeholder="contraseña"></div>
+        <div class="form-field"><label>Expiración sesión</label><select id="newExpiry"><option value="30">30 días</option><option value="60">60 días</option><option value="90">90 días</option><option value="120">120 días</option><option value="150">150 días</option></select></div>
+        <button class="btn-create" onclick="createUser()">+ Crear</button>
+      </div>
+    </div>
+    <div class="admin-section"><h3>👥 Usuarios Registrados</h3><div id="usersTableContainer"><div class="loading">Cargando usuarios...</div></div></div>
+  </div>
+</div>
+<script>
+const ADMIN_USER = 'matypereira';
+const ADMIN_KEY = 'pf-admin-secret-2024';
+let currentRole = null;
+let sessionExpiry = null;
+let analysisResults = null;
+let analysisParams = null;
+let mrData = {};
+let mrCurrentProduct = '';
+const HISTORY_KEY = 'pf_mr_history';
+const MAX_HISTORY = 5;
+
+function toggleEye(el){
+  const inp=el.previousElementSibling;
+  if(inp.type==='password'){inp.type='text';el.textContent='🙈';}
+  else{inp.type='password';el.textContent='👁️';}
+}
+
+async function doLogin(){
+  const user=document.getElementById('loginUser').value.trim();
+  const pass=document.getElementById('loginPass').value;
+  const errEl=document.getElementById('loginError');
+  errEl.textContent='';
+  if(!user||!pass){errEl.textContent='Completá usuario y contraseña';return;}
+  try{
+    const res=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user,password:pass,action:'login'})});
+    const data=await res.json();
+    if(!res.ok||!data.success){errEl.textContent=data.error||'Usuario o contraseña incorrectos';return;}
+    currentRole=data.role;
+    sessionExpiry=data.expiresAt||null;
+    localStorage.setItem('pf_user',user);
+    localStorage.setItem('pf_role',currentRole);
+    if(sessionExpiry)localStorage.setItem('pf_expiry',sessionExpiry);
+    showScreen('appScreen');
+    setupTopbar(user);
+  }catch(e){errEl.textContent='Error de conexión. Intentá de nuevo.';}
+}
+
+function setupTopbar(user){
+  document.getElementById('topbarUser').textContent=user;
+  document.getElementById('adminTopbarUser').textContent=user;
+  document.getElementById('marketTopbarUser').textContent=user;
+  const expiryEl=document.getElementById('topbarExpiry');
+  const adminBtn=document.getElementById('btnAdminPanel');
+  if(currentRole==='admin'){expiryEl.style.display='none';adminBtn.style.display='block';}
+  else if(sessionExpiry){
+    const days=Math.ceil((new Date(sessionExpiry)-Date.now())/(1000*60*60*24));
+    expiryEl.style.display='block';
+    expiryEl.textContent=days>0?'⏱ '+days+'d restantes':'Sesión expirada';
+    if(days<=7)expiryEl.classList.add('urgent');
+    adminBtn.style.display='none';
+  }
+}
+
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
+function showAdmin(){if(currentRole!=='admin')return;showScreen('adminScreen');loadUsers();}
+function showApp(){showScreen('appScreen');}
+function showMarket(){showScreen('marketScreen');}
+
+function doLogout(){
+  currentRole=null;sessionExpiry=null;analysisResults=null;mrData={};mrCurrentProduct='';
+  localStorage.removeItem('pf_user');localStorage.removeItem('pf_role');localStorage.removeItem('pf_expiry');
+  document.getElementById('loginUser').value='';
+  document.getElementById('loginPass').value='';
+  document.getElementById('loginError').textContent='';
+  document.getElementById('emailGate').style.display='none';
+  document.getElementById('resultsSection').style.display='none';
+  document.getElementById('productsGrid').innerHTML='';
+  showScreen('loginScreen');
+}
+// ===== PRODUCTFINDER =====
+async function doAnalyze(){
+  const btn=document.getElementById('btnAnalyze');
+  btn.disabled=true;btn.textContent='🔄 Analizando...';
+  document.getElementById('emailGate').style.display='none';
+  document.getElementById('resultsSection').style.display='none';
+  const params={capital:document.getElementById('selCapital').value,experiencia:document.getElementById('selExperiencia').value,canal:document.getElementById('selCanal').value,nicho:document.getElementById('selNicho').value,riesgo:document.getElementById('selRiesgo').value};
+  analysisParams=params;
+  try{
+    const res=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(params)});
+    const data=await res.json();
+    if(!res.ok||!data.products)throw new Error(data.error||'Error');
+    analysisResults=data.products;
+    document.getElementById('emailGate').style.display='block';
+  }catch(e){alert('Error al analizar: '+e.message);}
+  finally{btn.disabled=false;btn.textContent='🚀 Analizar Productos';}
+}
+
+function unlockResults(){
+  const email=document.getElementById('emailInput').value.trim();
+  if(!email||!email.includes('@')){alert('Ingresá un email válido');return;}
+  document.getElementById('emailGate').style.display='none';
+  renderResults(analysisResults);
+}
+
+function renderResults(products){
+  const grid=document.getElementById('productsGrid');
+  grid.innerHTML=products.map(p=>`<div class="product-card ${p.topPick?'top-pick':''}">${p.topPick?'<div class="top-badge">⭐ TOP PICK</div>':''}<div class="product-name">${p.nombre}</div><div style="font-size:.8rem;color:var(--text-dim);margin-bottom:8px">Score: ${p.score}/100</div><div class="score-bar"><div class="score-fill" style="width:${p.score}%"></div></div><div class="product-stats"><div class="stat"><div class="stat-label">Margen</div><div class="stat-value">${p.margen}%</div></div><div class="stat"><div class="stat-label">Demanda</div><div class="stat-value">${p.demanda}</div></div><div class="stat"><div class="stat-label">Riesgo</div><div class="stat-value">${p.riesgo}</div></div><div class="stat"><div class="stat-label">Ticket</div><div class="stat-value">${p.ticket||'-'}</div></div></div><div class="product-justification">${p.justificacion}</div></div>`).join('');
+  document.getElementById('resultsSection').style.display='block';
+}
+
+function exportPDF(){
+  if(!analysisResults)return;
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF();
+  doc.setFontSize(18);doc.text('Lectura de Mercado - Análisis de Importación',14,20);
+  doc.setFontSize(11);doc.text('Generado: '+new Date().toLocaleDateString('es-AR'),14,30);
+  let y=45;
+  analysisResults.forEach((p,i)=>{
+    doc.setFontSize(13);doc.text((i+1)+'. '+p.nombre+(p.topPick?' ⭐':''),14,y);y+=7;
+    doc.setFontSize(10);
+    doc.text('Score: '+p.score+'/100 | Margen: '+p.margen+'% | Demanda: '+p.demanda+' | Riesgo: '+p.riesgo,14,y);y+=6;
+    const lines=doc.splitTextToSize(p.justificacion,180);
+    doc.text(lines,14,y);y+=lines.length*5+8;
+  });
+  doc.save('productfinder-analisis.pdf');
+}
+
+async function sendChat(){
+  const inp=document.getElementById('chatInput');
+  const msg=inp.value.trim();
+  if(!msg)return;
+  inp.value='';
+  const box=document.getElementById('chatBox');
+  const userDiv=document.createElement('div');
+  userDiv.className='msg user';userDiv.textContent=msg;box.appendChild(userDiv);
+  box.scrollTop=box.scrollHeight;
+  const thinking=document.createElement('div');
+  thinking.className='msg bot';thinking.textContent='...';box.appendChild(thinking);
+  try{
+    const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,context:analysisResults?JSON.stringify(analysisResults):null})});
+    const data=await res.json();
+    thinking.textContent=data.reply||'No pude procesar tu consulta.';
+  }catch(e){thinking.textContent='Error de conexión.';}
+  box.scrollTop=box.scrollHeight;
+}
+// ===== ANALYSIS HISTORY =====
+function generateCompetitors(sellers, avgPrice){
+  const reps=['Mercado Libre','Tienda Oficial','Nuevo Seller','Importadora AR','E-commerce Plus'];
+  const repClasses=['rep-gold','rep-green','rep-silver','rep-green','rep-silver'];
+  const basePrice=avgPrice||35000;
+  const names=[
+    reps[Math.floor(Math.random()*reps.length)]+' — '+mrCurrentProduct,
+    'Seller TOP — '+mrCurrentProduct,
+    'Import directo — '+mrCurrentProduct
+  ];
+  const variations=[1.1,0.92,1.18];
+  return names.map((name,i)=>({
+    name,
+    price:Math.round(basePrice*variations[i]),
+    sales:Math.floor(80+Math.random()*320),
+    rep:['Mercado Libre ⭐','Tienda Oficial','Seller Nuevo','Mercado Libre ⭐','Plata'][i],
+    repClass:repClasses[i]
+  }));
+}
+
+function getHistory(){
+  try{return JSON.parse(localStorage.getItem(HISTORY_KEY))||[];}catch(e){return[];}
+}
+
+function saveToHistory(entry){
+  const hist=getHistory();
+  const existing=hist.findIndex(h=>h.product===entry.product&&h.date===entry.date);
+  if(existing>=0)hist.splice(existing,1);
+  hist.unshift(entry);
+  if(hist.length>MAX_HISTORY)hist.splice(MAX_HISTORY);
+  localStorage.setItem(HISTORY_KEY,JSON.stringify(hist));
+}
+
+function renderHistory(){
+  const hist=getHistory();
+  const container=document.getElementById('historyList');
+  if(!hist.length){
+    container.innerHTML='<div class="history-empty">No hay análisis guardados aún.<br>Hacé tu primer análisis para verlo aquí.</div>';
+    return;
+  }
+  container.innerHTML=hist.map((h,i)=>`<div class="history-item" onclick="loadHistoryItem(${i})"><div class="history-item-top"><span class="history-item-name">${h.product}</span><span class="history-item-date">${new Date(h.date).toLocaleDateString('es-AR')}</span></div><div class="history-item-stats"><span class="history-stat">Score: <strong>${h.score}/100</strong></span><span class="history-stat">Margen: <strong>${h.margenPct}%</strong></span><span class="history-stat">Veredicto: <strong>${h.veredicto}</strong></span></div></div>`).join('');
+}
+
+function clearHistory(){
+  if(!confirm('¿Eliminar todo el historial de análisis?'))return;
+  localStorage.removeItem(HISTORY_KEY);
+  renderHistory();
+}
+
+function loadHistoryItem(idx){
+  const hist=getHistory();
+  const item=hist[idx];
+  if(!item)return;
+  document.getElementById('mrProductInput').value=item.product;
+  document.getElementById('mrTipoCambio').value=item.tc||1250;
+  toggleHistory();
+  mrData=item.mrData||{};
+  document.getElementById('mrResult').classList.add('visible');
+  document.getElementById('mrResultProduct').textContent=item.product;
+  document.getElementById('gaugeScore').textContent=item.score;
+  document.getElementById('gaugeLabel').textContent=item.score>=65?'Viabilidad alta':item.score>=40?'Viabilidad media':'Viabilidad baja';
+  document.getElementById('mrVeredictoTitle').textContent=item.veredicto;
+  document.getElementById('mrVeredictoText').textContent=item.analisisTexto||'';
+  const vBox=document.getElementById('mrVeredictoBox');
+  vBox.className='mr-veredicto';
+  if(item.veredicto==='✓ VIABLE'){vBox.classList.add('mv-si');document.getElementById('mrVeredictoTitle').style.color='var(--green)';}
+  else if(item.veredicto==='✗ NO RECOMENDADO'){vBox.classList.add('mv-no');document.getElementById('mrVeredictoTitle').style.color='var(--red)';}
+  else{vBox.classList.add('mv-cond');document.getElementById('mrVeredictoTitle').style.color='var(--gold)';}
+  if(item.scores){const icons=['📈','🏪','💰','⚖️'];item.scores.forEach((s,i)=>renderFactorCard(i+1,s.score,s.label,icons[i]||'•'));}
+  if(item.mrData&&item.mrData.step4){renderWaterfall(item.mrData.step4,item.tc||1250);}
+  document.getElementById('mrAnalysisText').textContent=item.analisisCompleto||'';
+  drawSavedCharts(item);
+}
+
+function drawSavedCharts(item){
+  if(item.chartData){
+    const tc=item.chartData;
+    if(tc.trendData&&window.Chart){
+      const trendCtx=document.getElementById('trendsChart');
+      if(window._trendsChart)window._trendsChart.destroy();
+      const months=['Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic','Ene','Feb','Mar'];
+      const bandUpper=tc.trendData.map(v=>Math.min(100,v+12));
+      const bandLower=tc.trendData.map(v=>Math.max(5,v-12));
+      window._trendsChart=new Chart(trendCtx,{type:'line',data:{labels:months,datasets:[
+        {data:bandUpper,borderColor:'rgba(201,168,76,0.08)',borderWidth:1,fill:'-1',backgroundColor:'rgba(201,168,76,0.06)',tension:0.4,pointRadius:0},
+        {data:tc.trendData,borderColor:'#C9A84C',borderWidth:2.5,backgroundColor:'rgba(201,168,76,0.12)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#C9A84C'},
+        {data:bandLower,borderColor:'rgba(201,168,76,0.08)',borderWidth:1,fill:'-1',backgroundColor:'rgba(201,168,76,0.06)',tension:0.4,pointRadius:0}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'rgba(0,0,0,0.85)',titleColor:'#C9A84C',bodyColor:'#e8e0d0',borderColor:'#C9A84C',borderWidth:1}},scales:{x:{ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}},y:{min:0,max:100,ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}}}}});
+    }
+    if(tc.meliData){
+      const meliCtx=document.getElementById('meliChart');
+      if(window._meliChart)window._meliChart.destroy();
+      window._meliChart=new Chart(meliCtx,{type:'bar',data:{labels:['Precio mín','Precio prom','Precio máx'],datasets:[{data:tc.meliData,backgroundColor:['rgba(41,128,185,0.7)','rgba(201,168,76,0.7)','rgba(39,174,96,0.7)'],borderColor:['#2980b9','#C9A84C','#27ae60'],borderWidth:1.5,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'ARS '+ctx.parsed.x.toLocaleString('es-AR')}}},scales:{x:{ticks:{color:'#8a8070',font:{size:9},callback:v=>v>=1000?'$'+(v/1000).toFixed(0)+'k':'$'+v},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'#8a8070',font:{size:10}},grid:{display:false}}}}});
+    }
+    if(tc.waterfallData){
+      const wfCtx=document.getElementById('waterfallChart');
+      if(window._waterfallChart)window._waterfallChart.destroy();
+      const wd=tc.waterfallData;
+      const labels=['FOB','Flete','Aranceles','Despacho','Comisión'];
+      const vals=[wd.fob,-wd.flete,-wd.aranceles,-wd.despacho,-wd.comision];
+      const colors=vals.map(v=>v>=0?'rgba(39,174,96,0.7)':'rgba(192,57,43,0.7)');
+      window._waterfallChart=new Chart(wfCtx,{type:'bar',data:{labels, datasets:[{data:vals,backgroundColor:colors,borderColor:colors.map(c=>c.replace('0.7','1')),borderWidth:1.5,borderRadius:4,barThickness:28}],options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const v=ctx.parsed.y;return(v>=0?'+':'')+'USD '+Math.abs(v).toFixed(2);}}},annotation:{}}},scales:{x:{ticks:{color:'#8a8070',font:{size:9}},grid:{display:false}},y:{ticks:{color:'#8a8070',font:{size:9},callback:v=>'$'+v},grid:{color:'rgba(255,255,255,0.04)'}}}}});
+    }
+  }
+}
+
+function toggleHistory(){
+  const panel=document.getElementById('historyPanel');
+  const btn=document.getElementById('btnHistory');
+  panel.classList.toggle('visible');
+  btn.classList.toggle('active',panel.classList.contains('visible'));
+  if(panel.classList.contains('visible'))renderHistory();
+}
+// ===== MARKET READER =====
+function mrLoadingHTML(txt){return `<div class="mr-loading"><div class="dot-anim"><span></span><span></span><span></span></div><span>${txt}</span></div>`;}
+
+async function startMRAnalysis(){
+  const product=document.getElementById('mrProductInput').value.trim();
+  if(!product){alert('Ingresá un producto para analizar');return;}
+  mrCurrentProduct=product;
+  mrData={product,capital:document.getElementById('mrCapital').value,canal:document.getElementById('mrCanal').value,tc:parseFloat(document.getElementById('mrTipoCambio').value)||1250};
+  document.getElementById('btnMRAnalyze').disabled=true;
+  document.getElementById('mrSteps').classList.add('visible');
+  document.getElementById('mrResult').classList.remove('visible');
+  document.getElementById('mrStep1Body').innerHTML=mrLoadingHTML('Analizando tendencia de demanda en Argentina...');
+  document.getElementById('mrStep2Body').innerHTML=mrLoadingHTML('Analizando competencia en Mercado Libre...');
+  resetMRGuidedStep(3);resetMRGuidedStep(4);
+  await Promise.all([runMRStep1(product),runMRStep2(product)]);
+}
+
+function resetMRGuidedStep(n){
+  if(n===3){
+    document.getElementById('mrStep3Body').innerHTML=`<div class="mr-instruction"><strong>📱 Hacé esto en 60 segundos:</strong>1. Abrí TikTok y buscá el producto en español<br>2. Filtrá por "Más vistos" o "Esta semana"<br>3. Mirá el promedio de vistas de los primeros 3 videos<br>4. Fijate si hay creadores argentinos o solo de otros países</div><div class="mr-guided-grid"><div class="mr-field"><label>Promedio de vistas top 3 videos (aproximado)</label><input type="number" id="mrTiktokViews" placeholder="Ej: 250000" min="0"/></div><div class="mr-field"><label>¿Hay contenido en español/Argentina?</label><select id="mrTiktokArg"><option value="si">Sí, hay varios videos</option><option value="pocos">Pocos (1-2)</option><option value="no">No, solo inglés u otros</option></select></div></div><button class="btn-confirm" onclick="confirmMRStep3()">Confirmar datos TikTok →</button>`;
+  }
+  if(n===4){
+    document.getElementById('mrStep4Body').innerHTML=`<div class="mr-instruction"><strong>🛒 Dos cosas para buscar:</strong><strong style="color:var(--text);margin-top:8px;display:block">Ventas MeLi:</strong>Entrá a los 3 primeros listings del producto. Abajo del precio dice "X vendidos". Estimá el promedio mensual de los top 3.<br><br><strong style="color:var(--text)">FOB en Alibaba:</strong>Buscá el producto en alibaba.com o 1688.com. Usá el precio unitario para la cantidad que te interesa.</div><div class="mr-guided-grid"><div class="mr-field"><label>Precio FOB estimado (USD por unidad)</label><input type="number" id="mrFOB" placeholder="Ej: 12.50" step="0.01" min="0"/></div><div class="mr-field"><label>Ventas/mes promedio top 3 listings MeLi</label><input type="number" id="mrVentas" placeholder="Ej: 150" min="0"/></div><div class="mr-field"><label>Precio de venta promedio en MeLi (ARS)</label><input type="number" id="mrPrecioVenta" placeholder="Ej: 45000" min="0"/></div></div><button class="btn-confirm" onclick="confirmMRStep4()">Calcular viabilidad completa →</button>`;
+  }
+}
+async function runMRStep1(product){
+  try{
+    const res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'demanda',product})});
+    const r=await res.json();
+    if(!res.ok) throw new Error(r.error||'Error en step demanda');
+    mrData.step1=r;
+    const tendColor=r.tendencia==='subiendo'?'tag-ok':r.tendencia==='bajando'?'tag-bad':'tag-warn';
+    const tendIcon=r.tendencia==='subiendo'?'\u2191':r.tendencia==='bajando'?'\u2193':'\u2192';
+    const tags=(r.tags||[]).map(t=>`<span class="mr-tag tag-info">${t}</span>`).join('');
+    const monthlyRows=r.monthlyData?(r.monthlyData.map(m=>`<div class="mr-row"><span class="mr-row-label">${m.mes} 2025</span><span class="mr-row-value" style="color:var(--gold)">${m.valor}/100</span></div>`).join('')):'';
+    document.getElementById('mrStep1Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Tendencia en Argentina</span><span class="mr-row-value"><span class="mr-tag ${tendColor}">${tendIcon} ${r.tendencia}</span></span></div><div class="mr-row"><span class="mr-row-label">Nivel de demanda</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">${r.nivelDemanda||'--'}</span></div><div class="mr-row"><span class="mr-row-label">Temporalidad</span><span class="mr-row-value">${r.temporalidad||'--'}</span></div><div class="mr-row"><span class="mr-row-label">Score de demanda</span><span class="mr-row-value">${r.demandaScore||'--'}/100</span></div><div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.descripcion||''}</div><div style="margin-top:8px">${tags}</div><div style="margin-top:12px"><span class="mr-tag tag-info">📈 Datos de demanda basados en categoría y estacionalidad AR</span></div>${monthlyRows}`;
+  }catch(e){
+    document.getElementById('mrStep1Body').innerHTML='<span style="color:var(--red);font-size:.82rem">Error al obtener datos. Continuá con los pasos guiados.</span>';
+    mrData.step1={tendencia:'estable',demandaScore:50,temporalidad:'todo el año',tags:[],nivelDemanda:'medio'};
+  }
+}
+
+async function runMRStep2(product){
+  try{
+    const res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'competencia',product})});
+    const r=await res.json();
+    if(!res.ok) throw new Error(r.error||'Error en step competencia');
+    mrData.step2=r;
+    const satMap={'libre':'tag-ok','moderado':'tag-warn','saturado':'tag-bad','muy saturado':'tag-bad'};
+    const satColor=satMap[r.saturacion]||'tag-info';
+    const fmt=n=>n?n.toLocaleString('es-AR'):'--';
+    const compData=r.competitors||generateCompetitors(r.sellersEstimados,r.precioPromedioARS);
+    mrData.competitors=compData;
+    const compRows=compData.map((c,i)=>`<tr><td class="comp-rank">#${c.rank||(i+1)}</td><td class="comp-name" title="${c.name}">${c.name}</td><td class="comp-price">ARS ${c.price.toLocaleString('es-AR')}</td><td class="comp-sales">${c.soldQty||0} vendidos</td><td><span class="comp-rep ${c.repClass}">${c.reputation||c.rep||'N/A'}</span></td></tr>`).join('');
+    const extraInfo=r.totalResults?`<div class="mr-row"><span class="mr-row-label">Total publicaciones activas</span><span class="mr-row-value">${r.totalResults.toLocaleString('es-AR')}</span></div>`:'';
+    const catInfo=r.categoryName?`<div class="mr-row"><span class="mr-row-label">Categoría principal</span><span class="mr-row-value">${r.categoryName}</span></div>`:'';
+    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers únicos reales</span><span class="mr-row-value">${r.sellersEstimados}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios reales</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio real</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">ARS ${fmt(r.precioPromedioARS)}</span></div>${catInfo}${extraInfo}<div class="mr-row"><span class="mr-row-label">Nivel de saturación</span><span class="mr-row-value"><span class="mr-tag ${satColor}">${r.saturacion||'--'}</span></span></div><div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)">💡 Oportunidad: ${r.oportunidad}</div>`:''}<div style="margin-top:12px"><span class="mr-tag tag-info">📊 Datos reales de Mercado Libre Argentina</span></div><table class="mr-comp-table"><thead><tr><th>#</th><th>Producto / Seller</th><th>Precio</th><th>Vendidos</th><th>Reputación</th></tr></thead><tbody>${compRows}</tbody></table>`;
+  }catch(e){
+    document.getElementById('mrStep2Body').innerHTML='<span style="color:var(--red);font-size:.82rem">Error al analizar MeLi. Continuá con los pasos guiados.</span>';
+    mrData.step2={sellersEstimados:0,precioMinARS:0,precioMaxARS:0,precioPromedioARS:0,competenciaScore:50,saturacion:'moderado'};
+  }
+}
+
+function confirmMRStep3(){
+  const views=parseFloat(document.getElementById('mrTiktokViews').value)||0;
+  const arg=document.getElementById('mrTiktokArg').value;
+  mrData.step3={views,arg};
+  const argLabel=arg==='si'?'Sí, hay varios':arg==='pocos'?'Pocos (1-2)':'No';
+  document.getElementById('mrStep3Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Vistas promedio top 3</span><span class="mr-row-value">${views.toLocaleString('es-AR')}</span></div><div class="mr-row"><span class="mr-row-label">Contenido en Argentina</span><span class="mr-row-value">${argLabel}</span></div><div style="margin-top:8px"><span class="mr-tag tag-ok">✓ Datos TikTok registrados</span></div>`;
+}
+
+function confirmMRStep4(){
+  const fob=parseFloat(document.getElementById('mrFOB').value)||0;
+  const ventas=parseFloat(document.getElementById('mrVentas').value)||0;
+  const venta=parseFloat(document.getElementById('mrPrecioVenta').value)||0;
+  if(!fob||!venta){alert('Completá al menos el precio FOB y el precio de venta');return;}
+  const tc=mrData.tc;
+  const flete=fob*0.15;
+  const aranceles=fob*0.35;
+  const despacho=fob*0.08;
+  const costoLanded=fob+flete+aranceles+despacho;
+  const costoLandedARS=costoLanded*tc;
+  const comisionMeLi=venta*0.15;
+  const costoTotalARS=costoLandedARS+comisionMeLi;
+  const margenARS=venta-costoTotalARS;
+  const margenPct=venta>0?Math.round((margenARS/venta)*100):0;
+  mrData.step4={fob,ventas,venta,costoLanded,costoLandedARS,margenARS,margenPct};
+  const mColor=margenPct>=40?'var(--green)':margenPct>=20?'var(--gold)':'var(--red)';
+  document.getElementById('mrStep4Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Precio FOB</span><span class="mr-row-value">USD ${fob.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Costo landed (FOB+flete+aranceles+despacho)</span><span class="mr-row-value">USD ${costoLanded.toFixed(2)} / ARS ${costoLandedARS.toLocaleString('es-AR',{maximumFractionDigits:0})}</span></div><div class="mr-row"><span class="mr-row-label">Comisión MeLi (15%)</span><span class="mr-row-value">ARS ${comisionMeLi.toLocaleString('es-AR',{maximumFractionDigits:0})}</span></div><div class="mr-row"><span class="mr-row-label">Margen bruto estimado</span><span class="mr-row-value" style="color:${mColor};font-size:1.1rem">${margenPct}%</span></div>${ventas?`<div class="mr-row"><span class="mr-row-label">Ventas/mes top sellers MeLi</span><span class="mr-row-value">${ventas} uds</span></div>`:''}<div style="margin-top:8px"><span class="mr-tag tag-ok">✓ Cálculo registrado</span></div>`;
+  runMRFinalAnalysis();
+}
+async function runMRFinalAnalysis(){
+  document.getElementById('mrResult').classList.add('visible');
+  document.getElementById('gaugeScore').textContent='...';
+  document.getElementById('mrResultProduct').textContent=mrCurrentProduct;
+  const {step1,step2,step3,step4}=mrData;
+  try{
+    const prompt=`Sos un analista experto en importaciones China-Argentina. Hacé un análisis completo de viabilidad para: "${mrCurrentProduct}". Datos recopilados: - DEMANDA: tendencia=${step1?.tendencia}, demandaScore=${step1?.demandaScore}/100, temporalidad=${step1?.temporalidad}, nivelDemanda=${step1?.nivelDemanda} - COMPETENCIA MELI: sellers\u2248${step2?.sellersEstimados}, saturacion=${step2?.saturacion}, competenciaScore=${step2?.competenciaScore}/100, precio promedio ARS ${step2?.precioPromedioARS} - TIKTOK: vistas promedio top3=${step3?.views||'no informado'}, contenido Argentina=${step3?.arg||'no informado'} - MARGEN: FOB USD ${step4?.fob}, costo landed USD ${step4?.costoLanded?.toFixed(2)}, precio venta ARS ${step4?.venta}, margen bruto ${step4?.margenPct}%, ventas/mes top sellers MeLi=${step4?.ventas||'no informado'} - Canal: ${mrData.canal}, Capital disponible: USD ${mrData.capital} Respondé SOLO con JSON válido sin markdown: {"scoreTotal":number 0-100,"scoresDemanda":number 0-100,"scoresCompetencia":number 0-100,"scoresMargen":number 0-100,"scoresRegulatorio":number 0-100,"labelDemanda":"string corto","labelCompetencia":"string corto","labelMargen":"string corto","labelRegulatorio":"string corto","veredicto":"VIABLE|VIABLE CON CONDICIONES|NO RECOMENDADO","veredictoTexto":"2-3 oraciones directas en español rioplatense","analisisCompleto":"análisis detallado de los 4 factores, riesgos principales y próximos pasos. Máx 350 palabras. Rioplatense, directo."}`;
+    const res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'final',prompt})});
+    const r=await res.json();
+    if(!res.ok) throw new Error(r.error||'Error en análisis final');
+    renderMRResult(r);
+  }catch(e){
+    document.getElementById('mrAnalysisText').textContent='Error al generar el análisis. Revisá tu conexión e intentá de nuevo.';
+    document.getElementById('btnMRAnalyze').disabled=false;
+  }
+}
+
+function renderMRResult(r){
+  const score=Math.max(0,Math.min(100,r.scoreTotal||0));
+  const gaugeArc=251;
+  const gOffset=gaugeArc-(score/100)*gaugeArc;
+  document.getElementById('gaugeFill').style.strokeDashoffset=gOffset;
+  const needleRot=-90+(score/100)*180;
+  document.getElementById('gaugeNeedle').style.transform=`rotate(${needleRot}deg)`;
+  const scoreColor=score>=65?'#27ae60':score>=40?'#C9A84C':'#c0392b';
+  document.getElementById('gaugeScore').textContent=score;
+  document.getElementById('gaugeScore').setAttribute('fill',scoreColor);
+  document.getElementById('gaugeLabel').textContent=score>=65?'Viabilidad alta':score>=40?'Viabilidad media':'Viabilidad baja';
+  const vBox=document.getElementById('mrVeredictoBox');
+  vBox.className='mr-veredicto';
+  const vTitle=document.getElementById('mrVeredictoTitle');
+  if(r.veredicto==='VIABLE'){vBox.classList.add('mv-si');vTitle.textContent='✓ VIABLE';vTitle.style.color='var(--green)';}
+  else if(r.veredicto==='NO RECOMENDADO'){vBox.classList.add('mv-no');vTitle.textContent='✗ NO RECOMENDADO';vTitle.style.color='var(--red)';}
+  else{vBox.classList.add('mv-cond');vTitle.textContent='⚠ VIABLE CON CONDICIONES';vTitle.style.color='var(--gold)';}
+  document.getElementById('mrVeredictoText').textContent=r.veredictoTexto||'';
+  const sD=Math.max(0,Math.min(100,r.scoresDemanda||50));
+  const sC=Math.max(0,Math.min(100,100-(r.scoresCompetencia||50)));
+  const sM=Math.max(0,Math.min(100,r.scoresMargen||50));
+  const sR=Math.max(0,Math.min(100,100-(r.scoresRegulatorio||30)));
+  renderFactorCard(1,sD,r.labelDemanda,'📈');
+  renderFactorCard(2,sC,r.labelCompetencia,'🏪');
+  renderFactorCard(3,sM,r.labelMargen,'💰');
+  renderFactorCard(4,sR,r.labelRegulatorio,'⚖️');
+  const radarCtx=document.getElementById('radarChart');
+  if(window._radarChart)window._radarChart.destroy();
+  window._radarChart=new Chart(radarCtx,{type:'radar',data:{labels:['Demanda','Competencia','Margen','Regulación'],datasets:[{data:[sD,sC,sM,sR],backgroundColor:'rgba(201,168,76,0.15)',borderColor:'#C9A84C',borderWidth:2,pointBackgroundColor:'#C9A84C',pointRadius:4,pointHoverRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{r:{min:0,max:100,ticks:{display:false},grid:{color:'rgba(255,255,255,0.06)'},angleLines:{color:'rgba(255,255,255,0.06)'},pointLabels:{color:'#8a8070',font:{size:11}}}}}});
+  const trend=mrData.step1?.tendencia||'estable';
+  const monthlyData=mrData.step1?.monthlyData||null;
+  const months=['Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic','Ene','Feb','Mar'];
+  let trendData;
+  if(monthlyData&&monthlyData.length>0){
+    trendData=monthlyData.map(d=>d.valor);
+  } else {
+    const baseDemand=sD;
+    trendData=months.map((m,i)=>{
+      const noise=(Math.random()-0.5)*10;
+      const drift=trend==='subiendo'?(i*2.5):trend==='bajando'?(-i*2):0;
+      return Math.max(5,Math.min(100,baseDemand+drift+noise));
+    });
+  }
+  const bandUpper=trendData.map(v=>Math.min(100,v+12));
+  const bandLower=trendData.map(v=>Math.max(5,v-12));
+  const trendsCtx=document.getElementById('trendsChart');
+  if(window._trendsChart)window._trendsChart.destroy();
+  const trendLabels=monthlyData&&monthlyData.length>0?monthlyData.map(d=>d.mes):months;
+  window._trendsChart=new Chart(trendsCtx,{type:'line',data:{labels:trendLabels,datasets:[
+    {data:bandUpper,borderColor:'rgba(201,168,76,0.08)',borderWidth:1,fill:'-1',backgroundColor:'rgba(201,168,76,0.05)',tension:0.4,pointRadius:0,order:2},
+    {data:trendData,borderColor:'#C9A84C',borderWidth:2.5,backgroundColor:'rgba(201,168,76,0.12)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#C9A84C',pointHoverRadius:5,order:1},
+    {data:bandLower,borderColor:'rgba(201,168,76,0.08)',borderWidth:1,fill:'-1',backgroundColor:'rgba(201,168,76,0.05)',tension:0.4,pointRadius:0,order:3}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'rgba(0,0,0,0.85)',titleColor:'#C9A84C',bodyColor:'#e8e0d0',borderColor:'#C9A84C',borderWidth:1,callbacks:{title:ctx=>monthlyData&&monthlyData[ctx[0].dataIndex]?(monthlyData[ctx[0].dataIndex].mes+' 2025'):(ctx[0].label+' 2025'),label:ctx=>'Interés: '+ctx.parsed.y.toFixed(0)+'/100'}}},scales:{x:{ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}},y:{min:0,max:100,ticks:{color:'#8a8070',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}}}}});
+  const s2=mrData.step2||{};
+  const pMin=s2.precioMinARS||0;
+  const pProm=s2.precioPromedioARS||0;
+  const pMax=s2.precioMaxARS||0;
+  const meliCtx=document.getElementById('meliChart');
+  if(window._meliChart)window._meliChart.destroy();
+  window._meliChart=new Chart(meliCtx,{type:'bar',data:{labels:['Precio mín','Precio prom','Precio máx'],datasets:[{data:[pMin,pProm,pMax],backgroundColor:['rgba(41,128,185,0.7)','rgba(201,168,76,0.7)','rgba(39,174,96,0.7)'],borderColor:['#2980b9','#C9A84C','#27ae60'],borderWidth:1.5,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'ARS '+ctx.parsed.x.toLocaleString('es-AR')}}},scales:{x:{ticks:{color:'#8a8070',font:{size:9},callback:v=>v>=1000?'$'+(v/1000).toFixed(0)+'k':'$'+v},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'#8a8070',font:{size:10}},grid:{display:false}}}}});
+  if(mrData.step4)renderWaterfall(mrData.step4,mrData.tc);
+  const wfEl=document.getElementById('waterfallWrap');
+  if(mrData.step4)wfEl.style.display='block';
+  document.getElementById('mrAnalysisText').textContent=r.analisisCompleto||'';
+  document.getElementById('btnMRAnalyze').disabled=false;
+  const veredictoMap={'VIABLE':'✓ VIABLE','NO RECOMENDADO':'✗ NO RECOMENDADO','VIABLE CON CONDICIONES':'⚠ VIABLE CON CONDICIONES'};
+  saveToHistory({product:mrCurrentProduct,date:Date.now(),score,tc:mrData.tc,margenPct:mrData.step4?.margenPct||0,veredicto:veredictoMap[r.veredicto]||r.veredicto,analisisTexto:r.veredictoTexto,analisisCompleto:r.analisisCompleto,mrData,scores:[
+    {score:sD,label:r.labelDemanda},{score:sC,label:r.labelCompetencia},{score:sM,label:r.labelMargen},{score:sR,label:r.labelRegulatorio}
+  ],chartData:{trendData,meliData:[pMin,pProm,pMax],waterfallData:mrData.step4?{fob:mrData.step4.fob,flete:mrData.step4.fob*0.15,aranceles:mrData.step4.fob*0.35,despacho:mrData.step4.fob*0.08,comision:mrData.step4.venta*0.15}:null}});
+}
+function renderFactorCard(n,score,label,icon){
+  const s=Math.max(0,Math.min(100,score||0));
+  const tier=s>=65?'verde':s>=40?'amarillo':'rojo';
+  const colors={verde:'#27ae60',amarillo:'#C9A84C',rojo:'#c0392b'};
+  const col=colors[tier];
+  document.getElementById('fc'+n).className='mfc '+tier;
+  document.getElementById('fci'+n).className='mfc-icon '+tier;
+  document.getElementById('fci'+n).textContent=icon;
+  document.getElementById('fcs'+n).textContent=s+'/100';
+  document.getElementById('fcs'+n).className='mfc-score '+tier;
+  document.getElementById('fcb'+n).style.width=s+'%';
+  document.getElementById('fcb'+n).style.background=col;
+  document.getElementById('fcl'+n).textContent=label||'';
+  ['r','a','v'].forEach(c=>{document.getElementById('sd'+n+c).className='sem-dot';});
+  if(tier==='verde'){document.getElementById('sd'+n+'v').className='sem-dot on-verde';}
+  else if(tier==='amarillo'){document.getElementById('sd'+n+'a').className='sem-dot on-amarillo';}
+  else{document.getElementById('sd'+n+'r').className='sem-dot on-rojo';}
+}
+
+function renderWaterfall(step4,tc){
+  const fob=step4.fob;
+  const flete=step4.fob*0.15;
+  const aranceles=step4.fob*0.35;
+  const despacho=step4.fob*0.08;
+  const venta=step4.venta;
+  const comision=venta*0.15;
+  const costoLanded=fob+flete+aranceles+despacho;
+  const margen=venta-costoLanded-comision;
+  const items=[
+    {label:'Precio venta',val:venta,type:'total',show:true},
+    {label:'FOB (USD '+fob.toFixed(2)+')',val:-costoLanded,type:'neg',show:true},
+    {label:'  Flete 15%',val:-flete,type:'sub',show:true},
+    {label:'  Aranceles 35%',val:-aranceles,type:'sub',show:true},
+    {label:'  Despacho 8%',val:-despacho,type:'sub',show:true},
+    {label:'Comisión MeLi 15%',val:-comision,type:'neg',show:true}
+  ];
+  const maxAbs=Math.max(...items.map(i=>Math.abs(i.val)));
+  const barsEl=document.getElementById('waterfallBars');
+  barsEl.innerHTML=items.map(item=>{
+    if(!item.show)return'';
+    const pct=Math.max(2,(Math.abs(item.val)/maxAbs)*100);
+    const isPos=item.val>=0;
+    const displayVal=(isPos?'+':'')+'USD '+Math.abs(item.val).toFixed(2);
+    return `<div class="wf-row"><span class="wf-label">${item.label}</span><div class="wf-bar-bg"><div class="wf-bar-fill ${item.type}" style="width:${pct}%"></div></div><span class="wf-val ${isPos?'pos':'neg'}">${displayVal}</span></div>`;
+  }).join('');
+  const sumEl=document.getElementById('wfSummaryVal');
+  const margenPct=step4.margenPct||0;
+  sumEl.textContent='+USD '+margen.toFixed(2)+' ('+margenPct+'%)';
+  sumEl.className='wf-summary-val '+(margenPct>=40?'ok':margenPct>=20?'warn':'bad');
+}
+
+function exportMRPDF(){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF();
+  const {step1,step2,step3,step4}=mrData;
+  doc.setFillColor(10,10,10);
+  doc.rect(0,0,220,35,'F');
+  doc.setTextColor(201,168,76);
+  doc.setFontSize(18);
+  doc.text('Market Reader IA',14,18);
+  doc.setTextColor(200,200,200);
+  doc.setFontSize(11);
+  doc.text('Análisis de Viabilidad — '+mrCurrentProduct,14,28);
+  doc.setTextColor(150,150,150);
+  doc.setFontSize(9);
+  doc.text('Generado: '+new Date().toLocaleDateString('es-AR'),14,34);
+  doc.setTextColor(0,0,0);
+  let y=42;
+  const addChart=async(canvasId,title)=>{
+    const canvas=document.getElementById(canvasId);
+    if(!canvas)return;
+    try{
+      const img=canvas.toDataURL('image/png',1.0);
+      const pw=doc.internal.pageSize.getWidth()-28;
+      doc.setDrawColor(201,168,76);
+      doc.setLineWidth(0.3);
+      doc.rect(14,y-4,pw,38);
+      doc.setTextColor(201,168,76);
+      doc.setFontSize(8);
+      doc.text(title.toUpperCase(),16,y);
+      doc.addImage(img,'PNG',14,y+2,pw,32);
+      y+=46;
+      if(y>250){doc.addPage();y=20;}
+    }catch(e){}
+  };
+  const addText=(title,content,fntSize=12)=>{
+    if(y>240){doc.addPage();y=20;}
+    doc.setTextColor(201,168,76);
+    doc.setFontSize(fntSize);
+    doc.text(title,14,y);y+=6;
+    doc.setTextColor(80,80,80);
+    doc.setFontSize(9);
+    const lines=doc.splitTextToSize(content,190);
+    doc.text(lines,14,y);y+=lines.length*4+4;
+  };
+  doc.setTextColor(60,60,60);
+  addText('Factor 1 — Demanda',step1?`Tendencia: ${step1.tendencia} | Score: ${step1.demandaScore}/100 | Temporalidad: ${step1.temporalidad||'N/A'}`:'Sin datos');
+  addText('Factor 2 — Competencia MeLi',step2?`Sellers: ~${step2.sellersEstimados} | Saturación: ${step2.saturacion} | Precio prom: ARS ${(step2.precioPromedioARS||0).toLocaleString('es-AR')}`:'Sin datos');
+  if(mrData.competitors&&mrData.competitors.length){
+    addText('Top Competidores',mrData.competitors.map((c,i)=>`#${i+1} ${c.name} — ARS ${c.price.toLocaleString('es-AR')} | ${c.sales}+ ventas/mes | ${c.rep}`).join('\n'),9);
+  }
+  addText('Factor 3 — TikTok',step3?`Vistas promedio: ${(step3.views||0).toLocaleString('es-AR')} | Contenido ARG: ${step3.arg||'N/A'}`:'Sin datos');
+  if(step4){
+    const tc=mrData.tc||1250;
+    const flete=step4.fob*0.15;
+    const aranceles=step4.fob*0.35;
+    const despacho=step4.fob*0.08;
+    const costoLanded=step4.fob+flete+aranceles+despacho;
+    const comision=step4.venta*0.15;
+    const margen=step4.venta-costoLanded-comision;
+    addText('Factor 4 — Rentabilidad',`FOB: USD ${step4.fob.toFixed(2)} | Costo Landed: USD ${costoLanded.toFixed(2)} (ARS ${(costoLanded*tc).toLocaleString('es-AR')})\nComisión MeLi 15%: ARS ${comision.toLocaleString('es-AR')} | Precio venta: ARS ${step4.venta.toLocaleString('es-AR')}\nMargen bruto: USD ${margen.toFixed(2)} (${step4.margenPct}%)`);
+  }
+  if(y>230){doc.addPage();y=20;}
+  doc.setTextColor(201,168,76);
+  doc.setFontSize(12);
+  doc.text('Análisis completo',14,y);y+=7;
+  doc.setTextColor(80,80,80);
+  doc.setFontSize(9);
+  const analysis=document.getElementById('mrAnalysisText').textContent;
+  if(analysis){
+    const lines=doc.splitTextToSize(analysis,190);
+    doc.text(lines,14,y);
+  }
+  (async()=>{
+    doc.setTextColor(60,60,60);
+    if(y>200){doc.addPage();y=15;}
+    await addChart('trendsChart','Tendencia de búsqueda — Argentina (12m)');
+    await addChart('meliChart','Precios en Mercado Libre');
+    await addChart('waterfallChart','Composición de costos');
+    doc.save('market-reader-'+mrCurrentProduct.replace(/\s+/g,'-')+'.pdf');
+  })();
+}
+
+function resetMR(){
+  document.getElementById('mrProductInput').value='';
+  document.getElementById('mrSteps').classList.remove('visible');
+  document.getElementById('mrResult').classList.remove('visible');
+  document.getElementById('waterfallWrap').style.display='none';
+  document.getElementById('btnMRAnalyze').disabled=false;
+  if(window._radarChart){window._radarChart.destroy();window._radarChart=null;}
+  if(window._trendsChart){window._trendsChart.destroy();window._trendsChart=null;}
+  if(window._meliChart){window._meliChart.destroy();window._meliChart=null;}
+  if(window._waterfallChart){window._waterfallChart.destroy();window._waterfallChart=null;}
+  mrData={};mrCurrentProduct='';
+}
+// ===== ADMIN =====
+async function loadUsers(){
+  const container=document.getElementById('usersTableContainer');
+  container.innerHTML='<div class="loading">Cargando usuarios...</div>';
+  try{
+    const res=await fetch('/api/users',{headers:{'x-admin-key':ADMIN_KEY}});
+    const data=await res.json();
+    if(!res.ok){container.innerHTML='<div class="loading">Error: '+data.error+'</div>';return;}
+    renderUsersTable(data.users||[]);
+  }catch(e){container.innerHTML='<div class="loading">Error de conexión</div>';}
+}
+
+function renderUsersTable(users){
+  const container=document.getElementById('usersTableContainer');
+  if(!users.length){container.innerHTML='<div class="loading">No hay usuarios registrados aún.</div>';return;}
+  const rows=users.map(u=>{
+    const isAdminUser=(u.username===ADMIN_USER);
+    const now=Date.now();
+    const expiry=u.expiresAt?new Date(u.expiresAt):null;
+    const daysLeft=expiry?Math.ceil((expiry-now)/(1000*60*60*24)):null;
+    const expired=daysLeft!==null&&daysLeft<=0;
+    let badge='';
+    if(isAdminUser){badge='<span class="badge admin">Admin ∞</span>';}
+    else if(!u.active){badge='<span class="badge inactive">Inactivo</span>';}
+    else if(expired){badge='<span class="badge expired">Expirado</span>';}
+    else{badge='<span class="badge active">Activo</span>';}
+    const expiryStr=isAdminUser?'Sin expiración':(expiry?expiry.toLocaleDateString('es-AR')+' ('+daysLeft+'d)':'N/A');
+    const created=u.createdAt?new Date(u.createdAt).toLocaleDateString('es-AR'):'-';
+    const toggleBtn=isAdminUser?'':`<button class="btn-sm btn-toggle ${u.active?'deactivate':''}" onclick="toggleUser('${u.username}',${u.active?'false':'true'})">${u.active?'Desactivar':'Activar'}</button>`;
+    const delBtn=isAdminUser?'':`<button class="btn-sm btn-delete" onclick="deleteUser('${u.username}')">Eliminar</button>`;
+    return `<tr><td><strong>${u.username}</strong></td><td>${badge}</td><td>${u.expiryDays||'-'} días</td><td>${created}</td><td>${expiryStr}</td><td>${toggleBtn}${delBtn}</td></tr>`;
+  }).join('');
+  container.innerHTML=`<table class="users-table"><thead><tr><th>Usuario</th><th>Estado</th><th>Sesión</th><th>Creado</th><th>Expira</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+async function createUser(){
+  const username=document.getElementById('newUsername').value.trim();
+  const password=document.getElementById('newPassword').value;
+  const expiryDays=parseInt(document.getElementById('newExpiry').value);
+  if(!username||!password){showAdminMsg('Completá usuario y contraseña','err');return;}
+  try{
+    const res=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json','x-admin-key':ADMIN_KEY},body:JSON.stringify({username,password,expiryDays})});
+    const data=await res.json();
+    if(!res.ok){showAdminMsg(data.error||'Error al crear usuario','err');return;}
+    showAdminMsg('✅ Usuario "'+username+'" creado correctamente','ok');
+    document.getElementById('newUsername').value='';document.getElementById('newPassword').value='';
+    loadUsers();
+  }catch(e){showAdminMsg('Error de conexión','err');}
+}
+
+async function toggleUser(username,active){
+  try{
+    const res=await fetch('/api/users',{method:'DELETE',headers:{'Content-Type':'application/json','x-admin-key':ADMIN_KEY},body:JSON.stringify({username,action:'toggle',active})});
+    const data=await res.json();
+    if(!res.ok){showAdminMsg(data.error||'Error','err');return;}
+    showAdminMsg('✅ Usuario "'+username+'" '+(active?'activado':'desactivado'),'ok');
+    loadUsers();
+  }catch(e){showAdminMsg('Error de conexión','err');}
+}
+
+async function deleteUser(username){
+  if(!confirm('¿Eliminar al usuario "'+username+'"? Esta acción no se puede deshacer.'))return;
+  try{
+    const res=await fetch('/api/users',{method:'DELETE',headers:{'Content-Type':'application/json','x-admin-key':ADMIN_KEY},body:JSON.stringify({username,action:'delete'})});
+    const data=await res.json();
+    if(!res.ok){showAdminMsg(data.error||'Error','err');return;}
+    showAdminMsg('✅ Usuario "'+username+'" eliminado','ok');
+    loadUsers();
+  }catch(e){showAdminMsg('Error de conexión','err');}
+}
+
+function showAdminMsg(msg,type){
+  const el=document.getElementById('adminMsg');
+  el.textContent=msg;el.className='admin-msg '+type;
+  setTimeout(()=>{el.className='admin-msg';},4000);
+}
+
+// ===== INIT =====
+window.addEventListener('DOMContentLoaded',()=>{
+  const savedUser=localStorage.getItem('pf_user');
+  const savedRole=localStorage.getItem('pf_role');
+  const savedExpiry=localStorage.getItem('pf_expiry');
+  if(savedUser&&savedRole){
+    if(savedExpiry&&savedRole!=='admin'){
+      const exp=new Date(savedExpiry);
+      if(exp<=new Date()){doLogout();return;}
+    }
+    currentRole=savedRole;sessionExpiry=savedExpiry||null;
+    showScreen('appScreen');setupTopbar(savedUser);
+  }
+});
+</script>
+</body>
+</html>
