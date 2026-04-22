@@ -774,22 +774,69 @@ function confirmMRStep4(){
   const venta=parseFloat(document.getElementById('mrPrecioVenta').value)||0;
   if(!fob||!venta){alert('Completá al menos el precio FOB y el precio de venta');return;}
   const tc=mrData.tc;
+  const s2=mrData.step2||{};
+  let medianoARS=0;
+  if(s2.competitors&&s2.competitors.length){
+    const arr=s2.competitors.map(c=>c.price).filter(p=>p>0).sort((a,b)=>a-b);
+    if(arr.length){const m=Math.floor(arr.length/2);medianoARS=arr.length%2?arr[m]:Math.round((arr[m-1]+arr[m])/2);}
+  }
+  if(!medianoARS&&s2.precioPromedioARS){medianoARS=Math.round(s2.precioPromedioARS*0.92);}
+  const usaMediano=medianoARS>0&&Math.abs(venta-medianoARS)/medianoARS>0.25;
+  const catName=(s2.categoryName||'').toLowerCase();
+  let comisionPct=0.15;
+  if(/electron|tecnolog|celular|computa/.test(catName))comisionPct=0.165;
+  else if(/hogar|deco|mueble/.test(catName))comisionPct=0.14;
+  else if(/deport|fitness/.test(catName))comisionPct=0.13;
+  else if(/moda|indumen|ropa|calzado/.test(catName))comisionPct=0.16;
+  else if(/mascot|bebe|niñ/.test(catName))comisionPct=0.13;
+  else if(/herramienta|industri/.test(catName))comisionPct=0.12;
+  const ivaPct=0.21;
+  const iibbPct=0.03;
+  const usaFull=mrData.canal==='mercadolibre';
+  const fullPct=usaFull?0.10:0;
+  const empaqueUSD=0.50;
   const fleteUSD=fob*0.15;
-  const arancelesUSD=fob*0.35;
-  const despachoUSD=fob*0.08;
-  const costoLandedUSD=fob+fleteUSD+arancelesUSD+despachoUSD;
+  const seguroUSD=(fob+fleteUSD)*0.015;
+  const cifUSD=fob+fleteUSD+seguroUSD;
+  const arancelesUSD=cifUSD*0.35;
+  const despachoUSD=cifUSD*0.08;
+  const costoLandedUSD=fob+fleteUSD+seguroUSD+arancelesUSD+despachoUSD+empaqueUSD;
   const fobARS=fob*tc;
   const fleteARS=fleteUSD*tc;
+  const seguroARS=seguroUSD*tc;
   const arancelesARS=arancelesUSD*tc;
   const despachoARS=despachoUSD*tc;
+  const empaqueARS=empaqueUSD*tc;
   const costoLandedARS=costoLandedUSD*tc;
-  const comisionMeLiARS=venta*0.15;
-  const costoTotalARS=costoLandedARS+comisionMeLiARS;
+  const comisionMeLiARS=venta*comisionPct;
+  const ivaARS=venta*ivaPct;
+  const iibbARS=venta*iibbPct;
+  const fullARS=venta*fullPct;
+  const costoTotalARS=costoLandedARS+comisionMeLiARS+ivaARS+iibbARS+fullARS;
   const margenARS=venta-costoTotalARS;
   const margenPct=venta>0?Math.round((margenARS/venta)*100):0;
-  mrData.step4={fob,ventas,venta,tc,costoLanded:costoLandedUSD,costoLandedARS,fobARS,fleteARS,arancelesARS,despachoARS,comisionMeLiARS,margenARS,margenPct};
+  const ventasMes=ventas||0;
+  const ventasDia=ventasMes/30;
+  const capitalUSD=parseFloat(mrData.capital)||10000;
+  const unidadesPosibles=Math.floor(capitalUSD/Math.max(0.01,costoLandedUSD));
+  const ingresoMensualARS=margenARS*ventasMes;
+  const inversionARS=costoLandedARS*Math.min(unidadesPosibles,Math.max(1,ventasMes));
+  const roiMensualPct=inversionARS>0?(ingresoMensualARS/inversionARS)*100:0;
+  const roiAnualPct=Math.round(roiMensualPct*12);
+  const breakevenUds=margenARS>0?Math.ceil(inversionARS/margenARS):0;
+  const breakevenDias=ventasDia>0&&breakevenUds>0?Math.ceil(breakevenUds/ventasDia):0;
+  const scD=Math.min(100,(mrData.step1&&mrData.step1.demandaScore)||50);
+  const scC=100-Math.min(100,(mrData.step2&&mrData.step2.competenciaScore)||50);
+  const scM=Math.max(0,Math.min(100,margenPct*2.5));
+  const scR=Math.max(0,Math.min(100,roiAnualPct/3));
+  const scDef=mrData.step3&&mrData.step3.arg==='si'?70:mrData.step3&&mrData.step3.arg==='pocos'?50:30;
+  const scoreReponderado=Math.round(scD*0.25+scC*0.20+scM*0.30+scR*0.15+scDef*0.10);
+  mrData.step4={fob,ventas,venta,tc,costoLanded:costoLandedUSD,costoLandedARS,fobARS,fleteARS,seguroARS,arancelesARS,despachoARS,empaqueARS,comisionMeLiARS,ivaARS,iibbARS,fullARS,margenARS,margenPct,medianoARS,comisionPct,usaFull,roiMensualPct,roiAnualPct,breakevenUds,breakevenDias,unidadesPosibles,ingresoMensualARS,scoreReponderado,scD,scC,scM,scR,scDef};
   const mColor=margenPct>=40?'var(--green)':margenPct>=20?'var(--gold)':'var(--red)';
-  document.getElementById('mrStep4Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Precio FOB</span><span class="mr-row-value">USD ${fob.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Costo landed (FOB+flete+aranceles+despacho)</span><span class="mr-row-value">USD ${costoLanded.toFixed(2)} / ARS ${costoLandedARS.toLocaleString('es-AR',{maximumFractionDigits:0})}</span></div><div class="mr-row"><span class="mr-row-label">Comisión MeLi (15%)</span><span class="mr-row-value">ARS ${comisionMeLi.toLocaleString('es-AR',{maximumFractionDigits:0})}</span></div><div class="mr-row"><span class="mr-row-label">Margen bruto estimado</span><span class="mr-row-value" style="color:${mColor};font-size:1.1rem">${margenPct}%</span></div>${ventas?`<div class="mr-row"><span class="mr-row-label">Ventas/mes top sellers MeLi</span><span class="mr-row-value">${ventas} uds</span></div>`:''}<div style="margin-top:8px"><span class="mr-tag tag-ok">✓ Cálculo registrado</span></div>`;
+  const fmtA=n=>'ARS '+Math.round(n).toLocaleString('es-AR');
+  const advMediano=usaMediano?`<div class="mr-row"><span class="mr-row-label">⚠ Sugerencia</span><span class="mr-row-value" style="color:var(--gold)">Mediano real ${fmtA(medianoARS)} (tu venta difiere ${Math.round((venta-medianoARS)/medianoARS*100)}%)</span></div>`:'';
+  const fullRow=usaFull?`<div class="mr-row"><span class="mr-row-label">Mercado Envíos Full (10%)</span><span class="mr-row-value">${fmtA(fullARS)}</span></div>`:'';
+  document.getElementById('mrStep4Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Precio FOB</span><span class="mr-row-value">USD ${fob.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Costo CIF (FOB+flete+seguro)</span><span class="mr-row-value">USD ${cifUSD.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Costo landed total</span><span class="mr-row-value">USD ${costoLandedUSD.toFixed(2)} / ${fmtA(costoLandedARS)}</span></div><div class="mr-row"><span class="mr-row-label">Comisión MeLi (${Math.round(comisionPct*100)}%)</span><span class="mr-row-value">${fmtA(comisionMeLiARS)}</span></div><div class="mr-row"><span class="mr-row-label">IVA (21%)</span><span class="mr-row-value">${fmtA(ivaARS)}</span></div><div class="mr-row"><span class="mr-row-label">IIBB (3%)</span><span class="mr-row-value">${fmtA(iibbARS)}</span></div>${fullRow}<div class="mr-row"><span class="mr-row-label">Margen neto estimado</span><span class="mr-row-value" style="color:${mColor};font-size:1.1rem">${margenPct}% (${fmtA(margenARS)})</span></div><div class="mr-row"><span class="mr-row-label">ROI anualizado</span><span class="mr-row-value" style="color:var(--gold)">${roiAnualPct}%</span></div>${breakevenUds?`<div class="mr-row"><span class="mr-row-label">Breakeven</span><span class="mr-row-value">${breakevenUds} uds${breakevenDias?` (~${breakevenDias} días)`:''}</span></div>`:''}<div class="mr-row"><span class="mr-row-label">Score reponderado</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">${mrData.step4.scoreReponderado}/100</span></div>${advMediano}${ventas?`<div class="mr-row"><span class="mr-row-label">Ventas/mes top sellers MeLi</span><span class="mr-row-value">${ventas} uds</span></div>`:''}<div style="margin-top:8px"><span class="mr-tag tag-ok">✓ Cálculo registrado</span></div>`;
   runMRFinalAnalysis();
 }
 async function runMRFinalAnalysis(){
@@ -798,7 +845,7 @@ async function runMRFinalAnalysis(){
   document.getElementById('mrResultProduct').textContent=mrCurrentProduct;
   const {step1,step2,step3,step4}=mrData;
   try{
-    const prompt=`Sos un analista experto en importaciones China-Argentina. Hacé un análisis completo de viabilidad para: "${mrCurrentProduct}". Datos recopilados: - DEMANDA: tendencia=${step1?.tendencia}, demandaScore=${step1?.demandaScore}/100, temporalidad=${step1?.temporalidad}, nivelDemanda=${step1?.nivelDemanda} - COMPETENCIA MELI: sellers\u2248${step2?.sellersEstimados}, saturacion=${step2?.saturacion}, competenciaScore=${step2?.competenciaScore}/100, precio promedio ARS ${step2?.precioPromedioARS} - TIKTOK: vistas promedio top3=${step3?.views||'no informado'}, contenido Argentina=${step3?.arg||'no informado'} - MARGEN: FOB USD ${step4?.fob}, costo landed USD ${step4?.costoLanded?.toFixed(2)}, precio venta ARS ${step4?.venta}, margen bruto ${step4?.margenPct}%, ventas/mes top sellers MeLi=${step4?.ventas||'no informado'} - Canal: ${mrData.canal}, Capital disponible: USD ${mrData.capital} Respondé SOLO con JSON válido sin markdown: {"scoreTotal":number 0-100,"scoresDemanda":number 0-100,"scoresCompetencia":number 0-100,"scoresMargen":number 0-100,"scoresRegulatorio":number 0-100,"labelDemanda":"string corto","labelCompetencia":"string corto","labelMargen":"string corto","labelRegulatorio":"string corto","veredicto":"VIABLE|VIABLE CON CONDICIONES|NO RECOMENDADO","veredictoTexto":"2-3 oraciones directas en español rioplatense","analisisCompleto":"análisis detallado de los 4 factores, riesgos principales y próximos pasos. Máx 350 palabras. Rioplatense, directo."}`;
+    const prompt=`Sos un analista experto en importaciones China-Argentina. Hacé un análisis completo de viabilidad para: "${mrCurrentProduct}". Datos recopilados: - DEMANDA: tendencia=${step1?.tendencia}, demandaScore=${step1?.demandaScore}/100, temporalidad=${step1?.temporalidad}, nivelDemanda=${step1?.nivelDemanda} - COMPETENCIA MELI: sellers\u2248${step2?.sellersEstimados}, saturacion=${step2?.saturacion}, competenciaScore=${step2?.competenciaScore}/100, precio promedio ARS ${step2?.precioPromedioARS}, precio mediano ARS ${step4?.medianoARS||'n/d'}, categoria=${step2?.categoryName||'n/d'} - TIKTOK: vistas promedio top3=${step3?.views||'no informado'}, contenido Argentina=${step3?.arg||'no informado'} - RENTABILIDAD: FOB USD ${step4?.fob}, costo landed USD ${step4?.costoLanded?.toFixed(2)}, comisión MeLi ${Math.round((step4?.comisionPct||0.15)*100)}%, IVA 21% + IIBB 3%${step4?.usaFull?' + Full 10%':''}, precio venta ARS ${step4?.venta}, margen NETO ${step4?.margenPct}% (ARS ${Math.round(step4?.margenARS||0).toLocaleString('es-AR')}), ROI anualizado ${step4?.roiAnualPct}%, breakeven ${step4?.breakevenUds} uds, score reponderado ${step4?.scoreReponderado}/100, ventas/mes top sellers=${step4?.ventas||'no informado'} - Canal: ${mrData.canal}, Capital disponible: USD ${mrData.capital} Respondé SOLO con JSON válido sin markdown: {"scoreTotal":number 0-100,"scoresDemanda":number 0-100,"scoresCompetencia":number 0-100,"scoresMargen":number 0-100,"scoresRegulatorio":number 0-100,"labelDemanda":"string corto","labelCompetencia":"string corto","labelMargen":"string corto","labelRegulatorio":"string corto","veredicto":"VIABLE|VIABLE CON CONDICIONES|NO RECOMENDADO","veredictoTexto":"2-3 oraciones directas en español rioplatense","analisisCompleto":"análisis detallado de los 4 factores, riesgos principales y próximos pasos. Considerá el ROI anualizado y el breakeven. Máx 350 palabras. Rioplatense, directo."}`;
     const res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'final',prompt})});
     const r=await res.json();
     if(!res.ok) throw new Error(r.error||'Error en análisis final');
@@ -810,7 +857,7 @@ async function runMRFinalAnalysis(){
 }
 
 function renderMRResult(r){
-  const score=Math.max(0,Math.min(100,r.scoreTotal||0));
+  const score=Math.max(0,Math.min(100,(mrData.step4&&mrData.step4.scoreReponderado)||r.scoreTotal||0));
   const gaugeArc=251;
   const gOffset=gaugeArc-(score/100)*gaugeArc;
   document.getElementById('gaugeFill').style.strokeDashoffset=gOffset;
@@ -902,24 +949,33 @@ function renderWaterfall(step4,tc){
   const venta=step4.venta;
   const fobARS=step4.fobARS!=null?step4.fobARS:(step4.fob*tc);
   const fleteARS=step4.fleteARS!=null?step4.fleteARS:(step4.fob*0.15*tc);
+  const seguroARS=step4.seguroARS||0;
   const arancelesARS=step4.arancelesARS!=null?step4.arancelesARS:(step4.fob*0.35*tc);
   const despachoARS=step4.despachoARS!=null?step4.despachoARS:(step4.fob*0.08*tc);
+  const empaqueARS=step4.empaqueARS||0;
   const comisionARS=step4.comisionMeLiARS!=null?step4.comisionMeLiARS:(venta*0.15);
-  const costoLandedARS=step4.costoLandedARS!=null?step4.costoLandedARS:(fobARS+fleteARS+arancelesARS+despachoARS);
-  const margenARS=step4.margenARS!=null?step4.margenARS:(venta-costoLandedARS-comisionARS);
-  const fmt=n=>'ARS '+Math.abs(n).toLocaleString('es-AR',{maximumFractionDigits:0});
+  const ivaARS=step4.ivaARS||0;
+  const iibbARS=step4.iibbARS||0;
+  const fullARS=step4.fullARS||0;
+  const margenARS=step4.margenARS!=null?step4.margenARS:(venta-fobARS-fleteARS-arancelesARS-despachoARS-comisionARS);
+  const fmt=n=>'ARS '+Math.abs(Math.round(n)).toLocaleString('es-AR');
   const items=[
     {label:'Precio venta',val:venta,type:'total',show:true},
     {label:'FOB (USD '+step4.fob.toFixed(2)+')',val:-fobARS,type:'neg',show:true},
     {label:'  Flete 15%',val:-fleteARS,type:'sub',show:true},
-    {label:'  Aranceles 35%',val:-arancelesARS,type:'sub',show:true},
-    {label:'  Despacho 8%',val:-despachoARS,type:'sub',show:true},
-    {label:'Comisión MeLi 15%',val:-comisionARS,type:'neg',show:true}
+    {label:'  Seguro 1.5%',val:-seguroARS,type:'sub',show:seguroARS>0},
+    {label:'  Aranceles 35% s/CIF',val:-arancelesARS,type:'sub',show:true},
+    {label:'  Despacho 8% s/CIF',val:-despachoARS,type:'sub',show:true},
+    {label:'  Empaque',val:-empaqueARS,type:'sub',show:empaqueARS>0},
+    {label:'Comisión MeLi',val:-comisionARS,type:'neg',show:true},
+    {label:'IVA 21%',val:-ivaARS,type:'neg',show:ivaARS>0},
+    {label:'IIBB 3%',val:-iibbARS,type:'neg',show:iibbARS>0},
+    {label:'Mercado Envíos Full 10%',val:-fullARS,type:'neg',show:fullARS>0}
   ];
-  const maxAbs=Math.max(...items.map(i=>Math.abs(i.val)));
+  const visibles=items.filter(i=>i.show);
+  const maxAbs=Math.max(...visibles.map(i=>Math.abs(i.val)));
   const barsEl=document.getElementById('waterfallBars');
-  barsEl.innerHTML=items.map(item=>{
-    if(!item.show)return'';
+  barsEl.innerHTML=visibles.map(item=>{
     const pct=Math.max(2,(Math.abs(item.val)/maxAbs)*100);
     const isPos=item.val>=0;
     const displayVal=(isPos?'+':'-')+fmt(item.val);
@@ -985,13 +1041,17 @@ function exportMRPDF(){
   addText('Factor 3 — TikTok',step3?`Vistas promedio: ${(step3.views||0).toLocaleString('es-AR')} | Contenido ARG: ${step3.arg||'N/A'}`:'Sin datos');
   if(step4){
     const tc=mrData.tc||1250;
-    const flete=step4.fob*0.15;
-    const aranceles=step4.fob*0.35;
-    const despacho=step4.fob*0.08;
-    const costoLanded=step4.fob+flete+aranceles+despacho;
-    const comision=step4.venta*0.15;
-    const margen=step4.venta-costoLanded-comision;
-    addText('Factor 4 — Rentabilidad',`FOB: USD ${step4.fob.toFixed(2)} | Costo Landed: USD ${costoLanded.toFixed(2)} (ARS ${(costoLanded*tc).toLocaleString('es-AR')})\nComisión MeLi 15%: ARS ${comision.toLocaleString('es-AR')} | Precio venta: ARS ${step4.venta.toLocaleString('es-AR')}\nMargen bruto: USD ${margen.toFixed(2)} (${step4.margenPct}%)`);
+    const cifUSD=step4.fob+(step4.fleteARS||0)/tc+(step4.seguroARS||0)/tc;
+    const costoLandedARS=step4.costoLandedARS||((step4.costoLanded||0)*tc);
+    const comisionARS=step4.comisionMeLiARS||(step4.venta*0.15);
+    const ivaARS=step4.ivaARS||0;
+    const iibbARS=step4.iibbARS||0;
+    const fullARS=step4.fullARS||0;
+    const margenARS=step4.margenARS||0;
+    const roiAnualPct=step4.roiAnualPct||0;
+    const breakevenUds=step4.breakevenUds||0;
+    const comisionPct=Math.round((step4.comisionPct||0.15)*100);
+    addText('Factor 4 — Rentabilidad',`FOB: USD ${step4.fob.toFixed(2)} | CIF: USD ${cifUSD.toFixed(2)} | Costo landed: USD ${(step4.costoLanded||0).toFixed(2)} (ARS ${costoLandedARS.toLocaleString('es-AR',{maximumFractionDigits:0})})\nComisión MeLi ${comisionPct}%: ARS ${Math.round(comisionARS).toLocaleString('es-AR')} | IVA 21%: ARS ${Math.round(ivaARS).toLocaleString('es-AR')} | IIBB 3%: ARS ${Math.round(iibbARS).toLocaleString('es-AR')}${fullARS?' | Full 10%: ARS '+Math.round(fullARS).toLocaleString('es-AR'):''}\nPrecio venta: ARS ${step4.venta.toLocaleString('es-AR')} | Margen neto: ARS ${Math.round(margenARS).toLocaleString('es-AR')} (${step4.margenPct}%)\nROI anualizado: ${roiAnualPct}% | Breakeven: ${breakevenUds} uds | Score reponderado: ${step4.scoreReponderado||'-'}/100`);
   }
   if(y>230){doc.addPage();y=20;}
   doc.setTextColor(201,168,76);
