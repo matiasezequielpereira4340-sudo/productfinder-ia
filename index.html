@@ -782,7 +782,7 @@ function confirmMRStep4(){
   }
   if(!medianoARS&&s2.precioPromedioARS){medianoARS=Math.round(s2.precioPromedioARS*0.92);}
   const usaMediano=medianoARS>0&&Math.abs(venta-medianoARS)/medianoARS>0.25;
-  const catName=(s2.categoryName||'').toLowerCase();
+  const catName=(s2.categoryName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   let comisionPct=0.15;
   if(/electron|tecnolog|celular|computa/.test(catName))comisionPct=0.165;
   else if(/hogar|deco|mueble/.test(catName))comisionPct=0.14;
