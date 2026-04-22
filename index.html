@@ -774,16 +774,20 @@ function confirmMRStep4(){
   const venta=parseFloat(document.getElementById('mrPrecioVenta').value)||0;
   if(!fob||!venta){alert('Completá al menos el precio FOB y el precio de venta');return;}
   const tc=mrData.tc;
-  const flete=fob*0.15;
-  const aranceles=fob*0.35;
-  const despacho=fob*0.08;
-  const costoLanded=fob+flete+aranceles+despacho;
-  const costoLandedARS=costoLanded*tc;
-  const comisionMeLi=venta*0.15;
-  const costoTotalARS=costoLandedARS+comisionMeLi;
+  const fleteUSD=fob*0.15;
+  const arancelesUSD=fob*0.35;
+  const despachoUSD=fob*0.08;
+  const costoLandedUSD=fob+fleteUSD+arancelesUSD+despachoUSD;
+  const fobARS=fob*tc;
+  const fleteARS=fleteUSD*tc;
+  const arancelesARS=arancelesUSD*tc;
+  const despachoARS=despachoUSD*tc;
+  const costoLandedARS=costoLandedUSD*tc;
+  const comisionMeLiARS=venta*0.15;
+  const costoTotalARS=costoLandedARS+comisionMeLiARS;
   const margenARS=venta-costoTotalARS;
   const margenPct=venta>0?Math.round((margenARS/venta)*100):0;
-  mrData.step4={fob,ventas,venta,costoLanded,costoLandedARS,margenARS,margenPct};
+  mrData.step4={fob,ventas,venta,tc,costoLanded:costoLandedUSD,costoLandedARS,fobARS,fleteARS,arancelesARS,despachoARS,comisionMeLiARS,margenARS,margenPct};
   const mColor=margenPct>=40?'var(--green)':margenPct>=20?'var(--gold)':'var(--red)';
   document.getElementById('mrStep4Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Precio FOB</span><span class="mr-row-value">USD ${fob.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Costo landed (FOB+flete+aranceles+despacho)</span><span class="mr-row-value">USD ${costoLanded.toFixed(2)} / ARS ${costoLandedARS.toLocaleString('es-AR',{maximumFractionDigits:0})}</span></div><div class="mr-row"><span class="mr-row-label">Comisión MeLi (15%)</span><span class="mr-row-value">ARS ${comisionMeLi.toLocaleString('es-AR',{maximumFractionDigits:0})}</span></div><div class="mr-row"><span class="mr-row-label">Margen bruto estimado</span><span class="mr-row-value" style="color:${mColor};font-size:1.1rem">${margenPct}%</span></div>${ventas?`<div class="mr-row"><span class="mr-row-label">Ventas/mes top sellers MeLi</span><span class="mr-row-value">${ventas} uds</span></div>`:''}<div style="margin-top:8px"><span class="mr-tag tag-ok">✓ Cálculo registrado</span></div>`;
   runMRFinalAnalysis();
@@ -895,21 +899,22 @@ function renderFactorCard(n,score,label,icon){
 }
 
 function renderWaterfall(step4,tc){
-  const fob=step4.fob;
-  const flete=step4.fob*0.15;
-  const aranceles=step4.fob*0.35;
-  const despacho=step4.fob*0.08;
   const venta=step4.venta;
-  const comision=venta*0.15;
-  const costoLanded=fob+flete+aranceles+despacho;
-  const margen=venta-costoLanded-comision;
+  const fobARS=step4.fobARS!=null?step4.fobARS:(step4.fob*tc);
+  const fleteARS=step4.fleteARS!=null?step4.fleteARS:(step4.fob*0.15*tc);
+  const arancelesARS=step4.arancelesARS!=null?step4.arancelesARS:(step4.fob*0.35*tc);
+  const despachoARS=step4.despachoARS!=null?step4.despachoARS:(step4.fob*0.08*tc);
+  const comisionARS=step4.comisionMeLiARS!=null?step4.comisionMeLiARS:(venta*0.15);
+  const costoLandedARS=step4.costoLandedARS!=null?step4.costoLandedARS:(fobARS+fleteARS+arancelesARS+despachoARS);
+  const margenARS=step4.margenARS!=null?step4.margenARS:(venta-costoLandedARS-comisionARS);
+  const fmt=n=>'ARS '+Math.abs(n).toLocaleString('es-AR',{maximumFractionDigits:0});
   const items=[
     {label:'Precio venta',val:venta,type:'total',show:true},
-    {label:'FOB (USD '+fob.toFixed(2)+')',val:-costoLanded,type:'neg',show:true},
-    {label:'  Flete 15%',val:-flete,type:'sub',show:true},
-    {label:'  Aranceles 35%',val:-aranceles,type:'sub',show:true},
-    {label:'  Despacho 8%',val:-despacho,type:'sub',show:true},
-    {label:'Comisión MeLi 15%',val:-comision,type:'neg',show:true}
+    {label:'FOB (USD '+step4.fob.toFixed(2)+')',val:-fobARS,type:'neg',show:true},
+    {label:'  Flete 15%',val:-fleteARS,type:'sub',show:true},
+    {label:'  Aranceles 35%',val:-arancelesARS,type:'sub',show:true},
+    {label:'  Despacho 8%',val:-despachoARS,type:'sub',show:true},
+    {label:'Comisión MeLi 15%',val:-comisionARS,type:'neg',show:true}
   ];
   const maxAbs=Math.max(...items.map(i=>Math.abs(i.val)));
   const barsEl=document.getElementById('waterfallBars');
@@ -917,12 +922,13 @@ function renderWaterfall(step4,tc){
     if(!item.show)return'';
     const pct=Math.max(2,(Math.abs(item.val)/maxAbs)*100);
     const isPos=item.val>=0;
-    const displayVal=(isPos?'+':'')+'USD '+Math.abs(item.val).toFixed(2);
+    const displayVal=(isPos?'+':'-')+fmt(item.val);
     return `<div class="wf-row"><span class="wf-label">${item.label}</span><div class="wf-bar-bg"><div class="wf-bar-fill ${item.type}" style="width:${pct}%"></div></div><span class="wf-val ${isPos?'pos':'neg'}">${displayVal}</span></div>`;
   }).join('');
   const sumEl=document.getElementById('wfSummaryVal');
   const margenPct=step4.margenPct||0;
-  sumEl.textContent='+USD '+margen.toFixed(2)+' ('+margenPct+'%)';
+  const signo=margenARS>=0?'+':'-';
+  sumEl.textContent=signo+fmt(margenARS)+' ('+margenPct+'%)';
   sumEl.className='wf-summary-val '+(margenPct>=40?'ok':margenPct>=20?'warn':'bad');
 }
 
