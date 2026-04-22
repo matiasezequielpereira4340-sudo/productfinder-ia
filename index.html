@@ -357,9 +357,11 @@ select:focus{border-color:var(--gold)}
         <input type="text" id="mrProductInput" placeholder="Ej: auriculares inalámbricos, collar GPS para mascotas..." onkeydown="if(event.key==='Enter')startMRAnalysis()"/>
         <button class="btn-mr-analyze" id="btnMRAnalyze" onclick="startMRAnalysis()">Analizar</button>
       </div>
-      <div class="mr-params">
+      <div class="mr-params" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
         <div class="mr-param"><label>Capital disponible</label><select id="mrCapital"><option value="3000">Menos de USD 3.000</option><option value="10000" selected>USD 3.000 – 10.000</option><option value="30000">USD 10.000 – 30.000</option><option value="50000">Más de USD 30.000</option></select></div>
         <div class="mr-param"><label>Canal de venta</label><select id="mrCanal"><option value="mercadolibre" selected>Mercado Libre</option><option value="tiendanube">Tienda Nube</option><option value="mayorista">Mayorista</option><option value="local">Local físico</option></select></div>
+        <div class="mr-param"><label>Modalidad de envío</label><select id="mrModalidad"><option value="full">Mercado Envíos Full</option><option value="flex" selected>Flex (entregás vos)</option><option value="estandar">Mercado Envíos estándar</option><option value="retiro">Retiro / Acordar</option></select></div>
+        <div class="mr-param"><label>Posicionamiento</label><select id="mrPosicion"><option value="estandar" selected>Estándar</option><option value="premium">Premium (+25%)</option><option value="multifuncion">Multifunción (+45%)</option></select></div>
         <div class="mr-param"><label>Tipo de cambio USD/ARS</label><input type="number" id="mrTipoCambio" value="1250" min="1"/></div>
       </div>
     </div>
@@ -775,12 +777,17 @@ function confirmMRStep4(){
   if(!fob||!venta){alert('Completá al menos el precio FOB y el precio de venta');return;}
   const tc=mrData.tc;
   const s2=mrData.step2||{};
+  const modalidad=(document.getElementById('mrModalidad')||{}).value||'flex';
+  const posicion=(document.getElementById('mrPosicion')||{}).value||'estandar';
+  mrData.modalidad=modalidad;mrData.posicion=posicion;
+  const factorPos=posicion==='premium'?1.25:posicion==='multifuncion'?1.45:1.00;
   let medianoARS=0;
   if(s2.competitors&&s2.competitors.length){
     const arr=s2.competitors.map(c=>c.price).filter(p=>p>0).sort((a,b)=>a-b);
     if(arr.length){const m=Math.floor(arr.length/2);medianoARS=arr.length%2?arr[m]:Math.round((arr[m-1]+arr[m])/2);}
   }
   if(!medianoARS&&s2.precioPromedioARS){medianoARS=Math.round(s2.precioPromedioARS*0.92);}
+  medianoARS=Math.round(medianoARS*factorPos);
   const usaMediano=medianoARS>0&&Math.abs(venta-medianoARS)/medianoARS>0.25;
   const catName=(s2.categoryName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   let comisionPct=0.15;
@@ -790,10 +797,18 @@ function confirmMRStep4(){
   else if(/moda|indumen|ropa|calzado/.test(catName))comisionPct=0.16;
   else if(/mascot|bebe|niñ/.test(catName))comisionPct=0.13;
   else if(/herramienta|industri/.test(catName))comisionPct=0.12;
-  const ivaPct=0.21;
-  const iibbPct=0.03;
-  const usaFull=mrData.canal==='mercadolibre';
-  const fullPct=usaFull?0.10:0;
+  const ivaPct=0.21;const iibbPct=0.03;
+  function tarifaLogisticaARS(precio,mod){
+    if(mod==='retiro')return 0;
+    const envioGratis=precio>=35000;
+    if(mod==='full'){const fija=precio<15000?2800:precio<30000?3600:4500;const almacen=precio*0.015;return fija+almacen;}
+    if(mod==='flex')return 1200;
+    if(mod==='estandar'){const tarifaBase=precio<15000?2500:3500;return envioGratis?tarifaBase*0.5:0;}
+    return 0;
+  }
+  const recargoFull=modalidad==='full'?0.05:0;
+  const comisionFinalPct=comisionPct+recargoFull;
+  const logisticaARS=mrData.canal==='mercadolibre'?tarifaLogisticaARS(venta,modalidad):0;
   const empaqueUSD=0.50;
   const fleteUSD=fob*0.15;
   const seguroUSD=(fob+fleteUSD)*0.015;
@@ -808,11 +823,11 @@ function confirmMRStep4(){
   const despachoARS=despachoUSD*tc;
   const empaqueARS=empaqueUSD*tc;
   const costoLandedARS=costoLandedUSD*tc;
-  const comisionMeLiARS=venta*comisionPct;
+  const comisionMeLiARS=venta*comisionFinalPct;
   const ivaARS=venta*ivaPct;
   const iibbARS=venta*iibbPct;
-  const fullARS=venta*fullPct;
-  const costoTotalARS=costoLandedARS+comisionMeLiARS+ivaARS+iibbARS+fullARS;
+  const fullARS=modalidad==='full'?logisticaARS:0;
+  const costoTotalARS=costoLandedARS+comisionMeLiARS+ivaARS+iibbARS+logisticaARS;
   const margenARS=venta-costoTotalARS;
   const margenPct=venta>0?Math.round((margenARS/venta)*100):0;
   const ventasMes=ventas||0;
@@ -831,14 +846,16 @@ function confirmMRStep4(){
   const scR=Math.max(0,Math.min(100,roiAnualPct/3));
   const scDef=mrData.step3&&mrData.step3.arg==='si'?70:mrData.step3&&mrData.step3.arg==='pocos'?50:30;
   const scoreReponderado=Math.round(scD*0.25+scC*0.20+scM*0.30+scR*0.15+scDef*0.10);
-  mrData.step4={fob,ventas,venta,tc,costoLanded:costoLandedUSD,costoLandedARS,fobARS,fleteARS,seguroARS,arancelesARS,despachoARS,empaqueARS,comisionMeLiARS,ivaARS,iibbARS,fullARS,margenARS,margenPct,medianoARS,comisionPct,usaFull,roiMensualPct,roiAnualPct,breakevenUds,breakevenDias,unidadesPosibles,ingresoMensualARS,scoreReponderado,scD,scC,scM,scR,scDef};
+  mrData.step4={fob,ventas,venta,tc,modalidad,posicion,factorPos,costoLanded:costoLandedUSD,costoLandedARS,fobARS,fleteARS,seguroARS,arancelesARS,despachoARS,empaqueARS,comisionMeLiARS,ivaARS,iibbARS,logisticaARS,fullARS,margenARS,margenPct,medianoARS,comisionPct:comisionFinalPct,usaFull:modalidad==='full',roiMensualPct,roiAnualPct,breakevenUds,breakevenDias,unidadesPosibles,ingresoMensualARS,scoreReponderado,scD,scC,scM,scR,scDef};
   const mColor=margenPct>=40?'var(--green)':margenPct>=20?'var(--gold)':'var(--red)';
   const fmtA=n=>'ARS '+Math.round(n).toLocaleString('es-AR');
-  const advMediano=usaMediano?`<div class="mr-row"><span class="mr-row-label">⚠ Sugerencia</span><span class="mr-row-value" style="color:var(--gold)">Mediano real ${fmtA(medianoARS)} (tu venta difiere ${Math.round((venta-medianoARS)/medianoARS*100)}%)</span></div>`:'';
-  const fullRow=usaFull?`<div class="mr-row"><span class="mr-row-label">Mercado Envíos Full (10%)</span><span class="mr-row-value">${fmtA(fullARS)}</span></div>`:'';
-  document.getElementById('mrStep4Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Precio FOB</span><span class="mr-row-value">USD ${fob.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Costo CIF (FOB+flete+seguro)</span><span class="mr-row-value">USD ${cifUSD.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Costo landed total</span><span class="mr-row-value">USD ${costoLandedUSD.toFixed(2)} / ${fmtA(costoLandedARS)}</span></div><div class="mr-row"><span class="mr-row-label">Comisión MeLi (${Math.round(comisionPct*100)}%)</span><span class="mr-row-value">${fmtA(comisionMeLiARS)}</span></div><div class="mr-row"><span class="mr-row-label">IVA (21%)</span><span class="mr-row-value">${fmtA(ivaARS)}</span></div><div class="mr-row"><span class="mr-row-label">IIBB (3%)</span><span class="mr-row-value">${fmtA(iibbARS)}</span></div>${fullRow}<div class="mr-row"><span class="mr-row-label">Margen neto estimado</span><span class="mr-row-value" style="color:${mColor};font-size:1.1rem">${margenPct}% (${fmtA(margenARS)})</span></div><div class="mr-row"><span class="mr-row-label">ROI anualizado</span><span class="mr-row-value" style="color:var(--gold)">${roiAnualPct}%</span></div>${breakevenUds?`<div class="mr-row"><span class="mr-row-label">Breakeven</span><span class="mr-row-value">${breakevenUds} uds${breakevenDias?` (~${breakevenDias} días)`:''}</span></div>`:''}<div class="mr-row"><span class="mr-row-label">Score reponderado</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">${mrData.step4.scoreReponderado}/100</span></div>${advMediano}${ventas?`<div class="mr-row"><span class="mr-row-label">Ventas/mes top sellers MeLi</span><span class="mr-row-value">${ventas} uds</span></div>`:''}<div style="margin-top:8px"><span class="mr-tag tag-ok">✓ Cálculo registrado</span></div>`;
+  const modLabel=modalidadLabel(modalidad);
+  const advMediano=usaMediano?`<div class="mr-row"><span class="mr-row-label">⚠ Sugerencia</span><span class="mr-row-value" style="color:var(--gold)">Mediano ${fmtA(medianoARS)} (tu venta difiere ${Math.round((venta-medianoARS)/medianoARS*100)}%)</span></div>`:'';
+  const logRow=mrData.canal==='mercadolibre'?`<div class="mr-row"><span class="mr-row-label">Logística (${modLabel})</span><span class="mr-row-value">${logisticaARS>0?fmtA(logisticaARS):'gratis (paga comprador)'}</span></div>`:'';
+  document.getElementById('mrStep4Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Precio FOB</span><span class="mr-row-value">USD ${fob.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Costo CIF (FOB+flete+seguro)</span><span class="mr-row-value">USD ${cifUSD.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Costo landed total</span><span class="mr-row-value">USD ${costoLandedUSD.toFixed(2)} / ${fmtA(costoLandedARS)}</span></div><div class="mr-row"><span class="mr-row-label">Comisión MeLi (${Math.round(comisionFinalPct*100)}%)</span><span class="mr-row-value">${fmtA(comisionMeLiARS)}</span></div><div class="mr-row"><span class="mr-row-label">IVA (21%)</span><span class="mr-row-value">${fmtA(ivaARS)}</span></div><div class="mr-row"><span class="mr-row-label">IIBB (3%)</span><span class="mr-row-value">${fmtA(iibbARS)}</span></div>${logRow}<div class="mr-row"><span class="mr-row-label">Margen neto estimado</span><span class="mr-row-value" style="color:${mColor};font-size:1.1rem">${margenPct}% (${fmtA(margenARS)})</span></div><div class="mr-row"><span class="mr-row-label">ROI anualizado</span><span class="mr-row-value" style="color:var(--gold)">${roiAnualPct}%</span></div>${breakevenUds?`<div class="mr-row"><span class="mr-row-label">Breakeven</span><span class="mr-row-value">${breakevenUds} uds${breakevenDias?` (~${breakevenDias} días)`:''}</span></div>`:''}<div class="mr-row"><span class="mr-row-label">Score reponderado</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">${mrData.step4.scoreReponderado}/100</span></div><div class="mr-row"><span class="mr-row-label">Modalidad / Posicionamiento</span><span class="mr-row-value">${modLabel} · ${posicion}</span></div>${advMediano}${ventas?`<div class="mr-row"><span class="mr-row-label">Ventas/mes top sellers MeLi</span><span class="mr-row-value">${ventas} uds</span></div>`:''}<div style="margin-top:8px"><span class="mr-tag tag-ok">✓ Cálculo registrado</span></div>`;
   runMRFinalAnalysis();
 }
+
 async function runMRFinalAnalysis(){
   document.getElementById('mrResult').classList.add('visible');
   document.getElementById('gaugeScore').textContent='...';
@@ -945,6 +962,9 @@ function renderFactorCard(n,score,label,icon){
   else{document.getElementById('sd'+n+'r').className='sem-dot on-rojo';}
 }
 
+function modalidadLabel(m){
+  return ({full:'Full',flex:'Flex',estandar:'Mercado Envíos est.',retiro:'Retiro / Acordar'})[m]||'Envío';
+}
 function renderWaterfall(step4,tc){
   const venta=step4.venta;
   const fobARS=step4.fobARS!=null?step4.fobARS:(step4.fob*tc);
@@ -956,9 +976,10 @@ function renderWaterfall(step4,tc){
   const comisionARS=step4.comisionMeLiARS!=null?step4.comisionMeLiARS:(venta*0.15);
   const ivaARS=step4.ivaARS||0;
   const iibbARS=step4.iibbARS||0;
-  const fullARS=step4.fullARS||0;
+  const logisticaARS=step4.logisticaARS||0;
   const margenARS=step4.margenARS!=null?step4.margenARS:(venta-fobARS-fleteARS-arancelesARS-despachoARS-comisionARS);
   const fmt=n=>'ARS '+Math.abs(Math.round(n)).toLocaleString('es-AR');
+  const modLabel=modalidadLabel(step4.modalidad||'flex');
   const items=[
     {label:'Precio venta',val:venta,type:'total',show:true},
     {label:'FOB (USD '+step4.fob.toFixed(2)+')',val:-fobARS,type:'neg',show:true},
@@ -970,7 +991,7 @@ function renderWaterfall(step4,tc){
     {label:'Comisión MeLi',val:-comisionARS,type:'neg',show:true},
     {label:'IVA 21%',val:-ivaARS,type:'neg',show:ivaARS>0},
     {label:'IIBB 3%',val:-iibbARS,type:'neg',show:iibbARS>0},
-    {label:'Mercado Envíos Full 10%',val:-fullARS,type:'neg',show:fullARS>0}
+    {label:'Logística ('+modLabel+')',val:-logisticaARS,type:'neg',show:logisticaARS>0}
   ];
   const visibles=items.filter(i=>i.show);
   const maxAbs=Math.max(...visibles.map(i=>Math.abs(i.val)));
