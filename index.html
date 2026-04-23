@@ -388,7 +388,7 @@ select:focus{border-color:var(--gold)}
       <div class="mr-step" id="mrStep3"><div class="mr-step-header"><div class="mr-step-num num-guided" id="mrS3num">3</div><div class="mr-step-title">Tracción en TikTok</div><span class="mr-badge badge-guided">completás vos</span></div>
         <div class="mr-step-body" id="mrStep3Body">
           <div class="mr-instruction"><strong>📱 Hacé esto en 60 segundos:</strong>1. Abrí TikTok y buscá el producto en español<br>2. Filtrá por "Más vistos" o "Esta semana"<br>3. Mirá el promedio de vistas de los primeros 3 videos<br>4. Fijate si hay creadores argentinos o solo de otros países</div>
-          <div class="mr-guided-grid"><div class="mr-field"><label>Promedio de vistas top 3 videos (aproximado)</label><input type="number" id="mrTiktokViews" placeholder="Ej: 250000" min="0"/></div><div class="mr-field"><label>¿Hay contenido en español/Argentina?</label><select id="mrTiktokArg"><option value="si">Sí, hay varios videos</option><option value="pocos">Pocos (1-2)</option><option value="no">No, solo inglés u otros</option></select></div></div>
+          <div class="mr-guided-grid"><div class="mr-field"><label>Promedio de vistas top 3 videos (aproximado)</label><input type="text" inputmode="numeric" id="mrTiktokViews" placeholder="Ej: 250k, 1.2M, 300mil" data-mr-smart-num="1"/></div><div class="mr-field"><label>¿Hay contenido en español/Argentina?</label><select id="mrTiktokArg"><option value="si">Sí, hay varios videos</option><option value="pocos">Pocos (1-2)</option><option value="no">No, solo inglés u otros</option></select></div></div>
           <button class="btn-confirm" onclick="confirmMRStep3()">Confirmar datos TikTok →</button>
         </div>
       </div>
@@ -397,6 +397,13 @@ select:focus{border-color:var(--gold)}
           <div class="mr-instruction"><strong>🛒 Dos cosas para buscar:</strong><strong style="color:var(--text);margin-top:8px;display:block">Ventas MeLi:</strong>Entrá a los 3 primeros listings del producto. Abajo del precio dice "X vendidos". Estimá el promedio mensual.<br><br><strong style="color:var(--text)">FOB en Alibaba:</strong>Buscá el producto en alibaba.com o 1688.com. Usá el precio unitario para la cantidad que te interesa.</div>
           <div class="mr-guided-grid"><div class="mr-field"><label>Precio FOB estimado (USD por unidad)</label><input type="number" id="mrFOB" placeholder="Ej: 12.50" step="0.01" min="0"/></div><div class="mr-field"><label>Ventas/mes promedio top 3 listings MeLi</label><input type="number" id="mrVentas" placeholder="Ej: 150" min="0"/></div><div class="mr-field"><label>Precio de venta promedio en MeLi (ARS)</label><input type="number" id="mrPrecioVenta" placeholder="Ej: 45000" min="0"/></div></div>
           <button class="btn-confirm" onclick="confirmMRStep4()">Calcular viabilidad completa →</button>
+<div class="mr-target-margin" style="margin-top:14px;padding:12px;border:1px dashed rgba(255,215,128,.25);border-radius:8px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:13px;">
+  <strong style="opacity:.85;">¿Qué precio mínimo necesito para tener</strong>
+  <input type="number" id="mrTargetMargin" min="1" max="95" step="1" value="30" style="width:64px;padding:4px 6px;border-radius:6px;border:1px solid rgba(255,215,128,.4);background:rgba(0,0,0,.25);color:inherit;font-weight:600;text-align:right;"/>
+  <strong style="opacity:.85;">% de margen?</strong>
+  <button type="button" onclick="window.__solveMinPrice && window.__solveMinPrice()" style="padding:6px 12px;border-radius:6px;border:1px solid rgba(255,215,128,.5);background:rgba(255,215,128,.1);color:inherit;cursor:pointer;font-weight:600;">Calcular precio mínimo</button>
+  <span id="mrTargetMarginOut" style="margin-left:auto;opacity:.85;font-variant-numeric:tabular-nums;"></span>
+</div>
         </div>
       </div>
     </div>
@@ -643,7 +650,7 @@ function renderHistory(){
     container.innerHTML='<div class="history-empty">No hay análisis guardados aún.<br>Hacé tu primer análisis para verlo aquí.</div>';
     return;
   }
-  container.innerHTML=hist.map((h,i)=>`<div class="history-item" onclick="loadHistoryItem(${i})"><div class="history-item-top"><span class="history-item-name">${h.product}</span><span class="history-item-date">${new Date(h.date).toLocaleDateString('es-AR')}</span></div><div class="history-item-stats"><span class="history-stat">Score: <strong>${h.score}/100</strong></span><span class="history-stat">Margen: <strong>${h.margenPct}%</strong></span><span class="history-stat">Veredicto: <strong>${h.veredicto}</strong></span></div></div>`).join('');
+  container.innerHTML=hist.map((h,i)=>`<div class="history-item" onclick="loadHistoryItem(${i})"><div class="history-item-top"><span class="history-item-name">${h.product}</span><span class="history-item-date">${new Date(h.date).toLocaleDateString('es-AR')}</span></div><div class="history-item-stats"><span class="history-stat">Score: <strong>${h.score}/100</strong></span><span class="history-stat">Margen: <strong>${h.margenPct}%</strong></span><span class="history-stat">Veredicto: <strong>${h.veredicto}</strong></span><button class="history-redo" onclick="event.stopPropagation(); window.__redoAnalysis && window.__redoAnalysis(${i})" style="margin-left:auto;padding:4px 10px;border-radius:6px;border:1px solid rgba(255,215,128,.4);background:rgba(255,215,128,.08);color:inherit;cursor:pointer;font-size:11px;font-weight:600;">🔁 Rehacer</button></div></div>`).join('');
 }
 
 function clearHistory(){
@@ -735,10 +742,17 @@ async function startMRAnalysis(){
 
 function resetMRGuidedStep(n){
   if(n===3){
-    document.getElementById('mrStep3Body').innerHTML=`<div class="mr-instruction"><strong>📱 Hacé esto en 60 segundos:</strong>1. Abrí TikTok y buscá el producto en español<br>2. Filtrá por "Más vistos" o "Esta semana"<br>3. Mirá el promedio de vistas de los primeros 3 videos<br>4. Fijate si hay creadores argentinos o solo de otros países</div><div class="mr-guided-grid"><div class="mr-field"><label>Promedio de vistas top 3 videos (aproximado)</label><input type="number" id="mrTiktokViews" placeholder="Ej: 250000" min="0"/></div><div class="mr-field"><label>¿Hay contenido en español/Argentina?</label><select id="mrTiktokArg"><option value="si">Sí, hay varios videos</option><option value="pocos">Pocos (1-2)</option><option value="no">No, solo inglés u otros</option></select></div></div><button class="btn-confirm" onclick="confirmMRStep3()">Confirmar datos TikTok →</button>`;
+    document.getElementById('mrStep3Body').innerHTML=`<div class="mr-instruction"><strong>📱 Hacé esto en 60 segundos:</strong>1. Abrí TikTok y buscá el producto en español<br>2. Filtrá por "Más vistos" o "Esta semana"<br>3. Mirá el promedio de vistas de los primeros 3 videos<br>4. Fijate si hay creadores argentinos o solo de otros países</div><div class="mr-guided-grid"><div class="mr-field"><label>Promedio de vistas top 3 videos (aproximado)</label><input type="text" inputmode="numeric" id="mrTiktokViews" placeholder="Ej: 250k, 1.2M, 300mil" data-mr-smart-num="1"/></div><div class="mr-field"><label>¿Hay contenido en español/Argentina?</label><select id="mrTiktokArg"><option value="si">Sí, hay varios videos</option><option value="pocos">Pocos (1-2)</option><option value="no">No, solo inglés u otros</option></select></div></div><button class="btn-confirm" onclick="confirmMRStep3()">Confirmar datos TikTok →</button>`;
   }
   if(n===4){
-    document.getElementById('mrStep4Body').innerHTML=`<div class="mr-instruction"><strong>🛒 Dos cosas para buscar:</strong><strong style="color:var(--text);margin-top:8px;display:block">Ventas MeLi:</strong>Entrá a los 3 primeros listings del producto. Abajo del precio dice "X vendidos". Estimá el promedio mensual de los top 3.<br><br><strong style="color:var(--text)">FOB en Alibaba:</strong>Buscá el producto en alibaba.com o 1688.com. Usá el precio unitario para la cantidad que te interesa.</div><div class="mr-guided-grid"><div class="mr-field"><label>Precio FOB estimado (USD por unidad)</label><input type="number" id="mrFOB" placeholder="Ej: 12.50" step="0.01" min="0"/></div><div class="mr-field"><label>Ventas/mes promedio top 3 listings MeLi</label><input type="number" id="mrVentas" placeholder="Ej: 150" min="0"/></div><div class="mr-field"><label>Precio de venta promedio en MeLi (ARS)</label><input type="number" id="mrPrecioVenta" placeholder="Ej: 45000" min="0"/></div></div><button class="btn-confirm" onclick="confirmMRStep4()">Calcular viabilidad completa →</button>`;
+    document.getElementById('mrStep4Body').innerHTML=`<div class="mr-instruction"><strong>🛒 Dos cosas para buscar:</strong><strong style="color:var(--text);margin-top:8px;display:block">Ventas MeLi:</strong>Entrá a los 3 primeros listings del producto. Abajo del precio dice "X vendidos". Estimá el promedio mensual de los top 3.<br><br><strong style="color:var(--text)">FOB en Alibaba:</strong>Buscá el producto en alibaba.com o 1688.com. Usá el precio unitario para la cantidad que te interesa.</div><div class="mr-guided-grid"><div class="mr-field"><label>Precio FOB estimado (USD por unidad)</label><input type="number" id="mrFOB" placeholder="Ej: 12.50" step="0.01" min="0"/></div><div class="mr-field"><label>Ventas/mes promedio top 3 listings MeLi</label><input type="number" id="mrVentas" placeholder="Ej: 150" min="0"/></div><div class="mr-field"><label>Precio de venta promedio en MeLi (ARS)</label><input type="number" id="mrPrecioVenta" placeholder="Ej: 45000" min="0"/></div></div><button class="btn-confirm" onclick="confirmMRStep4()">Calcular viabilidad completa →</button>
+<div class="mr-target-margin" style="margin-top:14px;padding:12px;border:1px dashed rgba(255,215,128,.25);border-radius:8px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:13px;">
+  <strong style="opacity:.85;">¿Qué precio mínimo necesito para tener</strong>
+  <input type="number" id="mrTargetMargin" min="1" max="95" step="1" value="30" style="width:64px;padding:4px 6px;border-radius:6px;border:1px solid rgba(255,215,128,.4);background:rgba(0,0,0,.25);color:inherit;font-weight:600;text-align:right;"/>
+  <strong style="opacity:.85;">% de margen?</strong>
+  <button type="button" onclick="window.__solveMinPrice && window.__solveMinPrice()" style="padding:6px 12px;border-radius:6px;border:1px solid rgba(255,215,128,.5);background:rgba(255,215,128,.1);color:inherit;cursor:pointer;font-weight:600;">Calcular precio mínimo</button>
+  <span id="mrTargetMarginOut" style="margin-left:auto;opacity:.85;font-variant-numeric:tabular-nums;"></span>
+</div>`;
   }
 }
 async function runMRStep1(product){
@@ -1402,6 +1416,158 @@ window.addEventListener('DOMContentLoaded',()=>{
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attachV3);
   else attachV3();
   setInterval(attachV3, 1500);
+})();
+</script>
+
+
+<script>
+/* ===== ProductFinder v4 patch: precio mínimo + TikTok smart parse + Rehacer historial ===== */
+(function(){
+  function parseSmartNumber(raw){
+    if (raw == null) return NaN;
+    var s = String(raw).trim().toLowerCase();
+    if (!s) return NaN;
+    var multiplier = 1;
+    if (/m(illones)?$/.test(s) || s.endsWith('m')) {
+      if (/mil$/.test(s) && !/mill/.test(s)) {
+        multiplier = 1000; s = s.replace(/mil$/, '');
+      } else {
+        multiplier = 1e6; s = s.replace(/m(illones|ill)?$/,'');
+      }
+    } else if (s.endsWith('k')) {
+      multiplier = 1000; s = s.slice(0, -1);
+    } else if (/mil$/.test(s)) {
+      multiplier = 1000; s = s.replace(/mil$/, '');
+    }
+    s = s.trim();
+    var lastDot = s.lastIndexOf('.');
+    var lastCom = s.lastIndexOf(',');
+    if (lastDot > -1 && lastCom > -1) {
+      if (lastDot > lastCom) { s = s.replace(/,/g, ''); }
+      else { s = s.replace(/\./g, '').replace(',', '.'); }
+    } else if (lastCom > -1) {
+      var afterCom = s.length - lastCom - 1;
+      if ((s.match(/,/g)||[]).length === 1 && afterCom > 0 && afterCom <= 2) s = s.replace(',', '.');
+      else s = s.replace(/,/g, '');
+    } else if (lastDot > -1) {
+      var afterDot = s.length - lastDot - 1;
+      if ((s.match(/\./g)||[]).length === 1 && afterDot > 0 && afterDot <= 2) {
+      } else s = s.replace(/\./g, '');
+    }
+    var n = parseFloat(s);
+    if (!isFinite(n)) return NaN;
+    return n * multiplier;
+  }
+  window.__parseSmartNumber = parseSmartNumber;
+
+  function attachSmartNumInputs(){
+    var nodes = document.querySelectorAll('[data-mr-smart-num]');
+    nodes.forEach(function(el){
+      if (el.__smartBound) return;
+      el.__smartBound = true;
+      var hint = document.createElement('span');
+      hint.className = 'mr-smart-hint';
+      hint.style.cssText = 'display:block;margin-top:4px;font-size:11px;opacity:.7;';
+      el.parentNode.insertBefore(hint, el.nextSibling);
+      function update(){
+        var raw = el.value;
+        var n = parseSmartNumber(raw);
+        if (!isFinite(n) || n === 0) { hint.textContent = ''; el.dataset.parsed = ''; return; }
+        el.dataset.parsed = String(Math.round(n));
+        hint.textContent = '= ' + Math.round(n).toLocaleString('es-AR') + ' vistas';
+      }
+      el.addEventListener('input', update);
+      el.addEventListener('blur', function(){
+        var n = parseSmartNumber(el.value);
+        if (isFinite(n) && n > 0) { el.value = String(Math.round(n)); update(); }
+      });
+      update();
+    });
+  }
+
+  function readMarginPctNum(){
+    var rb = document.getElementById('mrAnalysisText');
+    if (rb){
+      var m = rb.textContent.match(/(-?\d+[.,]?\d*)\s*%/);
+      if (m) return parseFloat(m[1].replace(',','.'));
+    }
+    var any = document.querySelectorAll('#mrResult *');
+    for (var i=0;i<any.length;i++){
+      var t = any[i].textContent || '';
+      var mm = t.match(/Margen[^%]*?(-?\d+[.,]?\d*)\s*%/i);
+      if (mm) return parseFloat(mm[1].replace(',','.'));
+    }
+    return NaN;
+  }
+
+  window.__solveMinPrice = function(){
+    var out = document.getElementById('mrTargetMarginOut');
+    var tgtEl = document.getElementById('mrTargetMargin');
+    var precioEl = document.getElementById('mrPrecioVenta');
+    if (!tgtEl || !precioEl) { if(out) out.textContent = '⚠️ Faltan inputs'; return; }
+    var target = parseFloat(tgtEl.value);
+    if (!isFinite(target) || target <= 0 || target >= 95) { if(out) out.textContent = '⚠️ Margen objetivo inválido (1–94%)'; return; }
+    var origPrice = parseFloat(precioEl.value) || 0;
+    if (origPrice <= 0) { if(out) out.textContent = '⚠️ Cargá primero un precio de venta para calibrar'; return; }
+    var calcFn = window.__origConfirmMRStep4 || window.confirmMRStep4;
+    if (typeof calcFn !== 'function') { if(out) out.textContent = '⚠️ Calculadora no inicializada'; return; }
+
+    var ids = ['mrModalidad','mrPosicion','mrTipoCambio','mrFOB','mrVentas','mrPrecioVenta','mrNCM','mrShipMode','mrPesoKg','mrDiasCap','mrTasaCap'];
+    var prevBound = {};
+    ids.forEach(function(id){ var el = document.getElementById(id); if(el){ prevBound[id] = el.__liveBound; el.__liveBound = false; } });
+    function restoreBound(){
+      ids.forEach(function(id){ var el = document.getElementById(id); if(el){ el.__liveBound = prevBound[id] || false; } });
+    }
+
+    function evalAt(price){
+      precioEl.value = String(Math.round(price));
+      try { calcFn(); } catch(e){}
+      return readMarginPctNum();
+    }
+
+    var lo = Math.max(1, origPrice * 0.05);
+    var hi = origPrice * 10;
+    var loM = evalAt(lo);
+    var hiM = evalAt(hi);
+    if (!isFinite(loM) || !isFinite(hiM)) { precioEl.value = String(origPrice); try{calcFn();}catch(e){} if(out) out.textContent='⚠️ No pude leer el margen'; restoreBound(); return; }
+    if (loM > target) {
+      precioEl.value = String(origPrice); try{calcFn();}catch(e){}
+      if (out) out.textContent = 'Ya alcanzás ese margen al precio actual o menor'; restoreBound(); return;
+    }
+    if (hiM < target) {
+      precioEl.value = String(origPrice); try{calcFn();}catch(e){}
+      if (out) out.textContent = 'No alcanzable: incluso al ' + Math.round(hi).toLocaleString('es-AR') + ' ARS el margen es ' + hiM.toFixed(1) + '%';
+      restoreBound(); return;
+    }
+    var iter = 0;
+    while (iter++ < 28 && (hi - lo) > 1) {
+      var mid = (lo + hi) / 2;
+      var midM = evalAt(mid);
+      if (!isFinite(midM)) break;
+      if (midM < target) lo = mid; else hi = mid;
+    }
+    var found = Math.round(hi);
+    precioEl.value = String(found);
+    try { calcFn(); } catch(e){}
+    if (out) out.innerHTML = '✅ Precio mínimo p/ '+target+'%: <strong>ARS '+found.toLocaleString('es-AR')+'</strong> (actual ARS '+Math.round(origPrice).toLocaleString('es-AR')+')';
+    restoreBound();
+  };
+
+  window.__redoAnalysis = function(idx){
+    try {
+      if (typeof window.loadHistoryItem === 'function') window.loadHistoryItem(idx);
+      var closeBtn = document.querySelector('.mr-history-modal .close, [onclick*="closeHistory"]');
+      if (closeBtn) closeBtn.click();
+      setTimeout(function(){
+        try { if (typeof window.confirmMRStep4 === 'function') window.confirmMRStep4(); } catch(e){}
+      }, 200);
+    } catch(e){ console.warn('redo fail', e); }
+  };
+
+  function init(){ attachSmartNumInputs(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+  setInterval(attachSmartNumInputs, 1500);
 })();
 </script>
 
