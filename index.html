@@ -363,6 +363,13 @@ select:focus{border-color:var(--gold)}
         <div class="mr-param"><label>Modalidad de envío</label><select id="mrModalidad"><option value="full">Mercado Envíos Full</option><option value="flex" selected>Flex (entregás vos)</option><option value="estandar">Mercado Envíos estándar</option><option value="retiro">Retiro / Acordar</option></select></div>
         <div class="mr-param"><label>Posicionamiento</label><select id="mrPosicion"><option value="estandar" selected>Estándar</option><option value="premium">Premium (+25%)</option><option value="multifuncion">Multifunción (+45%)</option></select></div>
         <div class="mr-param"><label>Tipo de cambio USD/ARS</label><input type="number" id="mrTipoCambio" value="1250" min="1"/></div>
+        <div class="mr-param"><label>Posición arancelaria (NCM)</label><select id="mrNCM">
+          <option value="auto" selected>Auto (según nicho)</option>
+          <option value="0.16">Tecnología 8517 — 16%</option>
+          <option value="0.18">Plástico/Accesorios 3926 — 18%</option>
+          <option value="0.20">Juguetes / Hogar — 20%</option>
+          <option value="0.35">Textil / Otros — 35%</option>
+        </select></div>
       </div>
     </div>
     <div class="mr-steps" id="mrSteps">
@@ -813,7 +820,7 @@ function confirmMRStep4(){
   const fleteUSD=fob*0.15;
   const seguroUSD=(fob+fleteUSD)*0.015;
   const cifUSD=fob+fleteUSD+seguroUSD;
-  const arancelesUSD=cifUSD*0.35;
+  const arancelesUSD=cifUSD*(window.__getArancelRate?window.__getArancelRate():0.35);
   const despachoUSD=cifUSD*0.08;
   const costoLandedUSD=fob+fleteUSD+seguroUSD+arancelesUSD+despachoUSD+empaqueUSD;
   const fobARS=fob*tc;
@@ -941,7 +948,7 @@ function renderMRResult(r){
   const veredictoMap={'VIABLE':'✓ VIABLE','NO RECOMENDADO':'✗ NO RECOMENDADO','VIABLE CON CONDICIONES':'⚠ VIABLE CON CONDICIONES'};
   saveToHistory({product:mrCurrentProduct,date:Date.now(),score,tc:mrData.tc,margenPct:mrData.step4?.margenPct||0,veredicto:veredictoMap[r.veredicto]||r.veredicto,analisisTexto:r.veredictoTexto,analisisCompleto:r.analisisCompleto,mrData,scores:[
     {score:sD,label:r.labelDemanda},{score:sC,label:r.labelCompetencia},{score:sM,label:r.labelMargen},{score:sR,label:r.labelRegulatorio}
-  ],chartData:{trendData,meliData:[pMin,pProm,pMax],waterfallData:mrData.step4?{fob:mrData.step4.fob,flete:mrData.step4.fob*0.15,aranceles:mrData.step4.fob*0.35,despacho:mrData.step4.fob*0.08,comision:mrData.step4.venta*0.15}:null}});
+  ],chartData:{trendData,meliData:[pMin,pProm,pMax],waterfallData:mrData.step4?{fob:mrData.step4.fob,flete:mrData.step4.fob*0.15,aranceles:mrData.step4.fob*(window.__getArancelRate?window.__getArancelRate():0.35),despacho:mrData.step4.fob*0.08,comision:mrData.step4.venta*0.15}:null}});
 }
 function renderFactorCard(n,score,label,icon){
   const s=Math.max(0,Math.min(100,score||0));
@@ -970,7 +977,7 @@ function renderWaterfall(step4,tc){
   const fobARS=step4.fobARS!=null?step4.fobARS:(step4.fob*tc);
   const fleteARS=step4.fleteARS!=null?step4.fleteARS:(step4.fob*0.15*tc);
   const seguroARS=step4.seguroARS||0;
-  const arancelesARS=step4.arancelesARS!=null?step4.arancelesARS:(step4.fob*0.35*tc);
+  const arancelesARS=step4.arancelesARS!=null?step4.arancelesARS:(step4.fob*(window.__getArancelRate?window.__getArancelRate():0.35)*tc);
   const despachoARS=step4.despachoARS!=null?step4.despachoARS:(step4.fob*0.08*tc);
   const empaqueARS=step4.empaqueARS||0;
   const comisionARS=step4.comisionMeLiARS!=null?step4.comisionMeLiARS:(venta*0.15);
@@ -985,7 +992,7 @@ function renderWaterfall(step4,tc){
     {label:'FOB (USD '+step4.fob.toFixed(2)+')',val:-fobARS,type:'neg',show:true},
     {label:'  Flete 15%',val:-fleteARS,type:'sub',show:true},
     {label:'  Seguro 1.5%',val:-seguroARS,type:'sub',show:seguroARS>0},
-    {label:'  Aranceles 35% s/CIF',val:-arancelesARS,type:'sub',show:true},
+    {label:'  Aranceles '+(((window.__getArancelRate?window.__getArancelRate():0.35)*100).toFixed(0))+'% s/CIF',val:-arancelesARS,type:'sub',show:true},
     {label:'  Despacho 8% s/CIF',val:-despachoARS,type:'sub',show:true},
     {label:'  Empaque',val:-empaqueARS,type:'sub',show:empaqueARS>0},
     {label:'Comisión MeLi',val:-comisionARS,type:'neg',show:true},
@@ -1199,5 +1206,122 @@ window.addEventListener('DOMContentLoaded',()=>{
   }
 });
 </script>
+
+<script>
+/* ===== ProductFinder v2 patch: live recalc + NCM tariffs + 4-modality comparison ===== */
+(function(){
+  var NICHO_TO_RATE = {tecnologia:0.16, hogar:0.20, deportes:0.20, moda:0.35, mascotas:0.18, bebe:0.20};
+  window.__getArancelRate = function(){
+    try {
+      var sel = document.getElementById('mrNCM');
+      if (sel && sel.value && sel.value !== 'auto') return parseFloat(sel.value);
+      try { var s = localStorage.getItem('pf_nicho'); if (s && NICHO_TO_RATE[s] != null) return NICHO_TO_RATE[s]; } catch(e){}
+      return 0.35;
+    } catch(e){ return 0.35; }
+  };
+  var liveDebounce = null;
+  function scheduleLiveRecalc(){
+    if (liveDebounce) clearTimeout(liveDebounce);
+    liveDebounce = setTimeout(function(){
+      try {
+        var res = document.getElementById('mrResult');
+        if (!res || res.offsetParent === null) return;
+        if (typeof window.confirmMRStep4 === 'function') window.confirmMRStep4();
+      } catch(e){ console.warn('live recalc fail', e); }
+    }, 250);
+  }
+  function attachLiveListeners(){
+    ['mrModalidad','mrPosicion','mrTipoCambio','mrFOB','mrVentas','mrPrecioVenta','mrNCM'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (!el || el.__liveBound) return;
+      el.__liveBound = true;
+      el.addEventListener('change', scheduleLiveRecalc);
+      el.addEventListener('input', scheduleLiveRecalc);
+    });
+  }
+  function readMargin(){
+    var rb = document.getElementById('mrAnalysisText');
+    if (rb){ var m = rb.textContent.match(/(-?\d+[.,]?\d*)\s*%/); if (m) return m[1] + '%'; }
+    var any = document.querySelectorAll('#mrResult *');
+    for (var i=0;i<any.length;i++){
+      var t = any[i].textContent || '';
+      var mm = t.match(/Margen[^%]*?(-?\d+[.,]?\d*)\s*%/i);
+      if (mm) return mm[1] + '%';
+    }
+    return '—';
+  }
+  function buildModalityComparison(){
+    try {
+      var modSel = document.getElementById('mrModalidad');
+      if (!modSel) return;
+      var current = modSel.value;
+      var modalities = [
+        {value:'full', label:'Full'},
+        {value:'flex', label:'Flex'},
+        {value:'estandar', label:'Estándar'},
+        {value:'retiro', label:'Retiro'}
+      ];
+      ['mrModalidad','mrPosicion','mrTipoCambio','mrFOB','mrVentas','mrPrecioVenta','mrNCM'].forEach(function(id){
+        var el = document.getElementById(id); if(el) el.__liveBound = false;
+      });
+      var rows = [];
+      modalities.forEach(function(m){
+        modSel.value = m.value;
+        try { window.__origConfirmMRStep4 && window.__origConfirmMRStep4(); } catch(e){}
+        rows.push({label:m.label, value:m.value, margen: readMargin()});
+      });
+      modSel.value = current;
+      try { window.__origConfirmMRStep4 && window.__origConfirmMRStep4(); } catch(e){}
+      setTimeout(attachLiveListeners, 0);
+
+      var holder = document.getElementById('mrModalityCompare');
+      if (!holder) {
+        holder = document.createElement('div');
+        holder.id = 'mrModalityCompare';
+        holder.style.cssText = 'margin-top:18px;padding:14px;border:1px solid rgba(255,215,128,.2);border-radius:10px;background:rgba(0,0,0,.25);';
+        var res = document.getElementById('mrResult');
+        if (res) res.appendChild(holder);
+      }
+      holder.innerHTML = '<h3 style="margin:0 0 8px 0;font-size:14px;letter-spacing:.04em;">📊 Comparativo de modalidades</h3>'+
+        '<table style="width:100%;border-collapse:collapse;font-size:13px;">'+
+        '<thead><tr><th style="text-align:left;padding:6px 4px;opacity:.7;">Modalidad</th>'+
+        '<th style="text-align:right;padding:6px 4px;opacity:.7;">Margen</th></tr></thead>'+
+        '<tbody>'+ rows.map(function(r){
+          var hl = (r.value===current) ? 'background:rgba(255,215,128,.08);' : '';
+          return '<tr style="'+hl+'"><td style="padding:6px 4px;">'+r.label+'</td>'+
+                 '<td style="padding:6px 4px;text-align:right;font-variant-numeric:tabular-nums;">'+(r.margen||'—')+'</td></tr>';
+        }).join('') + '</tbody></table>'+
+        '<div style="opacity:.6;font-size:11px;margin-top:6px;">Tip: cambiá NCM, modalidad o TC y los números se actualizan al instante.</div>';
+    } catch(e){ console.warn('modality compare fail', e); }
+  }
+  function init(){
+    attachLiveListeners();
+    if (typeof window.confirmMRStep4 === 'function' && !window.confirmMRStep4.__wrapped){
+      var orig = window.confirmMRStep4;
+      window.__origConfirmMRStep4 = orig;
+      window.confirmMRStep4 = function(){
+        var r = orig.apply(this, arguments);
+        setTimeout(attachLiveListeners, 0);
+        if (!window.__inModComp){
+          window.__inModComp = true;
+          setTimeout(function(){ try { buildModalityComparison(); } finally { window.__inModComp = false; } }, 50);
+        }
+        return r;
+      };
+      window.confirmMRStep4.__wrapped = true;
+    }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+  try {
+    document.addEventListener('change', function(ev){
+      var t = ev.target;
+      if (!t || !t.id) return;
+      if (/nicho/i.test(t.id)) { try { localStorage.setItem('pf_nicho', t.value); } catch(e){} }
+    }, true);
+  } catch(e){}
+})();
+</script>
+
 </body>
 </html>
