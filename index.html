@@ -1564,10 +1564,38 @@ window.addEventListener('DOMContentLoaded',()=>{
     } catch(e){ console.warn('redo fail', e); }
   };
 
-  function init(){ attachSmartNumInputs(); }
+  function attachPosicionamientoSync(){
+    var sel = document.getElementById('mrPosicion');
+    var inp = document.getElementById('mrPrecioVenta');
+    if(!sel || !inp) return;
+    var factor = function(v){ return v==='premium'?1.25:(v==='multifuncion'?1.45:1.00); };
+    if(inp.__basePrice === undefined){
+      var cur = parseFloat(inp.value)||0;
+      inp.__basePrice = cur>0 ? cur/factor(sel.value) : 0;
+    }
+    if(!inp.__posSyncAttached){
+      inp.addEventListener('input', function(){
+        var v = parseFloat(inp.value)||0;
+        var f = factor(sel.value);
+        inp.__basePrice = v>0 ? v/f : 0;
+      });
+      inp.__posSyncAttached = true;
+    }
+    if(!sel.__posSyncAttached){
+      sel.addEventListener('change', function(){
+        var f = factor(sel.value);
+        if(inp.__basePrice && inp.__basePrice>0){
+          inp.value = Math.round(inp.__basePrice * f);
+          inp.dispatchEvent(new Event('change', {bubbles:true}));
+        }
+      });
+      sel.__posSyncAttached = true;
+    }
+  }
+  function init(){ attachSmartNumInputs(); attachPosicionamientoSync(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
-  setInterval(attachSmartNumInputs, 1500);
+  setInterval(function(){ attachSmartNumInputs(); attachPosicionamientoSync(); }, 1500);
 })();
 </script>
 
