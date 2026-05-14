@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lectura de Mercado</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.h5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
 :root{--gold:#C9A84C;--gold-dim:#8a6e2f;--dark:#0a0a0a;--dark-2:#111111;--dark-3:#1a1a1a;--dark-4:#222222;--text:#e8e0d0;--text-dim:#8a8070;--red:#c0392b;--green:#27ae60;--radius:8px}
@@ -353,6 +353,17 @@ select:focus{border-color:var(--gold)}
       <div id="historyList"></div>
     </div>
     <div class="mr-search-box">
+        <div class="mr-url-section" style="margin-bottom:16px;padding:14px;border:1px solid #2a2a2a;border-radius:10px;background:#0f0f0f">
+          <div style="font-weight:600;color:#C9A84C;margin-bottom:6px">🔗 ¿Tenés el link del producto? Pegalo acá</div>
+          <div style="font-size:0.85rem;color:#9a9a9a;margin-bottom:10px">Soporta links de MercadoLibre Argentina y Alibaba. Leemos foto, título y precio reales desde la fuente — nunca inventamos datos.</div>
+          <div class="mr-search-row" style="display:flex;gap:8px">
+            <input type="url" id="mrUrlInput" placeholder="https://articulo.mercadolibre.com.ar/MLA-... o https://www.alibaba.com/..." style="flex:1" onkeydown="if(event.key==='Enter')analyzeProductUrl()"/>
+            <button class="btn-mr-analyze" id="btnUrlAnalyze" onclick="analyzeProductUrl()">Leer link</button>
+          </div>
+          <div id="mrProductCard" style="display:none;margin-top:14px"></div>
+          <div id="mrUrlError" style="display:none;margin-top:10px;padding:10px;border-radius:8px;background:#2a1a1a;color:#ffaaaa;font-size:0.9rem"></div>
+        </div>
+        <div style="text-align:center;color:#666;font-size:0.85rem;margin:8px 0">— o también podés escribir el nombre del producto manualmente —</div>
       <div class="mr-search-row">
         <input type="text" id="mrProductInput" placeholder="Ej: auriculares inalámbricos, collar GPS para mascotas..." onkeydown="if(event.key==='Enter')startMRAnalysis()"/>
         <button class="btn-mr-analyze" id="btnMRAnalyze" onclick="startMRAnalysis()">Analizar</button>
@@ -724,6 +735,122 @@ function toggleHistory(){
   if(panel.classList.contains('visible'))renderHistory();
 }
 // ===== MARKET READER =====
+    // ===== Lectura por LINK de producto =====
+    let mrLastProductData=null;
+    async function analyzeProductUrl(){
+      const input=document.getElementById('mrUrlInput');
+      const url=(input.value||'').trim();
+      const card=document.getElementById('mrProductCard');
+      const errBox=document.getElementById('mrUrlError');
+      const btn=document.getElementById('btnUrlAnalyze');
+      errBox.style.display='none';errBox.textContent='';
+      if(!url){errBox.textContent='Pegá un link de producto primero.';errBox.style.display='block';return;}
+      btn.disabled=true;btn.textContent='Leyendo...';
+      card.style.display='block';
+      card.innerHTML='<div style="color:#9a9a9a;padding:14px;text-align:center">⏳ Leyendo el producto desde la fuente original...</div>';
+      try{
+        const res=await fetch('/api/product',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+        const r=await res.json();
+        if(!res.ok||r.error){
+          card.style.display='none';
+          errBox.textContent=(r.error||'Error desconocido')+(r.hint?(' '+r.hint):'');
+          errBox.style.display='block';
+          return;
+        }
+        mrLastProductData=r;
+        renderProductCard(r);
+      }catch(e){
+        card.style.display='none';
+        errBox.textContent='Error de red al leer el link: '+e.message;
+        errBox.style.display='block';
+      }finally{
+        btn.disabled=false;btn.textContent='Leer link';
+      }
+    }
+
+    function renderProductCard(r){
+      const card=document.getElementById('mrProductCard');
+      const realBadge=r.realData?'<span style="background:#1d4d1d;color:#9fe89f;padding:2px 8px;border-radius:12px;font-size:0.75rem;font-weight:600">✓ Dato real</span>':'<span style="background:#4d3d1d;color:#e8c89f;padding:2px 8px;border-radius:12px;font-size:0.75rem;font-weight:600">⚠ Datos parciales</span>';
+      const fuenteNombre=r.fuente==='mercadolibre'?'MercadoLibre Argentina':(r.fuente==='alibaba'?'Alibaba':'Otra fuente');
+      const img=r.imagen?`<img src="${r.imagen}" alt="" style="width:120px;height:120px;object-fit:cover;border-radius:8px;background:#1a1a1a"/>`:'<div style="width:120px;height:120px;background:#1a1a1a;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#555">sin foto</div>';
+      let precioHtml='';
+      if(r.fuente==='mercadolibre'&&r.precio!=null){
+        precioHtml=`<div style="font-size:1.3rem;color:#C9A84C;font-weight:700;margin-top:4px">${r.moneda||'ARS'} ${Number(r.precio).toLocaleString('es-AR')}</div>`;
+      }
+      let metaHtml='';
+      if(r.fuente==='mercadolibre'){
+        const cond=r.condicion==='new'?'Nuevo':(r.condicion==='used'?'Usado':r.condicion||'');
+        const envio=r.envioGratis?' • 🚚 Envío gratis':'';
+        metaHtml=`<div style="font-size:0.85rem;color:#9a9a9a;margin-top:6px">${cond}${envio}${r.vendidos!=null?' • '+r.vendidos+' vendidos':''}${r.disponibles!=null?' • '+r.disponibles+' disponibles':''}</div>`;
+        if(r.categoria)metaHtml+=`<div style="font-size:0.8rem;color:#777;margin-top:2px">Categoría: ${r.categoria}</div>`;
+      }
+      let alibabaForm='';
+      if(r.fuente==='alibaba'){
+        alibabaForm=`<div style="margin-top:14px;padding:12px;border:1px dashed #4a3d1d;border-radius:8px;background:#1a1606">
+          <div style="font-weight:600;color:#C9A84C;margin-bottom:6px">📝 Completá los datos de Alibaba</div>
+          <div style="font-size:0.82rem;color:#9a9a9a;margin-bottom:10px">${r.aviso||''}</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+            <div><label style="font-size:0.82rem;color:#bbb">Precio FOB (USD/unidad) <span title="${r.explicacion?.FOB||''}" style="cursor:help;color:#C9A84C">ⓘ</span></label><input type="number" step="0.01" min="0" id="mrLinkFOB" placeholder="Ej: 2.50" style="width:100%;margin-top:4px"/></div>
+            <div><label style="font-size:0.82rem;color:#bbb">MOQ (unidades) <span title="${r.explicacion?.MOQ||''}" style="cursor:help;color:#C9A84C">ⓘ</span></label><input type="number" step="1" min="1" id="mrLinkMOQ" placeholder="Ej: 100" style="width:100%;margin-top:4px"/></div>
+            <div><label style="font-size:0.82rem;color:#bbb">Peso/unidad (kg) <span title="Sirve para estimar el flete" style="cursor:help;color:#C9A84C">ⓘ</span></label><input type="number" step="0.01" min="0" id="mrLinkPeso" placeholder="Ej: 0.25" style="width:100%;margin-top:4px"/></div>
+          </div>
+          <div style="font-size:0.78rem;color:#777;margin-top:8px">💡 ${r.explicacion?.por_que_manual||''}</div>
+        </div>`;
+      }
+      const desc=r.descripcion?`<div style="margin-top:10px;padding:10px;background:#0a0a0a;border-radius:6px;font-size:0.85rem;color:#bbb;max-height:120px;overflow:auto">${(r.descripcion||'').substring(0,500)}${r.descripcion.length>500?'...':''}</div>`:'';
+      card.innerHTML=`
+        <div style="display:flex;gap:14px;align-items:flex-start;padding:12px;border:1px solid #2a2a2a;border-radius:10px;background:#0a0a0a">
+          ${img}
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px"><span style="font-size:0.78rem;color:#888">${fuenteNombre}</span>${realBadge}</div>
+            <div style="font-weight:600;color:#fff;font-size:1rem;line-height:1.3">${r.titulo||'(sin título)'}</div>
+            ${precioHtml}
+            ${metaHtml}
+            <div style="margin-top:8px"><a href="${r.permalink||'#'}" target="_blank" rel="noopener" style="font-size:0.8rem;color:#C9A84C">Ver publicación original ↗</a></div>
+          </div>
+        </div>
+        ${desc}
+        ${alibabaForm}
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-mr-analyze" onclick="useProductForMarketRead()">📊 Hacer lectura de mercado de este producto</button>
+          <button class="btn-outline-dim" style="padding:8px 14px" onclick="clearProductCard()">Limpiar</button>
+        </div>
+      `;
+    }
+
+    function clearProductCard(){
+      document.getElementById('mrProductCard').style.display='none';
+      document.getElementById('mrProductCard').innerHTML='';
+      document.getElementById('mrUrlInput').value='';
+      mrLastProductData=null;
+    }
+
+    function useProductForMarketRead(){
+      if(!mrLastProductData)return;
+      const r=mrLastProductData;
+      // Volcar el título al campo principal
+      const titleInput=document.getElementById('mrProductInput');
+      if(titleInput&&r.titulo)titleInput.value=r.titulo;
+      // Si es Alibaba y el usuario cargó FOB/MOQ/Peso, pasarlos al cálculo
+      if(r.fuente==='alibaba'){
+        const fob=document.getElementById('mrLinkFOB');
+        const moq=document.getElementById('mrLinkMOQ');
+        const peso=document.getElementById('mrLinkPeso');
+        if(fob&&fob.value){const f=document.getElementById('mrFOB');if(f)f.value=fob.value;}
+        if(peso&&peso.value){const p=document.getElementById('mrPesoKg');if(p)p.value=peso.value;}
+        if(moq&&moq.value){window.mrMOQ=parseInt(moq.value,10);}
+      }
+      // Si es MercadoLibre y hay precio, lo guardamos como referencia de precio de venta
+      if(r.fuente==='mercadolibre'&&r.precio!=null){
+        window.mrPrecioReferenciaARS=r.precio;
+      }
+      // Arrancar el análisis existente
+      startMRAnalysis();
+      // Scrollear al resultado
+      setTimeout(()=>{const el=document.getElementById('mrStep1');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});},300);
+    }
+
+    
 function mrLoadingHTML(txt){return `<div class="mr-loading"><div class="dot-anim"><span></span><span></span><span></span></div><span>${txt}</span></div>`;}
 
 async function startMRAnalysis(){
