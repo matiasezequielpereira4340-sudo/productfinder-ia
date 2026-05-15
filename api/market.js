@@ -1,5 +1,6 @@
 // Market Reader IA - Backend API
 // Handles /api/market for steps: demanda, competencia, final, productUrl
+// Usa MeLi search publica + Anthropic (claude-haiku-4-5) para datos estructurados
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -11,48 +12,147 @@ export default async function handler(req, res) {
   const { step, product, prompt: customPrompt, url } = req.body || {};
   if (!step) return res.status(400).json({ error: 'step requerido' });
 
-  // === Rama: productUrl (lector de link de producto, sin Anthropic) ===
   if (step === 'productUrl') {
     if (!url || typeof url !== 'string') return res.status(400).json({ error: 'url requerida' });
     let cleanUrl = url.trim();
     if (!/^https?:\/\//i.test(cleanUrl)) cleanUrl = 'https://' + cleanUrl;
-    try {
-      const data = await readProductUrl(cleanUrl);
-      return res.status(200).json(data);
-    } catch (e) {
-      return res.status(400).json({ error: 'No se pudo leer el link', detalle: String(e && e.message || e) });
-    }
+    try { return res.status(200).json(await readProductUrl(cleanUrl)); }
+    catch (e) { return res.status(400).json({ error: 'No se pudo leer el link', detalle: String(e && e.message || e) }); }
   }
+  if (step === 'demanda') {
+    try { return res.status(200).json(await stepDemanda(product)); }
+    catch (e) { return res.status(500).json({ error: 'Fallo demanda', detalle: String(e && e.message || e) }); }
+  }
+  if (step === 'competencia') {
+    try { return res.status(200).json(await stepCompetencia(product)); }
+    catch (e) { return res.status(500).json({ error: 'Fallo competencia', detalle: String(e && e.message || e) }); }
+  }
+  if (step === 'final') {
+    try { return res.status(200).json(await stepFinal(customPrompt)); }
+    catch (e) { return res.status(500).json({ error: 'Fallo final', detalle: String(e && e.message || e) }); }
+  }
+  return res.status(400).json({ error: 'step invalido' });
+}
 
-  // === Resto de steps (demanda, competencia, final) usan Anthropic ===
+async function stepDemanda(product) {
+  if (!product) throw new Error('product requerido');
+  const meli = await safeMeliSearch(product);
+  const trends = await safeGoogleTrends(product);
+  const totalMeli = meli && meli.total != null ? meli.total : 'sin dato';
+  const catName = meli && meli.categoryName ? meli.categoryName : 'sin dato';
+  const trendsStr = trends && trends.values ? trends.values.join(',') : 'sin dato';
+  const prompt = 'Sos analista de e-commerce Argentina. Para el producto "' + product + '" genera JSON de DEMANDA AR. Datos reales: Total publicaciones MeLi AR=' + totalMeli + '; Top categoria=' + catName + '; Google Trends 12m (0-100)=' + trendsStr + '. Responde SOLO JSON sin markdown: {"tendencia":"subiendo|estable|bajando","nivelDemanda":"alto|medio|bajo","demandaScore":0-100,"temporalidad":"string corto","descripcion":"1-2 oraciones rioplatense","tags":["t1","t2","t3"],"monthlyData":[{"mes":"Ene","valor":0-100},{"mes":"Feb","valor":0-100},{"mes":"Mar","valor":0-100},{"mes":"Abr","valor":0-100},{"mes":"May","valor":0-100},{"mes":"Jun","valor":0-100},{"mes":"Jul","valor":0-100},{"mes":"Ago","valor":0-100},{"mes":"Sep","valor":0-100},{"mes":"Oct","valor":0-100},{"mes":"Nov","valor":0-100},{"mes":"Dic","valor":0-100}]}';
+  const j = await askClaudeJson(prompt);
+  if (trends && trends.monthlyData && trends.monthlyData.length === 12) {
+    j.monthlyData = trends.monthlyData;
+    const first3 = (trends.values[0]+trends.values[1]+trends.values[2])/3;
+    const last3 = (trends.values[9]+trends.values[10]+trends.values[11])/3;
+    if (last3 > first3*1.15) j.tendencia = 'subiendo';
+    else if (last3 < first3*0.85) j.tendencia = 'bajando';
+    else j.tendencia = 'estable';
+    const avg = trends.values.reduce((a,b)=>a+b,0)/12;
+    j.demandaScore = Math.round(Math.min(100, Math.max(0, avg)));
+  }
+  return j;
+}
+
+async function stepCompetencia(product) {
+  if (!product) throw new Error('product requerido');
+  const meli = await safeMeliSearch(product);
+  if (meli && meli.results && meli.results.length > 0) {
+    const prices = meli.results.map(x => x.price).filter(p => typeof p === 'number' && p > 0).sort((a,b)=>a-b);
+    const min = prices[0] || 0;
+    const max = prices[prices.length-1] || 0;
+    const avg = prices.length ? Math.round(prices.reduce((a,b)=>a+b,0)/prices.length) : 0;
+    const sellers = new Set(meli.results.map(x => x.seller && x.seller.id).filter(Boolean));
+    const total = meli.total || meli.results.length;
+    let saturacion = 'moderado';
+    if (total < 200) saturacion = 'libre';
+    else if (total > 10000) saturacion = 'muy saturado';
+    else if (total > 2000) saturacion = 'saturado';
+    const competitors = meli.results.slice(0,5).map((x,i)=>({rank:i+1, name:(x.seller && x.seller.nickname) || ('Vendedor '+(i+1)), price:x.price||0, soldQty:x.sold_quantity||0, reputation:(x.seller && x.seller.seller_reputation && x.seller.seller_reputation.level_id) || 'N/A', repClass:'comp-rep-ok'}));
+    return { fuente:'mercadolibre-search', sellersEstimados: sellers.size || meli.results.length, precioMinARS:min, precioMaxARS:max, precioPromedioARS:avg, totalResults:total, categoryName:meli.categoryName||'', saturacion, competenciaScore: Math.min(100, Math.round(total/100)), competitors };
+  }
+  const prompt = 'Sos analista de e-commerce AR. Para "' + product + '" estima competencia en MeLi AR. Responde SOLO JSON sin markdown: {"sellersEstimados":number,"precioMinARS":number,"precioMaxARS":number,"precioPromedioARS":number,"totalResults":number,"categoryName":"string","saturacion":"libre|moderado|saturado|muy saturado","competenciaScore":0-100,"competitors":[{"rank":1,"name":"string","price":number,"soldQty":number,"reputation":"silver|gold|platinum|N/A","repClass":"comp-rep-ok"}]}';
+  return await askClaudeJson(prompt);
+}
+
+async function stepFinal(customPrompt) {
+  if (!customPrompt) throw new Error('prompt requerido');
+  return await askClaudeJson(customPrompt);
+}
+
+async function askClaudeJson(prompt) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY no configurada' });
-
-  const prompts = {
-    demanda: `Sos un analista experto en e-commerce. El usuario quiere analizar la DEMANDA del producto: "${product}".\nDevolveme un analisis breve (max 8 lineas) con: nivel de demanda estimado (alto/medio/bajo), publico objetivo principal, estacionalidad, y 2 oportunidades claras. No uses asteriscos ni markdown. Texto plano.`,
-    competencia: `Sos un analista experto en e-commerce. El usuario quiere analizar la COMPETENCIA del producto: "${product}".\nDevolveme un analisis breve (max 8 lineas) con: nivel de competencia (alto/medio/bajo), 3 jugadores tipicos, rango de precios estimado en USD, y 2 diferenciales posibles. No uses asteriscos ni markdown. Texto plano.`,
-    final: `Sos un analista experto en e-commerce. Hace un CIERRE EJECUTIVO para el producto "${product}" en max 6 lineas con: veredicto (recomendado / con reservas / no recomendado), 2 razones, y proximo paso concreto. No uses asteriscos ni markdown.`
-  };
-
-  const promptToUse = customPrompt || prompts[step];
-  if (!promptToUse) return res.status(400).json({ error: 'step invalido' });
-
-  try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-3-5-sonnet-20241022', max_tokens: 600, messages: [{ role: 'user', content: promptToUse }] })
-    });
-    const j = await r.json();
-    if (!r.ok) return res.status(r.status).json({ error: 'Anthropic error', detalle: j });
-    const texto = (j.content && j.content[0] && j.content[0].text) || '';
-    return res.status(200).json({ texto });
-  } catch (e) {
-    return res.status(500).json({ error: 'Fallo al consultar Anthropic', detalle: String(e && e.message || e) });
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY no configurada');
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error('Anthropic ' + r.status + ': ' + JSON.stringify(j));
+  const texto = (j.content && j.content[0] && j.content[0].text) || '';
+  let cleaned = texto.trim();
+  cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/, '').trim();
+  try { return JSON.parse(cleaned); }
+  catch (e) {
+    const m = cleaned.match(/\{[\s\S]*\}/);
+    if (m) return JSON.parse(m[0]);
+    throw new Error('Respuesta no JSON: ' + cleaned.substring(0,200));
   }
 }
 
-// ===== Lector de link de producto (inlined desde lib/product-reader) =====
+async function safeMeliSearch(product) {
+  try {
+    const q = encodeURIComponent(product);
+    const r = await fetch('https://api.mercadolibre.com/sites/MLA/search?q=' + q + '&limit=20', { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ProductFinderBot/1.0)' } });
+    if (!r.ok) return null;
+    const j = await r.json();
+    const catFilter = (j.available_filters || []).find(f => f.id === 'category');
+    const categoryName = catFilter && catFilter.values && catFilter.values[0] ? catFilter.values[0].name : '';
+    return { total: (j.paging && j.paging.total) || 0, results: j.results || [], categoryName };
+  } catch { return null; }
+}
+
+async function safeGoogleTrends(product) {
+  try {
+    const exploreReq = JSON.stringify({comparisonItem:[{keyword:product,geo:'AR',time:'today 12-m'}],category:0,property:''});
+    const r1 = await fetch('https://trends.google.com/trends/api/explore?hl=es-AR&tz=180&req=' + encodeURIComponent(exploreReq), { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!r1.ok) return null;
+    const txt1 = await r1.text();
+    const clean1 = txt1.replace(/^\)\]\}',?\n?/, '');
+    const j1 = JSON.parse(clean1);
+    const tw = (j1.widgets || []).find(w => w.id === 'TIMESERIES');
+    if (!tw) return null;
+    const r2 = await fetch('https://trends.google.com/trends/api/widgetdata/multiline?hl=es-AR&tz=180&req=' + encodeURIComponent(JSON.stringify(tw.request)) + '&token=' + encodeURIComponent(tw.token), { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!r2.ok) return null;
+    const txt2 = await r2.text();
+    const clean2 = txt2.replace(/^\)\]\}',?\n?/, '');
+    const j2 = JSON.parse(clean2);
+    const points = (j2.default && j2.default.timelineData) || [];
+    if (!points.length) return null;
+    const monthly = {};
+    points.forEach(p => {
+      const d = new Date(parseInt(p.time)*1000);
+      const k = d.getFullYear() + '-' + (d.getMonth()+1);
+      if (!monthly[k]) monthly[k] = [];
+      monthly[k].push(p.value[0]);
+    });
+    const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const keys = Object.keys(monthly).sort();
+    const last12 = keys.slice(-12);
+    const monthlyData = last12.map(k => {
+      const m = parseInt(k.split('-')[1])-1;
+      const arr = monthly[k];
+      const avg = Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
+      return { mes: meses[m], valor: avg };
+    });
+    const values = monthlyData.map(x => x.valor);
+    return { values, monthlyData };
+  } catch { return null; }
+}
+
 async function readProductUrl(url) {
   const host = (() => { try { return new URL(url).hostname.toLowerCase(); } catch { return ''; } })();
   if (host.includes('mercadolibre') || host.includes('mercadolivre')) return await readMercadoLibre(url);
@@ -63,9 +163,8 @@ async function readProductUrl(url) {
 async function readMercadoLibre(url) {
   let itemId = null;
   const directMatch = url.match(/MLA[-]?(\d{6,})/i);
-  if (directMatch) {
-    itemId = 'MLA' + directMatch[1];
-  } else {
+  if (directMatch) itemId = 'MLA' + directMatch[1];
+  else {
     try {
       const r = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ProductFinderBot/1.0)' } });
       const finalUrl = r.url || url;
@@ -78,116 +177,61 @@ async function readMercadoLibre(url) {
       }
     } catch (_) {}
   }
-  // Intento 1: API publica de MercadoLibre
   if (itemId) {
     try {
       const apiRes = await fetch('https://api.mercadolibre.com/items/' + itemId);
       if (apiRes.ok) {
         const j = await apiRes.json();
-        const titulo = j.title || '';
-        const precio = j.price != null ? Number(j.price) : null;
-        const moneda = j.currency_id || 'ARS';
-        const imagen = (j.pictures && j.pictures[0] && j.pictures[0].secure_url) || j.thumbnail || '';
-        const descripcion = j.subtitle || '';
-        return { fuente: 'mercadolibre', itemId, titulo, precio, moneda, imagen, descripcion, url };
+        return { fuente: 'mercadolibre', itemId, titulo: j.title || '', precio: j.price != null ? Number(j.price) : null, moneda: j.currency_id || 'ARS', imagen: (j.pictures && j.pictures[0] && j.pictures[0].secure_url) || j.thumbnail || '', descripcion: j.subtitle || '', url };
       }
     } catch (_) {}
   }
-  // Intento 2: scraping del HTML publico (cuando la API responde 403/cerrado)
   try {
     const scraped = await scrapeMercadoLibreHtml(url);
-    if (scraped && scraped.titulo) {
-      return { fuente: 'mercadolibre-html', itemId, ...scraped, url };
-    }
+    if (scraped && scraped.titulo) return { fuente: 'mercadolibre-html', itemId, ...scraped, url };
   } catch (_) {}
-  throw new Error('No se pudo leer el producto de MercadoLibre (API y HTML fallaron)');
+  return { fuente: 'mercadolibre-min', itemId, titulo: 'Producto MeLi ' + (itemId||''), precio: null, moneda: 'ARS', imagen: '', descripcion: '', url };
 }
 
 async function scrapeMercadoLibreHtml(url) {
-  const r = await fetch(url, {
-    redirect: 'follow',
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml',
-      'Accept-Language': 'es-AR,es;q=0.9'
-    }
-  });
+  const r = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml', 'Accept-Language': 'es-AR,es;q=0.9' } });
   if (!r.ok) throw new Error('HTML status ' + r.status);
   const html = await r.text();
-  const ogTitle = pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) ||
-                  pick(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i) ||
-                  pick(/<title[^>]*>([^<|]+)/i);
+  const pick = (re) => { const m = html.match(re); return m ? m[1] : null; };
+  const ogTitle = pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<title[^>]*>([^<|]+)/i);
   const ogImage = pick(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
-  const ogDesc  = pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) ||
-                  pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i);
+  const ogDesc  = pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i);
   const priceStr = pick(/<meta[^>]+itemprop=["']price["'][^>]+content=["']([^"']+)["']/i);
   const moneda   = pick(/<meta[^>]+itemprop=["']priceCurrency["'][^>]+content=["']([^"']+)["']/i) || 'ARS';
   const precio = priceStr ? Number(priceStr) : null;
-  return {
-    titulo: ogTitle ? decodeHtml(ogTitle).trim() : '',
-    precio: (precio != null && !isNaN(precio)) ? precio : null,
-    moneda,
-    imagen: ogImage || '',
-    descripcion: ogDesc ? decodeHtml(ogDesc).trim() : ''
-  };
-  function pick(re) { const m = html.match(re); return m ? m[1] : null; }
+  return { titulo: ogTitle ? decodeHtml(ogTitle).trim() : '', precio: (precio != null && !isNaN(precio)) ? precio : null, moneda, imagen: ogImage || '', descripcion: ogDesc ? decodeHtml(ogDesc).trim() : '' };
 }
 
 async function readAlibaba(url) {
   const r = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ProductFinderBot/1.0)' } });
   if (!r.ok) throw new Error('Alibaba respondio ' + r.status);
   const html = await r.text();
-  const titulo = pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) ||
-                 pick(/<title[^>]*>([^<|]+)/i) || '';
+  const pick = (re) => { const m = html.match(re); return m ? m[1] : null; };
+  const titulo = pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<title[^>]*>([^<|]+)/i) || '';
   const imagen = pick(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) || '';
-  const descripcion = pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) ||
-                      pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) || '';
-  let precioMin = null, precioMax = null, moneda = 'USD';
+  const descripcion = pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) || '';
+  let precioMin = null, precioMax = null;
   const priceRangeMatch = html.match(/\$\s?([\d,.]+)\s*[-~]\s*\$?\s?([\d,.]+)/);
-  if (priceRangeMatch) {
-    precioMin = parseFloat(priceRangeMatch[1].replace(/,/g,''));
-    precioMax = parseFloat(priceRangeMatch[2].replace(/,/g,''));
-  }
-  return {
-    fuente: 'alibaba',
-    titulo: decodeHtml(titulo).trim(),
-    precio: precioMin,
-    precioMax,
-    moneda,
-    imagen,
-    descripcion: decodeHtml(descripcion).trim(),
-    url
-  };
-  function pick(re) { const m = html.match(re); return m ? m[1] : null; }
+  if (priceRangeMatch) { precioMin = parseFloat(priceRangeMatch[1].replace(/,/g,'')); precioMax = parseFloat(priceRangeMatch[2].replace(/,/g,'')); }
+  return { fuente: 'alibaba', titulo: decodeHtml(titulo).trim(), precio: precioMin, precioMax, moneda: 'USD', imagen, descripcion: decodeHtml(descripcion).trim(), url };
 }
 
 async function readOpenGraph(url) {
-  const data = await fetchOpenGraph(url);
-  return { fuente: 'opengraph', ...data, url };
-}
-
-async function fetchOpenGraph(url) {
   const r = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ProductFinderBot/1.0)' } });
   if (!r.ok) throw new Error('Pagina respondio ' + r.status);
   const html = await r.text();
-  const titulo = pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) ||
-                 pick(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i) ||
-                 pick(/<title[^>]*>([^<|]+)/i) || '';
-  const imagen = pick(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
-                 pick(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i) || '';
-  const descripcion = pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) ||
-                      pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) ||
-                      pick(/<meta[^>]+name=["']twitter:description["'][^>]+content=["']([^"']+)["']/i) || '';
-  return { titulo: decodeHtml(titulo).trim(), imagen, descripcion: decodeHtml(descripcion).trim() };
-  function pick(re) { const m = html.match(re); return m ? m[1] : null; }
+  const pick = (re) => { const m = html.match(re); return m ? m[1] : null; };
+  const titulo = pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<title[^>]*>([^<|]+)/i) || '';
+  const imagen = pick(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i) || '';
+  const descripcion = pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']twitter:description["'][^>]+content=["']([^"']+)["']/i) || '';
+  return { fuente: 'opengraph', titulo: decodeHtml(titulo).trim(), imagen, descripcion: decodeHtml(descripcion).trim(), url };
 }
 
 function decodeHtml(s) {
-  return s
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ');
+  return s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g,' ');
 }
