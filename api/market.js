@@ -1,7 +1,7 @@
 // Market Reader IA - Backend API
 // Handles /api/market for steps: demanda, competencia, final
 
-import productReader from './_product-reader.js';
+import productReader from '../lib/product-reader.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
