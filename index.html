@@ -749,7 +749,7 @@ function toggleHistory(){
       card.style.display='block';
       card.innerHTML='<div style="color:#9a9a9a;padding:14px;text-align:center">⏳ Leyendo el producto desde la fuente original...</div>';
       try{
-        const res=await fetch('/api/product',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+        const res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'productUrl',url})});
         const r=await res.json();
         if(!res.ok||r.error){
           card.style.display='none';
