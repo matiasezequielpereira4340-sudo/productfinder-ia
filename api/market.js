@@ -1,8 +1,6 @@
 // Market Reader IA - Backend API
 // Handles /api/market for steps: demanda, competencia, final
 
-import productReader from '../lib/product-reader.js';
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -16,8 +14,6 @@ export default async function handler(req, res) {
   const { step, product, prompt: customPrompt } = req.body;
   if (!step) return res.status(400).json({ error: 'step requerido' });
 
-  // Rama nueva: lectura de URL de producto (delegado a _product-reader.js)
-  if (step === 'productUrl') return productReader(req, res);
 
   let system, userMsg, maxTokens;
 
