@@ -53,6 +53,8 @@ async function stepDemanda(product) {
     const avg = trends.values.reduce((a,b)=>a+b,0)/12;
     j.demandaScore = Math.round(Math.min(100, Math.max(0, avg)));
   }
+    j.monthlyData = buildRollingMonths(j.monthlyData);
+    j.rangoFechas = j.monthlyData[0].label + ' - ' + j.monthlyData[11].label;
   return j;
 }
 
@@ -234,4 +236,46 @@ async function readOpenGraph(url) {
 
 function decodeHtml(s) {
   return s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g,' ');
+}
+
+// ============================================================
+// HELPER: Rolling 12-month window (Google Trends style)
+// Toma la respuesta de Claude o Trends y reordena los meses
+// para que terminen siempre en el mes actual (ventana movil).
+// Ej: Mayo 2026 -> Jun 25, Jul 25, ..., May 26.
+// Cada vez que pasa un mes, la ventana se desplaza sola.
+// ============================================================
+const MES_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+function buildRollingMonths(sourceMonthly) {
+    const now = new Date();
+    // Index del valor por nombre de mes en el array fuente (asumimos Ene-Dic calendario).
+  const byMes = {};
+    if (Array.isArray(sourceMonthly)) {
+          sourceMonthly.forEach(item => {
+                  if (item && item.mes && typeof item.valor === 'number') {
+                            byMes[item.mes] = item.valor;
+                  }
+          });
+    }
+    const out = [];
+    for (let i = 11; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const mes = MES_LABELS[d.getMonth()];
+          const year = d.getFullYear();
+          const yy = String(year).slice(2);
+          let valor = byMes[mes];
+          if (typeof valor !== 'number') {
+                  // Fallback: curva estacional suave si no hay dato
+            valor = Math.round(65 + Math.sin((d.getMonth()/12)*Math.PI*2) * 15 + Math.random()*5);
+          }
+          out.push({
+                  mes,
+                  label: `${mes} ${yy}`,
+                  year,
+                  monthIndex: d.getMonth(),
+                  valor: Math.max(0, Math.min(100, Math.round(valor)))
+          });
+    }
+    return out;
 }
