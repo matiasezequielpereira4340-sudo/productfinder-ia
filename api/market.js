@@ -271,7 +271,7 @@ function buildRollingMonths(sourceMonthly) {
           }
           out.push({
                   mes,
-                  label: `${mes} ${yy}`,
+                  label: `${mes} ${year}`,
                   year,
                   monthIndex: d.getMonth(),
                   valor: Math.max(0, Math.min(100, Math.round(valor)))
