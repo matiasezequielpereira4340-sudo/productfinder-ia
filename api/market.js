@@ -31,10 +31,8 @@ export default async function handler(req, res) {
         const txt = await tr.text();
         let data = null; try { data = JSON.parse(txt); } catch (_) {}
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        if (!tr.ok || !data || !data.access_token) {
-          return res.status(500).send('<html><body style="font-family:system-ui;padding:24px"><h2>Error</h2><pre>HTTP ' + tr.status + '\n' + (txt||'').replace(/</g,'&lt;') + '</pre></body></html>');
-        }
-        return res.status(200).send('<html><body style="font-family:system-ui;padding:24px;max-width:760px"><h2>OK</h2><p><b>Copia el refresh_token y pegalo en Vercel como <code>MELI_REFRESH_TOKEN</code></b>. Despues borra MELI_BOOTSTRAP y redeploy.</p><table style="border-collapse:collapse"><tr><td style="padding:6px;border:1px solid #ddd"><b>refresh_token</b></td><td style="padding:6px;border:1px solid #ddd"><code>' + (data.refresh_token || '(faltante)') + '</code></td></tr><tr><td style="padding:6px;border:1px solid #ddd">access_token</td><td style="padding:6px;border:1px solid #ddd"><code>' + data.access_token + '</code></td></tr><tr><td style="padding:6px;border:1px solid #ddd">expires_in</td><td style="padding:6px;border:1px solid #ddd">' + (data.expires_in||'') + ' s</td></tr><tr><td style="padding:6px;border:1px solid #ddd">user_id</td><td style="padding:6px;border:1px solid #ddd">' + (data.user_id||'') + '</td></tr></table></body></html>');
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.status(tr.ok ? 200 : 500).json({ http: tr.status, raw: txt, parsed: data });
       } catch (e) {
         return res.status(500).send('Error: ' + (e && e.message ? e.message : String(e)));
       }
