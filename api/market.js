@@ -75,8 +75,8 @@ async function stepCompetencia(product) {
     const competitors = meli.results.slice(0,5).map((x,i)=>({rank:i+1, name:(x.seller && x.seller.nickname) || ('Vendedor '+(i+1)), price:x.price||0, soldQty:x.sold_quantity||0, reputation:(x.seller && x.seller.seller_reputation && x.seller.seller_reputation.level_id) || 'N/A', repClass:'comp-rep-ok'}));
     return { fuente:'mercadolibre-search', sellersEstimados: sellers.size || meli.results.length, precioMinARS:min, precioMaxARS:max, precioPromedioARS:avg, totalResults:total, categoryName:meli.categoryName||'', saturacion, competenciaScore: Math.min(100, Math.round(total/100)), competitors };
   }
-  const prompt = 'Sos analista de e-commerce AR. Para "' + product + '" estima competencia en MeLi AR. Responde SOLO JSON sin markdown: {"sellersEstimados":number,"precioMinARS":number,"precioMaxARS":number,"precioPromedioARS":number,"totalResults":number,"categoryName":"string","saturacion":"libre|moderado|saturado|muy saturado","competenciaScore":0-100,"competitors":[{"rank":1,"name":"string","price":number,"soldQty":number,"reputation":"silver|gold|platinum|N/A","repClass":"comp-rep-ok"}]}';
-  return await askClaudeJson(prompt);
+  // IMPORTANTE: si no hay datos reales de MeLi (API 403 o scraping fallido) NO inventamos numeros via IA.
+  return { fuente: 'no-disponible', sellersEstimados: null, precioMinARS: null, precioMaxARS: null, precioPromedioARS: null, totalResults: null, categoryName: '', saturacion: null, competenciaScore: null, competitors: [], aviso: 'Datos de Mercado Libre no disponibles ahora (la API publica requiere autenticacion). Mostramos solo lo verificable.' };
 }
 
 async function stepFinal(customPrompt) {
@@ -106,15 +106,62 @@ async function askClaudeJson(prompt) {
 }
 
 async function safeMeliSearch(product) {
+  // 1) Intento API publica oficial (puede devolver 403 si MeLi exige auth)
   try {
     const q = encodeURIComponent(product);
     const r = await fetch('https://api.mercadolibre.com/sites/MLA/search?q=' + q + '&limit=20', { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ProductFinderBot/1.0)' } });
-    if (!r.ok) return null;
-    const j = await r.json();
-    const catFilter = (j.available_filters || []).find(f => f.id === 'category');
-    const categoryName = catFilter && catFilter.values && catFilter.values[0] ? catFilter.values[0].name : '';
-    return { total: (j.paging && j.paging.total) || 0, results: j.results || [], categoryName };
-  } catch { return null; }
+    if (r.ok) {
+      const j = await r.json();
+      const catFilter = (j.available_filters || []).find(f => f.id === 'category');
+      const categoryName = catFilter && catFilter.values && catFilter.values[0] ? catFilter.values[0].name : '';
+      return { fuente: 'meli-api', total: (j.paging && j.paging.total) || 0, results: j.results || [], categoryName };
+    }
+  } catch (_) {}
+  // 2) Fallback: scraping HTML publico de listado.mercadolibre.com.ar (sin auth)
+  try { return await scrapeMeliSearchHtml(product); } catch (_) { return null; }
+}
+
+async function scrapeMeliSearchHtml(product) {
+  const slug = String(product).trim().toLowerCase().replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-');
+  const url = 'https://listado.mercadolibre.com.ar/' + encodeURIComponent(slug);
+  const r = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml', 'Accept-Language': 'es-AR,es;q=0.9' } });
+  if (!r.ok) return null;
+  const html = await r.text();
+  // Total de resultados
+  let total = 0;
+  const totalMatches = [
+    html.match(/(\d[\d.,]*)\s*resultados/i),
+    html.match(/quantity[\\"']{1,3}\s*:\s*(\d+)/i),
+    html.match(/"total"\s*:\s*(\d+)/i)
+  ];
+  for (const m of totalMatches) { if (m) { total = parseInt(String(m[1]).replace(/[^0-9]/g,''),10) || 0; if (total) break; } }
+  // Categoria principal: tomar el primer breadcrumb o titulo de filtro
+  let categoryName = '';
+  const catMatch = html.match(/<h1[^>]*>([^<]{3,80})<\/h1>/i);
+  if (catMatch) categoryName = decodeHtml(catMatch[1]).trim();
+  if (!categoryName) {
+    const og = html.match(/<meta[^>]+property=[\"']og:title[\"'][^>]+content=[\"']([^\"']+)[\"']/i);
+    if (og) categoryName = decodeHtml(og[1]).trim().replace(/\s*\|.*$/,'');
+  }
+  // Extraer items: titulo, precio, vendedor, cantidad vendida
+  const results = [];
+  const itemRegex = /<a[^>]+class="[^"]*poly-component__title[^"]*"[^>]*>([^<]{3,200})<\/a>([\s\S]{0,2500}?)<\/li>/gi;
+  let m;
+  while ((m = itemRegex.exec(html)) !== null && results.length < 20) {
+    const titulo = decodeHtml(m[1]).trim();
+    const block = m[2] || '';
+    const priceMatch = block.match(/andes-money-amount__fraction[^>]*>([\d.]+)<\/span>/);
+    const price = priceMatch ? parseInt(priceMatch[1].replace(/\./g,''),10) : null;
+    const sellerMatch = block.match(/poly-component__seller[^>]*>(?:Por\s*)?([^<]{2,80})<\//i);
+    const sellerName = sellerMatch ? decodeHtml(sellerMatch[1]).trim() : '';
+    const soldMatch = block.match(/(\d[\d.,]*)\s*vendidos?/i);
+    const sold = soldMatch ? parseInt(String(soldMatch[1]).replace(/[^0-9]/g,''),10) : 0;
+    if (titulo && price) {
+      results.push({ title: titulo, price, sold_quantity: sold, seller: { id: sellerName || null, nickname: sellerName } });
+    }
+  }
+  if (!results.length && !total) return null;
+  return { fuente: 'meli-html', total: total || results.length, results, categoryName };
 }
 
 async function safeGoogleTrends(product) {
