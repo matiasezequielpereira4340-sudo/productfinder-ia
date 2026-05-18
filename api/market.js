@@ -105,19 +105,60 @@ async function askClaudeJson(prompt) {
   }
 }
 
-async function safeMeliSearch(product) {
-  // 1) Intento API publica oficial (puede devolver 403 si MeLi exige auth)
+// Cache simple del access_token en memoria del proceso (Vercel cold start lo resetea, no es problema)
+async function getMeliAccessToken() {
+  const refresh = process.env.MELI_REFRESH_TOKEN;
+  const clientId = process.env.MELI_CLIENT_ID;
+  const clientSecret = process.env.MELI_CLIENT_SECRET;
+  if (!refresh || !clientId || !clientSecret) return null;
+  const now = Date.now();
+  if (globalThis.__meliTok && globalThis.__meliTok.exp > now + 60000) return globalThis.__meliTok.access;
   try {
-    const q = encodeURIComponent(product);
-    const r = await fetch('https://api.mercadolibre.com/sites/MLA/search?q=' + q + '&limit=20', { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ProductFinderBot/1.0)' } });
-    if (r.ok) {
-      const j = await r.json();
-      const catFilter = (j.available_filters || []).find(f => f.id === 'category');
-      const categoryName = catFilter && catFilter.values && catFilter.values[0] ? catFilter.values[0].name : '';
-      return { fuente: 'meli-api', total: (j.paging && j.paging.total) || 0, results: j.results || [], categoryName };
+    const body = new URLSearchParams();
+    body.set("grant_type", "refresh_token");
+    body.set("client_id", clientId);
+    body.set("client_secret", clientSecret);
+    body.set("refresh_token", refresh);
+    const r = await fetch("https://api.mercadolibre.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+      body: body.toString()
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (!j || !j.access_token) return null;
+    globalThis.__meliTok = { access: j.access_token, exp: now + (Math.max(60, (j.expires_in || 3600) - 60) * 1000) };
+    return j.access_token;
+  } catch (_) { return null; }
+}
+
+async function safeMeliSearch(product) {
+  const q = encodeURIComponent(product);
+  const url = "https://api.mercadolibre.com/sites/MLA/search?q=" + q + "&limit=20";
+  // 1) Intento con OAuth (si hay refresh_token configurado en Vercel)
+  try {
+    const tok = await getMeliAccessToken();
+    if (tok) {
+      const r = await fetch(url, { headers: { "Authorization": "Bearer " + tok, "Accept": "application/json" } });
+      if (r.ok) {
+        const j = await r.json();
+        const catFilter = (j.available_filters || []).find(f => f.id === "category");
+        const categoryName = catFilter && catFilter.values && catFilter.values[0] ? catFilter.values[0].name : "";
+        return { fuente: "meli-api-oauth", total: (j.paging && j.paging.total) || 0, results: j.results || [], categoryName };
+      }
     }
   } catch (_) {}
-  // 2) Fallback: scraping HTML publico de listado.mercadolibre.com.ar (sin auth)
+  // 2) Intento API publica anonima (suele dar 403 ahora, pero por si vuelve)
+  try {
+    const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; ProductFinderBot/1.0)" } });
+    if (r.ok) {
+      const j = await r.json();
+      const catFilter = (j.available_filters || []).find(f => f.id === "category");
+      const categoryName = catFilter && catFilter.values && catFilter.values[0] ? catFilter.values[0].name : "";
+      return { fuente: "meli-api", total: (j.paging && j.paging.total) || 0, results: j.results || [], categoryName };
+    }
+  } catch (_) {}
+  // 3) Fallback: scraping HTML publico (sin auth)
   try { return await scrapeMeliSearchHtml(product); } catch (_) { return null; }
 }
 
