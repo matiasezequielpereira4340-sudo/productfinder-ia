@@ -7,40 +7,17 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
-  // GET: bootstrap OAuth de MeLi (solo si MELI_BOOTSTRAP=1)
-    if (req.method === 'GET') {
-      if (process.env.MELI_BOOTSTRAP !== '1') {
-        return res.status(403).send('Bootstrap deshabilitado. Setear MELI_BOOTSTRAP=1 en Vercel y redeploy.');
-      }
-      const code = req.query && req.query.code;
-      if (!code) {
-        const appId = process.env.MELI_APP_ID || '';
-        const redirect = 'https://productfinder-ia.vercel.app/api/market';
-        const authUrl = 'https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=' + encodeURIComponent(appId) + '&redirect_uri=' + encodeURIComponent(redirect);
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        return res.status(200).send('<html><body style="font-family:system-ui;padding:24px"><h2>Bootstrap OAuth Mercado Libre</h2><p>Hace click para autorizar la app ProducFinder:</p><p><a href="' + authUrl + '">Autorizar en Mercado Libre</a></p></body></html>');
-      }
-      try {
-        const body = new URLSearchParams();
-        body.set('grant_type', 'authorization_code');
-        body.set('client_id', process.env.MELI_APP_ID);
-        body.set('client_secret', process.env.MELI_SECRET_KEY);
-        body.set('code', code);
-        body.set('redirect_uri', 'https://productfinder-ia.vercel.app/api/market');
-        const tr = await fetch('https://api.mercadolibre.com/oauth/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' }, body: body.toString() });
-        const txt = await tr.text();
-        let data = null; try { data = JSON.parse(txt); } catch (_) {}
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        return res.status(tr.ok ? 200 : 500).json({ http: tr.status, raw: txt, parsed: data });
-      } catch (e) {
-        return res.status(500).send('Error: ' + (e && e.message ? e.message : String(e)));
-      }
-    }
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  // GET = simple status endpoint (sin OAuth). El POST sigue debajo.
+  if (req.method === 'GET') {
+    return res.status(200).json({
+      ok: true,
+      service: 'market',
+      meli_token_present: !!process.env.MELI_ACCESS_TOKEN,
+      anthropic_present: !!process.env.ANTHROPIC_API_KEY
+    });
+  }
 
-  const { step, product, prompt: customPrompt, url } = req.body || {};
-  if (!step) return res.status(400).json({ error: 'step requerido' });
+    if (!step) return res.status(400).json({ error: 'step requerido' });
 
   if (step === 'productUrl') {
     if (!url || typeof url !== 'string') return res.status(400).json({ error: 'url requerida' });
@@ -137,29 +114,11 @@ async function askClaudeJson(prompt) {
 
 // Cache simple del access_token en memoria del proceso (Vercel cold start lo resetea, no es problema)
 async function getMeliAccessToken() {
-  const refresh = process.env.MELI_REFRESH_TOKEN;
-  const clientId = process.env.MELI_APP_ID;
-  const clientSecret = process.env.MELI_SECRET_KEY;
-  if (!refresh || !clientId || !clientSecret) return null;
-  const now = Date.now();
-  if (globalThis.__meliTok && globalThis.__meliTok.exp > now + 60000) return globalThis.__meliTok.access;
-  try {
-    const body = new URLSearchParams();
-    body.set("grant_type", "refresh_token");
-    body.set("client_id", clientId);
-    body.set("client_secret", clientSecret);
-    body.set("refresh_token", refresh);
-    const r = await fetch("https://api.mercadolibre.com/oauth/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
-      body: body.toString()
-    });
-    if (!r.ok) return null;
-    const j = await r.json();
-    if (!j || !j.access_token) return null;
-    globalThis.__meliTok = { access: j.access_token, exp: now + (Math.max(60, (j.expires_in || 3600) - 60) * 1000) };
-    return j.access_token;
-  } catch (_) { return null; }
+  // Estrategia simple: si hay MELI_ACCESS_TOKEN en env, lo usamos.
+  // Si no, devolvemos null y safeMeliSearch cae a scraping publico (sin inventar datos).
+  const tk = process.env.MELI_ACCESS_TOKEN;
+  if (tk && typeof tk === 'string' && tk.length > 10) return tk;
+  return null;
 }
 
 async function safeMeliSearch(product) {
