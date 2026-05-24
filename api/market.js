@@ -16,7 +16,7 @@ export default async function handler(req, res) {
       anthropic_present: !!process.env.ANTHROPIC_API_KEY
     });
   }
-
+  const { step, product, url, customPrompt } = req.body || {};
     if (!step) return res.status(400).json({ error: 'step requerido' });
 
   if (step === 'productUrl') {
