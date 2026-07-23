@@ -2016,8 +2016,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(!grid) return;
     var cards = grid.querySelectorAll('.product-card');
     if(cards.length <= FREE_LIMIT) return;
-    if(grid.getAttribute('data-v5gated')==='1') return;
-    grid.setAttribute('data-v5gated','1');
+    /* idempotente: re-aplica en cada render */
     // free-tier banner above the grid
     var hdr = document.querySelector('.results-header');
     if(hdr && !document.querySelector('.v5-freebar')){
