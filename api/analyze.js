@@ -187,7 +187,7 @@ async function getMeliToken(userId){
   try{
     const url = SUPA_URL + '/rest/v1/meli_tokens?user_id=eq.' + encodeURIComponent(userId) + '&select=access_token,expires_at';
     const r = await fetch(url, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY } });
-    if(!r.ok){ try{(globalThis.__MS=globalThis.__MS||[]).push({q:query,searchStatus:r.status});}catch(_){}; return null; }
+    if(!r.ok) return null;
     const rows = await r.json();
     if(!Array.isArray(rows) || rows.length === 0) return null;
     const row = rows[0];
@@ -199,27 +199,25 @@ async function getMeliToken(userId){
 async function meliSearch(query, token){
   if(!token) return null;
   try{
-    // ML bloqueo la busqueda generica /sites/MLA/search (403). Usamos el catalogo de productos,
-    // que si funciona con token de usuario: trae competencia real (paging.total) y precio real (buy_box).
     const url = 'https://api.mercadolibre.com/products/search?status=active&site_id=MLA&limit=10&q=' + encodeURIComponent(query);
     const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
     if(!r.ok) return null;
     const j = await r.json();
-    try{(globalThis.__MS=globalThis.__MS||[]).push({q:query,searchStatus:r.status,results:(j.results||[]).length,total:(j.paging&&j.paging.total)});}catch(_){}; if(!j.results || !j.results.length) return null;
+    if(!j.results || !j.results.length) return null;
     const total = (j.paging && j.paging.total) || j.results.length;
-    const ids = j.results.slice(0, 5).map(function(x){ return x.id; }).filter(Boolean);
     const precios = [];
+    const ids = j.results.slice(0, 6).map(function(x){ return x.id; }).filter(Boolean);
     for(const id of ids){
       try{
         const pr = await fetch('https://api.mercadolibre.com/products/' + id, { headers: { Authorization: 'Bearer ' + token } });
         if(!pr.ok) continue;
         const pj = await pr.json();
-        const p = pj && pj.buy_box_winner && typeof pj.buy_box_winner.price === 'number' ? pj.buy_box_winner.price : null;
+        let p = pj && pj.buy_box_winner && typeof pj.buy_box_winner.price === 'number' ? pj.buy_box_winner.price : null;
         if(p && p > 0) precios.push(p);
       }catch(_){/* seguir */}
+      if(precios.length >= 3) break;
     }
-    try{(globalThis.__MS=globalThis.__MS||[]).push({q:query,pricesFound:precios.length,ids:ids.length});}catch(_){}; const sellers = j.results.length;
-    return { precios: precios, sellers: sellers, total: total };
+    return { precios: precios, sellers: j.results.length, total: total };
   }catch(e){ return null; }
 }
 
@@ -303,28 +301,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({error: 'Method not allowed'});
   try {
     const { nicho, capital, experiencia, canal, riesgo, user_id } = req.body || {};
-    globalThis.__MS=[]; if (!nicho) return res.status(400)
- if (req.body && req.body.probe3) {
-    const out = {};
-    try {
-      const ps = await fetch('https://api.mercadolibre.com/products/search?status=active&site_id=MLA&limit=5&q=' + encodeURIComponent('soporte celular escritorio'), { headers: { Authorization: 'Bearer ' + token } });
-      const psj = await ps.json();
-      const cand = (psj.results||[]).slice(0,4);
-      out.candidates = [];
-      for (const c of cand) {
-        const pd = await fetch('https://api.mercadolibre.com/products/' + c.id, { headers: { Authorization: 'Bearer ' + token } });
-        const pj = await pd.json();
-        out.candidates.push({ id: c.id, status: pj.status, buy_box_winner: pj.buy_box_winner, price: pj.price, children: (pj.children_ids||[]).length });
-      }
-      if (cand[0]) {
-        const it = await fetch('https://api.mercadolibre.com/products/' + cand[0].id + '/items', { headers: { Authorization: 'Bearer ' + token } });
-        out.items_status = it.status;
-        try { const ij = await it.json(); out.items_sample = (ij.results||[]).slice(0,2).map(function(x){return {price:x.price, seller:x.seller_id};}); if(!out.items_sample.length) out.items_keys = Object.keys(ij).slice(0,8); } catch(_){ out.items_sample='nonjson'; }
-      }
-    } catch(e) { out.err = String(e).slice(0,100); }
-    return res.status(200).json({ probe3: true, out });
-  }
-.json({error: 'Falta elegir un nicho / seccion'});
+    if (!nicho) return res.status(400).json({error: 'Falta elegir un nicho / seccion'});
     const niche = CATALOGO[nicho] || CATALOGO[String(nicho).toLowerCase()];
     if (!niche) return res.status(400).json({error: 'Nicho no encontrado', nichosDisponibles: Object.keys(CATALOGO)});
 
@@ -342,17 +319,30 @@ export default async function handler(req, res) {
         const costoUnitARS = Math.round(costoUnitUSD * usdArs);
         const costoPuestoARS = Math.round(costoUnitARS * 1.35);
         const data = await meliSearch(prod.q, token);
+        function _satFromTotal(t){ if(t==null) return null; if(t < 300) return 'Baja'; if(t < 1500) return 'Media'; if(t < 6000) return 'Alta'; return 'Muy alta'; }
         if (data && data.precios.length) {
           const precioVenta = _median(data.precios);
           const total = data.total || data.precios.length;
           const s = _score({ precioVenta: precioVenta, total: total, costoPuestoARS: costoPuestoARS, pesoG: prod.pesoG });
           return { nombre: prod.nombre, query: prod.q, nota: prod.nota, pesoG: prod.pesoG,
             fuente: 'MercadoLibre (real)', precioVentaARS: precioVenta, sellers: data.sellers,
-            totalResultados: total, costoEstimadoUSD: [prod.costoMin, prod.costoMax], costoPuestoARS: costoPuestoARS,
-            margen: s.margenPct, demanda: _nivel(s.demScore), saturacion: s.satLabel, riesgo: s.riesgo, score: s.score };
+            totalResultados: total, competencia: total, costoEstimadoUSD: [prod.costoMin, prod.costoMax], costoPuestoARS: costoPuestoARS,
+            margen: s.margenPct, demanda: _nivel(s.demScore), saturacion: _satFromTotal(total) || s.satLabel, riesgo: s.riesgo, score: s.score };
+        }
+        if (data && data.total != null) {
+          const total = data.total;
+          const sat = _satFromTotal(total);
+          const riesgo = total >= 6000 ? 'Alto' : (total >= 1500 ? 'Medio' : 'Bajo');
+          let sc = 0; if(total < 300) sc += 45; else if(total < 1500) sc += 30; else if(total < 6000) sc += 12;
+          if(prod.pesoG && prod.pesoG <= 100) sc += 25; else if(prod.pesoG && prod.pesoG <= 300) sc += 12;
+          sc += 20;
+          return { nombre: prod.nombre, query: prod.q, nota: prod.nota, pesoG: prod.pesoG,
+            fuente: 'MercadoLibre (competencia real)', precioVentaARS: null, sellers: data.sellers,
+            totalResultados: total, competencia: total, costoEstimadoUSD: [prod.costoMin, prod.costoMax], costoPuestoARS: costoPuestoARS,
+            margen: null, demanda: 'A validar', saturacion: sat, riesgo: riesgo, score: sc };
         }
         return { nombre: prod.nombre, query: prod.q, nota: prod.nota, pesoG: prod.pesoG,
-          fuente: 'Estimado', precioVentaARS: null, sellers: null, totalResultados: null,
+          fuente: 'Estimado', precioVentaARS: null, sellers: null, totalResultados: null, competencia: null,
           costoEstimadoUSD: [prod.costoMin, prod.costoMax], costoPuestoARS: costoPuestoARS,
           margen: null, demanda: 'A validar', saturacion: 'A validar', riesgo: 'A validar', score: null };
       }));
@@ -368,7 +358,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       nicho: nicho, nichoLabel: niche.label, icon: niche.icon, usdArs: usdArs,
       totalEvaluados: productos.length, conDatoReal: conDato,
-      meliConectado: !!token, meliTokenExpirado: tokenExpired, __ms:(globalThis.__MS||[]).slice(0,20),
+      meliConectado: !!token, meliTokenExpirado: tokenExpired,
       products: filtrados,
       disclaimer: 'Precios y competencia: datos reales de la API de MercadoLibre (requiere tu cuenta de ML conectada). Costos de importacion: rango ESTIMADO por categoria. Margen = (precio de venta menos costo estimado con +35% de logistica/impuestos) / costo.'
     });
