@@ -269,6 +269,29 @@ select:focus{border-color:var(--gold)}
 .history-del:hover{color:var(--red)}
 .mr-3col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px}
 @media(max-width:580px){.mr-charts-top,.mr-charts-bottom,.mr-factor-cards,.mr-3col{grid-template-columns:1fr}}
+
+/* ==== Mejoras ProductFinder v2 ==== */
+.tag-real,.tag-est,.tag-info{display:inline-block;font-size:.68rem;padding:2px 7px;border-radius:20px;margin-right:4px;cursor:help}
+.tag-real{background:rgba(39,174,96,.18);color:#4fd07f;border:1px solid rgba(39,174,96,.4)}
+.tag-est{background:rgba(201,168,76,.15);color:var(--gold);border:1px solid rgba(201,168,76,.4)}
+.tag-info{background:#2a2a2a;color:var(--text-dim);border:1px solid #3a3a3a}
+.score-row{display:flex;justify-content:space-between;font-size:.8rem;color:var(--text-dim);margin-bottom:4px}
+.score-row strong{color:var(--gold)}
+.product-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.stat{background:#1a1a1a;border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:2px}
+.stat-l{font-size:.65rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;cursor:help}
+.stat-v{font-size:.95rem;font-weight:700;color:var(--text)}
+.risk-line{font-size:.75rem;font-weight:600;padding:6px 10px;border-radius:6px;text-align:center}
+.risk-bajo{background:rgba(39,174,96,.15);color:#4fd07f}
+.risk-medio{background:rgba(201,168,76,.15);color:var(--gold)}
+.risk-alto,.risk-avalidar{background:rgba(192,57,43,.15);color:#e07b6f}
+.product-card{transition:transform .15s,border-color .15s}
+.product-card:hover{transform:translateY(-3px);border-color:var(--gold-dim)}
+.steps-guide{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0 26px}
+.step-box{flex:1;min-width:180px;background:#161616;border:1px solid #2a2a2a;border-radius:12px;padding:16px}
+.step-num{width:28px;height:28px;border-radius:50%;background:var(--gold);color:#000;font-weight:800;display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+.step-box h4{margin:0 0 6px;font-size:.95rem;color:var(--text)}
+.step-box p{margin:0;font-size:.8rem;color:var(--text-dim);line-height:1.5}
 </style>
 </head>
 <body>
@@ -304,13 +327,18 @@ select:focus{border-color:var(--gold)}
   <div class="app-content">
     <div class="app-title">Analizá tu próxima importación</div>
     <div class="app-sub">Configurá tus parámetros y descubrí los productos más rentables</div>
+    <div class="steps-guide">
+  <div class="step-box"><div class="step-num">1</div><h4>Definí tu perfil</h4><p>Elegí capital, experiencia, canal de venta, sección y tolerancia al riesgo. Con eso filtramos productos aptos para importar.</p></div>
+  <div class="step-box"><div class="step-num">2</div><h4>Analizamos el mercado real</h4><p>Consultamos precios, cantidad de vendedores y saturación reales en MercadoLibre para cada producto de la sección.</p></div>
+  <div class="step-box"><div class="step-num">3</div><h4>Recibí las oportunidades</h4><p>Te mostramos los productos ordenados por su potencial, con margen estimado, demanda y riesgo. El ⭐ TOP PICK es el mejor.</p></div>
+</div>
     <div class="config-card">
       <h3>⚙️ Configuración</h3>
       <div class="selects-grid">
         <div class="select-group"><label>💰 Capital disponible</label><select id="selCapital"><option value="bajo">Menos de USD 3.000</option><option value="medio">USD 3.000 - 10.000</option><option value="alto">USD 10.000 - 30.000</option><option value="premium">Más de USD 30.000</option></select></div>
         <div class="select-group"><label>🎯 Experiencia importando</label><select id="selExperiencia"><option value="ninguna">Sin experiencia</option><option value="poca">1-2 importaciones</option><option value="media">3-10 importaciones</option><option value="alta">Importador frecuente</option></select></div>
         <div class="select-group"><label>🏪 Canal de venta</label><select id="selCanal"><option value="mercadolibre">MercadoLibre</option><option value="tiendanube">Tienda Nube</option><option value="local">Local físico</option><option value="mayorista">Mayorista</option></select></div>
-        <div class="select-group"><label>🏷️ Nicho de mercado</label><select id="selNicho"><option value="tecnologia">Tecnología / Gadgets</option><option value="hogar">Hogar y deco</option><option value="deportes">Deportes / Fitness</option><option value="moda">Moda / Indumentaria</option><option value="mascotas">Mascotas</option><option value="bebe">Bebés / Niños</option></select></div>
+        <div class="select-group"><label>🏷️ Nicho de mercado</label><select id="selNicho"><option value="tecnologia">💻 Tecnología / Gadgets</option><option value="hogar">🏠 Hogar y Deco</option><option value="deportes">🏋️ Deportes / Fitness</option><option value="moda">👕 Moda / Indumentaria</option><option value="mascotas">🐶 Mascotas</option><option value="bebes">🍼 Bebés / Niños</option><option value="belleza">💄 Salud y Belleza</option><option value="cocina">🍳 Cocina / Gastronomía</option><option value="automotor">🚗 Automotor / Moto</option><option value="herramientas">🔧 Herramientas / Bricolaje</option><option value="camping">🏕️ Camping / Outdoor</option><option value="oficina">📎 Papelería / Oficina</option></select></div>
         <div class="select-group"><label>⚠️ Tolerancia al riesgo</label><select id="selRiesgo"><option value="bajo">Bajo - Prefiero seguridad</option><option value="medio">Medio - Balance</option><option value="alto">Alto - Busco rentabilidad máxima</option></select></div>
       </div>
       <button class="btn-analyze" id="btnAnalyze" onclick="doAnalyze()">🚀 Analizar Productos</button>
@@ -557,20 +585,34 @@ function doLogout(){
 }
 // ===== PRODUCTFINDER =====
 async function doAnalyze(){
-  const btn=document.getElementById('btnAnalyze');
-  btn.disabled=true;btn.textContent='🔄 Analizando...';
-  document.getElementById('emailGate').style.display='none';
-  document.getElementById('resultsSection').style.display='none';
-  const params={capital:document.getElementById('selCapital').value,experiencia:document.getElementById('selExperiencia').value,canal:document.getElementById('selCanal').value,nicho:document.getElementById('selNicho').value,riesgo:document.getElementById('selRiesgo').value};
-  analysisParams=params;
-  try{
-    const res=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(params)});
-    const data=await res.json();
-    if(!res.ok||!data.products)throw new Error(data.error||'Error');
-    analysisResults=data.products;
-    document.getElementById('emailGate').style.display='block';
-  }catch(e){alert('Error al analizar: '+e.message);}
-  finally{btn.disabled=false;btn.textContent='🚀 Analizar Productos';}
+  const btn = document.getElementById('btnAnalyze');
+  const params = {
+    capital: document.getElementById('selCapital').value,
+    experiencia: document.getElementById('selExperiencia').value,
+    canal: document.getElementById('selCanal').value,
+    nicho: document.getElementById('selNicho').value,
+    riesgo: document.getElementById('selRiesgo').value,
+    user_id: localStorage.getItem('pf_user') || ''
+  };
+  localStorage.setItem('pf_nicho', params.nicho);
+  return (async function(){
+    if(btn){ btn.disabled = true; btn.dataset.old = btn.innerHTML; btn.innerHTML = '\u23f3 Analizando el mercado real...'; }
+    const grid = document.getElementById('productsGrid');
+    if(grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">Consultando precios y competencia en MercadoLibre...<br><small>Esto puede tardar unos segundos porque analizamos 12 productos reales.</small></div>';
+    const results = document.getElementById('resultsSection');
+    if(results) results.style.display = 'block';
+    try{
+      const res = await fetch('/api/analyze', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(params) });
+      const data = await res.json();
+      if(!res.ok){ throw new Error(data.error || 'Error al analizar'); }
+      window.__lastAnalysis = data;
+      renderResults(data);
+    }catch(err){
+      if(grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--red)">No se pudo completar el analisis: '+err.message+'</div>';
+    }finally{
+      if(btn){ btn.disabled = false; btn.innerHTML = btn.dataset.old || '\ud83d\ude80 Analizar Productos'; }
+    }
+  })();
 }
 
 function unlockResults(){
@@ -580,10 +622,29 @@ function unlockResults(){
   renderResults(analysisResults);
 }
 
-function renderResults(products){
-  const grid=document.getElementById('productsGrid');
-  grid.innerHTML=products.map(p=>`<div class="product-card ${p.topPick?'top-pick':''}">${p.topPick?'<div class="top-badge">⭐ TOP PICK</div>':''}<div class="product-name">${p.nombre}</div><div style="font-size:.8rem;color:var(--text-dim);margin-bottom:8px">Score: ${p.score}/100</div><div class="score-bar"><div class="score-fill" style="width:${p.score}%"></div></div><div class="product-stats"><div class="stat"><div class="stat-label">Margen</div><div class="stat-value">${p.margen}%</div></div><div class="stat"><div class="stat-label">Demanda</div><div class="stat-value">${p.demanda}</div></div><div class="stat"><div class="stat-label">Riesgo</div><div class="stat-value">${p.riesgo}</div></div><div class="stat"><div class="stat-label">Ticket</div><div class="stat-value">${p.ticket||'-'}</div></div></div><div class="product-justification">${p.justificacion}</div></div>`).join('');
-  document.getElementById('resultsSection').style.display='block';
+function renderResults(data){
+  const grid = document.getElementById('productsGrid');
+  if(!grid) return;
+  const products = (data && data.products) || [];
+  const nf = new Intl.NumberFormat('es-AR');
+  let banner = '';
+  if(!data.meliConectado){
+    const motivo = data.meliTokenExpirado ? 'tu conexion con MercadoLibre expiro' : 'no tenes MercadoLibre conectado';
+    banner = '<div class="ml-banner" style="grid-column:1/-1;background:rgba(201,168,76,.12);border:1px solid var(--gold);border-radius:10px;padding:14px 16px;margin-bottom:8px;color:var(--text)"><strong>\u26a0\ufe0f Precios estimados:</strong> como '+motivo+', mostramos los productos ordenados por su potencial (peso, margen esperado y estacionalidad), pero <strong>sin precios de venta reales</strong>. Conecta tu cuenta para ver precio, competencia y saturacion reales de cada producto. <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">Conectar MercadoLibre \u2192</a></div>';
+  } else {
+    banner = '<div class="ml-banner" style="grid-column:1/-1;background:rgba(39,174,96,.12);border:1px solid var(--green);border-radius:10px;padding:12px 16px;margin-bottom:8px;color:var(--text)">\u2705 Datos reales de MercadoLibre. Analizamos <strong>'+data.totalEvaluados+'</strong> productos, <strong>'+data.conDatoReal+'</strong> con datos de mercado en vivo. Cotizacion usada: 1 USD \u2248 $'+nf.format(data.usdArs)+'.</div>';
+  }
+  const cards = products.map(function(p){
+    const real = p.score != null;
+    const scorePct = real ? p.score : 0;
+    const precio = p.precioVentaARS != null ? ('$'+nf.format(p.precioVentaARS)) : 'A validar';
+    const costo = '$'+nf.format(Math.round(p.costoPuestoARS)) + ' aprox.';
+    const margen = p.margen != null ? (p.margen+'%') : '\u2014';
+    const sellers = p.sellers != null ? nf.format(p.sellers)+' vend.' : '\u2014';
+    const fuenteTag = real ? '<span class="tag-real" title="Precio y competencia obtenidos en vivo de MercadoLibre">\ud83d\udfe2 Dato real ML</span>' : '<span class="tag-est" title="Sin precio real: conecta MercadoLibre para activarlo">\ud83d\udfe1 Estimado</span>';
+    return '<div class="product-card '+(p.topPick?'top-pick':'')+'">'+(p.topPick ? '<span class="top-badge">\u2b50 TOP PICK</span>' : '')+'<div class="product-name">'+p.nombre+'</div><div style="margin-bottom:10px">'+fuenteTag+' <span class="tag-info" title="Por que es apto para regimen de importacion">'+p.nota+'</span></div>'+(real ? '<div class="score-row"><span>Score</span><strong>'+p.score+'/100</strong></div><div class="score-bar"><div class="score-fill" style="width:'+scorePct+'%"></div></div>' : '')+'<div class="product-stats"><div class="stat"><span class="stat-l" title="Precio promedio de venta en MercadoLibre">Precio venta</span><span class="stat-v">'+precio+'</span></div><div class="stat"><span class="stat-l" title="Costo estimado del producto puesto en Argentina (FOB China + logistica + impuestos)">Costo est.</span><span class="stat-v">'+costo+'</span></div><div class="stat"><span class="stat-l" title="Ganancia sobre el costo estimado">Margen</span><span class="stat-v">'+margen+'</span></div><div class="stat"><span class="stat-l" title="Cantidad de vendedores compitiendo">Competencia</span><span class="stat-v">'+sellers+'</span></div><div class="stat"><span class="stat-l" title="Nivel de demanda del producto">Demanda</span><span class="stat-v">'+p.demanda+'</span></div><div class="stat"><span class="stat-l" title="Cuan saturado esta el mercado. Baja = mejor oportunidad">Saturacion</span><span class="stat-v">'+p.saturacion+'</span></div></div><div class="risk-line risk-'+String(p.riesgo).toLowerCase().replace(/[^a-z]/g,'')+'">Riesgo: '+p.riesgo+'</div></div>';
+  }).join('');
+  grid.innerHTML = banner + cards;
 }
 
 function exportPDF(){
