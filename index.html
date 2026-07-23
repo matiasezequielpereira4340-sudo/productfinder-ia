@@ -2794,12 +2794,26 @@ window.addEventListener('DOMContentLoaded',()=>{
     }catch(e){ return null; }
   }
 
+  function drawRadar(){
+    try{
+      if(typeof mrData==='undefined' || !mrData || !mrData.step4) return;
+      var s4=mrData.step4;
+      var el=document.getElementById('radarChart');
+      if(!el || typeof Chart==='undefined') return;
+      function cl(v){ v=Number(v)||0; return Math.max(0,Math.min(100,v)); }
+      var vals=[ cl(s4.scD), cl(s4.scC), cl(s4.scM), cl(s4.scR) ];
+      if(window._radarChart){ try{window._radarChart.destroy();}catch(e){} }
+      window._radarChart=new Chart(el,{type:'radar',data:{labels:['Demanda','Competencia','Margen','Regulación'],datasets:[{data:vals,backgroundColor:'rgba(201,168,76,0.15)',borderColor:'#C9A84C',borderWidth:2,pointBackgroundColor:'#C9A84C',pointRadius:4,pointHoverRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{r:{min:0,max:100,ticks:{display:false},grid:{color:'rgba(255,255,255,0.06)'},angleLines:{color:'rgba(255,255,255,0.06)'},pointLabels:{color:'#8a8070',font:{size:11}}}}}});
+    }catch(e){}
+  }
+
   function drawCharts(){
     try{
       if(typeof window.drawSavedCharts!=='function') return;
       var cd=buildChartData();
       if(!cd) return;
       window.drawSavedCharts({ chartData: cd });
+      drawRadar();
     }catch(e){}
   }
 
