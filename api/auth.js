@@ -89,7 +89,7 @@ export default async function handler(req, res) {
         if (isExpired(user)) return res.status(403).json({ success: false, error: 'Acceso expirado. Contactá al administrador.' });
 
       return res.status(200).json({
-              success: true, role: 'user', user: username,
+              success: true, role: 'user', user: username, premium: !!user.premium,
               expiryDays: user.expiryDays, createdAt: user.createdAt
       });
   }
