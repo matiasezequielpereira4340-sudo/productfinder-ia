@@ -585,6 +585,57 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 .v13-m-item .v13-mi-h{color:var(--text);font-weight:700;font-size:.9rem;margin-bottom:4px}
 .v13-m-item .v13-mi-t{color:var(--text-dim);font-size:.82rem;line-height:1.4}
 @media(max-width:520px){.v13-m-grid{grid-template-columns:1fr}}
+
+/* === v14 — Refresh visual moderno (glow, gradientes premium, animaciones) === */
+@keyframes v14pop { 0%{transform:translateY(14px) scale(.985); opacity:0;} 100%{transform:translateY(0) scale(1); opacity:1;} }
+@keyframes v14glow { 0%,100%{box-shadow:0 0 0 rgba(212,175,55,0);} 50%{box-shadow:0 0 22px rgba(212,175,55,.28);} }
+@keyframes v14shine { 0%{background-position:-200% 0;} 100%{background-position:200% 0;} }
+@keyframes v14float { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-3px);} }
+
+.v14-reveal{ opacity:0; }
+.v14-reveal.v14-in{ animation: v14pop .55s cubic-bezier(.2,.7,.3,1) forwards; }
+
+/* Cards del analizador: hover con elevacion y glow suave */
+#marketScreen div[style*="border"], #marketScreen div[style*="radius"]{
+  transition: transform .25s cubic-bezier(.2,.7,.3,1), box-shadow .25s ease, border-color .25s ease;
+}
+#marketScreen div[style*="border-left"]:hover{
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px rgba(0,0,0,.45);
+}
+
+/* Veredicto: mas presencia, con leve latido de glow */
+#marketScreen [class*="verdict"], #marketScreen div:first-child > div[style*="NO RECOMENDADO"],
+#marketScreen div[style*="rgba(220"], #marketScreen div[style*="rgba(76,175"]{
+  animation: v14glow 3.2s ease-in-out infinite;
+  backdrop-filter: blur(2px);
+}
+
+/* Score gauge: numero grande con brillo */
+#marketScreen svg text, #marketScreen [class*="score"]{
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,.4));
+}
+
+/* Barras de progreso de factores: gradiente y brillo animado */
+#marketScreen div[style*="linear-gradient"]{
+  background-size: 200% 100% !important;
+  animation: v14shine 3s linear infinite;
+}
+
+/* Botones principales: micro-interaccion */
+#marketScreen button{
+  transition: transform .15s ease, box-shadow .2s ease, filter .2s ease;
+}
+#marketScreen button:hover{ transform: translateY(-2px); filter: brightness(1.06); }
+#marketScreen button:active{ transform: translateY(0) scale(.985); }
+
+/* Iconos de encabezado de card: leve flotacion */
+#marketScreen h3 span:first-child, #marketScreen h4 span:first-child{ display:inline-block; animation: v14float 4s ease-in-out infinite; }
+
+/* Scrollbar mas moderna dentro del analizador */
+#marketScreen ::-webkit-scrollbar{ height:8px; width:8px; }
+#marketScreen ::-webkit-scrollbar-thumb{ background:linear-gradient(180deg,#d4af37,#a8842a); border-radius:8px; }
+
 </style>
 </head>
 <body>
@@ -2618,6 +2669,108 @@ window.addEventListener('DOMContentLoaded',()=>{
   var _sm = typeof showMarket==='function'? showMarket : null;
   if(_sm && !showMarket.__v13m){ window.showMarket=function(){ var o=_sm.apply(this,arguments); setTimeout(function(){ window.__v13method(); },150); return o; }; window.showMarket.__v13m=true; }
   setTimeout(hook,1400); setTimeout(hook,3000);
+})();
+</script>
+
+<script>
+/* === v14 — Refresh visual moderno (contador animado, reveal, glow dinamico) === */
+(function(){
+  if(window.__v14done) return; window.__v14done = true;
+
+  // easing
+  function easeOut(t){ return 1 - Math.pow(1-t, 3); }
+
+  // Anima un numero desde 0 hasta su valor final (solo numeros reales que ya estan en pantalla)
+  function animateNumber(el, to, suffix, dur){
+    suffix = suffix || '';
+    dur = dur || 1100;
+    var start = null;
+    var from = 0;
+    function step(ts){
+      if(!start) start = ts;
+      var p = Math.min((ts-start)/dur, 1);
+      var val = Math.round(from + (to-from)*easeOut(p));
+      el.textContent = val + suffix;
+      if(p < 1) requestAnimationFrame(step);
+      else el.textContent = to + suffix;
+    }
+    requestAnimationFrame(step);
+  }
+
+  // Detecta el numero grande del score (gauge) y lo anima al aparecer
+  function enhanceScore(root){
+    try{
+      var candidates = root.querySelectorAll('[class*="gauge"], .mr-score, svg text, div');
+      // buscamos el texto que sea "NN" solo, dentro del bloque de score de viabilidad
+      var heads = root.querySelectorAll('*');
+      heads.forEach(function(h){
+        if(h.__v14seen) return;
+        var t = (h.textContent||'').trim();
+        // numero puro 0-100, elemento hoja, tamaño grande
+        if(/^\d{1,3}$/.test(t) && h.children.length===0){
+          var n = parseInt(t,10);
+          if(n>=0 && n<=100){
+            var fs = parseFloat(getComputedStyle(h).fontSize)||0;
+            if(fs >= 28){
+              h.__v14seen = true;
+              animateNumber(h, n, '', 1200);
+            }
+          }
+        }
+      });
+    }catch(e){}
+  }
+
+  // Añade clase de aparicion escalonada a las cards del resultado
+  function revealCards(root){
+    var cards = root.querySelectorAll('div');
+    var i = 0;
+    cards.forEach(function(c){
+      if(c.__v14rev) return;
+      var st = getComputedStyle(c);
+      var bg = st.backgroundColor;
+      var border = st.borderLeftWidth;
+      // solo cards con fondo/borde (las tarjetas de factores y secciones)
+      var looksCard = (border && parseFloat(border) >= 3) || (c.style && c.style.borderRadius);
+      if(looksCard && c.offsetHeight > 60 && c.offsetHeight < 700){
+        c.__v14rev = true;
+        c.classList.add('v14-reveal');
+        c.style.animationDelay = Math.min(i*70, 500) + 'ms';
+        i++;
+      }
+    });
+  }
+
+  function run(){
+    var market = document.getElementById('marketScreen') || document.body;
+    enhanceScore(market);
+    revealCards(market);
+  }
+
+  // Observa cambios en la pantalla de analisis para animar cuando aparece el resultado
+  var target = document.getElementById('marketScreen') || document.body;
+  var mo = new MutationObserver(function(){
+    clearTimeout(window.__v14t);
+    window.__v14t = setTimeout(run, 250);
+  });
+  mo.observe(target, {childList:true, subtree:true});
+
+  // Reveal on scroll para elementos con clase v14-reveal
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if(en.isIntersecting){ en.target.classList.add('v14-in'); io.unobserve(en.target); }
+    });
+  }, {threshold:0.12});
+
+  // reconecta el observer a nuevas cards
+  var mo2 = new MutationObserver(function(){
+    document.querySelectorAll('.v14-reveal:not(.v14-io)').forEach(function(el){
+      el.classList.add('v14-io'); io.observe(el);
+    });
+  });
+  mo2.observe(document.body, {childList:true, subtree:true});
+
+  setTimeout(run, 600);
 })();
 </script>
 </body>
