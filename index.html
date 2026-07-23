@@ -2436,7 +2436,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   var _origRMR = null;
   function hookRender(){
     if(typeof renderMRResult==='function' && !renderMRResult.__v9hooked){
-      _origRMR = renderMRResult;if(origRMR&&origRMR.__mrw){return;}
+      _origRMR = renderMRResult;if(renderMRResult.__mrw){return;}
       window.renderMRResult = function(r){ var out=_origRMR.apply(this,arguments); try{
         var md=(typeof mrData!=='undefined')?mrData:null;
         if(md&&md.step4){
