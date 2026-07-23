@@ -1129,7 +1129,7 @@ function drawSavedCharts(item){
       const labels=['FOB','Flete','Aranceles','Despacho','Comisión'];
       const vals=[wd.fob,-wd.flete,-wd.aranceles,-wd.despacho,-wd.comision];
       const colors=vals.map(v=>v>=0?'rgba(39,174,96,0.7)':'rgba(192,57,43,0.7)');
-      window._waterfallChart=new Chart(wfCtx,{type:'bar',data:{labels, datasets:[{data:vals,backgroundColor:colors,borderColor:colors.map(c=>c.replace('0.7','1')),borderWidth:1.5,borderRadius:4,barThickness:28}],options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const v=ctx.parsed.y;return(v>=0?'+':'')+'USD '+Math.abs(v).toFixed(2);}}},annotation:{}}},scales:{x:{ticks:{color:'#8a8070',font:{size:9}},grid:{display:false}},y:{ticks:{color:'#8a8070',font:{size:9},callback:v=>'$'+v},grid:{color:'rgba(255,255,255,0.04)'}}}}});
+      window._waterfallChart=new Chart(wfCtx,{type:'bar',data:{labels, datasets:[{label:'Costos e ingreso (ARS)',data:vals,backgroundColor:colors,borderColor:colors.map(c=>c.replace('0.7','1')),borderWidth:1.5,borderRadius:4,barThickness:28}],options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const v=ctx.parsed.y;return(v>=0?'+':'')+'USD '+Math.abs(v).toFixed(2);}}},annotation:{}}},scales:{x:{ticks:{color:'#8a8070',font:{size:9}},grid:{display:false}},y:{ticks:{color:'#8a8070',font:{size:9},callback:v=>'$'+v},grid:{color:'rgba(255,255,255,0.04)'}}}}});
     }
   }
 }
