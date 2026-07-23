@@ -28,6 +28,7 @@ export default async function handler(req, res) {
         'response_type=code' +
         '&client_id=' + appId +
         '&redirect_uri=' + encodeURIComponent(redirectUri) +
+        '&scope=' + encodeURIComponent('offline_access read') +
         '&state=' + state;
 
   if (req.query.redirect === 'true') {
