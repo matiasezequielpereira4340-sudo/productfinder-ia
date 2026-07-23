@@ -300,25 +300,33 @@ export default async function handler(req, res) {
     const tokenExpired = tk && tk.expired ? true : false;
 
   if (req.body && req.body.probe) {
-    const endpoints = [
-      ['sites_search', 'https://api.mercadolibre.com/sites/MLA/search?q=soporte%20celular&limit=5'],
-      ['highlights_cat', 'https://api.mercadolibre.com/highlights/MLA/category/MLA1055'],
-      ['products_search', 'https://api.mercadolibre.com/products/search?status=active&site_id=MLA&q=soporte%20celular&limit=5'],
-      ['trends_cat', 'https://api.mercadolibre.com/trends/MLA/MLA1055'],
-      ['users_me', 'https://api.mercadolibre.com/users/me'],
-      ['category_MLA1055', 'https://api.mercadolibre.com/categories/MLA1055'],
-      ['domain_search', 'https://api.mercadolibre.com/sites/MLA/domain_discovery/search?limit=5&q=soporte%20celular']
-    ];
-    const out = [];
-    for (const [name, url] of endpoints) {
-      try {
-        const rr = await fetch(url, { headers: token ? { Authorization: 'Bearer ' + token } : {} });
-        let sample = null;
-        try { const jj = await rr.json(); sample = Array.isArray(jj) ? ('array:' + jj.length) : (jj.results ? ('results:' + jj.results.length) : (jj.content ? ('content:' + jj.content.length) : Object.keys(jj).slice(0,6).join(','))); } catch(_) { sample = 'nonjson'; }
-        out.push({ name, status: rr.status, sample });
-      } catch(e) { out.push({ name, error: String(e).slice(0,60) }); }
-    }
-    return res.status(200).json({ probe: true, hasToken: !!token, results: out });
+    const out = {};
+    try {
+      const ps = await fetch('https://api.mercadolibre.com/products/search?status=active&site_id=MLA&q=' + encodeURIComponent('soporte celular') + '&limit=3', { headers: { Authorization: 'Bearer ' + token } });
+      const psj = await ps.json();
+      out.products_search_keys = Object.keys(psj);
+      out.first_result = (psj.results && psj.results[0]) ? psj.results[0] : null;
+      out.paging = psj.paging || null;
+      if (psj.results && psj.results[0] && psj.results[0].id) {
+        const pd = await fetch('https://api.mercadolibre.com/products/' + psj.results[0].id, { headers: { Authorization: 'Bearer ' + token } });
+        const pdj = await pd.json();
+        out.product_detail_keys = Object.keys(pdj);
+        out.buy_box = pdj.buy_box_winner || null;
+        out.pd_price = pdj.price || null;
+      }
+    } catch(e) { out.products_err = String(e).slice(0,80); }
+    try {
+      const tr = await fetch('https://api.mercadolibre.com/trends/MLA/MLA1055', { headers: { Authorization: 'Bearer ' + token } });
+      const trj = await tr.json();
+      out.trends_sample = Array.isArray(trj) ? trj.slice(0,3) : trj;
+    } catch(e) { out.trends_err = String(e).slice(0,80); }
+    try {
+      const cat = await fetch('https://api.mercadolibre.com/categories/MLA1055', { headers: { Authorization: 'Bearer ' + token } });
+      const catj = await cat.json();
+      out.category_total_items = catj.total_items_in_this_category;
+      out.category_name = catj.name;
+    } catch(e) { out.cat_err = String(e).slice(0,80); }
+    return res.status(200).json({ probe2: true, hasToken: !!token, out });
   }
 
 
