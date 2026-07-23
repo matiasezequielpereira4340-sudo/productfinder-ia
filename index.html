@@ -693,6 +693,7 @@ async function doLogin(){
     sessionExpiry=data.expiresAt||null;
     localStorage.setItem('pf_user',user);
     localStorage.setItem('pf_role',currentRole);
+            localStorage.setItem('pf_premium', (data.premium || data.role==='admin') ? '1' : '0');
     if(sessionExpiry)localStorage.setItem('pf_expiry',sessionExpiry);
     showScreen('appScreen');
     setupTopbar(user);
