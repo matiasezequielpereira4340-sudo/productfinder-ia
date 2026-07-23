@@ -303,7 +303,28 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({error: 'Method not allowed'});
   try {
     const { nicho, capital, experiencia, canal, riesgo, user_id } = req.body || {};
-    globalThis.__MS=[]; if (!nicho) return res.status(400).json({error: 'Falta elegir un nicho / seccion'});
+    globalThis.__MS=[]; if (!nicho) return res.status(400)
+ if (req.body && req.body.probe3) {
+    const out = {};
+    try {
+      const ps = await fetch('https://api.mercadolibre.com/products/search?status=active&site_id=MLA&limit=5&q=' + encodeURIComponent('soporte celular escritorio'), { headers: { Authorization: 'Bearer ' + token } });
+      const psj = await ps.json();
+      const cand = (psj.results||[]).slice(0,4);
+      out.candidates = [];
+      for (const c of cand) {
+        const pd = await fetch('https://api.mercadolibre.com/products/' + c.id, { headers: { Authorization: 'Bearer ' + token } });
+        const pj = await pd.json();
+        out.candidates.push({ id: c.id, status: pj.status, buy_box_winner: pj.buy_box_winner, price: pj.price, children: (pj.children_ids||[]).length });
+      }
+      if (cand[0]) {
+        const it = await fetch('https://api.mercadolibre.com/products/' + cand[0].id + '/items', { headers: { Authorization: 'Bearer ' + token } });
+        out.items_status = it.status;
+        try { const ij = await it.json(); out.items_sample = (ij.results||[]).slice(0,2).map(function(x){return {price:x.price, seller:x.seller_id};}); if(!out.items_sample.length) out.items_keys = Object.keys(ij).slice(0,8); } catch(_){ out.items_sample='nonjson'; }
+      }
+    } catch(e) { out.err = String(e).slice(0,100); }
+    return res.status(200).json({ probe3: true, out });
+  }
+.json({error: 'Falta elegir un nicho / seccion'});
     const niche = CATALOGO[nicho] || CATALOGO[String(nicho).toLowerCase()];
     if (!niche) return res.status(400).json({error: 'Nicho no encontrado', nichosDisponibles: Object.keys(CATALOGO)});
 
