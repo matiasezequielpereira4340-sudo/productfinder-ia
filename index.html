@@ -462,6 +462,30 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 .v7-errcard li:before{content:'\2713';position:absolute;left:0;color:var(--gold);font-weight:700}
 .v7-errcard .v7-retry{background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#000;border:none;border-radius:10px;padding:12px 26px;font-weight:700;cursor:pointer;font-size:.92rem}
 .v7-errcard .v7-retry:hover{opacity:.88}
+
+/* ===== v8: onboarding + resumen de resultados ===== */
+.v8-summary{grid-column:1/-1;background:linear-gradient(135deg,rgba(201,168,76,.14),rgba(201,168,76,.04));border:1px solid var(--gold-dim);border-radius:14px;padding:20px 22px;margin-bottom:12px;animation:v7in .35s ease}
+.v8-summary h3{color:var(--gold);font-size:1.15rem;margin:0 0 6px;display:flex;align-items:center;gap:8px}
+.v8-summary .v8-sub{color:var(--text-dim);font-size:.88rem;margin-bottom:14px;line-height:1.4}
+.v8-stats{display:flex;flex-wrap:wrap;gap:22px}
+.v8-stat{min-width:90px}
+.v8-stat .v8-n{color:var(--text);font-size:1.5rem;font-weight:800;line-height:1}
+.v8-stat .v8-l{color:var(--text-dim);font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;margin-top:4px}
+.v8-top{margin-top:14px;padding-top:14px;border-top:1px solid rgba(201,168,76,.2);color:var(--text);font-size:.92rem}
+.v8-top strong{color:var(--gold)}
+.v8-ob-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(3px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;animation:v7in .3s ease}
+.v8-ob{background:var(--dark-3);border:1px solid var(--gold-dim);border-radius:18px;max-width:480px;width:100%;padding:32px 30px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.v8-ob .v8-ob-badge{display:inline-block;background:rgba(201,168,76,.15);color:var(--gold);font-size:.72rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:5px 12px;border-radius:20px;margin-bottom:14px}
+.v8-ob h2{color:var(--text);font-size:1.5rem;margin:0 0 8px}
+.v8-ob .v8-ob-lead{color:var(--text-dim);font-size:.95rem;margin-bottom:22px;line-height:1.5}
+.v8-ob-steps{text-align:left;margin-bottom:24px}
+.v8-ob-step{display:flex;gap:14px;align-items:flex-start;margin-bottom:16px}
+.v8-ob-step .v8-ob-num{flex:0 0 30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#000;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:.9rem}
+.v8-ob-step .v8-ob-txt{color:var(--text);font-size:.92rem;line-height:1.4}
+.v8-ob-step .v8-ob-txt small{display:block;color:var(--text-dim);font-size:.82rem;margin-top:2px}
+.v8-ob-btn{background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#000;border:none;border-radius:12px;padding:14px 0;width:100%;font-weight:800;font-size:1rem;cursor:pointer}
+.v8-ob-btn:hover{opacity:.9}
+.v8-ob-skip{background:none;border:none;color:var(--text-dim);font-size:.8rem;cursor:pointer;margin-top:12px;text-decoration:underline}
 </style>
 </head>
 <body>
@@ -2130,6 +2154,64 @@ window.addEventListener('DOMContentLoaded',()=>{
   };
   if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',enhanceForm); } else { enhanceForm(); }
   setTimeout(enhanceForm,600); setTimeout(enhanceForm,1500);
+})();
+</script>
+<script>
+/* ===== v8: onboarding 1a vez + resumen post-analisis ===== */
+(function(){
+  function showOnboarding(){
+    try{ if(localStorage.getItem('pf_onboarded')==='1') return; }catch(e){}
+    if(document.querySelector('.v8-ob-overlay')) return;
+    var ov=document.createElement('div'); ov.className='v8-ob-overlay';
+    ov.innerHTML='<div class="v8-ob">'+
+      '<span class="v8-ob-badge">Bienvenido</span>'+
+      '<h2>Tu lectura de mercado en 3 pasos</h2>'+
+      '<div class="v8-ob-lead">No necesit\u00e1s experiencia previa. Te guiamos para que encuentres qu\u00e9 conviene importar, con datos reales de MercadoLibre.</div>'+
+      '<div class="v8-ob-steps">'+
+        '<div class="v8-ob-step"><div class="v8-ob-num">1</div><div class="v8-ob-txt">Defin\u00ed tu perfil<small>Eleg\u00ed capital, experiencia y rubro. Son 5 opciones r\u00e1pidas.</small></div></div>'+
+        '<div class="v8-ob-step"><div class="v8-ob-num">2</div><div class="v8-ob-txt">Analizamos el mercado real<small>Consultamos precios, competencia y saturaci\u00f3n en MercadoLibre.</small></div></div>'+
+        '<div class="v8-ob-step"><div class="v8-ob-num">3</div><div class="v8-ob-txt">Recib\u00eds las oportunidades<small>Productos ordenados por potencial, con el mejor destacado como TOP PICK.</small></div></div>'+
+      '</div>'+
+      '<button class="v8-ob-btn">Empezar \u2192</button>'+
+      '<button class="v8-ob-skip">Ya conozco la app, saltar</button>'+
+    '</div>';
+    function close(){ try{localStorage.setItem('pf_onboarded','1')}catch(e){} ov.remove(); }
+    ov.addEventListener('click',function(e){ if(e.target===ov) close(); });
+    document.body.appendChild(ov);
+    ov.querySelector('.v8-ob-btn').addEventListener('click',close);
+    ov.querySelector('.v8-ob-skip').addEventListener('click',close);
+  }
+  function renderSummary(){
+    var grid=document.getElementById('productsGrid');
+    var d=window.__lastAnalysis; if(!grid||!d) return;
+    var prods=d.products||[]; if(!prods.length) return;
+    var total=prods.length;
+    var withData=prods.filter(function(p){return p.score!=null;}).length;
+    var top=prods.filter(function(p){return p.topPick;})[0]||prods[0];
+    var ex=grid.querySelector('.v8-summary'); if(ex) ex.remove();
+    var el=document.createElement('div'); el.className='v8-summary';
+    el.innerHTML='<h3>\u2728 Encontramos '+total+' oportunidades para tu perfil</h3>'+
+      '<div class="v8-sub">Analizamos productos aptos para tu capital, experiencia y tolerancia al riesgo. Estos son los n\u00fameros reales de este an\u00e1lisis:</div>'+
+      '<div class="v8-stats">'+
+      '<div class="v8-stat"><div class="v8-n">'+total+'</div><div class="v8-l">Productos analizados</div></div>'+
+      '<div class="v8-stat"><div class="v8-n">'+withData+'</div><div class="v8-l">Con datos reales de mercado</div></div>'+
+      '</div>'+
+      (top?'<div class="v8-top">\ud83c\udfc6 Tu mejor oportunidad ahora: <strong>'+top.nombre+'</strong>'+(top.riesgo?' \u00b7 riesgo '+String(top.riesgo).toLowerCase():'')+'. Est\u00e1 primera en la lista de abajo.</div>':'');
+    grid.insertBefore(el, grid.firstChild);
+  }
+  // Observe the products grid: when cards get rendered, add the summary
+  function watchGrid(){
+    var grid=document.getElementById('productsGrid'); if(!grid) return;
+    var mo=new MutationObserver(function(){
+      if(window.__lastAnalysis && grid.querySelector('.product-card') && !grid.querySelector('.v8-summary')){
+        renderSummary();
+      }
+    });
+    mo.observe(grid,{childList:true});
+  }
+  function init(){ showOnboarding(); watchGrid(); }
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',init); } else { init(); }
+  setTimeout(init,800);
 })();
 </script>
 </body>
