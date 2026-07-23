@@ -299,6 +299,29 @@ export default async function handler(req, res) {
     const token = tk && tk.token ? tk.token : null;
     const tokenExpired = tk && tk.expired ? true : false;
 
+  if (req.body && req.body.probe) {
+    const endpoints = [
+      ['sites_search', 'https://api.mercadolibre.com/sites/MLA/search?q=soporte%20celular&limit=5'],
+      ['highlights_cat', 'https://api.mercadolibre.com/highlights/MLA/category/MLA1055'],
+      ['products_search', 'https://api.mercadolibre.com/products/search?status=active&site_id=MLA&q=soporte%20celular&limit=5'],
+      ['trends_cat', 'https://api.mercadolibre.com/trends/MLA/MLA1055'],
+      ['users_me', 'https://api.mercadolibre.com/users/me'],
+      ['category_MLA1055', 'https://api.mercadolibre.com/categories/MLA1055'],
+      ['domain_search', 'https://api.mercadolibre.com/sites/MLA/domain_discovery/search?limit=5&q=soporte%20celular']
+    ];
+    const out = [];
+    for (const [name, url] of endpoints) {
+      try {
+        const rr = await fetch(url, { headers: token ? { Authorization: 'Bearer ' + token } : {} });
+        let sample = null;
+        try { const jj = await rr.json(); sample = Array.isArray(jj) ? ('array:' + jj.length) : (jj.results ? ('results:' + jj.results.length) : (jj.content ? ('content:' + jj.content.length) : Object.keys(jj).slice(0,6).join(','))); } catch(_) { sample = 'nonjson'; }
+        out.push({ name, status: rr.status, sample });
+      } catch(e) { out.push({ name, error: String(e).slice(0,60) }); }
+    }
+    return res.status(200).json({ probe: true, hasToken: !!token, results: out });
+  }
+
+
     const productos = [];
     const lista = niche.productos;
     for (let i=0; i<lista.length; i+=5) {
