@@ -550,6 +550,17 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 .v11-cl .v11-dot{width:12px;height:12px;border-radius:3px;flex:0 0 auto}
 .v11-cl b{color:var(--text);margin-left:auto}
 @media(max-width:520px){.v11-cost-legend{grid-template-columns:1fr}}
+
+/* ===== v12 TANDA3: CTA asesoría + compartir ===== */
+.v12-cta{margin-top:18px;background:linear-gradient(135deg,rgba(201,168,76,.16),rgba(201,168,76,.05));border:1px solid var(--gold);border-radius:14px;padding:20px 22px;text-align:center}
+.v12-cta h4{color:var(--gold);font-size:1.1rem;margin:0 0 6px}
+.v12-cta p{color:var(--text-dim);font-size:.9rem;margin:0 0 16px;line-height:1.45}
+.v12-cta-btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.v12-btn{border:none;border-radius:10px;padding:13px 22px;font-weight:800;font-size:.92rem;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px}
+.v12-btn-wa{background:#25D366;color:#fff}
+.v12-btn-wa:hover{opacity:.9}
+.v12-btn-share{background:var(--dark-4);color:var(--text);border:1px solid var(--gold-dim)}
+.v12-btn-share:hover{border-color:var(--gold)}
 </style>
 </head>
 <body>
@@ -2487,6 +2498,57 @@ window.addEventListener('DOMContentLoaded',()=>{
   }
   function hook(){ wrap('__v9render'); wrap('__v9fallback'); if(typeof renderMRResult==='function'){ wrap('renderMRResult'); } }
   setTimeout(hook,1000); setTimeout(hook,2500);
+})();
+</script>
+<script>
+/* ===== v12 TANDA3: CTA contextual a asesoría + compartir imagen ===== */
+(function(){
+  window.__v12build=function(){
+    var md=(typeof mrData!=='undefined')?mrData:null;
+    if(!md||!md.step4) return;
+    var s4=md.step4, margenPct=s4.margenPct, prod=md.product||'tu producto';
+    var container=document.querySelector('.v9-reco')||document.getElementById('mrAnalysisText');
+    if(!container) return;
+    var ex=document.querySelector('.v12-cta'); if(ex) ex.remove();
+    var head,sub;
+    if(margenPct<0){ head='\u00bfQuer\u00e9s que lo hagamos rentable juntos?'; sub='Este producto hoy no cierra, pero muchas veces se arregla con el proveedor correcto o ajustando la estrategia. En una asesor\u00eda lo vemos en detalle.'; }
+    else if(margenPct<15){ head='\u00bfLo afinamos para asegurar el margen?'; sub='Est\u00e1s cerca. Con la estrategia de precio y proveedor correctos, este producto puede rendir mucho m\u00e1s. Te ayudo en una asesor\u00eda.'; }
+    else { head='\u00bfListo para importarlo bien?'; sub='Buen candidato. En una asesor\u00eda te acompa\u00f1o en el proceso completo: proveedor, log\u00edstica y publicaci\u00f3n para que no falles en el primer intento.'; }
+    var waMsg=encodeURIComponent('Hola Mati! Analic\u00e9 "'+prod+'" en la app y quiero una asesor\u00eda para avanzar.');
+    var cta=document.createElement('div'); cta.className='v12-cta';
+    cta.innerHTML='<h4>'+head+'</h4><p>'+sub+'</p><div class="v12-cta-btns"><a class="v12-btn v12-btn-wa" href="https://wa.me/541160374306?text='+waMsg+'" target="_blank" rel="noopener">\ud83d\udcac Pedir asesor\u00eda</a><button class="v12-btn v12-btn-share" id="v12share">\ud83d\udcf7 Compartir resultado</button></div>';
+    container.insertAdjacentElement('afterend', cta);
+    var sb=document.getElementById('v12share'); if(sb) sb.onclick=function(){ window.__v12shareImg(); };
+  };
+  window.__v12shareImg=function(){
+    var md=(typeof mrData!=='undefined')?mrData:null; if(!md||!md.step4) return;
+    var s4=md.step4, margenPct=s4.margenPct, prod=md.product||'Producto', score=s4.scoreReponderado||0;
+    var verd=margenPct<0?'NO CONVIENE':(margenPct<15?'CONVIENE CON CONDICIONES':'CONVIENE');
+    var vcol=margenPct<0?'#e74c3c':(margenPct<15?'#C9A84C':'#2ecc71');
+    var W=1080,H=1080, c=document.createElement('canvas'); c.width=W; c.height=H; var x=c.getContext('2d');
+    x.fillStyle='#0a0a0a'; x.fillRect(0,0,W,H);
+    x.strokeStyle='#C9A84C'; x.lineWidth=6; x.strokeRect(30,30,W-60,H-60);
+    x.textAlign='center';
+    x.fillStyle='#C9A84C'; x.font='bold 52px Segoe UI, sans-serif'; x.fillText('LECTURA DE MERCADO',W/2,130);
+    x.fillStyle='#9a9a9a'; x.font='28px Segoe UI, sans-serif'; x.fillText('An\u00e1lisis de viabilidad para importar',W/2,175);
+    x.fillStyle='#e8e0d0'; x.font='bold 40px Segoe UI, sans-serif';
+    var words=prod.split(' '), line='', ly=290;
+    words.forEach(function(w){ if((line+w).length>26){ x.fillText(line,W/2,ly); line=w+' '; ly+=52; } else line+=w+' '; });
+    x.fillText(line.trim(),W/2,ly);
+    x.fillStyle=vcol; x.font='bold 64px Segoe UI, sans-serif'; x.fillText(verd,W/2,500);
+    x.beginPath(); x.arc(W/2,700,120,Math.PI*0.75,Math.PI*0.75+(score/100)*Math.PI*1.5); x.strokeStyle=vcol; x.lineWidth=20; x.stroke();
+    x.beginPath(); x.arc(W/2,700,120,Math.PI*0.75+(score/100)*Math.PI*1.5,Math.PI*0.25); x.strokeStyle='#2a2a2a'; x.lineWidth=20; x.stroke();
+    x.fillStyle='#e8e0d0'; x.font='bold 70px Segoe UI, sans-serif'; x.fillText(score,W/2,715);
+    x.fillStyle='#9a9a9a'; x.font='24px Segoe UI, sans-serif'; x.fillText('de 100',W/2,755);
+    x.fillStyle=margenPct<0?'#e74c3c':'#2ecc71'; x.font='bold 44px Segoe UI, sans-serif'; x.fillText('Margen: '+margenPct+'%',W/2,900);
+    x.fillStyle='#C9A84C'; x.font='26px Segoe UI, sans-serif'; x.fillText('Analiz\u00e1 tu pr\u00f3ximo producto \u00b7 asesor\u00edas disponibles',W/2,990);
+    var url=c.toDataURL('image/png');
+    var a=document.createElement('a'); a.href=url; a.download='analisis-'+prod.replace(/[^a-z0-9]/gi,'-').toLowerCase().substring(0,30)+'.png';
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+  function wrap(name){ if(typeof window[name]==='function' && !window[name].__v12){ var orig=window[name]; window[name]=function(){ var o=orig.apply(this,arguments); setTimeout(window.__v12build,160); return o; }; window[name].__v12=true; } }
+  function hook(){ wrap('__v9render'); wrap('__v9fallback'); }
+  setTimeout(hook,1200); setTimeout(hook,2800);
 })();
 </script>
 </body>
