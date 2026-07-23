@@ -2773,5 +2773,71 @@ window.addEventListener('DOMContentLoaded',()=>{
   setTimeout(run, 600);
 })();
 </script>
+
+<script>
+/* === v15 — Dibuja los graficos tambien cuando corre el fallback (Tendencia/Precios/Rentabilidad) === */
+(function(){
+  if(window.__v15done) return; window.__v15done=true;
+
+  function buildChartData(){
+    try{
+      if(typeof mrData==='undefined' || !mrData) return null;
+      var s1=mrData.step1||{}, s2=mrData.step2||{}, s4=mrData.step4||null;
+      var monthly=(s1.monthlyData&&s1.monthlyData.length)? s1.monthlyData.map(function(d){return d.valor;}) : null;
+      var meli=[ (s2.precioMinARS||0), (s2.precioPromedioARS||0), (s2.precioMaxARS||0) ];
+      var wf = s4 ? {
+        fob:s4.fobARS, flete:s4.fleteARS, seguro:s4.seguroARS, aranceles:s4.arancelesARS,
+        despacho:s4.despachoARS, empaque:s4.empaqueARS, logistica:s4.logisticaARS, full:s4.fullARS,
+        comision:s4.comisionMeLiARS, iva:s4.ivaARS, iibb:s4.iibbARS, margen:s4.margenARS
+      } : null;
+      return { trendData: monthly, meliData: meli, waterfallData: wf };
+    }catch(e){ return null; }
+  }
+
+  function drawCharts(){
+    try{
+      if(typeof window.drawSavedCharts!=='function') return;
+      var cd=buildChartData();
+      if(!cd) return;
+      window.drawSavedCharts({ chartData: cd });
+    }catch(e){}
+  }
+
+  // Envolver __v9fallback para dibujar los graficos despues de que arme el resultado
+  function hookFallback(){
+    if(typeof window.__v9fallback==='function' && !window.__v9fallback.__v15){
+      var orig=window.__v9fallback;
+      if(orig.__v15){ return; }
+      window.__v9fallback=function(){
+        var r=orig.apply(this,arguments);
+        setTimeout(drawCharts, 60);
+        setTimeout(drawCharts, 400);
+        return r;
+      };
+      try{ window.__v9fallback.__v15=true; window.__v9fallback.__mrw=1; }catch(e){}
+    }
+  }
+  hookFallback();
+  setTimeout(hookFallback, 1500);
+
+  // Red de seguridad: si tras un analisis quedan canvas vacios, dibujar
+  var t=null;
+  var mo=new MutationObserver(function(){
+    clearTimeout(t);
+    t=setTimeout(function(){
+      try{
+        var cvs=document.querySelectorAll('#marketScreen canvas');
+        if(!cvs.length) return;
+        var trend=document.getElementById('trendsChart');
+        if(trend && (typeof Chart==='undefined' || !Chart.getChart || !Chart.getChart(trend))){
+          drawCharts();
+        }
+      }catch(e){}
+    }, 500);
+  });
+  var target=document.getElementById('marketScreen')||document.body;
+  mo.observe(target,{childList:true,subtree:true});
+})();
+</script>
 </body>
 </html>
