@@ -2436,7 +2436,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   var _origRMR = null;
   function hookRender(){
     if(typeof renderMRResult==='function' && !renderMRResult.__v9hooked){
-      _origRMR = renderMRResult;
+      _origRMR = renderMRResult;if(origRMR&&origRMR.__mrw){return;}
       window.renderMRResult = function(r){ var out=_origRMR.apply(this,arguments); try{
         var md=(typeof mrData!=='undefined')?mrData:null;
         if(md&&md.step4){
@@ -2445,7 +2445,7 @@ window.addEventListener('DOMContentLoaded',()=>{
           if(window.__v9render) window.__v9render(md);
         }
       }catch(e){} return out; };
-      window.renderMRResult.__v9hooked=true;
+      window.renderMRResult.__v9hooked=true;try{renderMRResult.__mrw=1}catch(e){}
     }
   }
   setTimeout(hookRender,800); setTimeout(hookRender,2000);
