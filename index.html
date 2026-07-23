@@ -523,6 +523,33 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 .v10-q-note{background:rgba(201,168,76,.08);border:1px solid var(--gold-dim);border-radius:9px;padding:9px 12px;font-size:.78rem;color:var(--text-dim);line-height:1.4;margin-top:12px}
 .v10-help{display:block;color:var(--text-dim);font-size:.7rem;margin-top:4px;opacity:.75;line-height:1.3}
 @media(max-width:520px){.v10-q-grid{grid-template-columns:1fr}}
+
+/* ===== v11 TANDA2: simulador + costos ===== */
+.v11-sim{margin-top:18px;background:#0f0f0f;border:1px solid var(--gold-dim);border-radius:14px;padding:20px 22px;animation:v7in .35s ease}
+.v11-sim h4{color:var(--gold);font-size:1.05rem;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+.v11-sim .v11-sub{color:var(--text-dim);font-size:.83rem;margin-bottom:16px}
+.v11-sim-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.v11-price{color:var(--text);font-size:1.6rem;font-weight:800}
+.v11-badge{padding:4px 12px;border-radius:20px;font-size:.8rem;font-weight:800}
+.v11-badge.b-no{background:rgba(192,57,43,.18);color:#e74c3c}
+.v11-badge.b-cond{background:rgba(201,168,76,.18);color:var(--gold)}
+.v11-badge.b-si{background:rgba(39,174,96,.18);color:#2ecc71}
+.v11-slider{width:100%;-webkit-appearance:none;appearance:none;height:8px;border-radius:5px;outline:none;margin:14px 0 8px}
+.v11-slider::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;border-radius:50%;background:var(--gold);cursor:pointer;border:3px solid #000;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.v11-slider::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:var(--gold);cursor:pointer;border:3px solid #000}
+.v11-metrics{display:flex;gap:20px;flex-wrap:wrap;margin-top:12px}
+.v11-metric .v11-mn{font-size:1.15rem;font-weight:800;color:var(--text)}
+.v11-metric .v11-ml{font-size:.72rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px}
+.v11-hint{font-size:.78rem;color:var(--text-dim);margin-top:12px;line-height:1.4;background:rgba(201,168,76,.06);border-radius:8px;padding:8px 12px}
+.v11-costs{margin-top:18px;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:14px;padding:20px 22px}
+.v11-costs h4{color:var(--gold);font-size:1.05rem;margin:0 0 14px;display:flex;align-items:center;gap:8px}
+.v11-cost-bar{display:flex;height:34px;border-radius:8px;overflow:hidden;margin-bottom:14px}
+.v11-cost-seg{height:100%;min-width:2px}
+.v11-cost-legend{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.v11-cl{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--text-dim)}
+.v11-cl .v11-dot{width:12px;height:12px;border-radius:3px;flex:0 0 auto}
+.v11-cl b{color:var(--text);margin-left:auto}
+@media(max-width:520px){.v11-cost-legend{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -2402,6 +2429,64 @@ window.addEventListener('DOMContentLoaded',()=>{
   var _origShowMarket = typeof showMarket==='function'? showMarket : null;
   if(_origShowMarket){ window.showMarket=function(){ var o=_origShowMarket.apply(this,arguments); setTimeout(buildTanda1,100); return o; }; }
   setTimeout(buildTanda1,900); setTimeout(buildTanda1,2000);
+})();
+</script>
+<script>
+/* ===== v11 TANDA2: simulador de precio + desglose de costos ===== */
+(function(){
+  window.__v11build=function(){
+    var md=(typeof mrData!=='undefined')?mrData:null;
+    if(!md||!md.step4) return;
+    var s4=md.step4, nf=new Intl.NumberFormat('es-AR');
+    var venta0=s4.venta||0;
+    var variable=(s4.comisionMeLiARS||0)+(s4.ivaARS||0)+(s4.iibbARS||0);
+    var fixed=(s4.fobARS||0)+(s4.fleteARS||0)+(s4.seguroARS||0)+(s4.arancelesARS||0)+(s4.despachoARS||0)+(s4.empaqueARS||0)+(s4.logisticaARS||0)+(s4.fullARS||0);
+    var varRate=venta0>0?variable/venta0:0.39;
+    var ventasMes=s4.ventas||0;
+    function calc(p){ var m=p-fixed-p*varRate; return {marginARS:Math.round(m), marginPct:Math.round(m/p*100), mesARS:Math.round(m*ventasMes)}; }
+    var at=document.getElementById('mrAnalysisText'); if(!at) return;
+    var exS=document.querySelector('.v11-sim'); if(exS) exS.remove();
+    var exC=document.querySelector('.v11-costs'); if(exC) exC.remove();
+    var min=Math.max(Math.round(fixed/(1-varRate)/100)*100,100);
+    var max=Math.round(venta0*2.2/100)*100; if(max<=min) max=min+ (venta0||1000);
+    var sim=document.createElement('div'); sim.className='v11-sim';
+    sim.innerHTML='<h4>\ud83c\udf9a\ufe0f Simulador de precio</h4><div class="v11-sub">Mov\u00e9 el precio de venta y mir\u00e1 c\u00f3mo cambia tu ganancia en tiempo real.</div>'+
+      '<div class="v11-sim-row"><span class="v11-price" id="v11price">$'+nf.format(venta0)+'</span><span class="v11-badge" id="v11badge">\u2014</span></div>'+
+      '<input type="range" class="v11-slider" id="v11slider" min="'+min+'" max="'+max+'" step="100" value="'+venta0+'">'+
+      '<div class="v11-metrics"><div class="v11-metric"><div class="v11-mn" id="v11mUnit">\u2014</div><div class="v11-ml">Ganancia por unidad</div></div><div class="v11-metric"><div class="v11-mn" id="v11mPct">\u2014</div><div class="v11-ml">Margen</div></div><div class="v11-metric"><div class="v11-mn" id="v11mMes">\u2014</div><div class="v11-ml">Ganancia mensual estimada</div></div></div>'+
+      '<div class="v11-hint" id="v11hint"></div>';
+    at.insertAdjacentElement('afterend', sim);
+    function update(p){
+      var c=calc(p);
+      document.getElementById('v11price').textContent='$'+nf.format(p);
+      var mu=document.getElementById('v11mUnit'); mu.textContent=(c.marginARS<0?'-':'')+'$'+nf.format(Math.abs(c.marginARS)); mu.style.color=c.marginARS<0?'#e74c3c':(c.marginPct<15?'var(--gold)':'#2ecc71');
+      document.getElementById('v11mPct').textContent=c.marginPct+'%';
+      document.getElementById('v11mMes').textContent=(c.mesARS<0?'-':'')+'$'+nf.format(Math.abs(c.mesARS));
+      var b=document.getElementById('v11badge');
+      if(c.marginPct<0){ b.className='v11-badge b-no'; b.textContent='\u274c No conviene'; document.getElementById('v11hint').textContent='A este precio perd\u00e9s plata en cada venta.'; }
+      else if(c.marginPct<15){ b.className='v11-badge b-cond'; b.textContent='\u26a0\ufe0f Ajustado'; document.getElementById('v11hint').textContent='Deja ganancia pero es poca. Un margen del 25% o m\u00e1s es m\u00e1s seguro.'; }
+      else { b.className='v11-badge b-si'; b.textContent='\u2705 Conviene'; document.getElementById('v11hint').textContent='Buen margen. A este precio el producto es rentable.'; }
+    }
+    var sl=document.getElementById('v11slider');
+    sl.oninput=function(){ update(parseFloat(this.value)); };
+    sl.style.background='linear-gradient(90deg,#c0392b,#C9A84C,#27ae60)';
+    update(venta0);
+    var items=[{k:'Producto (FOB)',v:s4.fobARS||0,c:'#C9A84C'},{k:'Flete + seguro',v:(s4.fleteARS||0)+(s4.seguroARS||0),c:'#b8860b'},{k:'Aranceles + despacho',v:(s4.arancelesARS||0)+(s4.despachoARS||0),c:'#8e6f2e'},{k:'Comisi\u00f3n ML',v:s4.comisionMeLiARS||0,c:'#5a9bd4'},{k:'IVA + IIBB',v:(s4.ivaARS||0)+(s4.iibbARS||0),c:'#c0392b'},{k:'Log\u00edstica + empaque',v:(s4.logisticaARS||0)+(s4.empaqueARS||0)+(s4.fullARS||0),c:'#7f8c8d'}].filter(function(x){return x.v>0;});
+    var totalCost=items.reduce(function(a,x){return a+x.v;},0)||1;
+    var costs=document.createElement('div'); costs.className='v11-costs';
+    costs.innerHTML='<h4>\ud83d\udcb8 A d\u00f3nde va cada peso</h4><div class="v11-cost-bar">'+items.map(function(it){return '<div class="v11-cost-seg" style="width:'+(it.v/totalCost*100)+'%;background:'+it.c+'"></div>';}).join('')+'</div><div class="v11-cost-legend">'+items.map(function(it){return '<div class="v11-cl"><span class="v11-dot" style="background:'+it.c+'"></span>'+it.k+'<b>$'+nf.format(Math.round(it.v))+'</b></div>';}).join('')+'</div>';
+    sim.insertAdjacentElement('afterend', costs);
+  };
+  // hook into v9 render + fallback so it always appears after a result
+  function wrap(name){
+    if(typeof window[name]==='function' && !window[name].__v11){
+      var orig=window[name];
+      window[name]=function(){ var o=orig.apply(this,arguments); setTimeout(window.__v11build,120); return o; };
+      window[name].__v11=true;
+    }
+  }
+  function hook(){ wrap('__v9render'); wrap('__v9fallback'); if(typeof renderMRResult==='function'){ wrap('renderMRResult'); } }
+  setTimeout(hook,1000); setTimeout(hook,2500);
 })();
 </script>
 </body>
