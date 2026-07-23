@@ -82,7 +82,7 @@ export default async function handler(req, res) {
                         expired: false,
                         createdAt: null,
                         expiresAt: null,
-                        meli_connected: false,
+                        meli_connected: false, premium: true,
             };
             const users = [adminEntry, ...stored.map(u => ({
                         id: u.username,
@@ -92,7 +92,7 @@ export default async function handler(req, res) {
                         expired: isExpired(u),
                         createdAt: u.createdAt,
                         expiresAt: u.expiresAt,
-                        meli_connected: u.meli_connected || false,
+                        meli_connected: u.meli_connected || false, premium: u.premium || false,
             }))];
             return res.status(200).json({ users });
   }
