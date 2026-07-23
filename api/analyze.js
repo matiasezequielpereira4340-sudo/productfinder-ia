@@ -199,14 +199,27 @@ async function getMeliToken(userId){
 async function meliSearch(query, token){
   if(!token) return null;
   try{
-    const url = 'https://api.mercadolibre.com/sites/MLA/search?limit=50&q=' + encodeURIComponent(query);
+    // ML bloqueo la busqueda generica /sites/MLA/search (403). Usamos el catalogo de productos,
+    // que si funciona con token de usuario: trae competencia real (paging.total) y precio real (buy_box).
+    const url = 'https://api.mercadolibre.com/products/search?status=active&site_id=MLA&limit=10&q=' + encodeURIComponent(query);
     const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
-    if(!r.ok){ try{ (globalThis.__MELI_DBG=globalThis.__MELI_DBG||[]).push({q:query, status:r.status}); }catch(_){}; return null; }
+    if(!r.ok) return null;
     const j = await r.json();
-    if(!j.results){ try{ (globalThis.__MELI_DBG=globalThis.__MELI_DBG||[]).push({q:query, noResults:true, keys:Object.keys(j)}); }catch(_){}; return null; }
-    const precios = j.results.map(x=>x.price).filter(p=>typeof p==='number' && p>0);
-    const sellers = new Set(j.results.map(x=>x.seller && x.seller.id).filter(Boolean));
-    return { precios, sellers: sellers.size, total: (j.paging && j.paging.total) || j.results.length };
+    if(!j.results || !j.results.length) return null;
+    const total = (j.paging && j.paging.total) || j.results.length;
+    const ids = j.results.slice(0, 5).map(function(x){ return x.id; }).filter(Boolean);
+    const precios = [];
+    for(const id of ids){
+      try{
+        const pr = await fetch('https://api.mercadolibre.com/products/' + id, { headers: { Authorization: 'Bearer ' + token } });
+        if(!pr.ok) continue;
+        const pj = await pr.json();
+        const p = pj && pj.buy_box_winner && typeof pj.buy_box_winner.price === 'number' ? pj.buy_box_winner.price : null;
+        if(p && p > 0) precios.push(p);
+      }catch(_){/* seguir */}
+    }
+    const sellers = j.results.length;
+    return { precios: precios, sellers: sellers, total: total };
   }catch(e){ return null; }
 }
 
@@ -290,7 +303,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({error: 'Method not allowed'});
   try {
     const { nicho, capital, experiencia, canal, riesgo, user_id } = req.body || {};
-    globalThis.__MELI_DBG=[]; if (!nicho) return res.status(400).json({error: 'Falta elegir un nicho / seccion'});
+    if (!nicho) return res.status(400).json({error: 'Falta elegir un nicho / seccion'});
     const niche = CATALOGO[nicho] || CATALOGO[String(nicho).toLowerCase()];
     if (!niche) return res.status(400).json({error: 'Nicho no encontrado', nichosDisponibles: Object.keys(CATALOGO)});
 
@@ -298,37 +311,6 @@ export default async function handler(req, res) {
     const tk = await getMeliToken(user_id);
     const token = tk && tk.token ? tk.token : null;
     const tokenExpired = tk && tk.expired ? true : false;
-
-  if (req.body && req.body.probe) {
-    const out = {};
-    try {
-      const ps = await fetch('https://api.mercadolibre.com/products/search?status=active&site_id=MLA&q=' + encodeURIComponent('soporte celular') + '&limit=3', { headers: { Authorization: 'Bearer ' + token } });
-      const psj = await ps.json();
-      out.products_search_keys = Object.keys(psj);
-      out.first_result = (psj.results && psj.results[0]) ? psj.results[0] : null;
-      out.paging = psj.paging || null;
-      if (psj.results && psj.results[0] && psj.results[0].id) {
-        const pd = await fetch('https://api.mercadolibre.com/products/' + psj.results[0].id, { headers: { Authorization: 'Bearer ' + token } });
-        const pdj = await pd.json();
-        out.product_detail_keys = Object.keys(pdj);
-        out.buy_box = pdj.buy_box_winner || null;
-        out.pd_price = pdj.price || null;
-      }
-    } catch(e) { out.products_err = String(e).slice(0,80); }
-    try {
-      const tr = await fetch('https://api.mercadolibre.com/trends/MLA/MLA1055', { headers: { Authorization: 'Bearer ' + token } });
-      const trj = await tr.json();
-      out.trends_sample = Array.isArray(trj) ? trj.slice(0,3) : trj;
-    } catch(e) { out.trends_err = String(e).slice(0,80); }
-    try {
-      const cat = await fetch('https://api.mercadolibre.com/categories/MLA1055', { headers: { Authorization: 'Bearer ' + token } });
-      const catj = await cat.json();
-      out.category_total_items = catj.total_items_in_this_category;
-      out.category_name = catj.name;
-    } catch(e) { out.cat_err = String(e).slice(0,80); }
-    return res.status(200).json({ probe2: true, hasToken: !!token, out });
-  }
-
 
     const productos = [];
     const lista = niche.productos;
@@ -365,7 +347,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       nicho: nicho, nichoLabel: niche.label, icon: niche.icon, usdArs: usdArs,
       totalEvaluados: productos.length, conDatoReal: conDato,
-      meliConectado: !!token, meliTokenExpirado: tokenExpired, __debug: (globalThis.__MELI_DBG||[]).slice(0,15), __tokenSample: token ? (String(token).slice(0,9)) : null,
+      meliConectado: !!token, meliTokenExpirado: tokenExpired,
       products: filtrados,
       disclaimer: 'Precios y competencia: datos reales de la API de MercadoLibre (requiere tu cuenta de ML conectada). Costos de importacion: rango ESTIMADO por categoria. Margen = (precio de venta menos costo estimado con +35% de logistica/impuestos) / costo.'
     });
