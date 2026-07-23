@@ -427,6 +427,19 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 @media(max-width:640px){.app-title{font-size:2rem!important}.topbar{flex-wrap:wrap;gap:8px}.product-stats{grid-template-columns:1fr 1fr!important}.contact-buttons{flex-direction:column}}
 
 /* ==== v4 PREMIUM UI END ==== */
+
+
+/* ==== v5 FREEMIUM GATE ==== */
+.v5-locked{position:relative;}
+.v5-locked>*{filter:blur(6px);opacity:.55;pointer-events:none;user-select:none;}
+.v5-lock-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:20px;border-radius:20px;background:linear-gradient(180deg,rgba(15,13,11,.4),rgba(15,13,11,.85));border:1px solid rgba(201,168,76,.35);z-index:5;}
+.v5-lock-icon{font-size:2rem;filter:none;}
+.v5-lock-title{font-weight:800;font-size:1.05rem;color:#f3d98a;}
+.v5-lock-sub{font-size:.85rem;color:#c9c4bb;max-width:230px;line-height:1.4;}
+.v5-lock-btn{margin-top:4px;display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:100px;font-weight:800;font-size:.9rem;color:#0a0a0a;background:linear-gradient(135deg,#f3d98a,#C9A84C);box-shadow:0 8px 24px rgba(201,168,76,.4);text-decoration:none;transition:.2s;cursor:pointer;border:none;}
+.v5-lock-btn:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(201,168,76,.55);}
+.v5-freebar{max-width:900px;margin:0 auto 6px;padding:12px 18px;border-radius:14px;font-size:.9rem;color:#f3d98a;background:linear-gradient(90deg,rgba(201,168,76,.14),rgba(201,168,76,.05));border:1px solid rgba(201,168,76,.3);display:flex;align-items:center;gap:10px;justify-content:center;text-align:center;}
+
 </style>
 </head>
 <body>
@@ -1986,6 +1999,59 @@ window.addEventListener('DOMContentLoaded',()=>{
   }
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){watch();heroBadge();});}
   else{watch();heroBadge();}
+})();
+</script>
+
+
+<script>
+/* ===== v5 Freemium gate (additive) ===== */
+(function(){
+  var FREE_LIMIT = 3;
+  function isPremium(){
+    try{ return localStorage.getItem('pf_premium')==='1'; }catch(e){ return false; }
+  }
+  function applyGate(){
+    if(isPremium()) return;
+    var grid = document.querySelector('.products-grid');
+    if(!grid) return;
+    var cards = grid.querySelectorAll('.product-card');
+    if(cards.length <= FREE_LIMIT) return;
+    if(grid.getAttribute('data-v5gated')==='1') return;
+    grid.setAttribute('data-v5gated','1');
+    // free-tier banner above the grid
+    var hdr = document.querySelector('.results-header');
+    if(hdr && !document.querySelector('.v5-freebar')){
+      var bar=document.createElement('div');
+      bar.className='v5-freebar';
+      bar.innerHTML='\uD83C\uDD93 Est\u00e1s viendo la <b style="margin:0 4px">versi\u00f3n gratuita</b> \u2014 mostramos '+FREE_LIMIT+' de '+cards.length+' productos. Los clientes de asesor\u00eda acceden a todos.';
+      hdr.parentNode.insertBefore(bar, hdr.nextSibling);
+    }
+    // wrap locked cards
+    for(var i=FREE_LIMIT;i<cards.length;i++){
+      (function(card){
+        card.classList.add('v5-locked');
+        if(card.querySelector('.v5-lock-overlay')) return;
+        var ov=document.createElement('div');
+        ov.className='v5-lock-overlay';
+        ov.innerHTML='<div class="v5-lock-icon">\uD83D\uDD12</div>'+
+          '<div class="v5-lock-title">Producto reservado para clientes</div>'+
+          '<div class="v5-lock-sub">Desbloque\u00e1 los '+cards.length+' productos, la rentabilidad detallada y el acompa\u00f1amiento contratando la asesor\u00eda.</div>'+
+          '<button class="v5-lock-btn" type="button">\uD83D\uDE80 Reserv\u00e1 tu asesor\u00eda</button>';
+        card.appendChild(ov);
+        ov.querySelector('.v5-lock-btn').addEventListener('click',function(){
+          var cs=document.querySelector('.contact-section');
+          if(cs) cs.scrollIntoView({behavior:'smooth',block:'center'});
+        });
+      })(cards[i]);
+    }
+  }
+  var g=document.querySelector('.products-grid');
+  function watchGate(){
+    var grid=document.querySelector('.products-grid');
+    if(grid){ new MutationObserver(function(){ setTimeout(applyGate,60); }).observe(grid,{childList:true}); applyGate(); }
+    else setTimeout(watchGate,400);
+  }
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',watchGate);}else{watchGate();}
 })();
 </script>
 </body>
