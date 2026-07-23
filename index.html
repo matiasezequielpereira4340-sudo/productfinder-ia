@@ -636,6 +636,18 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 #marketScreen ::-webkit-scrollbar{ height:8px; width:8px; }
 #marketScreen ::-webkit-scrollbar-thumb{ background:linear-gradient(180deg,#d4af37,#a8842a); border-radius:8px; }
 
+
+/* v18: pulido visual home (product cards) */
+@keyframes v18up{from{opacity:0;transform:translateY(22px) scale(.97);}to{opacity:1;transform:none;}}
+@keyframes v18glow{0%,100%{box-shadow:0 0 0 1px var(--gold),0 0 18px rgba(201,168,76,.25);}50%{box-shadow:0 0 0 1px var(--gold),0 0 30px rgba(201,168,76,.55);}}
+.product-card.v18-reveal{opacity:0;}
+.product-card.v18-in{animation:v18up .55s cubic-bezier(.2,.7,.3,1) both;}
+.product-card{transition:transform .25s ease, box-shadow .25s ease;}
+.product-card:hover{transform:translateY(-4px);box-shadow:0 10px 28px rgba(0,0,0,.35);}
+.product-card.top-pick{animation:v18glow 2.6s ease-in-out infinite;}
+.v18-est{color:var(--gold);font-style:italic;opacity:.92;}
+.v18-estbadge{display:inline-block;font-size:.62rem;letter-spacing:.04em;background:rgba(201,168,76,.16);color:var(--gold);border:1px solid rgba(201,168,76,.35);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
+.top-badge{animation:v18glow 2.2s ease-in-out infinite;}
 </style>
 </head>
 <body>
@@ -702,7 +714,7 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
       <div class="chat-input-row"><input type="text" id="chatInput" placeholder="Escribí tu consulta..." onkeydown="if(event.key==='Enter')sendChat()"><button class="btn-send" onclick="sendChat()">Enviar</button></div>
     </div>
     <div class="contact-section">
-      <h3>¿Necesás asesoramiento personalizado?</h3>
+      <h3>¿Necesitás asesoramiento personalizado?</h3>
       <p>Contactános y te ayudamos a planificar tu próxima importación</p>
       <div class="contact-buttons"><a class="btn-wa" href="https://wa.me/541160374306" target="_blank">💬 WhatsApp</a><a class="btn-is" href="https://matiasezequielpereira4340-sudo.github.io/InnovaSmart/" target="_blank">🌐 InnovaSmart</a></div>
     </div>
@@ -975,8 +987,8 @@ function renderResults(data){
   const nf = new Intl.NumberFormat('es-AR');
   let banner = '';
   if(!data.meliConectado){
-    const motivo = data.meliTokenExpirado ? 'tu conexion con MercadoLibre expiro' : 'no tenes MercadoLibre conectado';
-    banner = '<div class="ml-banner" style="grid-column:1/-1;background:rgba(201,168,76,.12);border:1px solid var(--gold);border-radius:10px;padding:14px 16px;margin-bottom:8px;color:var(--text)"><strong>\u26a0\ufe0f Precios estimados:</strong> como '+motivo+', mostramos los productos ordenados por su potencial (peso, margen esperado y estacionalidad), pero <strong>sin precios de venta reales</strong>. Conecta tu cuenta para ver precio, competencia y saturacion reales de cada producto. <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">Conectar MercadoLibre \u2192</a></div>';
+    const motivo = data.meliTokenExpirado ? 'tu conexión con MercadoLibre expiró' : 'no tenés MercadoLibre conectado';
+    banner = '<div class="ml-banner" style="grid-column:1/-1;background:rgba(201,168,76,.12);border:1px solid var(--gold);border-radius:10px;padding:14px 16px;margin-bottom:8px;color:var(--text)"><strong>\u26a0\ufe0f Precios estimados:</strong> como '+motivo+', mostramos los productos ordenados por su potencial (peso, margen esperado y estacionalidad), pero <strong>sin precios de venta reales</strong>. Conecta tu cuenta para ver precio, competencia y saturación reales de cada producto. <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">Conectar MercadoLibre \u2192</a></div>';
   } else {
     banner = '<div class="ml-banner" style="grid-column:1/-1;background:rgba(39,174,96,.12);border:1px solid var(--green);border-radius:10px;padding:12px 16px;margin-bottom:8px;color:var(--text)">\u2705 Datos reales de MercadoLibre. Analizamos <strong>'+data.totalEvaluados+'</strong> productos, <strong>'+data.conDatoReal+'</strong> con datos de mercado en vivo. Cotizacion usada: 1 USD \u2248 $'+nf.format(data.usdArs)+'.</div>';
   }
@@ -2851,6 +2863,47 @@ window.addEventListener('DOMContentLoaded',()=>{
   });
   var target=document.getElementById('marketScreen')||document.body;
   mo.observe(target,{childList:true,subtree:true});
+})();
+</script>
+
+<script>
+/* v18: pulido visual + estimados honestos en tarjetas de la home */
+(function(){
+  if(window.__v18done) return; window.__v18done=true;
+  function nota(card){ var n=card.querySelector('.product-nota')||card.querySelector('.nota'); if(n) return (n.textContent||'').toLowerCase(); var t=card.textContent||''; return t.toLowerCase(); }
+  function estDemanda(txt){
+    if(/alta demanda|alta rotaci|tendencia|viral|en alza|home office|recompra alta/.test(txt)) return 'Alta';
+    if(/consumible|recompra|barato|masivo/.test(txt)) return 'Media-Alta';
+    if(/nicho|especi|gamer|premium/.test(txt)) return 'Media';
+    return 'Media';
+  }
+  function estSat(txt){
+    if(/saturad|much[ao] compet|clasico|cl\u00e1sico/.test(txt)) return 'Alta';
+    if(/diminuto|alto margen|nuevo|innovador|poco vist/.test(txt)) return 'Baja-Media';
+    return 'Media';
+  }
+  function fillEstimates(card){
+    var txt=nota(card);
+    var stats=card.querySelectorAll('.stat');
+    stats.forEach(function(st){
+      var l=st.querySelector('.stat-l'); var v=st.querySelector('.stat-v');
+      if(!l||!v) return; var ln=(l.textContent||'').toLowerCase(); var vv=(v.textContent||'').trim();
+      if(vv!=='A validar' && vv!=='\u2014') return;
+      if(v.getAttribute('data-v18')) return;
+      if(/demanda/.test(ln)){ v.innerHTML='<span class=\'v18-est\'>'+estDemanda(txt)+'</span><span class=\'v18-estbadge\'>est.</span>'; v.setAttribute('data-v18','1'); }
+      else if(/satura/.test(ln)){ v.innerHTML='<span class=\'v18-est\'>'+estSat(txt)+'</span><span class=\'v18-estbadge\'>est.</span>'; v.setAttribute('data-v18','1'); }
+    });
+  }
+  var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('v18-in'); io.unobserve(e.target); } }); }, {threshold:.12});
+  function enhance(){
+    var cards=document.querySelectorAll('.product-card');
+    cards.forEach(function(c){
+      if(!c.__v18){ c.__v18=true; c.classList.add('v18-reveal'); io.observe(c); fillEstimates(c); }
+    });
+  }
+  var grid=document.getElementById('productsGrid');
+  if(grid){ var mo=new MutationObserver(function(){ setTimeout(enhance,30); }); mo.observe(grid,{childList:true,subtree:true}); }
+  setTimeout(enhance,300); setTimeout(enhance,1200);
 })();
 </script>
 </body>
