@@ -561,6 +561,30 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 .v12-btn-wa:hover{opacity:.9}
 .v12-btn-share{background:var(--dark-4);color:var(--text);border:1px solid var(--gold-dim)}
 .v12-btn-share:hover{border-color:var(--gold)}
+
+/* ===== v13 TANDA4: comparador + método ===== */
+.v13-addcmp{margin-top:12px}
+.v13-btn-add{width:100%;background:var(--dark-4);color:var(--text);border:1px dashed var(--gold-dim);border-radius:10px;padding:12px;font-weight:700;cursor:pointer;font-size:.9rem}
+.v13-btn-add:hover{border-color:var(--gold);border-style:solid}
+.v13-cmp{margin-top:18px;background:#0f0f0f;border:1px solid var(--gold-dim);border-radius:14px;padding:18px 20px}
+.v13-cmp h4{color:var(--gold);font-size:1.05rem;margin:0 0 4px;display:flex;justify-content:space-between;align-items:center}
+.v13-cmp .v13-clear{background:none;border:none;color:var(--text-dim);font-size:.78rem;cursor:pointer;text-decoration:underline}
+.v13-cmp .v13-csub{color:var(--text-dim);font-size:.82rem;margin-bottom:14px}
+.v13-cmp-table{width:100%;border-collapse:collapse;font-size:.85rem}
+.v13-cmp-table th,.v13-cmp-table td{padding:9px 10px;text-align:left;border-bottom:1px solid #222}
+.v13-cmp-table th{color:var(--text-dim);font-weight:600;font-size:.75rem;text-transform:uppercase}
+.v13-cmp-table td{color:var(--text)}
+.v13-cmp-prod{font-weight:700;color:var(--gold)}
+.v13-cmp-v{font-weight:800}
+.v13-cmp-x{color:var(--text-dim);cursor:pointer;float:right}
+.v13-method{margin:26px 0;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:14px;padding:22px 24px}
+.v13-method h3{color:var(--gold);font-size:1.15rem;margin:0 0 6px;display:flex;align-items:center;gap:8px}
+.v13-method .v13-m-sub{color:var(--text-dim);font-size:.85rem;margin-bottom:16px}
+.v13-m-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.v13-m-item{background:rgba(255,255,255,.02);border-radius:10px;padding:14px}
+.v13-m-item .v13-mi-h{color:var(--text);font-weight:700;font-size:.9rem;margin-bottom:4px}
+.v13-m-item .v13-mi-t{color:var(--text-dim);font-size:.82rem;line-height:1.4}
+@media(max-width:520px){.v13-m-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -2549,6 +2573,51 @@ window.addEventListener('DOMContentLoaded',()=>{
   function wrap(name){ if(typeof window[name]==='function' && !window[name].__v12){ var orig=window[name]; window[name]=function(){ var o=orig.apply(this,arguments); setTimeout(window.__v12build,160); return o; }; window[name].__v12=true; } }
   function hook(){ wrap('__v9render'); wrap('__v9fallback'); }
   setTimeout(hook,1200); setTimeout(hook,2800);
+})();
+</script>
+<script>
+/* ===== v13 TANDA4: comparador + historial + cómo leemos ===== */
+(function(){
+  window.__v13add=function(){
+    var md=(typeof mrData!=='undefined')?mrData:null; if(!md||!md.step4) return;
+    var s4=md.step4, list=[]; try{ list=JSON.parse(localStorage.getItem('pf_compare')||'[]'); }catch(e){}
+    var entry={ prod: md.product||'Producto', score: s4.scoreReponderado||0, margenPct: s4.margenPct, margenARS: Math.round(s4.margenARS||0), venta: s4.venta, ts: Date.now() };
+    if(!list.some(function(x){return x.prod===entry.prod;})){ list.push(entry); if(list.length>4) list.shift(); localStorage.setItem('pf_compare', JSON.stringify(list)); }
+    window.__v13render();
+  };
+  window.__v13render=function(){
+    var list=[]; try{ list=JSON.parse(localStorage.getItem('pf_compare')||'[]'); }catch(e){}
+    var ex=document.querySelector('.v13-cmp'); if(ex) ex.remove();
+    if(list.length<1) return;
+    var nf=new Intl.NumberFormat('es-AR');
+    var anchor=document.querySelector('.v12-cta')||document.querySelector('.v9-reco'); if(!anchor) return;
+    var el=document.createElement('div'); el.className='v13-cmp';
+    el.innerHTML='<h4>\u2696\ufe0f Comparaci\u00f3n de productos <button class="v13-clear" id="v13clear">Limpiar</button></h4><div class="v13-csub">Guard\u00e1 varios an\u00e1lisis y compar\u00e1 cu\u00e1l conviene m\u00e1s.</div><table class="v13-cmp-table"><thead><tr><th>Producto</th><th>Score</th><th>Margen</th><th>Ganancia/u</th></tr></thead><tbody>'+
+      list.map(function(x,i){ var col=x.margenPct<0?'#e74c3c':(x.margenPct<15?'#C9A84C':'#2ecc71'); return '<tr><td class="v13-cmp-prod">'+x.prod+' <span class="v13-cmp-x" data-i="'+i+'">\u2715</span></td><td class="v13-cmp-v" style="color:'+col+'">'+x.score+'</td><td class="v13-cmp-v" style="color:'+col+'">'+x.margenPct+'%</td><td>'+(x.margenARS<0?'-':'')+'$'+nf.format(Math.abs(x.margenARS))+'</td></tr>'; }).join('')+'</tbody></table>';
+    anchor.insertAdjacentElement('afterend', el);
+    var cb=document.getElementById('v13clear'); if(cb) cb.onclick=function(){ localStorage.removeItem('pf_compare'); window.__v13render(); };
+    el.querySelectorAll('.v13-cmp-x').forEach(function(b){ b.onclick=function(){ var l=[]; try{l=JSON.parse(localStorage.getItem('pf_compare')||'[]');}catch(e){} l.splice(parseInt(this.dataset.i),1); localStorage.setItem('pf_compare',JSON.stringify(l)); window.__v13render(); }; });
+  };
+  window.__v13button=function(){
+    var cta=document.querySelector('.v12-cta'); if(!cta) return;
+    if(cta.querySelector('.v13-btn-add')) return;
+    var wrap=document.createElement('div'); wrap.className='v13-addcmp';
+    wrap.innerHTML='<button class="v13-btn-add" id="v13addbtn">\u2795 Agregar a comparaci\u00f3n</button>';
+    cta.appendChild(wrap);
+    document.getElementById('v13addbtn').onclick=function(){ window.__v13add(); this.textContent='\u2713 Agregado a comparaci\u00f3n'; };
+  };
+  window.__v13method=function(){
+    if(document.querySelector('.v13-method')) return;
+    var screen=document.getElementById('marketScreen'); if(!screen) return;
+    var el=document.createElement('div'); el.className='v13-method';
+    el.innerHTML='<h3>\ud83d\udd0e C\u00f3mo leemos el mercado</h3><div class="v13-m-sub">No inventamos n\u00fameros. Cada veredicto sale de datos reales y c\u00e1lculos transparentes.</div><div class="v13-m-grid"><div class="v13-m-item"><div class="v13-mi-h">\ud83d\udcc8 Demanda real</div><div class="v13-mi-t">Miramos tendencia y estacionalidad del rubro en Argentina, no corazonadas.</div></div><div class="v13-m-item"><div class="v13-mi-h">\ud83c\udfea Competencia</div><div class="v13-mi-t">Evaluamos cu\u00e1ntos venden lo mismo. Cuando ML no da datos, lo decimos \u2014 no estimamos a ciegas.</div></div><div class="v13-m-item"><div class="v13-mi-h">\ud83d\udcb0 Margen con TODOS los costos</div><div class="v13-mi-t">FOB, flete, aranceles, IVA, IIBB, comisi\u00f3n ML y log\u00edstica. El margen que ves es el real.</div></div><div class="v13-m-item"><div class="v13-mi-h">\u2696\ufe0f Regulaci\u00f3n</div><div class="v13-mi-t">Consideramos restricciones e intervenciones que puedan complicar la importaci\u00f3n.</div></div></div>';
+    screen.appendChild(el);
+  };
+  function wrap(name){ if(typeof window[name]==='function' && !window[name].__v13){ var orig=window[name]; window[name]=function(){ var o=orig.apply(this,arguments); setTimeout(function(){ window.__v13button(); window.__v13render(); },200); return o; }; window[name].__v13=true; } }
+  function hook(){ wrap('__v12build'); wrap('__v9render'); wrap('__v9fallback'); window.__v13method(); window.__v13render(); }
+  var _sm = typeof showMarket==='function'? showMarket : null;
+  if(_sm && !showMarket.__v13m){ window.showMarket=function(){ var o=_sm.apply(this,arguments); setTimeout(function(){ window.__v13method(); },150); return o; }; window.showMarket.__v13m=true; }
+  setTimeout(hook,1400); setTimeout(hook,3000);
 })();
 </script>
 </body>
