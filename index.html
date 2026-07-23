@@ -2566,9 +2566,9 @@ window.addEventListener('DOMContentLoaded',()=>{
   // hook into v9 render + fallback so it always appears after a result
   function wrap(name){
     if(typeof window[name]==='function' && !window[name].__v11){
-      var orig=window[name];
+      var orig=window[name];if(orig&&orig.__mrw){return;}
       window[name]=function(){ var o=orig.apply(this,arguments); setTimeout(window.__v11build,120); return o; };
-      window[name].__v11=true;
+      window[name].__v11=true;try{window[name].__mrw=1}catch(e){};
     }
   }
   function hook(){ wrap('__v9render'); wrap('__v9fallback'); if(typeof renderMRResult==='function'){ wrap('renderMRResult'); } }
@@ -2621,7 +2621,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     var a=document.createElement('a'); a.href=url; a.download='analisis-'+prod.replace(/[^a-z0-9]/gi,'-').toLowerCase().substring(0,30)+'.png';
     document.body.appendChild(a); a.click(); a.remove();
   };
-  function wrap(name){ if(typeof window[name]==='function' && !window[name].__v12){ var orig=window[name]; window[name]=function(){ var o=orig.apply(this,arguments); setTimeout(window.__v12build,160); return o; }; window[name].__v12=true; } }
+  function wrap(name){ if(typeof window[name]==='function' && !window[name].__v12){ var orig=window[name];if(orig&&orig.__mrw){return;} window[name]=function(){ var o=orig.apply(this,arguments); setTimeout(window.__v12build,160); return o; }; window[name].__v12=true;try{window[name].__mrw=1}catch(e){}; } }
   function hook(){ wrap('__v9render'); wrap('__v9fallback'); }
   setTimeout(hook,1200); setTimeout(hook,2800);
 })();
@@ -2664,7 +2664,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     el.innerHTML='<h3>\ud83d\udd0e C\u00f3mo leemos el mercado</h3><div class="v13-m-sub">No inventamos n\u00fameros. Cada veredicto sale de datos reales y c\u00e1lculos transparentes.</div><div class="v13-m-grid"><div class="v13-m-item"><div class="v13-mi-h">\ud83d\udcc8 Demanda real</div><div class="v13-mi-t">Miramos tendencia y estacionalidad del rubro en Argentina, no corazonadas.</div></div><div class="v13-m-item"><div class="v13-mi-h">\ud83c\udfea Competencia</div><div class="v13-mi-t">Evaluamos cu\u00e1ntos venden lo mismo. Cuando ML no da datos, lo decimos \u2014 no estimamos a ciegas.</div></div><div class="v13-m-item"><div class="v13-mi-h">\ud83d\udcb0 Margen con TODOS los costos</div><div class="v13-mi-t">FOB, flete, aranceles, IVA, IIBB, comisi\u00f3n ML y log\u00edstica. El margen que ves es el real.</div></div><div class="v13-m-item"><div class="v13-mi-h">\u2696\ufe0f Regulaci\u00f3n</div><div class="v13-mi-t">Consideramos restricciones e intervenciones que puedan complicar la importaci\u00f3n.</div></div></div>';
     screen.appendChild(el);
   };
-  function wrap(name){ if(typeof window[name]==='function' && !window[name].__v13){ var orig=window[name]; window[name]=function(){ var o=orig.apply(this,arguments); setTimeout(function(){ window.__v13button(); window.__v13render(); },200); return o; }; window[name].__v13=true; } }
+  function wrap(name){ if(typeof window[name]==='function' && !window[name].__v13){ var orig=window[name];if(orig&&orig.__mrw){return;} window[name]=function(){ var o=orig.apply(this,arguments); setTimeout(function(){ window.__v13button(); window.__v13render(); },200); return o; }; window[name].__v13=true;try{window[name].__mrw=1}catch(e){}; } }
   function hook(){ wrap('__v12build'); wrap('__v9render'); wrap('__v9fallback'); window.__v13method(); window.__v13render(); }
   var _sm = typeof showMarket==='function'? showMarket : null;
   if(_sm && !showMarket.__v13m){ window.showMarket=function(){ var o=_sm.apply(this,arguments); setTimeout(function(){ window.__v13method(); },150); return o; }; window.showMarket.__v13m=true; }
