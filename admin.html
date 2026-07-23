@@ -246,6 +246,7 @@
                       <div style="display:flex;gap:6px">
                         <button class="btn btn-ghost btn-sm" onclick="verDashboard('${u.username}')" title="Ver dashboard">📊</button>
                         <button class="btn btn-ghost btn-sm" onclick="toggleUsuario('${u.username}',${u.active})" title="${u.active ? 'Desactivar' : 'Activar'}">${u.active ? '🔒' : '🔓'}</button>
+                        <button class="btn btn-ghost btn-sm" onclick="togglePremium('${u.username}',${!!u.premium})" title="${u.premium ? 'Quitar acceso completo' : 'Dar acceso completo (asesoria)'}" style="${u.premium ? 'color:#C9A84C' : ''}">${u.premium ? '⭐' : '☆'}</button>
                         <button class="btn btn-red btn-sm" onclick="eliminarUsuario('${u.username}')" title="Eliminar">🗑</button>
                       </div>
                     </td>
@@ -322,6 +323,19 @@
   // -----------------------------------------------
   // Eliminar usuario
   // -----------------------------------------------
+  async function togglePremium(username, current) {
+    try {
+      await fetch('/api/users?id=' + encodeURIComponent(username), {
+        method: 'PATCH',
+        headers: {'Content-Type':'application/json','x-admin-key': ADMIN_KEY},
+        body: JSON.stringify({ premium: !current })
+      });
+      cargarClientes();
+    } catch(e) {
+      alert('Error: ' + e.message);
+    }
+  }
+
   async function eliminarUsuario(username) {
     if (!confirm(`¿Eliminar al usuario "${username}"? Esta accion no se puede deshacer.`)) return;
     try {
