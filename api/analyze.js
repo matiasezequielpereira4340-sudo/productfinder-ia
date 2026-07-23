@@ -187,7 +187,7 @@ async function getMeliToken(userId){
   try{
     const url = SUPA_URL + '/rest/v1/meli_tokens?user_id=eq.' + encodeURIComponent(userId) + '&select=access_token,expires_at';
     const r = await fetch(url, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY } });
-    if(!r.ok) return null;
+    if(!r.ok){ try{(globalThis.__MS=globalThis.__MS||[]).push({q:query,searchStatus:r.status});}catch(_){}; return null; }
     const rows = await r.json();
     if(!Array.isArray(rows) || rows.length === 0) return null;
     const row = rows[0];
@@ -205,7 +205,7 @@ async function meliSearch(query, token){
     const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
     if(!r.ok) return null;
     const j = await r.json();
-    if(!j.results || !j.results.length) return null;
+    try{(globalThis.__MS=globalThis.__MS||[]).push({q:query,searchStatus:r.status,results:(j.results||[]).length,total:(j.paging&&j.paging.total)});}catch(_){}; if(!j.results || !j.results.length) return null;
     const total = (j.paging && j.paging.total) || j.results.length;
     const ids = j.results.slice(0, 5).map(function(x){ return x.id; }).filter(Boolean);
     const precios = [];
@@ -218,7 +218,7 @@ async function meliSearch(query, token){
         if(p && p > 0) precios.push(p);
       }catch(_){/* seguir */}
     }
-    const sellers = j.results.length;
+    try{(globalThis.__MS=globalThis.__MS||[]).push({q:query,pricesFound:precios.length,ids:ids.length});}catch(_){}; const sellers = j.results.length;
     return { precios: precios, sellers: sellers, total: total };
   }catch(e){ return null; }
 }
@@ -303,7 +303,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({error: 'Method not allowed'});
   try {
     const { nicho, capital, experiencia, canal, riesgo, user_id } = req.body || {};
-    if (!nicho) return res.status(400).json({error: 'Falta elegir un nicho / seccion'});
+    globalThis.__MS=[]; if (!nicho) return res.status(400).json({error: 'Falta elegir un nicho / seccion'});
     const niche = CATALOGO[nicho] || CATALOGO[String(nicho).toLowerCase()];
     if (!niche) return res.status(400).json({error: 'Nicho no encontrado', nichosDisponibles: Object.keys(CATALOGO)});
 
@@ -347,7 +347,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       nicho: nicho, nichoLabel: niche.label, icon: niche.icon, usdArs: usdArs,
       totalEvaluados: productos.length, conDatoReal: conDato,
-      meliConectado: !!token, meliTokenExpirado: tokenExpired,
+      meliConectado: !!token, meliTokenExpirado: tokenExpired, __ms:(globalThis.__MS||[]).slice(0,20),
       products: filtrados,
       disclaimer: 'Precios y competencia: datos reales de la API de MercadoLibre (requiere tu cuenta de ML conectada). Costos de importacion: rango ESTIMADO por categoria. Margen = (precio de venta menos costo estimado con +35% de logistica/impuestos) / costo.'
     });
