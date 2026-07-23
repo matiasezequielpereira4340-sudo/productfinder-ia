@@ -504,6 +504,25 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 .v9-factor-why{margin-top:8px;color:var(--text-dim);font-size:.82rem;line-height:1.4;border-top:1px solid rgba(255,255,255,.06);padding-top:8px}
 .v9-note{margin-top:14px;background:var(--dark-3);border:1px solid #4a3b1e;border-left:4px solid var(--gold);border-radius:12px;padding:14px 16px;color:var(--text-dim);font-size:.88rem;line-height:1.45}
 .v9-note b{color:var(--gold)}
+
+/* ===== v10 TANDA1: modo rápido + ayudas ===== */
+.v10-modebar{display:flex;gap:8px;margin-bottom:16px;background:var(--dark-4);border-radius:12px;padding:5px}
+.v10-modebtn{flex:1;border:none;background:transparent;color:var(--text-dim);padding:10px;border-radius:9px;font-weight:700;font-size:.9rem;cursor:pointer;transition:.2s}
+.v10-modebtn.active{background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#000}
+.v10-quick{background:#0f0f0f;border:1px solid var(--gold-dim);border-radius:12px;padding:18px 20px;margin-bottom:16px}
+.v10-quick h3{color:var(--gold);font-size:1.05rem;margin:0 0 4px}
+.v10-quick .v10-q-sub{color:var(--text-dim);font-size:.85rem;margin-bottom:16px;line-height:1.4}
+.v10-q-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.v10-q-grid .v10-q-full{grid-column:1/-1}
+.v10-q-field label{display:block;color:var(--text-dim);font-size:.8rem;margin-bottom:5px}
+.v10-q-field input{width:100%;background:var(--dark-4);border:1px solid #333;border-radius:9px;padding:11px 12px;color:var(--text);font-size:.95rem;outline:none}
+.v10-q-field input:focus{border-color:var(--gold)}
+.v10-q-field small{display:block;color:var(--text-dim);font-size:.72rem;margin-top:3px;opacity:.75}
+.v10-q-btn{width:100%;background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#000;border:none;border-radius:10px;padding:14px;font-weight:800;font-size:1rem;cursor:pointer}
+.v10-q-btn:hover{opacity:.9}.v10-q-btn:disabled{opacity:.6;cursor:default}
+.v10-q-note{background:rgba(201,168,76,.08);border:1px solid var(--gold-dim);border-radius:9px;padding:9px 12px;font-size:.78rem;color:var(--text-dim);line-height:1.4;margin-top:12px}
+.v10-help{display:block;color:var(--text-dim);font-size:.7rem;margin-top:4px;opacity:.75;line-height:1.3}
+@media(max-width:520px){.v10-q-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -2317,6 +2336,72 @@ window.addEventListener('DOMContentLoaded',()=>{
     }
   }
   setTimeout(hookRender,800); setTimeout(hookRender,2000);
+})();
+</script>
+<script>
+/* ===== v10 TANDA1: Analizador — modo rápido + ayudas ===== */
+(function(){
+  window.__quickRun=async function(product,fob,precio,ventas){
+    document.getElementById('mrProductInput').value=product;
+    if(typeof startMRAnalysis==='function') startMRAnalysis();
+    var tries=0;
+    while(tries<40){ await new Promise(function(r){setTimeout(r,400);}); if(typeof mrData!=='undefined'&&mrData.step1&&mrData.step2) break; tries++; }
+    if(typeof mrData==='undefined'||!mrData.step1) return {ok:false};
+    if(typeof resetMRGuidedStep==='function') resetMRGuidedStep(3);
+    await new Promise(function(r){setTimeout(r,150);});
+    var tv=document.getElementById('mrTiktokViews'); if(tv) tv.value='';
+    var ta=document.getElementById('mrTiktokArg'); if(ta) ta.value='pocos';
+    if(typeof confirmMRStep3==='function') confirmMRStep3();
+    if(typeof resetMRGuidedStep==='function') resetMRGuidedStep(4);
+    await new Promise(function(r){setTimeout(r,150);});
+    var f=document.getElementById('mrFOB'); if(f) f.value=fob;
+    var vs=document.getElementById('mrVentas'); if(vs) vs.value=ventas;
+    var pv=document.getElementById('mrPrecioVenta'); if(pv) pv.value=precio;
+    if(typeof confirmMRStep4==='function') confirmMRStep4();
+    await new Promise(function(r){setTimeout(r,200);});
+    if(typeof runMRFinalAnalysis==='function') runMRFinalAnalysis();
+    return {ok:true};
+  };
+  function buildTanda1(){
+    var box=document.querySelector('.mr-search-box'); if(!box) return;
+    if(document.querySelector('.v10-modebar')) return;
+    var bar=document.createElement('div'); bar.className='v10-modebar';
+    bar.innerHTML='<button class="v10-modebtn active" id="v10ModeQuick">\u26a1 Modo r\u00e1pido</button><button class="v10-modebtn" id="v10ModeFull">\ud83d\udd0d An\u00e1lisis completo</button>';
+    box.parentNode.insertBefore(bar,box);
+    var q=document.createElement('div'); q.className='v10-quick';
+    q.innerHTML='<h3>\u26a1 An\u00e1lisis r\u00e1pido en 3 datos</h3>'+
+      '<div class="v10-q-sub">Solo lo esencial. Estimamos el resto y lo marcamos como <b>estimado</b> para que despu\u00e9s lo ajustes si quer\u00e9s.</div>'+
+      '<div class="v10-q-grid">'+
+      '<div class="v10-q-field v10-q-full"><label>\u00bfQu\u00e9 producto quer\u00e9s analizar?</label><input id="v10qProd" placeholder="Ej: soporte plegable para celular"><small>Escrib\u00ed el nombre como lo buscar\u00edas en MercadoLibre.</small></div>'+
+      '<div class="v10-q-field"><label>Costo FOB (USD por unidad)</label><input id="v10qFob" type="number" placeholder="Ej: 3.5"><small>Lo que te cuesta en China, por unidad.</small></div>'+
+      '<div class="v10-q-field"><label>Precio de venta en ML (ARS)</label><input id="v10qPrecio" type="number" placeholder="Ej: 12000"><small>A cu\u00e1nto se vende hoy en MercadoLibre.</small></div>'+
+      '<div class="v10-q-field v10-q-full"><label>Ventas por mes (aprox.)</label><input id="v10qVentas" type="number" placeholder="Ej: 120"><small>Cu\u00e1ntas unidades venden por mes los primeros listings. Si no sab\u00e9s, pon\u00e9 un estimado.</small></div>'+
+      '</div>'+
+      '<button class="v10-q-btn" id="v10qGo">Analizar ahora \u2192</button>'+
+      '<div class="v10-q-note">\ud83d\udca1 El resto de par\u00e1metros (tipo de cambio, arancel, env\u00edo) usan valores por defecto razonables. Para m\u00e1xima precisi\u00f3n, us\u00e1 <b>An\u00e1lisis completo</b>.</div>';
+    box.parentNode.insertBefore(q,box);
+    box.style.display='none';
+    var params=document.querySelector('.mr-params'); if(params) params.style.display='none';
+    var qm=document.getElementById('v10ModeQuick'), fm=document.getElementById('v10ModeFull');
+    qm.onclick=function(){ qm.classList.add('active'); fm.classList.remove('active'); q.style.display='block'; box.style.display='none'; if(params) params.style.display='none'; };
+    fm.onclick=function(){ fm.classList.add('active'); qm.classList.remove('active'); q.style.display='none'; box.style.display=''; if(params) params.style.display=''; };
+    document.getElementById('v10qGo').onclick=async function(){
+      var prod=document.getElementById('v10qProd').value.trim();
+      var fob=document.getElementById('v10qFob').value;
+      var precio=document.getElementById('v10qPrecio').value;
+      var ventas=document.getElementById('v10qVentas').value||'100';
+      if(!prod){ alert('Escrib\u00ed qu\u00e9 producto quer\u00e9s analizar'); return; }
+      if(!fob||!precio){ alert('Complet\u00e1 el costo FOB y el precio de venta'); return; }
+      this.textContent='Analizando...'; this.disabled=true;
+      await window.__quickRun(prod,fob,precio,ventas);
+      var b=this; setTimeout(function(){ b.textContent='Analizar ahora \u2192'; b.disabled=false; },4000);
+    };
+    var helps={mrCapital:'Cu\u00e1nto pod\u00e9s invertir. Ajusta las recomendaciones a tu bolsillo.',mrCanal:'D\u00f3nde vender\u00e1s. Cambia comisiones y costos.',mrModalidad:'C\u00f3mo entreg\u00e1s al comprador. Full = ML almacena y env\u00eda; Flex = envi\u00e1s vos.',mrPosicion:'Estrategia de precio frente a la competencia.',mrTipoCambio:'D\u00f3lar que us\u00e1s para tus costos. Actualiz\u00e1 si cambi\u00f3 mucho.',mrNCM:'C\u00f3digo aduanero del producto. "Auto" lo estima seg\u00fan el rubro \u2014 dej\u00e1lo as\u00ed si no lo sab\u00e9s.',mrShipMode:'C\u00f3mo traes desde China. "Auto" usa un 15% sobre FOB como estimaci\u00f3n t\u00edpica.',mrPesoKg:'Peso por unidad. Impacta el flete. Opcional.',mrDiasCap:'Cu\u00e1ntos d\u00edas tu plata queda inmovilizada hasta cobrar. Opcional.',mrTasaCap:'Costo de oportunidad de tu capital por mes. Opcional.'};
+    Object.keys(helps).forEach(function(id){ var el=document.getElementById(id); if(!el) return; var wrap=el.closest('.mr-param'); if(wrap&&!wrap.querySelector('.v10-help')){ var h=document.createElement('small'); h.className='v10-help'; h.textContent=helps[id]; wrap.appendChild(h); } });
+  }
+  var _origShowMarket = typeof showMarket==='function'? showMarket : null;
+  if(_origShowMarket){ window.showMarket=function(){ var o=_origShowMarket.apply(this,arguments); setTimeout(buildTanda1,100); return o; }; }
+  setTimeout(buildTanda1,900); setTimeout(buildTanda1,2000);
 })();
 </script>
 </body>
