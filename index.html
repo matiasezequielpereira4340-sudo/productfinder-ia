@@ -486,6 +486,24 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 .v8-ob-btn{background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#000;border:none;border-radius:12px;padding:14px 0;width:100%;font-weight:800;font-size:1rem;cursor:pointer}
 .v8-ob-btn:hover{opacity:.9}
 .v8-ob-skip{background:none;border:none;color:var(--text-dim);font-size:.8rem;cursor:pointer;margin-top:12px;text-decoration:underline}
+
+/* ===== v9: Analizador claro + veredicto explicado ===== */
+.v9-reco{margin-top:18px;border-radius:14px;padding:20px 22px;border:1px solid;animation:v7in .35s ease}
+.v9-reco.v9-no{background:rgba(192,57,43,.10);border-color:rgba(192,57,43,.5)}
+.v9-reco.v9-cond{background:rgba(201,168,76,.10);border-color:var(--gold-dim)}
+.v9-reco.v9-si{background:rgba(39,174,96,.10);border-color:rgba(39,174,96,.5)}
+.v9-reco h4{font-size:1.1rem;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+.v9-reco.v9-no h4{color:#e74c3c}.v9-reco.v9-cond h4{color:var(--gold)}.v9-reco.v9-si h4{color:#2ecc71}
+.v9-reco .v9-lead{color:var(--text);font-size:.95rem;line-height:1.5;margin-bottom:14px}
+.v9-fix-title{color:var(--text-dim);font-size:.78rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:8px}
+.v9-fixes{display:flex;flex-direction:column;gap:8px}
+.v9-fix{display:flex;gap:10px;align-items:flex-start;background:rgba(255,255,255,.03);border-radius:10px;padding:10px 12px}
+.v9-fix .v9-fi{flex:0 0 auto;font-size:1.05rem}
+.v9-fix .v9-ft{color:var(--text);font-size:.9rem;line-height:1.4}
+.v9-fix .v9-ft b{color:var(--gold)}
+.v9-factor-why{margin-top:8px;color:var(--text-dim);font-size:.82rem;line-height:1.4;border-top:1px solid rgba(255,255,255,.06);padding-top:8px}
+.v9-note{margin-top:14px;background:var(--dark-3);border:1px solid #4a3b1e;border-left:4px solid var(--gold);border-radius:12px;padding:14px 16px;color:var(--text-dim);font-size:.88rem;line-height:1.45}
+.v9-note b{color:var(--gold)}
 </style>
 </head>
 <body>
@@ -1287,9 +1305,11 @@ async function runMRFinalAnalysis(){
     if(!res.ok) throw new Error(r.error||'Error en análisis final');
     renderMRResult(r);
   }catch(e){
-    document.getElementById('mrAnalysisText').textContent='Error al generar el análisis. Revisá tu conexión e intentá de nuevo.';
-    document.getElementById('btnMRAnalyze').disabled=false;
-  }
+        try{ if(typeof window.__v9fallback==='function'){ window.__v9fallback(); } }catch(_e){}
+        var _at=document.getElementById('mrAnalysisText');
+        if(_at){ _at.innerHTML='<div class="v9-note"><b>\ud83d\udca1 An\u00e1lisis inteligente no disponible ahora.</b> Igual calculamos tu veredicto con los n\u00fameros reales que cargaste (arriba). El detalle ampliado con IA no carg\u00f3 esta vez \u2014 prob\u00e1 de nuevo en un momento si quer\u00e9s el texto extendido.</div>'; }
+        var _b=document.getElementById('btnMRAnalyze'); if(_b) _b.disabled=false;
+      }
 }
 
 function renderMRResult(r){
@@ -2212,6 +2232,91 @@ window.addEventListener('DOMContentLoaded',()=>{
   function init(){ showOnboarding(); watchGrid(); }
   if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',init); } else { init(); }
   setTimeout(init,800);
+})();
+</script>
+<script>
+/* ===== v9: Analizador — veredicto local honesto + explicaciones ===== */
+(function(){
+  window.__v9render=function(md){
+    md = md || (typeof mrData!=='undefined'? mrData : null);
+    if(!md || !md.step4) return;
+    var s4=md.step4, nf=new Intl.NumberFormat('es-AR');
+    var venta=s4.venta||0, margenARS=Math.round(s4.margenARS||0), margenPct=s4.margenPct;
+    var variable=(s4.comisionMeLiARS||0)+(s4.ivaARS||0)+(s4.iibbARS||0);
+    var fixed=(s4.fobARS||0)+(s4.fleteARS||0)+(s4.seguroARS||0)+(s4.arancelesARS||0)+(s4.despachoARS||0)+(s4.empaqueARS||0)+(s4.logisticaARS||0)+(s4.fullARS||0);
+    var varRate=venta>0?variable/venta:0.39;
+    function priceFor(t){ return (1-varRate-t)>0? Math.round(fixed/(1-varRate-t)/100)*100 : null; }
+    var p25=priceFor(0.25), be=priceFor(0), tc=s4.tc||1250, fobUSD=s4.fob;
+    var targetFixed=venta*(1-varRate-0.25), fobDeltaARS=fixed-targetFixed, fobNewARS=Math.max(0,(s4.fobARS||0)-fobDeltaARS), fobNewUSD=(fobNewARS/tc).toFixed(2);
+    var cls,icon,title,lead,fixes=[];
+    if(margenPct<0){
+      cls='v9-no'; icon='\u274c'; title='Tal como est\u00e1, NO conviene';
+      lead='Con los n\u00fameros que cargaste, <b>perd\u00e9s $'+nf.format(Math.abs(margenARS))+' por unidad</b> ('+margenPct+'% de margen). Vendiendo a $'+nf.format(venta)+' no cubr\u00eds los costos de importar y vender.';
+      fixes=[{i:'\ud83d\udcb0',t:'Vender m\u00e1s caro: a partir de <b>$'+nf.format(be)+'</b> dej\u00e1s de perder, y con <b>$'+nf.format(p25)+'</b> lograr\u00edas un margen sano del 25%.'},{i:'\ud83c\udfed',t:'Comprar m\u00e1s barato en origen: si consegu\u00eds el FOB a <b>~USD '+fobNewUSD+'</b> (hoy USD '+fobUSD+'), pasar\u00eda a ser rentable al precio actual.'},{i:'\ud83d\udce6',t:'Bajar costos de env\u00edo/despacho: negociar flete o elegir otra modalidad reduce el costo por unidad.'}];
+    } else if(margenPct<15){
+      cls='v9-cond'; icon='\u26a0\ufe0f'; title='Conviene con condiciones';
+      lead='Deja margen ($'+nf.format(margenARS)+' por unidad, '+margenPct+'%), pero es ajustado. Con poco margen, cualquier imprevisto (d\u00f3lar, flete) te puede dejar en cero.';
+      fixes=[{i:'\ud83d\udcb0',t:'Apuntar a <b>$'+nf.format(p25)+'</b> de precio de venta para un margen del 25%, m\u00e1s seguro.'},{i:'\ud83c\udfed',t:'Mejorar el FOB o el volumen de compra para bajar el costo por unidad.'}];
+    } else {
+      cls='v9-si'; icon='\u2705'; title='Conviene traerlo';
+      lead='Los n\u00fameros cierran: <b>$'+nf.format(margenARS)+' de margen por unidad ('+margenPct+'%)</b>. Es un buen candidato para importar.';
+      fixes=[{i:'\ud83d\udcc8',t:'Valid\u00e1 la demanda real revisando ventas de los primeros listings antes de comprar volumen.'},{i:'\ud83d\udd01',t:'Empez\u00e1 con una compra chica para confirmar calidad y tiempos antes de escalar.'}];
+    }
+    var h='<div class="v9-reco '+cls+'"><h4>'+icon+' '+title+'</h4><div class="v9-lead">'+lead+'</div><div class="v9-fix-title">C\u00f3mo hacerlo viable</div><div class="v9-fixes">'+fixes.map(function(f){return '<div class="v9-fix"><span class="v9-fi">'+f.i+'</span><span class="v9-ft">'+f.t+'</span></div>';}).join('')+'</div></div>';
+    var at=document.getElementById('mrAnalysisText');
+    if(at){ var ex=document.querySelector('.v9-reco'); if(ex) ex.remove(); at.insertAdjacentHTML('afterend', h); }
+  };
+  window.__v9fallback=function(){
+    var md=(typeof mrData!=='undefined')? mrData : null;
+    if(!md||!md.step4) return;
+    var s4=md.step4, nf=new Intl.NumberFormat('es-AR');
+    var score=Math.max(0,Math.min(100,s4.scoreReponderado||0));
+    try{
+      var gaugeArc=251, gOffset=gaugeArc-(score/100)*gaugeArc;
+      var gf=document.getElementById('gaugeFill'); if(gf) gf.style.strokeDashoffset=gOffset;
+      var gn=document.getElementById('gaugeNeedle'); if(gn) gn.style.transform='rotate('+(-90+(score/100)*180)+'deg)';
+      var col=score>=65?'#27ae60':score>=40?'#C9A84C':'#c0392b';
+      var gs=document.getElementById('gaugeScore'); if(gs){ gs.textContent=score; gs.setAttribute('fill',col); }
+      var gl=document.getElementById('gaugeLabel'); if(gl) gl.textContent=score>=65?'Viabilidad alta':score>=40?'Viabilidad media':'Viabilidad baja';
+    }catch(e){}
+    var margenPct=s4.margenPct;
+    var verd=margenPct<0?'NO RECOMENDADO':(margenPct<15?'VIABLE CON CONDICIONES':'VIABLE');
+    var vBox=document.getElementById('mrVeredictoBox'), vTitle=document.getElementById('mrVeredictoTitle');
+    if(vBox){ vBox.className='mr-veredicto'; vBox.classList.add(verd==='VIABLE'?'mv-si':verd==='NO RECOMENDADO'?'mv-no':'mv-cond'); }
+    if(vTitle){ vTitle.textContent=(verd==='VIABLE'?'\u2705 VIABLE':verd==='NO RECOMENDADO'?'\u274c NO RECOMENDADO':'\u26a0\ufe0f VIABLE CON CONDICIONES'); }
+    function setF(n,sc,label,why){
+      var s=Math.max(0,Math.min(100,sc||0));
+      var tier=s>=65?'verde':s>=40?'amarillo':'rojo';
+      var col=tier==='verde'?'#27ae60':tier==='amarillo'?'#C9A84C':'#c0392b';
+      var fc=document.getElementById('fc'+n); if(fc) fc.className='mfc '+tier;
+      var fcs=document.getElementById('fcs'+n); if(fcs){ fcs.textContent=s+'/100'; fcs.className='mfc-score '+tier; }
+      var fcb=document.getElementById('fcb'+n); if(fcb){ fcb.style.width=s+'%'; fcb.style.background=col; }
+      var fcl=document.getElementById('fcl'+n); if(fcl&&label) fcl.textContent=label;
+      if(fcl&&!fcl.parentElement.querySelector('.v9-factor-why')){ var w=document.createElement('div'); w.className='v9-factor-why'; w.textContent=why; fcl.parentElement.appendChild(w); }
+    }
+    setF(1,s4.scD,'Score de demanda','Mide si la gente busca y compra este producto en Argentina.');
+    setF(2,s4.scC,'Competencia estimada','Mide cu\u00e1nta competencia hay vendiendo lo mismo. Menos competencia, mejor.');
+    setF(3,s4.scM,(margenPct<0?('Perd\u00e9s $'+nf.format(Math.abs(Math.round(s4.margenARS)))+'/u'):('Margen '+margenPct+'%')),'Mide cu\u00e1nta ganancia queda despu\u00e9s de todos los costos. Es el factor m\u00e1s decisivo.');
+    setF(4,s4.scR,'Regulaci\u00f3n','Mide restricciones aduaneras o permisos que compliquen la importaci\u00f3n.');
+    if(window.__v9render) window.__v9render(md);
+  };
+  // Also enrich the result when the AI DID work: add factor whys + recommendation after render
+  var _origRMR = null;
+  function hookRender(){
+    if(typeof renderMRResult==='function' && !renderMRResult.__v9hooked){
+      _origRMR = renderMRResult;
+      window.renderMRResult = function(r){ var out=_origRMR.apply(this,arguments); try{
+        var md=(typeof mrData!=='undefined')?mrData:null;
+        if(md&&md.step4){
+          // add whys to factor cards if missing
+          [['fcl1','Mide si la gente busca y compra este producto en Argentina.'],['fcl2','Mide cu\u00e1nta competencia hay vendiendo lo mismo. Menos competencia, mejor.'],['fcl3','Mide cu\u00e1nta ganancia queda despu\u00e9s de todos los costos. Es el factor m\u00e1s decisivo.'],['fcl4','Mide restricciones aduaneras o permisos que compliquen la importaci\u00f3n.']].forEach(function(p){ var fcl=document.getElementById(p[0]); if(fcl&&!fcl.parentElement.querySelector('.v9-factor-why')){ var w=document.createElement('div'); w.className='v9-factor-why'; w.textContent=p[1]; fcl.parentElement.appendChild(w); } });
+          if(window.__v9render) window.__v9render(md);
+        }
+      }catch(e){} return out; };
+      window.renderMRResult.__v9hooked=true;
+    }
+  }
+  setTimeout(hookRender,800); setTimeout(hookRender,2000);
 })();
 </script>
 </body>
