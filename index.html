@@ -446,6 +446,22 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 .v6-profit .v6-h{font-size:.68rem;letter-spacing:.6px;text-transform:uppercase;color:#8fdcae;margin-bottom:3px;}
 .v6-profit .v6-v{font-size:1.05rem;font-weight:800;color:#7CFFB2;}
 .v6-profit .v6-note{font-size:.68rem;color:#9aa;margin-top:3px;line-height:1.35;}
+
+/* ===== v7: mensajes claros + formulario simple ===== */
+.v7-hint{display:block;color:var(--text-dim);font-size:.72rem;margin-top:4px;opacity:.85;line-height:1.35}
+.v7-formhead{display:flex;align-items:center;gap:8px;background:rgba(201,168,76,.08);border:1px solid var(--gold-dim);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:.85rem;color:var(--text)}
+.v7-formhead .v7-dot{color:var(--gold);font-size:1.1rem;line-height:1}
+.v7-errcard{grid-column:1/-1;background:var(--dark-3);border:1px solid #4a3b1e;border-left:4px solid var(--gold);border-radius:14px;padding:22px 24px;text-align:left;animation:v7in .3s ease}
+@keyframes v7in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.v7-errcard .v7-ico{font-size:2rem;display:block;margin-bottom:10px}
+.v7-errcard h4{color:var(--gold);font-size:1.15rem;margin:0 0 6px}
+.v7-errcard .v7-what{color:var(--text);font-size:.95rem;margin-bottom:16px;line-height:1.5}
+.v7-errcard .v7-sol-title{color:var(--text);font-weight:700;font-size:.82rem;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;opacity:.9}
+.v7-errcard ul{margin:0 0 18px;padding-left:0;list-style:none}
+.v7-errcard li{color:var(--text-dim);font-size:.92rem;padding:6px 0 6px 26px;position:relative;line-height:1.45}
+.v7-errcard li:before{content:'\2713';position:absolute;left:0;color:var(--gold);font-weight:700}
+.v7-errcard .v7-retry{background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#000;border:none;border-radius:10px;padding:12px 26px;font-weight:700;cursor:pointer;font-size:.92rem}
+.v7-errcard .v7-retry:hover{opacity:.88}
 </style>
 </head>
 <body>
@@ -763,8 +779,9 @@ async function doAnalyze(){
       window.__lastAnalysis = data;
       renderResults(data);
     }catch(err){
-      if(grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--red)">No se pudo completar el analisis: '+err.message+'</div>';
-    }finally{
+        if (window.__v7showError) { window.__v7showError(err && err.message ? err.message : ''); }
+        else if (grid) { grid.innerHTML = '<div class="v7-errcard"><span class="v7-ico">\u26a0\ufe0f</span><h4>No pudimos completar el an\u00e1lisis</h4><div class="v7-what">Ocurri\u00f3 algo inesperado, pero tiene soluci\u00f3n. Prob\u00e1 de nuevo en unos segundos.</div></div>'; }
+      }finally{
       if(btn){ btn.disabled = false; btn.innerHTML = btn.dataset.old || '\ud83d\ude80 Analizar Productos'; }
     }
   })();
@@ -2089,6 +2106,30 @@ window.addEventListener('DOMContentLoaded',()=>{
     else setTimeout(watch,400);
   }
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',watch);}else{watch();}
+})();
+</script>
+<script>
+/* ===== v7 enhancer: form hints + friendly errors ===== */
+(function(){
+  function enhanceForm(){
+    var hints={selCapital:'Cu\u00e1nto pod\u00e9s invertir hoy. No hace falta ser exacto, eleg\u00ed el rango m\u00e1s cercano.',selExperiencia:'S\u00e9 honesto: si es tu primera vez, eleg\u00ed "Sin experiencia". Ajustamos las sugerencias a tu nivel.',selCanal:'D\u00f3nde vas a vender. Si a\u00fan no sab\u00e9s, dej\u00e1 MercadoLibre.',selNicho:'El rubro que te interesa explorar. Pod\u00e9s cambiarlo y volver a analizar cuando quieras.',selRiesgo:'Cu\u00e1nto riesgo toler\u00e1s. "Bajo" = productos m\u00e1s seguros y probados.'};
+    var sels=document.querySelectorAll('.config-card select, .selects-grid select');
+    sels.forEach(function(sel){ var g=sel.closest('.select-group'); if(g && !g.querySelector('.v7-hint')){ var h=document.createElement('small'); h.className='v7-hint'; h.textContent=hints[sel.id]||'Eleg\u00ed la opci\u00f3n que mejor te represente.'; g.appendChild(h); } });
+    var grid=document.querySelector('.selects-grid');
+    if(grid && !document.querySelector('.v7-formhead')){ var head=document.createElement('div'); head.className='v7-formhead'; head.innerHTML='<span class="v7-dot">\u25cf</span><span>S\u00f3lo 5 opciones r\u00e1pidas \u2014 <strong>listo en 30 segundos</strong>. No pedimos datos personales para analizar.</span>'; grid.parentNode.insertBefore(head,grid); }
+  }
+  window.__v7showError=function(errMsg){
+    var grid=document.getElementById('productsGrid'); if(!grid) return;
+    var raw=(errMsg||'').toString().toLowerCase(); var cfg;
+    if(/nicho|seccion|secci\u00f3n|falta elegir/.test(raw)){ cfg={ico:'\ud83e\udded',title:'Falta elegir un rubro',what:'Para analizar el mercado necesitamos saber qu\u00e9 categor\u00eda de productos te interesa.',sols:['Eleg\u00ed un rubro en el men\u00fa "Nicho de mercado".','Despu\u00e9s toc\u00e1 "Analizar Productos" de nuevo.']}; }
+    else if(/failed to fetch|networkerror|network|conexion|conexi\u00f3n|timeout|load failed/.test(raw)){ cfg={ico:'\ud83d\udce1',title:'Se cort\u00f3 la conexi\u00f3n',what:'No pudimos comunicarnos con el servidor. Casi siempre es un tema momentáneo de internet.',sols:['Revis\u00e1 tu conexi\u00f3n a internet.','Esper\u00e1 unos segundos y volv\u00e9 a intentar.','Si sigue igual, record\u00e1 recargar la p\u00e1gina.']}; }
+    else if(/405|method|500|servidor|server|api key/.test(raw)){ cfg={ico:'\ud83d\udee0\ufe0f',title:'El servidor est\u00e1 ocupado',what:'Tuvimos un problema t\u00e9cnico procesando tu an\u00e1lisis. No es nada que hayas hecho mal.',sols:['Esper\u00e1 un momento y volv\u00e9 a intentar.','Si persiste, prob\u00e1 m\u00e1s tarde: lo estamos revisando.']}; }
+    else { cfg={ico:'\u26a0\ufe0f',title:'No pudimos completar el an\u00e1lisis',what:'Ocurri\u00f3 algo inesperado, pero tiene soluci\u00f3n. Probemos de nuevo.',sols:['Volv\u00e9 a tocar "Analizar Productos".','Si el problema sigue, record\u00e1 recargar la p\u00e1gina.']}; }
+    grid.innerHTML='<div class="v7-errcard"><span class="v7-ico">'+cfg.ico+'</span><h4>'+cfg.title+'</h4><div class="v7-what">'+cfg.what+'</div><div class="v7-sol-title">C\u00f3mo solucionarlo</div><ul>'+cfg.sols.map(function(s){return '<li>'+s+'</li>';}).join('')+'</ul><button class="v7-retry" onclick="var b=document.getElementById(\'analyzeBtn\')||document.querySelector(\'.btn-analyze\'); if(b) b.click();">\ud83d\udd04 Reintentar an\u00e1lisis</button></div>';
+    var rs=document.getElementById('resultsSection'); if(rs) rs.style.display='block';
+  };
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',enhanceForm); } else { enhanceForm(); }
+  setTimeout(enhanceForm,600); setTimeout(enhanceForm,1500);
 })();
 </script>
 </body>
