@@ -292,6 +292,52 @@ select:focus{border-color:var(--gold)}
 .step-num{width:28px;height:28px;border-radius:50%;background:var(--gold);color:#000;font-weight:800;display:flex;align-items:center;justify-content:center;margin-bottom:10px}
 .step-box h4{margin:0 0 6px;font-size:.95rem;color:var(--text)}
 .step-box p{margin:0;font-size:.8rem;color:var(--text-dim);line-height:1.5}
+
+
+/* ============ MEJORA DE DISEÑO PROFESIONAL (v3) ============ */
+:root{
+  --gold-2:#E7C766; --gold-grad:linear-gradient(135deg,#E7C766 0%,#C9A84C 55%,#a5842f 100%);
+  --panel:#141414; --panel-2:#191919; --line:rgba(201,168,76,.16);
+  --shadow-lg:0 18px 50px -12px rgba(0,0,0,.7); --shadow-sm:0 4px 18px -6px rgba(0,0,0,.55);
+}
+body{background:radial-gradient(1200px 600px at 80% -10%,rgba(201,168,76,.10),transparent 60%),radial-gradient(900px 500px at 0% 110%,rgba(201,168,76,.06),transparent 55%),var(--dark)!important;}
+.app-content{max-width:1180px;margin:0 auto;padding:0 22px 60px;}
+.app-title{font-size:clamp(30px,4.4vw,46px)!important;font-weight:800!important;letter-spacing:-.02em;line-height:1.08;background:linear-gradient(120deg,#fff 10%,var(--gold-2) 60%,var(--gold) 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin:38px 0 8px!important;}
+.app-sub{color:var(--text-dim)!important;font-size:16px!important;margin-bottom:34px!important;}
+.steps-guide{gap:18px!important;}
+.step-box{background:linear-gradient(180deg,var(--panel-2),var(--panel))!important;border:1px solid var(--line)!important;border-radius:16px!important;padding:24px 22px!important;box-shadow:var(--shadow-sm);transition:transform .25s ease,box-shadow .25s ease,border-color .25s ease;position:relative;overflow:hidden;}
+.step-box:before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--gold-grad);opacity:.9;}
+.step-box:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg);border-color:rgba(201,168,76,.4)!important;}
+.step-num{background:var(--gold-grad)!important;color:#1a1400!important;font-weight:800!important;width:38px!important;height:38px!important;border-radius:11px!important;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px -4px rgba(201,168,76,.5);}
+.config-card{background:linear-gradient(180deg,rgba(25,25,25,.92),rgba(17,17,17,.92))!important;backdrop-filter:blur(6px);border:1px solid var(--line)!important;border-radius:18px!important;padding:28px!important;box-shadow:var(--shadow-lg);}
+.selects-grid select{background:var(--dark-3)!important;border:1px solid rgba(255,255,255,.09)!important;border-radius:11px!important;padding:12px 14px!important;color:var(--text)!important;transition:border-color .2s,box-shadow .2s;font-size:14.5px;}
+.selects-grid select:focus{border-color:var(--gold)!important;box-shadow:0 0 0 3px rgba(201,168,76,.18)!important;outline:none;}
+.btn-analyze{background:var(--gold-grad)!important;color:#1a1400!important;font-weight:800!important;letter-spacing:.02em;border:none!important;border-radius:13px!important;padding:15px 26px!important;font-size:16px!important;box-shadow:0 12px 30px -8px rgba(201,168,76,.55);transition:transform .18s,box-shadow .18s,filter .18s;}
+.btn-analyze:hover{transform:translateY(-2px);filter:brightness(1.06);box-shadow:0 16px 40px -8px rgba(201,168,76,.7);}
+.btn-analyze:active{transform:translateY(0);}
+.products-grid{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))!important;gap:20px!important;}
+.product-card{background:linear-gradient(180deg,var(--panel-2),#101010)!important;border:1px solid rgba(255,255,255,.07)!important;border-radius:16px!important;padding:22px 20px 18px!important;box-shadow:var(--shadow-sm);transition:transform .25s ease,box-shadow .25s ease,border-color .25s ease;position:relative;}
+.product-card:hover{transform:translateY(-5px);box-shadow:var(--shadow-lg);border-color:rgba(201,168,76,.32)!important;}
+.product-card.top-pick{border-color:rgba(201,168,76,.55)!important;box-shadow:0 0 0 1px rgba(201,168,76,.35),0 18px 50px -12px rgba(201,168,76,.28)!important;background:linear-gradient(180deg,rgba(201,168,76,.09),#101010)!important;}
+.product-name{font-size:17px!important;font-weight:700!important;line-height:1.3;padding-right:6px;margin-bottom:12px!important;min-height:44px;}
+.top-badge{background:var(--gold-grad)!important;color:#1a1400!important;font-weight:800!important;border-radius:999px!important;padding:5px 12px!important;font-size:11px!important;letter-spacing:.03em;box-shadow:0 6px 16px -4px rgba(201,168,76,.5);white-space:nowrap;}
+.tag-real,.tag-est,.tag-info{border-radius:999px!important;padding:4px 11px!important;font-size:11.5px!important;font-weight:600!important;display:inline-flex;align-items:center;gap:6px;}
+.tag-real{background:rgba(39,174,96,.14)!important;color:#4cd787!important;border:1px solid rgba(39,174,96,.35)!important;}
+.tag-est{background:rgba(201,168,76,.12)!important;color:var(--gold-2)!important;border:1px solid rgba(201,168,76,.3)!important;}
+.tag-info{background:rgba(255,255,255,.06)!important;color:var(--text-dim)!important;border:1px solid rgba(255,255,255,.1)!important;}
+.score-bar{background:rgba(255,255,255,.08)!important;border-radius:999px!important;height:8px!important;overflow:hidden;}
+.score-fill{background:var(--gold-grad)!important;border-radius:999px!important;height:100%!important;transition:width .8s cubic-bezier(.4,0,.2,1);box-shadow:0 0 12px rgba(201,168,76,.5);}
+.product-stats{gap:16px 10px!important;margin-top:16px!important;}
+.stat-l{font-size:10.5px!important;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim)!important;}
+.stat-v{font-size:15.5px!important;font-weight:700!important;color:var(--text)!important;margin-top:2px;}
+.ml-banner{border-radius:14px!important;padding:14px 18px!important;font-size:14px;box-shadow:var(--shadow-sm);}
+.topbar{background:rgba(10,10,10,.82)!important;backdrop-filter:blur(10px);border-bottom:1px solid var(--line)!important;position:sticky;top:0;z-index:50;}
+.topbar-logo{font-weight:800!important;letter-spacing:-.01em;}
+.results-header{border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:22px;}
+.chat-section{background:linear-gradient(180deg,var(--panel-2),var(--panel))!important;border:1px solid var(--line)!important;border-radius:18px!important;box-shadow:var(--shadow-sm);}
+@media(max-width:640px){.steps-guide{grid-template-columns:1fr!important;}.app-content{padding:0 14px 40px;}.config-card{padding:20px!important;}}
+/* ============ FIN MEJORA v3 ============ */
+
 </style>
 </head>
 <body>
@@ -640,9 +686,9 @@ function renderResults(data){
     const precio = p.precioVentaARS != null ? ('$'+nf.format(p.precioVentaARS)) : 'A validar';
     const costo = '$'+nf.format(Math.round(p.costoPuestoARS)) + ' aprox.';
     const margen = p.margen != null ? (p.margen+'%') : '\u2014';
-    const sellers = p.sellers != null ? nf.format(p.sellers)+' vend.' : '\u2014';
+        const sellers = (p.competencia != null ? nf.format(p.competencia) + ' pub.' : (p.sellers != null ? nf.format(p.sellers) + ' pub.' : '\u2014'));
     const fuenteTag = real ? '<span class="tag-real" title="Precio y competencia obtenidos en vivo de MercadoLibre">\ud83d\udfe2 Dato real ML</span>' : '<span class="tag-est" title="Sin precio real: conecta MercadoLibre para activarlo">\ud83d\udfe1 Estimado</span>';
-    return '<div class="product-card '+(p.topPick?'top-pick':'')+'">'+(p.topPick ? '<span class="top-badge">\u2b50 TOP PICK</span>' : '')+'<div class="product-name">'+p.nombre+'</div><div style="margin-bottom:10px">'+fuenteTag+' <span class="tag-info" title="Por que es apto para regimen de importacion">'+p.nota+'</span></div>'+(real ? '<div class="score-row"><span>Score</span><strong>'+p.score+'/100</strong></div><div class="score-bar"><div class="score-fill" style="width:'+scorePct+'%"></div></div>' : '')+'<div class="product-stats"><div class="stat"><span class="stat-l" title="Precio promedio de venta en MercadoLibre">Precio venta</span><span class="stat-v">'+precio+'</span></div><div class="stat"><span class="stat-l" title="Costo estimado del producto puesto en Argentina (FOB China + logistica + impuestos)">Costo est.</span><span class="stat-v">'+costo+'</span></div><div class="stat"><span class="stat-l" title="Ganancia sobre el costo estimado">Margen</span><span class="stat-v">'+margen+'</span></div><div class="stat"><span class="stat-l" title="Cantidad de vendedores compitiendo">Competencia</span><span class="stat-v">'+sellers+'</span></div><div class="stat"><span class="stat-l" title="Nivel de demanda del producto">Demanda</span><span class="stat-v">'+p.demanda+'</span></div><div class="stat"><span class="stat-l" title="Cuan saturado esta el mercado. Baja = mejor oportunidad">Saturacion</span><span class="stat-v">'+p.saturacion+'</span></div></div><div class="risk-line risk-'+String(p.riesgo).toLowerCase().replace(/[^a-z]/g,'')+'">Riesgo: '+p.riesgo+'</div></div>';
+    return '<div class="product-card '+(p.topPick?'top-pick':'')+'">'+(p.topPick ? '<span class="top-badge">\u2b50 TOP PICK</span>' : '')+'<div class="product-name">'+p.nombre+'</div><div style="margin-bottom:10px">'+fuenteTag+' <span class="tag-info" title="Por que es apto para regimen de importacion">'+p.nota+'</span></div>'+(real ? '<div class="score-row"><span>Score</span><strong>'+p.score+'/100</strong></div><div class="score-bar"><div class="score-fill" style="width:'+scorePct+'%"></div></div>' : '')+'<div class="product-stats"><div class="stat"><span class="stat-l" title="Precio promedio de venta en MercadoLibre">Precio venta</span><span class="stat-v">'+precio+'</span></div><div class="stat"><span class="stat-l" title="Costo estimado del producto puesto en Argentina (FOB China + logistica + impuestos)">Costo est.</span><span class="stat-v">'+costo+'</span></div><div class="stat"><span class="stat-l" title="Ganancia sobre el costo estimado">Margen</span><span class="stat-v">'+margen+'</span></div><div class="stat"><span class="stat-l" title="Publicaciones activas compitiendo en MercadoLibre (dato real)">Competencia</span><span class="stat-v">'+sellers+'</span></div><div class="stat"><span class="stat-l" title="Nivel de demanda del producto">Demanda</span><span class="stat-v">'+p.demanda+'</span></div><div class="stat"><span class="stat-l" title="Cuan saturado esta el mercado. Baja = mejor oportunidad">Saturacion</span><span class="stat-v">'+p.saturacion+'</span></div></div><div class="risk-line risk-'+String(p.riesgo).toLowerCase().replace(/[^a-z]/g,'')+'">Riesgo: '+p.riesgo+'</div></div>';
   }).join('');
   grid.innerHTML = banner + cards;
 }
