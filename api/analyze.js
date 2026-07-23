@@ -350,7 +350,7 @@ export default async function handler(req, res) {
     }
 
     let filtrados = productos;
-    if (riesgo && /bajo/i.test(riesgo)) filtrados = productos.filter(function(p){ return !p.score || p.riesgo==='Bajo' || p.riesgo==='Medio'; });
+    filtrados = productos.slice();
     filtrados.sort(function(a,b){ const ad=a.score!=null, bd=b.score!=null; if(ad!==bd) return ad?-1:1; return (b.score||0)-(a.score||0); });
     if (filtrados.length && filtrados[0].score!=null) filtrados[0].topPick = true;
 
