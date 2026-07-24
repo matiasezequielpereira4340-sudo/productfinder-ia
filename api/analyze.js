@@ -199,39 +199,32 @@ async function getMeliToken(userId){
 async function meliSearch(query, token){
   if(!token) return null;
   try{
-    const url = 'https://api.mercadolibre.com/products/search?status=active&site_id=MLA&limit=10&q=' + encodeURIComponent(query);
+    // Buscar PUBLICACIONES REALES (no catalogo abstracto) para tener una muestra grande de precios
+    const url = 'https://api.mercadolibre.com/sites/MLA/search?status=active&q=' + encodeURIComponent(query) + '&limit=50';
     const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
     if(!r.ok) return null;
     const j = await r.json();
     if(!j.results || !j.results.length) return null;
     const total = (j.paging && j.paging.total) || j.results.length;
-    const precios = [];
-    const ids = j.results.slice(0, 6).map(function(x){ return (typeof x === 'string') ? x : (x && (x.id || x.catalog_product_id || x.product_id)); }).filter(Boolean);
-    for(const id of ids){
-      try{
-        // 1) intentar buy_box_winner del producto de catalogo
-        const pr = await fetch('https://api.mercadolibre.com/products/' + id, { headers: { Authorization: 'Bearer ' + token } });
-        let p = null;
-        if(pr.ok){
-          const pj = await pr.json();
-          if(pj && pj.buy_box_winner && typeof pj.buy_box_winner.price === 'number' && pj.buy_box_winner.price > 0) p = pj.buy_box_winner.price;
-        }
-        // 2) si no hay buy box, tomar el precio del listado de items reales
-        if(!p){
-          const ir = await fetch('https://api.mercadolibre.com/products/' + id + '/items', { headers: { Authorization: 'Bearer ' + token } });
-          if(ir.ok){
-            const ij = await ir.json();
-            const items = (ij && Array.isArray(ij.results)) ? ij.results : [];
-            const itemPrices = items.map(function(it){ return (it && typeof it.price === 'number' && it.price > 0) ? it.price : null; }).filter(Boolean);
-            if(itemPrices.length) p = _medianRobusto(itemPrices);
-          }
-        }
-        if(p && p > 0) precios.push(p);
-      }catch(_){/* seguir */}
-      if(precios.length >= 4) break;
-    }
+    // Tomar precios de todas las publicaciones activas
+    let precios = j.results.map(function(it){
+      return (it && typeof it.price === 'number' && it.price > 0) ? it.price : null;
+    }).filter(Boolean);
+    // Filtrar outliers por IQR (descarta packs/premium/precios anomalos) antes de la mediana
+    precios = _filtrarOutliers(precios);
     return { precios: precios, sellers: j.results.length, total: total };
   }catch(e){ return null; }
+}
+
+// Filtro de outliers por rango intercuartil (IQR): recorta precios atipicos altos y bajos
+function _filtrarOutliers(arr){
+  const nums = (arr||[]).filter(function(x){ return typeof x === 'number' && isFinite(x) && x > 0; }).sort(function(a,b){ return a-b; });
+  if(nums.length < 4) return nums;
+  function pct(p){ const idx=(nums.length-1)*p, lo=Math.floor(idx), hi=Math.ceil(idx); return lo===hi ? nums[lo] : nums[lo]+(nums[hi]-nums[lo])*(idx-lo); }
+  const q1 = pct(0.25), q3 = pct(0.75), iqr = q3 - q1;
+  const min = Math.max(0, q1 - 1.5*iqr), max = q3 + 1.5*iqr;
+  const filt = nums.filter(function(x){ return x >= min && x <= max; });
+  return filt.length ? filt : nums;
 }
 
 function _median(arr){ if(!arr.length) return null; const s=[...arr].sort((a,b)=>a-b), m=Math.floor(s.length/2); return s.length%2 ? s[m] : Math.round((s[m-1]+s[m])/2); }
