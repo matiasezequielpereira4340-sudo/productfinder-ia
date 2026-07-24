@@ -2936,6 +2936,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   function computeNet(precio, costo){
     if(!precio || precio<=0 || costo==null) return null;
     var neto = precio - costo - (precio*ML_FEE) - (precio*IIBB);
+    if(costo>0 && (neto/costo)*100 > 500) return null;
     return { netoARS: neto, pct: (neto/precio)*100 };
   }
   function enhance(){
