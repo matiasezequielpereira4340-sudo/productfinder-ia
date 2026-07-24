@@ -1393,7 +1393,7 @@ function confirmMRStep4(){
   else if(/moda|indumen|ropa|calzado/.test(catName))comisionPct=0.16;
   else if(/mascot|bebe|niñ/.test(catName))comisionPct=0.13;
   else if(/herramienta|industri/.test(catName))comisionPct=0.12;
-  const ivaPct=0.21;const iibbPct=0.03;
+  const ivaPct=0.21;const iibbPct=0.03;const ivaImportPct=0.21;
   function tarifaLogisticaARS(precio,mod){
     if(mod==='retiro')return 0;
     const envioGratis=precio>=35000;
@@ -1420,7 +1420,7 @@ function confirmMRStep4(){
   const empaqueARS=empaqueUSD*tc;
   const costoLandedARS=costoLandedUSD*tc;
   const comisionMeLiARS=venta*comisionFinalPct;
-  const ivaARS=venta*ivaPct;
+  const ivaDebitoARS=venta-(venta/(1+ivaPct));const ivaCreditoARS=(costoLandedARS+logisticaARS)-((costoLandedARS+logisticaARS)/(1+ivaImportPct));const ivaARS=Math.max(0,ivaDebitoARS-ivaCreditoARS);
   const iibbARS=venta*iibbPct;
   const fullARS=modalidad==='full'?logisticaARS:0;
   const costoTotalARS=costoLandedARS+comisionMeLiARS+ivaARS+iibbARS+logisticaARS;
@@ -2956,7 +2956,7 @@ window.addEventListener('DOMContentLoaded',()=>{
       } else {
         var c = classify(r.pct);
         box.className = "v19-mn " + c.cls;
-        box.innerHTML = "<div class=\"v19-mn-top\"><span class=\"v19-dot\"></span>" + c.label + "<span class=\"v19-mn-pct\">" + fmtPct(r.pct) + "</span></div><div class=\"v19-mn-note\">Margen neto real: precio de venta menos costo, menos comision ML (~14%) e IIBB (~3%). Deja aprox. $" + Math.round(r.netoARS).toLocaleString("es-AR") + " por unidad.</div>";
+        box.innerHTML = "<div class=\"v19-mn-top\"><span class=\"v19-dot\"></span>" + c.label + "<span class=\"v19-mn-pct\">" + fmtPct(r.pct) + "</span></div><div class=\"v19-mn-note\">Margen neto real: precio de venta menos costo, menos comision ML (segun categoria, ~12-16,5%), IVA neto e IIBB (~3%). Deja aprox. $" + Math.round(r.netoARS).toLocaleString("es-AR") + " por unidad.</div>";
       }
       anchor.appendChild(box);
     });
@@ -2967,7 +2967,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(!grid || document.getElementById("v19-legend")) return;
     var lg = document.createElement("div");
     lg.id = "v19-legend"; lg.className = "v19-legend";
-    lg.innerHTML = "<b>\u00bfComo leer el margen neto?</b> Es lo que realmente te queda despues de descontar la comision de MercadoLibre (~14%) y IIBB (~3%) del precio de venta. <span class=\"v19-chip v19-mn green\"><span class=\"v19-dot\"></span>Verde \u2265 50%</span><span class=\"v19-chip v19-mn yellow\"><span class=\"v19-dot\"></span>Amarillo 30-50%</span><span class=\"v19-chip v19-mn red\"><span class=\"v19-dot\"></span>Rojo < 30%</span> Para importar desde China conviene apuntar a verde. El markup bruto (%) que figura arriba no descuenta comisiones, por eso es mucho mas alto.";
+    lg.innerHTML = "<b>\u00bfComo leer el margen neto?</b> Es lo que realmente te queda despues de descontar la comision de MercadoLibre (segun categoria), el IVA neto (debito de venta menos credito de la importacion) y IIBB (~3%) del precio de venta. <span class=\"v19-chip v19-mn green\"><span class=\"v19-dot\"></span>Verde \u2265 50%</span><span class=\"v19-chip v19-mn yellow\"><span class=\"v19-dot\"></span>Amarillo 30-50%</span><span class=\"v19-chip v19-mn red\"><span class=\"v19-dot\"></span>Rojo < 30%</span> Para importar desde China conviene apuntar a verde. El markup bruto (%) que figura arriba no descuenta comisiones, por eso es mucho mas alto.";
     grid.parentNode.insertBefore(lg, grid.nextSibling);
   }
   var obs = new MutationObserver(function(){ setTimeout(enhance, 60); });
