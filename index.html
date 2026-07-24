@@ -2967,7 +2967,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(!grid || document.getElementById("v19-legend")) return;
     var lg = document.createElement("div");
     lg.id = "v19-legend"; lg.className = "v19-legend";
-    lg.innerHTML = "<b>\u00bfComo leer el margen neto?</b> Es lo que realmente te queda despues de descontar la comision de MercadoLibre (segun categoria), el IVA neto (debito de venta menos credito de la importacion) y IIBB (~3%) del precio de venta. <span class=\"v19-chip v19-mn green\"><span class=\"v19-dot\"></span>Verde \u2265 50%</span><span class=\"v19-chip v19-mn yellow\"><span class=\"v19-dot\"></span>Amarillo 30-50%</span><span class=\"v19-chip v19-mn red\"><span class=\"v19-dot\"></span>Rojo < 30%</span> Para importar desde China conviene apuntar a verde. El markup bruto (%) que figura arriba no descuenta comisiones, por eso es mucho mas alto.";
+    lg.innerHTML = "<b>\u00bfComo leer el margen neto?</b> Es lo que realmente te queda despues de descontar la comision de MercadoLibre (segun categoria), el IVA neto (debito de venta menos credito de la importacion) y IIBB del precio de venta. El IIBB varia segun la provincia; usamos un 3% como promedio estimativo entre jurisdicciones. <span class=\"v19-chip v19-mn green\"><span class=\"v19-dot\"></span>Verde \u2265 50%</span><span class=\"v19-chip v19-mn yellow\"><span class=\"v19-dot\"></span>Amarillo 30-50%</span><span class=\"v19-chip v19-mn red\"><span class=\"v19-dot\"></span>Rojo < 30%</span> Para importar desde China conviene apuntar a verde. El markup bruto (%) que figura arriba no descuenta comisiones, por eso es mucho mas alto.";
     grid.parentNode.insertBefore(lg, grid.nextSibling);
   }
   var obs = new MutationObserver(function(){ setTimeout(enhance, 60); });
