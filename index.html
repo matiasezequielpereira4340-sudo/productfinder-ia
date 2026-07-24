@@ -2935,9 +2935,12 @@ window.addEventListener('DOMContentLoaded',()=>{
   }
   function computeNet(precio, costo){
     if(!precio || precio<=0 || costo==null) return null;
-    var neto = precio - costo - (precio*ML_FEE) - (precio*IIBB);
-    if(costo>0 && (neto/costo)*100 > 500) return null;
-    return { netoARS: neto, pct: (neto/precio)*100 };
+    var ivaDebito = precio - (precio/1.21);
+    var ivaCredito = costo - (costo/1.21);
+    var ivaNeto = Math.max(0, ivaDebito - ivaCredito);
+    var neto = precio - costo - (precio*ML_FEE) - (precio*IIBB) - ivaNeto;
+    var atipico = (costo>0 && (neto/costo)*100 > 500);
+    return { netoARS: neto, pct: (neto/precio)*100, atipico: atipico };
   }
   function enhance(){
     var data = (window.__lastAnalysis && window.__lastAnalysis.products) ? window.__lastAnalysis.products : null;
@@ -2956,7 +2959,7 @@ window.addEventListener('DOMContentLoaded',()=>{
       } else {
         var c = classify(r.pct);
         box.className = "v19-mn " + c.cls;
-        box.innerHTML = "<div class=\"v19-mn-top\"><span class=\"v19-dot\"></span>" + c.label + "<span class=\"v19-mn-pct\">" + fmtPct(r.pct) + "</span></div><div class=\"v19-mn-note\">Margen neto real: precio de venta menos costo, menos comision ML (segun categoria, ~12-16,5%), IVA neto e IIBB (~3%). Deja aprox. $" + Math.round(r.netoARS).toLocaleString("es-AR") + " por unidad.</div>";
+        box.innerHTML = "<div class=\"v19-mn-top\"><span class=\"v19-dot\"></span>" + c.label + "<span class=\"v19-mn-pct\">" + fmtPct(r.pct) + "</span></div><div class=\"v19-mn-note\">Margen neto real: precio de venta menos costo, menos comision ML (segun categoria, ~12-16,5%), IVA neto e IIBB (~3%). Deja aprox. $" + Math.round(r.netoARS).toLocaleString("es-AR") + " por unidad." + (r.atipico ? "<br><span style='color:#e0a000'>\u26A0\uFE0F Precio de referencia de MercadoLibre atipico (margen muy alto): revisa el precio real antes de decidir.</span>" : "") + "</div>";
       }
       anchor.appendChild(box);
     });
