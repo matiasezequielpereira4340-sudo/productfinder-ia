@@ -248,7 +248,17 @@ async function meliSearch(query, token){
         }
       }catch(_){/* seguir */}
     }
-    return { precios: precios, sellers: j.results.length, total: total };
+    let _dbg = { r0type: (j.results && j.results.length) ? typeof j.results[0] : 'none', r0sample: null, idsLen: ids.length, firstIdKeys: null, firstIdPriceFields: null };
+    try{
+      if(j.results && j.results.length){ _dbg.r0sample = (typeof j.results[0]==='string') ? j.results[0] : Object.keys(j.results[0]); }
+      if(ids.length){
+        const dr = await fetch('https://api.mercadolibre.com/products/' + ids[0], { headers: { Authorization: 'Bearer ' + token } });
+        _dbg.firstStatus = dr.status;
+        if(dr.ok){ const dj = await dr.json(); _dbg.firstIdKeys = Object.keys(dj).slice(0,40); _dbg.firstIdPriceFields = { price: dj.price, bbw: dj.buy_box_winner ? (dj.buy_box_winner.price) : 'null', hasPickers: Array.isArray(dj.pickers), pickersLen: Array.isArray(dj.pickers)?dj.pickers.length:0 }; }
+        else { _dbg.firstBody = (await dr.text()).slice(0,200); }
+      }
+    }catch(e){ _dbg.err = e.message; }
+    return { _dbg: _dbg, precios: precios, sellers: j.results.length, total: total };
   }catch(e){ return null; }
 }
 
@@ -368,7 +378,7 @@ export default async function handler(req, res) {
           if(prod.pesoG && prod.pesoG <= 100) sc += 25; else if(prod.pesoG && prod.pesoG <= 300) sc += 12;
           sc += 20;
           return { nombre: prod.nombre, query: prod.q, nota: prod.nota, pesoG: prod.pesoG,
-            fuente: 'MercadoLibre (competencia real)', precioVentaARS: null, sellers: data.sellers,
+            fuente: 'MercadoLibre (competencia real)', precioVentaARS: null, _dbg: data._dbg, sellers: data.sellers,
             totalResultados: total, competencia: total, costoEstimadoUSD: [prod.costoMin, prod.costoMax], costoPuestoARS: costoPuestoARS,
             margen: null, demanda: 'A validar', saturacion: sat, riesgo: riesgo, score: sc };
         }
