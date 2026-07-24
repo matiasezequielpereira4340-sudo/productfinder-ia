@@ -206,7 +206,7 @@ async function meliSearch(query, token){
     if(!j.results || !j.results.length) return null;
     const total = (j.paging && j.paging.total) || j.results.length;
     const precios = [];
-    const ids = j.results.slice(0, 6).map(function(x){ return x.id; }).filter(Boolean);
+    const ids = j.results.slice(0, 6).map(function(x){ return (typeof x === 'string') ? x : (x && (x.id || x.catalog_product_id || x.product_id)); }).filter(Boolean);
     for(const id of ids){
       try{
         const pr = await fetch('https://api.mercadolibre.com/products/' + id, { headers: { Authorization: 'Bearer ' + token } });
