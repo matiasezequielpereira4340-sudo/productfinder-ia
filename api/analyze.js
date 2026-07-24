@@ -217,6 +217,22 @@ async function meliSearch(query, token){
       }catch(_){/* seguir */}
       if(precios.length >= 3) break;
     }
+    if(precios.length === 0){
+      try{
+        const su = 'https://api.mercadolibre.com/sites/MLA/search?limit=20&q=' + encodeURIComponent(query);
+        const sr = await fetch(su, { headers: { Authorization: 'Bearer ' + token } });
+        if(sr.ok){
+          const sj = await sr.json();
+          if(sj && Array.isArray(sj.results)){
+            for(const it of sj.results){
+              const pv = (it && typeof it.price === 'number') ? it.price : null;
+              if(pv && pv > 0) precios.push(pv);
+              if(precios.length >= 8) break;
+            }
+          }
+        }
+      }catch(_){/* seguir */}
+    }
     return { precios: precios, sellers: j.results.length, total: total };
   }catch(e){ return null; }
 }
