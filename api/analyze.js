@@ -7,7 +7,7 @@
 // datos como estimados y nunca inventa precios reales.
 // ============================================================
 
-const USD_ARS_FALLBACK = 1350;
+const USD_ARS_FALLBACK = 1510;
 const SUPA_URL = process.env.SUPABASE_URL || 'https://qglieqpcmmffgxijbysb.supabase.co';
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 
@@ -318,7 +318,11 @@ export default async function handler(req, res) {
     const niche = CATALOGO[nicho] || CATALOGO[String(nicho).toLowerCase()];
     if (!niche) return res.status(400).json({error: 'Nicho no encontrado', nichosDisponibles: Object.keys(CATALOGO)});
 
-    const usdArs = parseFloat(process.env.USD_ARS) || USD_ARS_FALLBACK;
+    let usdArs = parseFloat(process.env.USD_ARS) || USD_ARS_FALLBACK;
+    try {
+      const _dr = await fetch('https://dolarapi.com/v1/dolares/tarjeta');
+      if (_dr.ok) { const _dj = await _dr.json(); if (_dj && _dj.venta) usdArs = _dj.venta; }
+    } catch (_e) { /* si falla la API de dolar, se usa el fallback */ }
     const tk = await getMeliToken(user_id);
     const token = tk && tk.token ? tk.token : null;
     const tokenExpired = tk && tk.expired ? true : false;
@@ -330,7 +334,7 @@ export default async function handler(req, res) {
       const evals = await Promise.all(batch.map(async (prod) => {
         const costoUnitUSD = (prod.costoMin + prod.costoMax)/2;
         const costoUnitARS = Math.round(costoUnitUSD * usdArs);
-        const costoPuestoARS = Math.round(costoUnitARS * 1.35);
+        const costoPuestoARS = Math.round(costoUnitARS * 2.75); // x2.5-3.0: estimado gastos de envio/importacion (varia segun producto, impuestos, peso y volumen)
         const data = await meliSearch(prod.q, token);
         function _satFromTotal(t){ if(t==null) return null; if(t < 300) return 'Baja'; if(t < 1500) return 'Media'; if(t < 6000) return 'Alta'; return 'Muy alta'; }
         if (data && data.precios.length) {
@@ -373,7 +377,7 @@ export default async function handler(req, res) {
       totalEvaluados: productos.length, conDatoReal: conDato,
       meliConectado: !!token, meliTokenExpirado: tokenExpired,
       products: filtrados,
-      disclaimer: 'Precios y competencia: datos reales de la API de MercadoLibre (requiere tu cuenta de ML conectada). Costos de importacion: rango ESTIMADO por categoria. Margen = (precio de venta menos costo estimado con +35% de logistica/impuestos) / costo.'
+      disclaimer: 'Precios y competencia: datos REALES de la API de MercadoLibre (requiere tu cuenta de ML conectada). Los gastos de envio/importacion son ESTIMADOS (dolar en vivo x2,75) y pueden variar segun el producto, los impuestos, el peso y el volumen. El costo puesto es aproximado, no un valor cerrado.'
     });
   } catch(err) {
     return res.status(500).json({error: 'Error interno del servidor', detail: err.message});
