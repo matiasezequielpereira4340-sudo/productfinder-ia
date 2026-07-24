@@ -254,7 +254,9 @@ async function meliSearch(query, token){
       if(ids.length){
         const dr = await fetch('https://api.mercadolibre.com/products/' + ids[0], { headers: { Authorization: 'Bearer ' + token } });
         _dbg.firstStatus = dr.status;
-        if(dr.ok){ const dj = await dr.json(); _dbg.firstIdKeys = Object.keys(dj).slice(0,40); _dbg.firstIdPriceFields = { price: dj.price, bbw: dj.buy_box_winner ? (dj.buy_box_winner.price) : 'null', hasPickers: Array.isArray(dj.pickers), pickersLen: Array.isArray(dj.pickers)?dj.pickers.length:0 }; }
+        if(dr.ok){ const dj = await dr.json(); _dbg.firstIdKeys = Object.keys(dj).slice(0,40); _dbg.firstIdPriceFields = { price: dj.price, bbw: dj.buy_box_winner ? (dj.buy_box_winner.price) : 'null', hasPickers: Array.isArray(dj.pickers), pickersLen: Array.isArray(dj.pickers)?dj.pickers.length:0 };
+          try{ _dbg.picker0keys = (dj.pickers && dj.pickers[0]) ? Object.keys(dj.pickers[0]) : null; if(dj.pickers && dj.pickers[0] && Array.isArray(dj.pickers[0].products) && dj.pickers[0].products[0]) _dbg.pickerProd0keys = Object.keys(dj.pickers[0].products[0]); }catch(_){}
+          try{ const ir = await fetch('https://api.mercadolibre.com/products/' + ids[0] + '/items', { headers: { Authorization: 'Bearer ' + token } }); _dbg.itemsStatus = ir.status; if(ir.ok){ const ij = await ir.json(); _dbg.itemsTopKeys = Object.keys(ij).slice(0,20); const rr = ij.results || ij; if(Array.isArray(rr) && rr[0]){ _dbg.item0keys = Object.keys(rr[0]).slice(0,30); _dbg.item0price = rr[0].price; } } else { _dbg.itemsBody = (await ir.text()).slice(0,150); } }catch(e){ _dbg.itemsErr = e.message; } }
         else { _dbg.firstBody = (await dr.text()).slice(0,200); }
       }
     }catch(e){ _dbg.err = e.message; }
