@@ -648,6 +648,21 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 .v18-est{color:var(--gold);font-style:italic;opacity:.92;}
 .v18-estbadge{display:inline-block;font-size:.62rem;letter-spacing:.04em;background:rgba(201,168,76,.16);color:var(--gold);border:1px solid rgba(201,168,76,.35);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
 .top-badge{animation:v18glow 2.2s ease-in-out infinite;}
+
+/* v19: semaforo de margen neto real */
+.v19-mn{margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);}
+.v19-mn-top{display:flex;align-items:center;gap:8px;font-weight:800;font-size:.95rem;}
+.v19-dot{width:12px;height:12px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 8px currentColor;}
+.v19-mn.green{color:#34d399;} .v19-mn.green .v19-dot{background:#34d399;color:#34d399;}
+.v19-mn.yellow{color:#fbbf24;} .v19-mn.yellow .v19-dot{background:#fbbf24;color:#fbbf24;}
+.v19-mn.red{color:#f87171;} .v19-mn.red .v19-dot{background:#f87171;color:#f87171;}
+.v19-mn-pct{margin-left:auto;font-variant-numeric:tabular-nums;}
+.v19-mn-note{margin-top:5px;font-size:.72rem;line-height:1.35;color:rgba(255,255,255,.55);font-weight:500;}
+.v19-legend{margin:14px auto 0;max-width:820px;padding:12px 16px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);font-size:.8rem;color:rgba(255,255,255,.7);line-height:1.5;}
+.v19-legend b{color:rgba(255,255,255,.92);}
+.v19-legend .v19-chip{display:inline-flex;align-items:center;gap:5px;margin:0 4px;font-weight:700;}
+.v19-legend .v19-chip .v19-dot{width:9px;height:9px;}
+
 </style>
 </head>
 <body>
@@ -2904,6 +2919,63 @@ window.addEventListener('DOMContentLoaded',()=>{
   var grid=document.getElementById('productsGrid');
   if(grid){ var mo=new MutationObserver(function(){ setTimeout(enhance,30); }); mo.observe(grid,{childList:true,subtree:true}); }
   setTimeout(enhance,300); setTimeout(enhance,1200);
+})();
+</script>
+
+<script>
+/* v19: margen neto real + semaforo. Descuenta comision ML (14%) e IIBB (3%) del precio de venta. */
+(function(){
+  var ML_FEE = 0.14;
+  var IIBB = 0.03;
+  function fmtPct(n){ return (n>=0?"":"-") + Math.abs(Math.round(n)) + "%"; }
+  function classify(pct){
+    if(pct >= 50) return {cls:"green", label:"Margen sano para importar"};
+    if(pct >= 30) return {cls:"yellow", label:"Margen ajustado, validar bien"};
+    return {cls:"red", label:"Margen bajo, no conviene"};
+  }
+  function computeNet(precio, costo){
+    if(!precio || precio<=0 || costo==null) return null;
+    var neto = precio - costo - (precio*ML_FEE) - (precio*IIBB);
+    return { netoARS: neto, pct: (neto/precio)*100 };
+  }
+  function enhance(){
+    var data = (window.__lastAnalysis && window.__lastAnalysis.products) ? window.__lastAnalysis.products : null;
+    if(!data) return;
+    var cards = document.querySelectorAll(".product-card");
+    cards.forEach(function(card, i){
+      var p = data[i];
+      if(!p) return;
+      if(card.querySelector(".v19-mn")) return;
+      var r = computeNet(p.precioVentaARS, p.costoPuestoARS);
+      var anchor = card.querySelector(".v6-profit") || card;
+      var box = document.createElement("div");
+      if(!r){
+        box.className = "v19-mn yellow";
+        box.innerHTML = "<div class=\"v19-mn-top\"><span class=\"v19-dot\"></span>Margen neto: a validar<span class=\"v19-mn-pct\">\u2014</span></div><div class=\"v19-mn-note\">Sin precio de venta real disponible para calcular el margen neto.</div>";
+      } else {
+        var c = classify(r.pct);
+        box.className = "v19-mn " + c.cls;
+        box.innerHTML = "<div class=\"v19-mn-top\"><span class=\"v19-dot\"></span>" + c.label + "<span class=\"v19-mn-pct\">" + fmtPct(r.pct) + "</span></div><div class=\"v19-mn-note\">Margen neto real: precio de venta menos costo, menos comision ML (~14%) e IIBB (~3%). Deja aprox. $" + Math.round(r.netoARS).toLocaleString("es-AR") + " por unidad.</div>";
+      }
+      anchor.appendChild(box);
+    });
+    addLegend();
+  }
+  function addLegend(){
+    var grid = document.getElementById("productsGrid");
+    if(!grid || document.getElementById("v19-legend")) return;
+    var lg = document.createElement("div");
+    lg.id = "v19-legend"; lg.className = "v19-legend";
+    lg.innerHTML = "<b>\u00bfComo leer el margen neto?</b> Es lo que realmente te queda despues de descontar la comision de MercadoLibre (~14%) y IIBB (~3%) del precio de venta. <span class=\"v19-chip v19-mn green\"><span class=\"v19-dot\"></span>Verde \u2265 50%</span><span class=\"v19-chip v19-mn yellow\"><span class=\"v19-dot\"></span>Amarillo 30-50%</span><span class=\"v19-chip v19-mn red\"><span class=\"v19-dot\"></span>Rojo < 30%</span> Para importar desde China conviene apuntar a verde. El markup bruto (%) que figura arriba no descuenta comisiones, por eso es mucho mas alto.";
+    grid.parentNode.insertBefore(lg, grid.nextSibling);
+  }
+  var obs = new MutationObserver(function(){ setTimeout(enhance, 60); });
+  function boot(){
+    var grid = document.getElementById("productsGrid");
+    if(grid){ obs.observe(grid, {childList:true, subtree:true}); }
+    setTimeout(enhance, 300);
+  }
+  if(document.readyState==="loading"){ document.addEventListener("DOMContentLoaded", boot); } else { boot(); }
 })();
 </script>
 </body>
