@@ -209,58 +209,28 @@ async function meliSearch(query, token){
     const ids = j.results.slice(0, 6).map(function(x){ return (typeof x === 'string') ? x : (x && (x.id || x.catalog_product_id || x.product_id)); }).filter(Boolean);
     for(const id of ids){
       try{
+        // 1) intentar buy_box_winner del producto de catalogo
         const pr = await fetch('https://api.mercadolibre.com/products/' + id, { headers: { Authorization: 'Bearer ' + token } });
-        if(!pr.ok) continue;
-        const pj = await pr.json();
         let p = null;
-        if(pj){
-          if(pj.buy_box_winner && typeof pj.buy_box_winner.price === 'number') p = pj.buy_box_winner.price;
-          else if(typeof pj.price === 'number') p = pj.price;
-          else if(Array.isArray(pj.pickers)){
-            for(const pk of pj.pickers){
-              if(pk && Array.isArray(pk.products)){
-                for(const pp of pk.products){
-                  const cand2 = pp && (pp.price || (pp.tags && pp.price));
-                  if(typeof pp.price === 'number' && pp.price > 0){ p = pp.price; break; }
-                }
-              }
-              if(p) break;
-            }
+        if(pr.ok){
+          const pj = await pr.json();
+          if(pj && pj.buy_box_winner && typeof pj.buy_box_winner.price === 'number' && pj.buy_box_winner.price > 0) p = pj.buy_box_winner.price;
+        }
+        // 2) si no hay buy box, tomar el precio del listado de items reales
+        if(!p){
+          const ir = await fetch('https://api.mercadolibre.com/products/' + id + '/items', { headers: { Authorization: 'Bearer ' + token } });
+          if(ir.ok){
+            const ij = await ir.json();
+            const items = (ij && Array.isArray(ij.results)) ? ij.results : [];
+            const itemPrices = items.map(function(it){ return (it && typeof it.price === 'number' && it.price > 0) ? it.price : null; }).filter(Boolean);
+            if(itemPrices.length) p = _median(itemPrices);
           }
         }
         if(p && p > 0) precios.push(p);
       }catch(_){/* seguir */}
-      if(precios.length >= 3) break;
+      if(precios.length >= 4) break;
     }
-    if(precios.length === 0){
-      try{
-        const su = 'https://api.mercadolibre.com/sites/MLA/search?limit=20&q=' + encodeURIComponent(query);
-        const sr = await fetch(su, { headers: { Authorization: 'Bearer ' + token } });
-        if(sr.ok){
-          const sj = await sr.json();
-          if(sj && Array.isArray(sj.results)){
-            for(const it of sj.results){
-              const pv = (it && typeof it.price === 'number') ? it.price : null;
-              if(pv && pv > 0) precios.push(pv);
-              if(precios.length >= 8) break;
-            }
-          }
-        }
-      }catch(_){/* seguir */}
-    }
-    let _dbg = { r0type: (j.results && j.results.length) ? typeof j.results[0] : 'none', r0sample: null, idsLen: ids.length, firstIdKeys: null, firstIdPriceFields: null };
-    try{
-      if(j.results && j.results.length){ _dbg.r0sample = (typeof j.results[0]==='string') ? j.results[0] : Object.keys(j.results[0]); }
-      if(ids.length){
-        const dr = await fetch('https://api.mercadolibre.com/products/' + ids[0], { headers: { Authorization: 'Bearer ' + token } });
-        _dbg.firstStatus = dr.status;
-        if(dr.ok){ const dj = await dr.json(); _dbg.firstIdKeys = Object.keys(dj).slice(0,40); _dbg.firstIdPriceFields = { price: dj.price, bbw: dj.buy_box_winner ? (dj.buy_box_winner.price) : 'null', hasPickers: Array.isArray(dj.pickers), pickersLen: Array.isArray(dj.pickers)?dj.pickers.length:0 };
-          try{ _dbg.picker0keys = (dj.pickers && dj.pickers[0]) ? Object.keys(dj.pickers[0]) : null; if(dj.pickers && dj.pickers[0] && Array.isArray(dj.pickers[0].products) && dj.pickers[0].products[0]) _dbg.pickerProd0keys = Object.keys(dj.pickers[0].products[0]); }catch(_){}
-          try{ const ir = await fetch('https://api.mercadolibre.com/products/' + ids[0] + '/items', { headers: { Authorization: 'Bearer ' + token } }); _dbg.itemsStatus = ir.status; if(ir.ok){ const ij = await ir.json(); _dbg.itemsTopKeys = Object.keys(ij).slice(0,20); const rr = ij.results || ij; if(Array.isArray(rr) && rr[0]){ _dbg.item0keys = Object.keys(rr[0]).slice(0,30); _dbg.item0price = rr[0].price; } } else { _dbg.itemsBody = (await ir.text()).slice(0,150); } }catch(e){ _dbg.itemsErr = e.message; } }
-        else { _dbg.firstBody = (await dr.text()).slice(0,200); }
-      }
-    }catch(e){ _dbg.err = e.message; }
-    return { _dbg: _dbg, precios: precios, sellers: j.results.length, total: total };
+    return { precios: precios, sellers: j.results.length, total: total };
   }catch(e){ return null; }
 }
 
@@ -380,7 +350,7 @@ export default async function handler(req, res) {
           if(prod.pesoG && prod.pesoG <= 100) sc += 25; else if(prod.pesoG && prod.pesoG <= 300) sc += 12;
           sc += 20;
           return { nombre: prod.nombre, query: prod.q, nota: prod.nota, pesoG: prod.pesoG,
-            fuente: 'MercadoLibre (competencia real)', precioVentaARS: null, _dbg: data._dbg, sellers: data.sellers,
+            fuente: 'MercadoLibre (competencia real)', precioVentaARS: null, sellers: data.sellers,
             totalResultados: total, competencia: total, costoEstimadoUSD: [prod.costoMin, prod.costoMax], costoPuestoARS: costoPuestoARS,
             margen: null, demanda: 'A validar', saturacion: sat, riesgo: riesgo, score: sc };
         }
