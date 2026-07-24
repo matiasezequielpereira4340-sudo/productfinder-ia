@@ -199,20 +199,43 @@ async function getMeliToken(userId){
 async function meliSearch(query, token){
   if(!token) return null;
   try{
-    // Buscar PUBLICACIONES REALES (no catalogo abstracto) para tener una muestra grande de precios
-    const url = 'https://api.mercadolibre.com/sites/MLA/search?status=active&q=' + encodeURIComponent(query) + '&limit=50';
+    // Catalogo de MercadoLibre (endpoint que funciona con el token OAuth estandar)
+    const url = 'https://api.mercadolibre.com/products/search?status=active&site_id=MLA&limit=10&q=' + encodeURIComponent(query);
     const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
     if(!r.ok) return null;
     const j = await r.json();
     if(!j.results || !j.results.length) return null;
     const total = (j.paging && j.paging.total) || j.results.length;
-    // Tomar precios de todas las publicaciones activas
-    let precios = j.results.map(function(it){
-      return (it && typeof it.price === 'number' && it.price > 0) ? it.price : null;
+    const precios = [];
+    // Tomar hasta 10 productos del catalogo para tener mas muestra
+    const ids = j.results.slice(0, 10).map(function(x){
+      return (typeof x === 'string') ? x : (x && (x.id || x.catalog_product_id || x.product_id));
     }).filter(Boolean);
-    // Filtrar outliers por IQR (descarta packs/premium/precios anomalos) antes de la mediana
-    precios = _filtrarOutliers(precios);
-    return { precios: precios, sellers: j.results.length, total: total };
+    for(const id of ids){
+      try{
+        // 1) buy_box_winner del producto de catalogo
+        const pr = await fetch('https://api.mercadolibre.com/products/' + id, { headers: { Authorization: 'Bearer ' + token } });
+        let p = null;
+        if(pr.ok){
+          const pj = await pr.json();
+          if(pj && pj.buy_box_winner && typeof pj.buy_box_winner.price === 'number' && pj.buy_box_winner.price > 0) p = pj.buy_box_winner.price;
+        }
+        // 2) si no hay buy box, tomar precios de los items reales de ese producto
+        if(!p){
+          const ir = await fetch('https://api.mercadolibre.com/products/' + id + '/items', { headers: { Authorization: 'Bearer ' + token } });
+          if(ir.ok){
+            const ij = await ir.json();
+            const items = (ij && Array.isArray(ij.results)) ? ij.results : [];
+            const itemPrices = items.map(function(it){ return (it && typeof it.price === 'number' && it.price > 0) ? it.price : null; }).filter(Boolean);
+            if(itemPrices.length) p = _medianRobusto(itemPrices);
+          }
+        }
+        if(p && p > 0) precios.push(p);
+      }catch(_){/* seguir */}
+    }
+    // Filtrar outliers (packs/premium) sobre el conjunto de precios de catalogo
+    const preciosFiltrados = _filtrarOutliers(precios);
+    return { precios: preciosFiltrados.length ? preciosFiltrados : precios, sellers: j.results.length, total: total };
   }catch(e){ return null; }
 }
 
