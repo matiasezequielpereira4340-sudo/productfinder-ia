@@ -130,7 +130,7 @@ export default async function handler(req, res) {
             const { active, premium } = req.body;
             if (!id) return res.status(400).json({ error: 'id requerido' });
             const stored = await getUsers();
-            const user = stored.find(u => u.username === id);
+            const user = stored.find(u => u.username === id || u.email === id || u.id === id);
             if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
             user.active = active;
       if (typeof premium !== 'undefined') user.premium = !!premium;
