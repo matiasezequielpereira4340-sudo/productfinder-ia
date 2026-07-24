@@ -223,7 +223,7 @@ async function meliSearch(query, token){
             const ij = await ir.json();
             const items = (ij && Array.isArray(ij.results)) ? ij.results : [];
             const itemPrices = items.map(function(it){ return (it && typeof it.price === 'number' && it.price > 0) ? it.price : null; }).filter(Boolean);
-            if(itemPrices.length) p = _median(itemPrices);
+            if(itemPrices.length) p = _medianRobusto(itemPrices);
           }
         }
         if(p && p > 0) precios.push(p);
@@ -235,6 +235,27 @@ async function meliSearch(query, token){
 }
 
 function _median(arr){ if(!arr.length) return null; const s=[...arr].sort((a,b)=>a-b), m=Math.floor(s.length/2); return s.length%2 ? s[m] : Math.round((s[m-1]+s[m])/2); }
+// Mediana robusta: descarta outliers (kits/packs) antes de promediar. Usa mediana + MAD.
+function _medianRobusto(arr){
+  const nums = (arr||[]).filter(function(x){ return typeof x==='number' && isFinite(x) && x>0; });
+  if(!nums.length) return null;
+  if(nums.length < 4) return _median(nums);
+  const s = [...nums].sort(function(a,b){ return a-b; });
+  const med = _median(s);
+  // desviacion absoluta mediana (MAD)
+  const desv = s.map(function(x){ return Math.abs(x-med); }).sort(function(a,b){ return a-b; });
+  const mad = _median(desv) || 0;
+  let filtrados;
+  if(mad > 0){
+    // conservar valores dentro de ~3.5 MAD de la mediana
+    filtrados = s.filter(function(x){ return Math.abs(x-med) <= 3.5 * mad; });
+  } else {
+    // si MAD=0 (muchos precios iguales), descartar los que superan 3x la mediana
+    filtrados = s.filter(function(x){ return x <= med * 3; });
+  }
+  if(!filtrados.length) filtrados = s;
+  return _median(filtrados);
+}
 function _nivel(v){ return v>=70?'Alta':v>=45?'Media':'Baja'; }
 function _score(o){
   var precioVenta=o.precioVenta, total=o.total, costoPuestoARS=o.costoPuestoARS, pesoG=o.pesoG;
@@ -338,7 +359,7 @@ export default async function handler(req, res) {
         const data = await meliSearch(prod.q, token);
         function _satFromTotal(t){ if(t==null) return null; if(t < 300) return 'Baja'; if(t < 1500) return 'Media'; if(t < 6000) return 'Alta'; return 'Muy alta'; }
         if (data && data.precios.length) {
-          const precioVenta = _median(data.precios);
+          const precioVenta = _medianRobusto(data.precios);
           const total = data.total || data.precios.length;
           const s = _score({ precioVenta: precioVenta, total: total, costoPuestoARS: costoPuestoARS, pesoG: prod.pesoG });
           return { nombre: prod.nombre, query: prod.q, nota: prod.nota, pesoG: prod.pesoG,
