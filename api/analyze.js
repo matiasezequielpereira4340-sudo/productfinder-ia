@@ -185,14 +185,35 @@ const CATALOGO = {
 async function getMeliToken(userId){
   if(!SUPA_KEY || !userId) return null;
   try{
-    const url = SUPA_URL + '/rest/v1/meli_tokens?user_id=eq.' + encodeURIComponent(userId) + '&select=access_token,expires_at';
+    const url = SUPA_URL + '/rest/v1/meli_tokens?user_id=eq.' + encodeURIComponent(userId) + '&select=access_token,refresh_token,expires_at&limit=1';
     const r = await fetch(url, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY } });
     if(!r.ok) return null;
     const rows = await r.json();
     if(!Array.isArray(rows) || rows.length === 0) return null;
     const row = rows[0];
-    if(row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return { token: null, expired: true };
-    return { token: row.access_token, expired: false };
+    // Si el token sigue vigente por mas de 5 minutos, lo usamos tal cual.
+    const venceMs = row.expires_at ? new Date(row.expires_at).getTime() : 0;
+    if(venceMs && venceMs - Date.now() > 5 * 60 * 1000) return { token: row.access_token, expired: false };
+    // Token vencido o por vencer: intentamos renovarlo con el refresh_token.
+    if(!row.refresh_token) return { token: null, expired: true };
+    try{
+      const appId = process.env.MELI_APP_ID;
+      const secret = process.env.MELI_SECRET_KEY;
+      if(!appId || !secret) return { token: null, expired: true };
+      const rr = await fetch('https://api.mercadolibre.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ grant_type: 'refresh_token', client_id: appId, client_secret: secret, refresh_token: row.refresh_token })
+      });
+      const td = await rr.json();
+      if(!rr.ok || !td.access_token) return { token: null, expired: true };
+      // Guardamos el token renovado en Supabase (no pisamos refresh_token si ML no manda uno nuevo).
+      const nuevoExpira = new Date(Date.now() + (td.expires_in || 21600) * 1000).toISOString();
+      const patchBody = { access_token: td.access_token, expires_at: nuevoExpira, updated_at: new Date().toISOString() };
+      if(td.refresh_token) patchBody.refresh_token = td.refresh_token;
+      await fetch(SUPA_URL + '/rest/v1/meli_tokens?user_id=eq.' + encodeURIComponent(userId), { method: 'PATCH', headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify(patchBody) });
+      return { token: td.access_token, expired: false };
+    }catch(_){ return { token: null, expired: true }; }
   }catch(e){ return null; }
 }
 
