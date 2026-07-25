@@ -238,7 +238,8 @@ async function meliSearch(query, token, costoTope){
     let preciosAcotados = precios;
     if(costoTope && costoTope > 0){
       const max = costoTope * 5;
-      const dentro = precios.filter(function(p){ return p <= max; });
+      const min = costoTope * 1.3;
+      const dentro = precios.filter(function(p){ return p <= max && p >= min; });
       if(dentro.length) preciosAcotados = dentro;
     }
     // Filtrar outliers (packs/premium) sobre el conjunto acotado
@@ -398,10 +399,12 @@ export default async function handler(req, res) {
           let sc = 0; if(total < 300) sc += 45; else if(total < 1500) sc += 30; else if(total < 6000) sc += 12;
           if(prod.pesoG && prod.pesoG <= 100) sc += 25; else if(prod.pesoG && prod.pesoG <= 300) sc += 12;
           sc += 20;
+          const precioEstimado = Math.round(costoPuestoARS * 2.2);
+          const sEst = _score({ precioVenta: precioEstimado, total: total, costoPuestoARS: costoPuestoARS, pesoG: prod.pesoG });
           return { nombre: prod.nombre, query: prod.q, nota: prod.nota, pesoG: prod.pesoG,
-            fuente: 'MercadoLibre (competencia real)', precioVentaARS: null, sellers: data.sellers,
+            fuente: 'MercadoLibre (precio estimado)', precioVentaARS: precioEstimado, sellers: data.sellers,
             totalResultados: total, competencia: total, costoEstimadoUSD: [prod.costoMin, prod.costoMax], costoPuestoARS: costoPuestoARS,
-            margen: null, demanda: 'A validar', saturacion: sat, riesgo: riesgo, score: sc };
+            margen: sEst.margenPct, demanda: _nivel(sEst.demScore), saturacion: sat, riesgo: riesgo, score: sc };
         }
         return { nombre: prod.nombre, query: prod.q, nota: prod.nota, pesoG: prod.pesoG,
           fuente: 'Estimado', precioVentaARS: null, sellers: null, totalResultados: null, competencia: null,
