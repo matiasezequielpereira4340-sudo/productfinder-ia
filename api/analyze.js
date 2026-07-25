@@ -239,12 +239,13 @@ async function meliSearch(query, token, costoTope){
     if(costoTope && costoTope > 0){
       const max = costoTope * 5;
       const min = costoTope * 1.3;
-      const dentro = precios.filter(function(p){ return p <= max && p >= min; });
-      if(dentro.length) preciosAcotados = dentro;
+      // Si tras aplicar tope+piso no queda ningun precio valido, devolvemos vacio a proposito:
+      // la muestra no es confiable y el caller usara el precio estimado en vez de un precio real por debajo del costo.
+      preciosAcotados = precios.filter(function(p){ return p <= max && p >= min; });
     }
     // Filtrar outliers (packs/premium) sobre el conjunto acotado
     const preciosFiltrados = _filtrarOutliers(preciosAcotados);
-    return { precios: preciosFiltrados.length ? preciosFiltrados : precios, sellers: j.results.length, total: total };
+    return { precios: preciosFiltrados, sellers: j.results.length, total: total };
   }catch(e){ return null; }
 }
 
