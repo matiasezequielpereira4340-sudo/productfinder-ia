@@ -196,7 +196,7 @@ async function getMeliToken(userId){
   }catch(e){ return null; }
 }
 
-async function meliSearch(query, token){
+async function meliSearch(query, token, costoTope){
   if(!token) return null;
   try{
     // Catalogo de MercadoLibre (endpoint que funciona con el token OAuth estandar)
@@ -233,8 +233,16 @@ async function meliSearch(query, token){
         if(p && p > 0) precios.push(p);
       }catch(_){/* seguir */}
     }
-    // Filtrar outliers (packs/premium) sobre el conjunto de precios de catalogo
-    const preciosFiltrados = _filtrarOutliers(precios);
+    // Tope objetivo por producto: descartar precios que superen 5x el costo puesto
+    // (un margen bruto > 400% casi siempre indica que el precio no corresponde al producto real)
+    let preciosAcotados = precios;
+    if(costoTope && costoTope > 0){
+      const max = costoTope * 5;
+      const dentro = precios.filter(function(p){ return p <= max; });
+      if(dentro.length) preciosAcotados = dentro;
+    }
+    // Filtrar outliers (packs/premium) sobre el conjunto acotado
+    const preciosFiltrados = _filtrarOutliers(preciosAcotados);
     return { precios: preciosFiltrados.length ? preciosFiltrados : precios, sellers: j.results.length, total: total };
   }catch(e){ return null; }
 }
@@ -372,7 +380,7 @@ export default async function handler(req, res) {
         const costoUnitUSD = (prod.costoMin + prod.costoMax)/2;
         const costoUnitARS = Math.round(costoUnitUSD * usdArs);
         const costoPuestoARS = Math.round(costoUnitARS * 2.75); // x2.5-3.0: estimado gastos de envio/importacion (varia segun producto, impuestos, peso y volumen)
-        const data = await meliSearch(prod.q, token);
+        const data = await meliSearch(prod.q, token, costoPuestoARS);
         function _satFromTotal(t){ if(t==null) return null; if(t < 300) return 'Baja'; if(t < 1500) return 'Media'; if(t < 6000) return 'Alta'; return 'Muy alta'; }
         if (data && data.precios.length) {
           const precioVenta = _medianRobusto(data.precios);
