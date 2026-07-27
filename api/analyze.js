@@ -309,14 +309,14 @@ function _score(o){
   const margenPct = costoPuestoARS>0 ? Math.round(((precioVenta - costoPuestoARS)/costoPuestoARS)*100) : null;
   let satScore, satLabel;
   if(total < 300){ satScore=90; satLabel='Baja'; } else if(total < 1500){ satScore=65; satLabel='Media'; }
-  else if(total < 6000){ satScore=40; satLabel='Alta'; } else { satScore=20; satLabel='Muy alta'; }
-  const demScore = total>3000?85 : total>800?70 : total>150?55 : 35;
+  else if(total < 6000){ satScore=30; satLabel='Alta'; } else { satScore=8; satLabel='Muy alta'; }
+  const demScore = total>3000?55 : total>800?70 : total>150?55 : 35;
   let margScore = 40;
   if(margenPct!==null){ margScore = margenPct>=250?95 : margenPct>=150?85 : margenPct>=100?72 : margenPct>=60?55 : margenPct>=30?40 : 20; }
   const pesoScore = pesoG<=150?95 : pesoG<=300?80 : pesoG<=500?60 : 40;
-  const score = Math.round(margScore*0.35 + satScore*0.30 + demScore*0.25 + pesoScore*0.10);
+  const score = Math.round(margScore*0.35 + satScore*0.40 + demScore*0.15 + pesoScore*0.10); let _satAdj=score; if(total>=6000)_satAdj=score-25; else if(total>=1500)_satAdj=score-10; else if(total<150)_satAdj=score+8; const scoreFinal=Math.max(0,Math.min(100,_satAdj));
   const riesgo = (satScore>=65 && margScore>=72) ? 'Bajo' : (satScore>=40 && margScore>=55) ? 'Medio' : 'Alto';
-  return { margenPct: margenPct, satLabel: satLabel, demScore: demScore, score: score, riesgo: riesgo };
+  return { margenPct: margenPct, satLabel: satLabel, demScore: demScore, score: scoreFinal, riesgo: riesgo };
 }
 
 // ProductFinder IA - API Handler
