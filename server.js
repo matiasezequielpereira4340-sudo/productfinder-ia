@@ -98,7 +98,7 @@ const users = new Map();
 users.set('matypereira', {
         password: process.env.ADMIN_PASSWORD || 'pf-admin-secret-2024',
         role: 'admin', expiresAt: null,
-        createdAt: new Date().toISOString(), active: true, expiryDays: null
+        createdAt: new Date().toISOString(), active: true, expiryDays: null, premium: true
 });
 
 // ============================================================
@@ -412,7 +412,7 @@ app.post('/api/auth', (req, res) => {
                   if (user.expiresAt && new Date(user.expiresAt) < new Date()) {
                               return res.status(401).json({ success:false, error:'Sesion expirada' });
                   }
-                  return res.json({ success:true, role:user.role, expiresAt:user.expiresAt });
+                  return res.json({ success:true, role:user.role, premium:user.premium===true||user.role==='admin', expiresAt:user.expiresAt });
         }
         return res.status(401).json({ success:false, error:'Credenciales invalidas' });
 });
@@ -430,7 +430,7 @@ function verifyAdmin(req, res) {
 app.get('/api/users', (req, res) => {
         if (!verifyAdmin(req, res)) return;
         const userList = Array.from(users.entries()).map(([username, data]) => ({
-                  username, role:data.role, active:data.active!==false,
+                  username, role:data.role, active:data.active!==false, premium:data.premium===true||data.role==='admin',
                   expiresAt:data.expiresAt, createdAt:data.createdAt, expiryDays:data.expiryDays
         }));
         res.json({ users: userList });
@@ -443,7 +443,7 @@ app.post('/api/users', (req, res) => {
         if (users.has(username.trim())) return res.status(409).json({ error:'El usuario ya existe' });
         const expiresAt = expiryDays ? new Date(Date.now()+expiryDays*86400000).toISOString() : null;
         users.set(username.trim(), {
-                  password, role:'user', active:true,
+                  password, role:'user', active:true, premium:(req.body&&req.body.premium===true),
                   expiresAt, createdAt:new Date().toISOString(), expiryDays
         });
         res.json({ success:true, message:`Usuario "${username}" creado` });
@@ -451,10 +451,15 @@ app.post('/api/users', (req, res) => {
 
 app.delete('/api/users', (req, res) => {
         if (!verifyAdmin(req, res)) return;
-        const { username, action, active } = req.body;
+        const { username, action, active, premium } = req.body;
         if (!username||username==='matypereira') return res.status(400).json({ error:'Operacion no permitida' });
         if (!users.has(username)) return res.status(404).json({ error:'Usuario no encontrado' });
         if (action==='delete') { users.delete(username); return res.json({ success:true, message:`Usuario "${username}" eliminado` }); }
+        if (action==='premium') {
+            user.premium = (typeof premium==='boolean') ? premium : !user.premium;
+            users.set(username, user);
+            return res.json({ success:true, message:`Usuario "${username}" acceso ${user.premium?'activado':'desactivado'}`, premium:user.premium });
+        }
         if (action==='toggle') {
                   const user = users.get(username);
                   user.active = active===true||active==='true';
