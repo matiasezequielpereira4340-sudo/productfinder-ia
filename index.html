@@ -113,7 +113,7 @@ select:focus{border-color:var(--gold)}
 .btn-sm{border:none;border-radius:4px;padding:5px 11px;font-size:.78rem;cursor:pointer;font-weight:600}
 .btn-toggle{background:rgba(39,174,96,.15);color:var(--green)}
 .btn-toggle.deactivate{background:rgba(192,57,43,.15);color:var(--red)}
-.btn-delete{background:rgba(192,57,43,.15);color:var(--red);margin-left:6px}
+.btn-delete{background:rgba(192,57,43,.15);color:var(--red);margin-left:6px} .btn-premium{background:rgba(46,204,113,.15);color:#2ecc71;margin-right:6px} .btn-premium.active{background:rgba(241,196,15,.18);color:#f1c40f}
 .btn-sm:hover{opacity:.75}
 .admin-msg{padding:10px;border-radius:var(--radius);margin-bottom:12px;font-size:.88rem;display:none}
 .admin-msg.ok{background:rgba(39,174,96,.15);color:var(--green);border:1px solid var(--green);display:block}
@@ -1722,6 +1722,7 @@ function renderUsersTable(users){
   const container=document.getElementById('usersTableContainer');
   if(!users.length){container.innerHTML='<div class="loading">No hay usuarios registrados aún.</div>';return;}
   const rows=users.map(u=>{
+            const premBtn = u.role==='admin' ? '' : `<button onclick="togglePremium('${u.username}',${u.premium?'false':'true'})" class="btn-sm btn-premium ${u.premium?'active':''}">${u.premium?'Quitar acceso':'Dar acceso'}</button> `;
     const isAdminUser=(u.username===ADMIN_USER);
     const now=Date.now();
     const expiry=u.expiresAt?new Date(u.expiresAt):null;
@@ -1736,7 +1737,7 @@ function renderUsersTable(users){
     const created=u.createdAt?new Date(u.createdAt).toLocaleDateString('es-AR'):'-';
     const toggleBtn=isAdminUser?'':`<button class="btn-sm btn-toggle ${u.active?'deactivate':''}" onclick="toggleUser('${u.username}',${u.active?'false':'true'})">${u.active?'Desactivar':'Activar'}</button>`;
     const delBtn=isAdminUser?'':`<button class="btn-sm btn-delete" onclick="deleteUser('${u.username}')">Eliminar</button>`;
-    return `<tr><td><strong>${u.username}</strong></td><td>${badge}</td><td>${u.expiryDays||'-'} días</td><td>${created}</td><td>${expiryStr}</td><td>${toggleBtn}${delBtn}</td></tr>`;
+    return `<tr><td><strong>${u.username}</strong></td><td>${badge}</td><td>${u.expiryDays||'-'} días</td><td>${created}</td><td>${expiryStr}</td><td>${premBtn}${toggleBtn}${delBtn}</td></tr>`;
   }).join('');
   container.innerHTML=`<table class="users-table"><thead><tr><th>Usuario</th><th>Estado</th><th>Sesión</th><th>Creado</th><th>Expira</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
@@ -1756,7 +1757,17 @@ async function createUser(){
   }catch(e){showAdminMsg('Error de conexión','err');}
 }
 
-async function toggleUser(username,active){
+async function togglePremium(username, makePremium){
+            try{
+                const res = await fetch('/api/users', { method:'DELETE', headers:{'Content-Type':'application/json','x-admin-key':ADMIN_KEY}, body: JSON.stringify({ username, action:'premium', premium: (makePremium==='true'||makePremium===true) }) });
+                const data = await res.json();
+                if(!res.ok){ showAdminMsg(data.error||'Error al cambiar acceso','err'); return; }
+                showAdminMsg(data.message||'Acceso actualizado','ok');
+                loadUsers();
+            }catch(e){ showAdminMsg('Error de conexión','err'); }
+        }
+
+        async function toggleUser(username,active){
   try{
     const res=await fetch('/api/users',{method:'DELETE',headers:{'Content-Type':'application/json','x-admin-key':ADMIN_KEY},body:JSON.stringify({username,action:'toggle',active})});
     const data=await res.json();
@@ -2234,7 +2245,7 @@ window.addEventListener('DOMContentLoaded',()=>{
 /* ===== v5 Freemium gate (additive) ===== */
 (function(){
   var FREE_LIMIT = 3;
-  function isPremium(){
+  function isPremium(){ if(localStorage.getItem('pf_role')==='admin') return true;
     try{ return localStorage.getItem('pf_premium')==='1'; }catch(e){ return false; }
   }
   function applyGate(){
