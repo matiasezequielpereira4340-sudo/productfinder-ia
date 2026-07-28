@@ -308,8 +308,8 @@ function _score(o){
   var precioVenta=o.precioVenta, total=o.total, costoPuestoARS=o.costoPuestoARS, pesoG=o.pesoG;
   const margenPct = costoPuestoARS>0 ? Math.round(((precioVenta - costoPuestoARS)/costoPuestoARS)*100) : null;
   let satScore, satLabel;
-  if(total < 300){ satScore=90; satLabel='Baja'; } else if(total < 1500){ satScore=65; satLabel='Media'; }
-  else if(total < 6000){ satScore=30; satLabel='Alta'; } else { satScore=8; satLabel='Muy alta'; }
+  if(total < 2000){ satScore=90; satLabel='Baja'; } else if(total < 5000){ satScore=65; satLabel='Media'; }
+  else if(total < 9000){ satScore=38; satLabel='Alta'; } else { satScore=8; satLabel='Muy alta'; }
   const demScore = total>3000?55 : total>800?70 : total>150?55 : 35;
   let margScore = 40;
   if(margenPct!==null){ margScore = margenPct>=250?95 : margenPct>=150?85 : margenPct>=100?72 : margenPct>=60?55 : margenPct>=30?40 : 20; }
@@ -404,7 +404,7 @@ export default async function handler(req, res) {
         const costoUnitARS = Math.round(costoUnitUSD * usdArs);
         const costoPuestoARS = Math.round(costoUnitARS * 2.75); // x2.5-3.0: estimado gastos de envio/importacion (varia segun producto, impuestos, peso y volumen)
         const data = await meliSearch(prod.q, token, costoPuestoARS);
-        function _satFromTotal(t){ if(t==null) return null; if(t < 300) return 'Baja'; if(t < 1500) return 'Media'; if(t < 6000) return 'Alta'; return 'Muy alta'; }
+        function _satFromTotal(t){ if(t==null) return null; if(t < 2000) return 'Baja'; if(t < 5000) return 'Media'; if(t < 9000) return 'Alta'; return 'Muy alta'; }
         if (data && data.precios.length) {
           const precioVenta = _medianRobusto(data.precios);
           const total = data.total || data.precios.length;
