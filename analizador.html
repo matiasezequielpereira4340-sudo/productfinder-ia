@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analizador de Publicaciones - MeLi Connect</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#f0f0f0;min-height:100vh}
+  a{color:inherit;text-decoration:none}
+  .topbar{background:#111;border-bottom:1px solid #222;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+  .logo-text{font-weight:800;font-size:18px;color:#FFE600}
+  .nav-links{display:flex;gap:16px;font-size:13px;color:#aaa}
+  .nav-links a:hover{color:#FFE600}
+  .wrap{max-width:1000px;margin:0 auto;padding:28px 20px 60px}
+  .hero{text-align:center;margin:16px 0 26px}
+  .hero h1{font-size:30px;font-weight:800}
+  .hero h1 span{color:#FFE600}
+  .hero p{color:#9a9a9a;margin-top:8px;font-size:15px}
+  .search-box{background:#111;border:1px solid #222;border-radius:14px;padding:20px;display:flex;gap:10px;flex-wrap:wrap}
+  .search-box input{flex:1;min-width:240px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:14px 16px;color:#fff;font-size:15px}
+  .search-box input:focus{outline:none;border-color:#FFE600}
+  .btn{border:none;border-radius:10px;padding:14px 26px;font-size:15px;font-weight:700;cursor:pointer}
+  .btn-yellow{background:#FFE600;color:#000}
+  .btn-yellow:disabled{opacity:.5;cursor:not-allowed}
+  .note{font-size:12px;color:#6d6d6d;margin-top:10px;text-align:center;line-height:1.5}
+  .hint{font-size:12px;color:#8a8a8a;margin-top:8px}
+
+  .loading{display:none;text-align:center;padding:40px;color:#FFE600}
+  .loading.on{display:block}
+  .spin{width:34px;height:34px;border:3px solid #333;border-top-color:#FFE600;border-radius:50%;margin:0 auto 14px;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  .error-box{display:none;background:#1a0a0a;border:1px solid #7f1d1d;color:#fca5a5;border-radius:10px;padding:14px 16px;margin-top:18px;font-size:14px}
+  .error-box.on{display:block}
+
+  .results{display:none;margin-top:26px}
+  .results.on{display:block}
+
+  .head-card{background:#111;border:1px solid #1e1e1e;border-radius:14px;padding:20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:22px}
+  .head-card img{width:78px;height:78px;object-fit:contain;background:#fff;border-radius:10px}
+  .head-info{flex:1;min-width:200px}
+  .head-info h2{font-size:17px;line-height:1.35}
+  .head-meta{color:#888;font-size:13px;margin-top:6px}
+  .head-meta a{color:#FFE600}
+  .score-badge{text-align:center;min-width:120px}
+  .score-num{font-size:44px;font-weight:800;line-height:1}
+  .score-lbl{font-size:11px;color:#777;text-transform:uppercase;letter-spacing:.5px}
+  .evo{font-size:12px;margin-top:8px;padding:4px 10px;border-radius:20px;display:inline-block}
+  .evo.up{background:#0a2010;color:#4ade80;border:1px solid #14532d}
+  .evo.down{background:#1a0a0a;color:#f87171;border:1px solid #7f1d1d}
+  .evo.same{background:#161616;color:#aaa;border:1px solid #2a2a2a}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+  .card{background:#111;border:1px solid #1e1e1e;border-radius:14px;padding:18px}
+  .card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .card-title{font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px}
+  .badge{font-size:12px;font-weight:800;padding:3px 10px;border-radius:20px}
+  .b-ok{background:#0a2010;color:#4ade80}
+  .b-mid{background:#20180a;color:#FFE600}
+  .b-bad{background:#1a0a0a;color:#f87171}
+  .bar{height:6px;background:#1e1e1e;border-radius:6px;overflow:hidden;margin-bottom:14px}
+  .bar > i{display:block;height:100%}
+  ul.pts{list-style:none;font-size:13px;line-height:1.5;margin-bottom:8px}
+  ul.pts li{display:flex;gap:8px;margin-bottom:6px;color:#cfcfcf}
+  ul.pts li .mk{flex-shrink:0}
+  .rec{background:#141200;border:1px solid #3a3400;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;color:#e9dfa6;margin-top:6px}
+  .rec b{color:#FFE600}
+
+  .cmp-card{background:#111;border:1px solid #1e1e1e;border-radius:14px;padding:18px;margin-top:20px}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+  th{color:#777;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;border-bottom:1px solid #222}
+  td{padding:8px 10px;border-bottom:1px solid #1a1a1a;color:#ccc}
+  .tag{font-size:11px;padding:2px 7px;border-radius:6px;background:#1a1a1a;color:#aaa}
+  .tag.g{color:#4ade80}
+
+  .funnel{background:linear-gradient(135deg,#141200,#1a1400);border:1px solid #4a4200;border-radius:14px;padding:22px;margin-top:24px}
+  .funnel h3{color:#FFE600;font-size:18px}
+  .funnel p{color:#d8cfa0;font-size:14px;margin:10px 0 16px;line-height:1.55}
+  .funnel .acts{display:flex;gap:10px;flex-wrap:wrap}
+  .btn-cta{background:#FFE600;color:#000;border:none;border-radius:10px;padding:12px 18px;font-weight:700;font-size:14px;cursor:pointer}
+  .btn-cta.ghost{background:transparent;border:1px solid #4a4200;color:#FFE600}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="logo-text">MeLi Connect</div>
+    <div class="nav-links">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="margen.html">MargenClear</a>
+      <a href="index.html">Lectura de Mercado</a>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="hero">
+      <h1>Analizador de <span>Publicaciones</span></h1>
+      <p>Pega el link de una publicacion de MercadoLibre y te decimos que esta bien, que esta flojo y que corregir en cada seccion.</p>
+    </div>
+
+    <div class="search-box">
+      <input id="url" type="text" placeholder="https://articulo.mercadolibre.com.ar/MLA-...">
+      <button class="btn btn-yellow" id="go">Analizar</button>
+    </div>
+    <div class="hint">Funciona con datos publicos: no hace falta conectar tu cuenta para probarlo.</div>
+
+    <div class="loading" id="loading">
+      <div class="spin"></div>
+      Analizando la publicacion y comparando contra el top de la categoria...
+    </div>
+
+    <div class="error-box" id="error"></div>
+
+    <div class="results" id="results"></div>
+
+    <div class="note">
+      Nota: las visitas y la tasa de conversion de tu publicacion solo las ve el dueno conectando su cuenta de MercadoLibre. Eso llega en una proxima fase de MeLi Connect.
+    </div>
+  </div>
+
+<script>
+  // Config del embudo: cambia estos enlaces por los reales de Innovasmart.
+  var ASESORIA_URL = '#';     // ej: https://wa.me/549XXXXXXXXXX?text=Quiero%20asesoria%20de%20importacion
+  var DESPACHANTE_URL = '#';  // ej: mailto:despachante@innovasmart.com
+
+  var SEC = {
+    titulo:      { icon: 'T',  label: 'Titulo (SEO)' },
+    fotos:       { icon: 'F',  label: 'Fotos' },
+    descripcion: { icon: 'D',  label: 'Descripcion' },
+    atributos:   { icon: 'A',  label: 'Ficha tecnica / Atributos' },
+    envio:       { icon: 'E',  label: 'Envio' },
+    precio:      { icon: '$',  label: 'Precio' },
+    condicion:   { icon: 'C',  label: 'Condicion' },
+    reputacion:  { icon: 'R',  label: 'Reputacion del vendedor' }
+  };
+
+  function esc(s){ var d=document.createElement('div'); d.textContent = (s==null?'':String(s)); return d.innerHTML; }
+  function fmtARS(n){ return n==null ? '-' : ('ARS ' + Math.round(n).toLocaleString('es-AR')); }
+  function scoreClass(v){ return v>=75 ? 'b-ok' : (v>=50 ? 'b-mid' : 'b-bad'); }
+  function scoreColor(v){ return v>=75 ? '#4ade80' : (v>=50 ? '#FFE600' : '#f87171'); }
+
+  var $ = function(id){ return document.getElementById(id); };
+
+  function setLoading(on){ $('loading').className = on ? 'loading on' : 'loading'; $('go').disabled = on; }
+  function showError(msg){ $('error').className='error-box on'; $('error').textContent = msg; }
+  function clearError(){ $('error').className='error-box'; $('error').textContent=''; }
+
+  async function analizar(){
+    var url = $('url').value.trim();
+    if(!url){ showError('Pega primero el link de la publicacion.'); return; }
+    clearError();
+    $('results').className='results';
+    $('results').innerHTML='';
+    setLoading(true);
+    try{
+      var r = await fetch('/api/analyze-listing', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ url: url })
+      });
+      var data = await r.json();
+      setLoading(false);
+      if(!r.ok || data.error){ showError(data.error || 'No se pudo analizar la publicacion.'); return; }
+      render(data);
+    }catch(e){
+      setLoading(false);
+      showError('Error de conexion: ' + (e && e.message ? e.message : e));
+    }
+  }
+
+  function render(d){
+    var html = '';
+
+    // Cabecera + score total
+    var evo = '';
+    if(d.evolucion){
+      var dif = d.evolucion.diferencia;
+      var cls = dif>0?'up':(dif<0?'down':'same');
+      var sign = dif>0?('+'+dif):(''+dif);
+      evo = '<div class="evo '+cls+'">vs. hace 30 dias: '+sign+' pts</div>';
+    }
+    html += '<div class="head-card">';
+    if(d.thumbnail){ html += '<img src="'+esc(d.thumbnail)+'" alt="">'; }
+    html += '<div class="head-info"><h2>'+esc(d.titulo)+'</h2>';
+    html += '<div class="head-meta">'+fmtARS(d.precio)+' &middot; '+esc(d.vendidos||0)+' vendidos';
+    if(d.permalink){ html += ' &middot; <a href="'+esc(d.permalink)+'" target="_blank" rel="noopener">ver en MeLi</a>'; }
+    html += '</div></div>';
+    html += '<div class="score-badge"><div class="score-num" style="color:'+scoreColor(d.scoreTotal)+'">'+d.scoreTotal+'</div>';
+    html += '<div class="score-lbl">Puntaje / 100</div>'+evo+'</div>';
+    html += '</div>';
+
+    // Secciones
+    html += '<div class="grid">';
+    var order = ['titulo','fotos','descripcion','atributos','envio','precio','condicion','reputacion'];
+    for(var i=0;i<order.length;i++){
+      var k = order[i]; var s = d.secciones && d.secciones[k];
+      if(!s) continue;
+      var meta = SEC[k] || { icon:'?', label:k };
+      html += '<div class="card"><div class="card-head">';
+      html += '<div class="card-title"><span>'+meta.icon+'</span> '+esc(meta.label)+'</div>';
+      html += '<span class="badge '+scoreClass(s.score)+'">'+s.score+'</span></div>';
+      html += '<div class="bar"><i style="width:'+s.score+'%;background:'+scoreColor(s.score)+'"></i></div>';
+      html += '<ul class="pts">';
+      (s.puntosFuertes||[]).forEach(function(p){ html += '<li><span class="mk" style="color:#4ade80">+</span> '+esc(p)+'</li>'; });
+      (s.puntosFlojos||[]).forEach(function(p){ html += '<li><span class="mk" style="color:#f87171">!</span> '+esc(p)+'</li>'; });
+      html += '</ul>';
+      if(s.recomendacion){ html += '<div class="rec"><b>Que hacer:</b> '+esc(s.recomendacion)+'</div>'; }
+      html += '</div>';
+    }
+    html += '</div>';
+
+    // Comparativa vs top de categoria
+    if(d.comparacion && d.topCategoria && d.topCategoria.length){
+      var c = d.comparacion;
+      html += '<div class="cmp-card"><div class="card-title">Comparativa vs. top '+d.topCategoria.length+' de tu categoria</div>';
+      html += '<div class="head-meta" style="margin-top:8px">Titulo promedio: '+c.avgTitleLen+' caracteres &middot; Precio promedio: '+fmtARS(c.avgPrice)+' &middot; '+c.pctEnvioGratis+'% con envio gratis &middot; '+c.pctFull+'% con Full</div>';
+      html += '<table><thead><tr><th>Publicacion</th><th>Precio</th><th>Vendidos</th><th>Envio</th></tr></thead><tbody>';
+      d.topCategoria.forEach(function(t){
+        var envio = t.full ? '<span class="tag g">Full</span>' : (t.envioGratis ? '<span class="tag g">Gratis</span>' : '<span class="tag">-</span>');
+        html += '<tr><td>'+esc((t.titulo||'').slice(0,60))+'</td><td>'+fmtARS(t.precio)+'</td><td>'+esc(t.vendidos||0)+'</td><td>'+envio+'</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+
+    // Embudo: CTA contextual dentro del informe
+    if(d.cta && d.cta.mostrar){
+      html += '<div class="funnel"><h3>'+esc(d.cta.titulo)+'</h3><p>'+esc(d.cta.mensaje)+'</p><div class="acts">';
+      (d.cta.acciones||[]).forEach(function(a,idx){
+        var href = a.tipo === 'contacto_despachante' ? DESPACHANTE_URL : ASESORIA_URL;
+        var cls = idx === 0 ? 'btn-cta' : 'btn-cta ghost';
+        html += '<a class="'+cls+'" href="'+esc(href)+'">'+esc(a.texto)+'</a>';
+      });
+      html += '</div></div>';
+    }
+
+    // Re-chequeo a 30 dias
+    html += '<div class="note">Volve a analizar esta publicacion en 30 dias para ver si tus cambios mejoraron el puntaje.</div>';
+
+    var box = $('results');
+    box.innerHTML = html;
+    box.className = 'results on';
+    box.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+
+  $('go').addEventListener('click', analizar);
+  $('url').addEventListener('keydown', function(e){ if(e.key==='Enter') analizar(); });
+</script>
+</body>
+</html>
