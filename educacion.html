@@ -66,213 +66,211 @@
   .cta p{color:#c8c8c8;margin-bottom:16px}
   .final{text-align:center;padding:30px 0;color:#777;font-size:13px}
 </style>
+
+<style>
+    .mainbar{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:18px;background:#0d0d0d;border-bottom:2px solid #FFE600;padding:0 18px;height:58px;}
+    .mainbrand{display:flex;align-items:center;gap:8px;color:#FFE600;font-weight:800;font-size:17px;text-decoration:none;white-space:nowrap;}
+    .mainbrand-ico{font-size:18px;}
+    .mnav{display:flex;gap:4px;flex:1;overflow-x:auto;}
+    .mnav-link{color:#cfcfcf;text-decoration:none;font-size:14px;font-weight:600;padding:9px 13px;border-radius:8px;white-space:nowrap;transition:background .15s,color .15s;}
+    .mnav-link:hover{background:#1c1c1c;color:#fff;}
+    .mnav-link.active{background:#FFE600;color:#111;}
+    .mnav-toggle{display:none;background:none;border:0;color:#FFE600;font-size:24px;cursor:pointer;}
+    @media (max-width:760px){
+      .mnav{position:absolute;top:58px;left:0;right:0;flex-direction:column;background:#0d0d0d;border-bottom:2px solid #FFE600;padding:8px;gap:4px;display:none;overflow:visible;}
+      .mnav.show{display:flex;}
+      .mnav-toggle{display:block;}
+    }
+    .ml-mock{background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e0e0e0;max-width:340px;margin:14px 0;color:#333;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,.25);}
+    .ml-mock-badge{font-size:11px;font-weight:700;padding:5px 10px;color:#fff;}
+    .ml-mock.good-mock .ml-mock-badge{background:#00a650;}
+    .ml-mock.bad-mock .ml-mock-badge{background:#d93025;}
+    .ml-mock-img{height:150px;display:flex;align-items:center;justify-content:center;font-size:12px;text-align:center;padding:8px;}
+    .ml-mock.good-mock .ml-mock-img{background:#fff;color:#999;border-bottom:1px solid #eee;}
+    .ml-mock.bad-mock .ml-mock-img{background:#3a3a3a;color:#bbb;}
+    .ml-mock-body{padding:12px 14px;}
+    .ml-mock-cond{color:#00a650;font-size:11px;margin-bottom:3px;}
+    .ml-mock-title{font-size:14px;color:#333;line-height:1.35;margin-bottom:8px;font-weight:400;}
+    .ml-mock.bad-mock .ml-mock-title{color:#d93025;font-weight:700;text-transform:uppercase;}
+    .ml-mock-price{font-size:22px;color:#333;font-weight:400;margin-bottom:2px;}
+    .ml-mock-cuotas{color:#00a650;font-size:12px;margin-bottom:8px;}
+    .ml-mock-ship{color:#00a650;font-size:12px;font-weight:600;}
+    .ml-mock-ship.paid{color:#999;font-weight:400;}
+    .ml-mock-rep{margin-top:8px;font-size:11px;color:#666;display:flex;align-items:center;gap:5px;}
+    .ml-stars{color:#3483fa;}
+    .mock-note{font-size:11.5px;color:#888;max-width:340px;margin:-4px 0 16px;font-style:italic;}
+    .mock-pair{display:flex;gap:16px;flex-wrap:wrap;}
+    .porque{background:rgba(52,131,250,.08);border-left:3px solid #3483fa;padding:11px 14px;border-radius:0 8px 8px 0;margin:12px 0;font-size:13.5px;line-height:1.55;}
+    .porque b{color:#5aa2ff;}
+    .checklist{list-style:none;padding:0;margin:12px 0;}
+    .checklist li{padding:6px 0 6px 26px;position:relative;font-size:13.5px;line-height:1.5;}
+    .checklist li:before{content:"✓";position:absolute;left:0;color:#4ade80;font-weight:800;}
+    .warnlist li:before{content:"✗";color:#ff6b6b;}
+    .dato{background:#151515;border:1px solid #2a2a2a;border-radius:8px;padding:12px 14px;margin:12px 0;font-size:13px;line-height:1.55;}
+    .dato b{color:#FFE600;}
+</style>
 </head>
 <body>
-  <div class="topbar">
-    <div class="brand">MeLi Connect <span class="tag">Aprender a vender</span></div>
-    <nav class="nav">
-      <a href="dashboard.html">Dashboard</a>
-      <a href="margen.html">Margen</a>
-      <a href="analizador.html">Analizador</a>
-      <a href="calculadora-envios.html">Envios</a>
-      <a href="index.html">Inicio</a>
-    </nav>
+
+  <header class="mainbar">
+    <a href="index.html" class="mainbrand"><span class="mainbrand-ico">🔗</span> MeLi Connect</a>
+    <nav class="mnav" id="mnav"><a href="index.html" class="mnav-link">Inicio</a><a href="meli-connect.html" class="mnav-link">Conectar ML</a><a href="analizador.html" class="mnav-link">Analizador</a><a href="educacion.html" class="mnav-link active">Aprendé a publicar</a><a href="calculadora-envios.html" class="mnav-link">Flex vs Full</a><a href="margen.html" class="mnav-link">Margen</a></nav>
+    <button class="mnav-toggle" id="mnavToggle" aria-label="Menu">☰</button>
+  </header>
+    <div class="wrap">
+      <header class="hero"><h1>Aprendé a vender bien lo que importás</h1><p>Un curso corto y en criollo. Vas a aprender a armar publicaciones que venden, paso a paso, con el porqué de cada cosa y ejemplos reales. Cada bloque termina con un mini quiz: aprobás con 60% y se desbloquea el siguiente.</p></header>
+      <div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" id="pfill"></div></div><div class="progress-txt" id="ptxt">0 de 5 bloques completados</div></div>
+      <section class="step done open" data-step="0">
+  <div class="step-head"><div class="step-num">1</div><div class="step-title">El título: que te encuentren</div><div class="step-lock"></div></div>
+  <div class="step-body">
+    <p>El título es lo más importante de tu publicación, y la mayoría lo hace mal. Es lo primero que lee el <span class="term">buscador de MercadoLibre<span class="tip">El buscador es el "cerebro" que decide qué publicaciones muestra cuando alguien escribe algo. Si tu título no tiene las palabras correctas, ni siquiera aparecés.</span></span> y también lo primero que ve tu comprador. Si el título está mal, no importa lo bueno que sea tu producto: nadie lo va a encontrar.</p>
+    <h4>¿Por qué es tan importante?</h4>
+    <div class="porque"><b>El por qué:</b> MercadoLibre no "mira" tu foto ni entiende tu producto. Lo que hace es leer las palabras de tu título y compararlas con lo que la gente escribe en el buscador. Si vos vendés auriculares pero en el título pusiste "el mejor sonido del mundo", cuando alguien busca "auriculares bluetooth" NO te va a mostrar, porque esas palabras no están en tu título. Así de literal es.</div>
+    <p>A esto se le llama <span class="term">SEO<span class="tip"><b>SEO</b>: son las palabras clave que la gente escribe para buscar. Si tu título las incluye, aparecés cuando alguien busca eso. Es gratis y es lo que más mueve la aguja.</span></span>. En criollo: usar las palabras que tu cliente escribe, no las que a vos te suenan lindas.</p>
+    <h4>La fórmula que funciona</h4>
+    <p>Armá el título en este orden: <b>Producto + Marca + Modelo + Característica clave</b>. Aprovechá los 60 caracteres que te da MercadoLibre, pero sin repetir ni meter relleno.</p>
+    <div class="mock-pair">
+      <div><div class="ml-mock bad-mock"><div class="ml-mock-badge">✗ Así NO</div><div class="ml-mock-img">📷 foto borrosa</div><div class="ml-mock-body"><div class="ml-mock-title">OFERTA!!! EL MEJOR AURICULAR 🔥🔥 ENVÍO YA</div><div class="ml-mock-price">$15.000</div></div></div><p class="mock-note">Nadie busca "el mejor auricular". Este título no aparece en ninguna búsqueda real.</p></div>
+      <div><div class="ml-mock good-mock"><div class="ml-mock-badge">✓ Así SÍ</div><div class="ml-mock-img">📷 foto limpia</div><div class="ml-mock-body"><div class="ml-mock-title">Auriculares Inalámbricos Bluetooth Deportivos Con Micrófono</div><div class="ml-mock-price">$15.000</div></div></div><p class="mock-note">Tiene producto + tipo + características que la gente realmente busca.</p></div>
+    </div>
+    <h4>Errores que te matan las ventas</h4>
+    <ul class="checklist warnlist">
+      <li>MAYÚSCULAS gritadas: MercadoLibre las penaliza y al comprador le molesta.</li>
+      <li>Emojis y signos (!!!, 🔥): no suman búsquedas y se ven poco serios.</li>
+      <li>Palabras vacías como "oferta", "imperdible", "único": nadie las busca.</li>
+      <li>Repetir la misma palabra 3 veces: no ayuda, MercadoLibre ya la leyó una vez.</li>
+    </ul>
+    <div class="dato">💡 <b>Tip pro:</b> antes de publicar, escribí en el buscador de MercadoLibre lo que vos crees que la gente pone. Fijate qué palabras te autocompleta: esas son las que más se buscan. Usalas en tu título.</div>
+    <div class="quiz" data-quiz="0">
+      <div class="q" data-i="0" data-correct="1"><p><b>1)</b> ¿Cuál título va a aparecer en más búsquedas?</p><div class="opt">"OFERTA!!! el mejor auricular del mundo 🔥"</div><div class="opt">"Auriculares Inalámbricos Bluetooth Con Micrófono"</div></div>
+      <div class="q" data-i="1" data-correct="0"><p><b>2)</b> ¿Para qué sirve el SEO en el título?</p><div class="opt">Para que aparezcas cuando la gente busca lo que vendés</div><div class="opt">Para que tu título se vea más lindo y llamativo</div></div>
+      <button class="btn" data-corregir="0">Corregir quiz</button>
+      <div class="quiz-result" data-res="0"></div>
+    </div>
   </div>
-
-  <main class="wrap">
-    <header class="hero">
-      <h1>Aprendé a vender bien lo que importás</h1>
-      <p>Un curso corto y en criollo. Vas a aprender a armar publicaciones que venden, paso a paso. Cada bloque termina con un mini quiz: aprobás con 60% y se desbloquea el siguiente.</p>
-    </header>
-
-    <div class="progress-wrap">
-      <div class="progress-bar"><div class="progress-fill" id="pfill"></div></div>
-      <div class="progress-txt" id="ptxt">0 de 5 bloques completados</div>
+</section>
+      <section class="step locked" data-step="1">
+  <div class="step-head"><div class="step-num">2</div><div class="step-title">Las fotos: lo que decide la compra</div><div class="step-lock"></div></div>
+  <div class="step-body">
+    <p>Si el título sirve para que te <b>encuentren</b>, las fotos sirven para que te <b>compren</b>. Una vez que la persona hace clic en tu publicación, lo primero que mira son las imágenes. Deciden en 2 segundos si seguís en carrera o si vuelven atrás a ver a tu competencia.</p>
+    <h4>¿Por qué pesan tanto las fotos?</h4>
+    <div class="porque"><b>El por qué:</b> el comprador no puede tocar ni probar el producto. La foto es su única forma de "verlo de verdad". Una foto mala genera desconfianza (¿será trucho? ¿estará usado?) y esa duda hace que se vaya. Además, MercadoLibre le da más exposición a las publicaciones con buenas fotos, porque sabe que venden más.</div>
+    <h4>Las reglas de una buena foto</h4>
+    <ul class="checklist">
+      <li><b>Fondo blanco</b> en la foto principal: es lo que pide MercadoLibre y hace que el producto resalte.</li>
+      <li><b>Buena luz</b>, natural si se puede. Nada de fotos oscuras sacadas de noche.</li>
+      <li><b>Varios ángulos</b>: frente, costados, atrás, detalles. Mientras más mostrás, más confianza generás.</li>
+      <li><b>Foto real del producto</b>, no solo la del fabricante. Que se vea que lo tenés vos.</li>
+      <li><b>Mostrá el tamaño</b>: poné el producto al lado de algo conocido (una mano, una moneda) si hay dudas de escala.</li>
+    </ul>
+    <h4>Lo que NO tenés que hacer</h4>
+    <ul class="checklist warnlist">
+      <li>Fotos con marcas de agua, teléfonos o textos gigantes encima.</li>
+      <li>Capturas de pantalla de otra publicación (se nota y da desconfianza).</li>
+      <li>Una sola foto: parece que tenés algo que esconder.</li>
+      <li>Foto borrosa o con fondo desordenado (tu cocina, la cama, etc.).</li>
+    </ul>
+    <div class="mock-pair">
+      <div><div class="ml-mock bad-mock"><div class="ml-mock-badge">✗ Así NO</div><div class="ml-mock-img">Foto oscura, fondo desordenado, con logo encima</div><div class="ml-mock-body"><div class="ml-mock-title">Producto</div></div></div><p class="mock-note">Da desconfianza. El comprador no distingue bien qué está comprando.</p></div>
+      <div><div class="ml-mock good-mock"><div class="ml-mock-badge">✓ Así SÍ</div><div class="ml-mock-img">Fondo blanco, buena luz, producto centrado y nítido</div><div class="ml-mock-body"><div class="ml-mock-title">Producto</div></div></div><p class="mock-note">Limpia y profesional. Transmite que el producto es real y que sos serio.</p></div>
     </div>
-
-    <section class="step done open" data-step="0">
-      <div class="step-head"><div class="step-num">1</div><div class="step-title">El titulo: que te encuentren</div><div class="step-lock"></div></div>
-      <div class="step-body">
-        <p>El titulo es lo primero que ve el buscador de MercadoLibre y tu comprador. Un buen titulo usa <span class="term">SEO<span class="tip"><b>SEO</b>: son las palabras que la gente escribe para buscar. Si tu titulo las incluye, tu producto aparece cuando alguien busca eso.</span></span> para que tu producto aparezca cuando alguien busca lo que vos vendés.</p>
-        <h4>La regla de oro</h4>
-        <p>Escribí como busca tu cliente, no como te gusta a vos. Poné: producto + marca + modelo + una caracteristica clave. Nada de MAYUSCULAS gritadas, emojis ni "OFERTA IMPERDIBLE".</p>
-        <div class="ejemplo">
-          <p class="bad">Mal: "Vendo auricular NUEVO oferta!!! envio ya"</p>
-          <p class="good">Bien: "Auriculares Inalambricos Bluetooth Samsung Galaxy Buds2 Negro"</p>
-        </div>
-        <h4>Tip que casi nadie hace</h4>
-        <p>Usá las palabras que MercadoLibre te sugiere cuando empezás a escribir en el buscador: esas son las busquedas reales de la gente.</p>
-
-        <div class="quiz" data-quiz="0">
-          <h4>Mini quiz</h4>
-          <div class="q" data-correct="1">
-            <p>1) ¿Cual titulo es mejor?</p>
-            <label class="opt" data-i="0">"OFERTA!!! el mejor auricular del mundo"</label>
-            <label class="opt" data-i="1">"Auriculares Bluetooth Sony WH-1000XM4 Negro Inalambrico"</label>
-            <label class="opt" data-i="2">"Vendo auris"</label>
-          </div>
-          <div class="q" data-correct="0">
-            <p>2) ¿Para que sirve el SEO en el titulo?</p>
-            <label class="opt" data-i="0">Para que aparezcas cuando la gente busca ese producto</label>
-            <label class="opt" data-i="1">Para que se vea mas lindo</label>
-            <label class="opt" data-i="2">No sirve para nada</label>
-          </div>
-          <button class="btn" data-corregir="0">Corregir quiz</button>
-          <div class="quiz-result" data-res="0"></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="step locked" data-step="1">
-      <div class="step-head"><div class="step-num">2</div><div class="step-title">Las fotos: lo que decide la compra</div><div class="step-lock">Aproba el bloque 1</div></div>
-      <div class="step-body">
-        <p>Nadie compra lo que no puede ver bien. Las fotos son tu vidriera. En MercadoLibre podés subir varias, y conviene aprovecharlas todas.</p>
-        <h4>Lo minimo que tenés que cumplir</h4>
-        <ul>
-          <li><b>Fondo blanco</b> en la primera foto (es casi obligatorio y se ve profesional).</li>
-          <li><b>Buena luz y foco</b>: sacale cerca de una ventana, sin flash directo.</li>
-          <li><b>Varias fotos</b>: frente, dorso, detalles, el producto en uso y lo que viene en la caja.</li>
-          <li><b>Alta resolucion</b>: que se pueda hacer zoom sin que se pixele.</li>
-        </ul>
-        <div class="ejemplo">
-          <p class="bad">Mal: 1 sola foto oscura sacada de apuro sobre la cama.</p>
-          <p class="good">Bien: 6 fotos con fondo blanco, mostrando cada angulo y el contenido de la caja.</p>
-        </div>
-        <h4>Por que importa tanto</h4>
-        <p>Publicaciones con muchas fotos buenas venden mas porque generan confianza y responden dudas antes de que el comprador las tenga. Menos preguntas = mas ventas directas.</p>
-
-        <div class="quiz" data-quiz="1">
-          <h4>Mini quiz</h4>
-          <div class="q" data-correct="1">
-            <p>1) ¿Como conviene que sea la primera foto?</p>
-            <label class="opt" data-i="0">Con el producto en la mano y fondo de tu casa</label>
-            <label class="opt" data-i="1">Fondo blanco, buena luz y bien enfocada</label>
-            <label class="opt" data-i="2">Una captura de Google</label>
-          </div>
-          <div class="q" data-correct="2">
-            <p>2) ¿Cuantas fotos conviene subir?</p>
-            <label class="opt" data-i="0">Una sola alcanza</label>
-            <label class="opt" data-i="1">Ninguna, con el titulo basta</label>
-            <label class="opt" data-i="2">Varias: distintos angulos, detalles y lo que trae</label>
-          </div>
-          <button class="btn" data-corregir="1">Corregir quiz</button>
-          <div class="quiz-result" data-res="1"></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="step locked" data-step="2">
-      <div class="step-head"><div class="step-num">3</div><div class="step-title">Descripcion y ficha tecnica</div><div class="step-lock">Aproba el bloque 2</div></div>
-      <div class="step-body">
-        <p>La descripcion y los <span class="term">atributos<span class="tip"><b>Atributos</b>: son los datos de la ficha tecnica (marca, modelo, color, material, medidas). MercadoLibre los usa para filtrar y mostrar tu producto en las busquedas.</span></span> completos hacen que tu producto aparezca en mas filtros y que el comprador no tenga que preguntar nada.</p>
-        <h4>La descripcion ideal</h4>
-        <ul>
-          <li>Arranca con el beneficio principal, no con la ficha tecnica.</li>
-          <li>Contá que problema resuelve y para quien es.</li>
-          <li>Poné medidas, materiales y que incluye.</li>
-          <li>Aclaraciones de envio y garantia al final.</li>
-        </ul>
-        <h4>Completá TODOS los atributos</h4>
-        <p>Cada atributo que dejás vacio es un filtro por el que no aparecés. Si alguien filtra "color: negro" y vos no lo cargaste, no te ve. Es gratis y te da visibilidad: no hay excusa para dejarlos en blanco.</p>
-        <div class="ejemplo">
-          <p class="good">Bien: marca, modelo, color, material, garantia, y medidas todos cargados.</p>
-        </div>
-
-        <div class="quiz" data-quiz="2">
-          <h4>Mini quiz</h4>
-          <div class="q" data-correct="0">
-            <p>1) ¿Que pasa si dejás atributos sin completar?</p>
-            <label class="opt" data-i="0">No aparecés cuando alguien filtra por ese dato</label>
-            <label class="opt" data-i="1">Nada, es lo mismo</label>
-            <label class="opt" data-i="2">MercadoLibre los completa por vos</label>
-          </div>
-          <div class="q" data-correct="1">
-            <p>2) ¿Con que conviene empezar la descripcion?</p>
-            <label class="opt" data-i="0">Con la politica de devoluciones</label>
-            <label class="opt" data-i="1">Con el beneficio principal del producto</label>
-            <label class="opt" data-i="2">Con tus datos de contacto</label>
-          </div>
-          <button class="btn" data-corregir="2">Corregir quiz</button>
-          <div class="quiz-result" data-res="2"></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="step locked" data-step="3">
-      <div class="step-head"><div class="step-num">4</div><div class="step-title">Envios: Mercado Envios, Flex y Full en criollo</div><div class="step-lock">Aproba el bloque 3</div></div>
-      <div class="step-body">
-        <p><span class="term">Mercado Envios<span class="tip"><b>Mercado Envios</b>: es el sistema de envios de MercadoLibre. Se encarga de calcular el costo, generar la etiqueta y darle seguimiento al comprador.</span></span> es el sistema de envios de MercadoLibre. Dentro de el hay dos formas principales de trabajar: Flex y Full.</p>
-        <h4><span class="term">Flex<span class="tip"><b>Flex</b>: vos guardás el stock y hacés la entrega en el dia en tu zona, con una app que te organiza el reparto.</span></span> — vos manejás la entrega</h4>
-        <p>Guardás el stock en tu casa o deposito y entregás vos en el dia (en tu zona). Te conviene si tenés poco volumen, querés arrancar sin pagar deposito, o vendés cosas que rotan despacio.</p>
-        <h4><span class="term">Full<span class="tip"><b>Full</b>: mandás el stock a un deposito de MercadoLibre y ellos guardan, empaquetan y despachan por vos. Pagás almacenamiento.</span></span> — MercadoLibre hace todo</h4>
-        <p>Mandás tu stock al deposito de MercadoLibre y ellos guardan, empaquetan y despachan. Te conviene si vendés mucho y no querés ocuparte de la logistica. Ademas suele darte mejor posicionamiento, pero pagás almacenamiento (ojo con el stock que no rota: te come plata).</p>
-        <div class="ejemplo">
-          <p><b>Importante si recien arrancás:</b> las cuentas nuevas normalmente <b>no</b> pueden usar Flex ni Full desde el dia uno. MercadoLibre te los habilita despues de que hagas algunas ventas y construyas <span class="term">reputacion<span class="tip"><b>Reputacion</b>: es tu historial como vendedor (ventas, entregas a tiempo, reclamos). Cuanto mejor, mas te muestra MercadoLibre y mas confia el comprador.</span></span>. Al principio vas a vender con envio estandar; no te preocupes, es normal.</p>
-        </div>
-        <p>¿No sabés cual te conviene para un producto puntual? Usá la <a href="calculadora-envios.html">Calculadora de envios</a> y te lo dice con numeros.</p>
-
-        <div class="quiz" data-quiz="3">
-          <h4>Mini quiz</h4>
-          <div class="q" data-correct="1">
-            <p>1) ¿Que es Full?</p>
-            <label class="opt" data-i="0">Vos entregás en el dia en tu zona</label>
-            <label class="opt" data-i="1">MercadoLibre guarda, empaqueta y despacha tu stock</label>
-            <label class="opt" data-i="2">Un plan de publicidad</label>
-          </div>
-          <div class="q" data-correct="2">
-            <p>2) Si recien abris tu cuenta, ¿podés usar Flex o Full enseguida?</p>
-            <label class="opt" data-i="0">Si, desde el primer minuto</label>
-            <label class="opt" data-i="1">Nunca se puede</label>
-            <label class="opt" data-i="2">Casi siempre no: primero necesitás ventas y reputacion</label>
-          </div>
-          <button class="btn" data-corregir="3">Corregir quiz</button>
-          <div class="quiz-result" data-res="3"></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="step locked" data-step="4">
-      <div class="step-head"><div class="step-num">5</div><div class="step-title">Precio y reputacion: cerrar la venta</div><div class="step-lock">Aproba el bloque 4</div></div>
-      <div class="step-body">
-        <p>Ya tenés un producto que se ve bien y se encuentra. Ahora falta que el comprador te elija a vos y no al de al lado.</p>
-        <h4>El precio</h4>
-        <p>No se trata de ser el mas barato, sino de ser coherente. Mirá que cobran los que estan primeros en tu categoria (el <a href="analizador.html">Analizador</a> te lo muestra). Si vas a estar mas caro, que se note por que: mejores fotos, envio full, mejor descripcion.</p>
-        <h4>La reputacion</h4>
-        <p>Es tu activo mas valioso. Entregá a tiempo, respondé rapido las preguntas y sé honesto con el estado del producto. Una cuenta con reputacion verde y muchas ventas vende mucho mas facil que una nueva, aunque el producto sea igual.</p>
-        <div class="ejemplo">
-          <p class="good">Regla practica: respondé las preguntas en menos de una hora en horario comercial. La velocidad de respuesta influye en cuanto te muestra MercadoLibre.</p>
-        </div>
-
-        <div class="quiz" data-quiz="4">
-          <h4>Mini quiz</h4>
-          <div class="q" data-correct="0">
-            <p>1) ¿La mejor estrategia de precio es siempre ser el mas barato?</p>
-            <label class="opt" data-i="0">No: hay que ser coherente y justificar si estás mas caro</label>
-            <label class="opt" data-i="1">Si, siempre el mas barato gana</label>
-            <label class="opt" data-i="2">El precio no importa</label>
-          </div>
-          <div class="q" data-correct="2">
-            <p>2) ¿Por que importa la reputacion?</p>
-            <label class="opt" data-i="0">No importa</label>
-            <label class="opt" data-i="1">Solo sirve para el vendedor, al comprador no le interesa</label>
-            <label class="opt" data-i="2">Genera confianza y hace que MercadoLibre te muestre mas</label>
-          </div>
-          <button class="btn" data-corregir="4">Corregir quiz</button>
-          <div class="quiz-result" data-res="4"></div>
-        </div>
-      </div>
-    </section>
-
-    <div class="cta" id="ctaFinal" style="display:none">
-      <h3>Terminaste el curso</h3>
-      <p>Ya sabés armar publicaciones que venden. El proximo paso: analizá una publicacion real y traé stock que rote de verdad. Si querés que te asesoremos con la importacion y el despachante, hablemos.</p>
-      <a class="btn" id="ctaAsesoria" href="https://matiasezequielpereira4340-sudo.github.io/InnovaSmart/">Quiero asesoria de importacion</a>
-      <a class="btn sec" href="analizador.html">Analizar una publicacion</a>
+    <div class="dato">💡 <b>No necesitás un estudio:</b> con la cámara del celular, una cartulina blanca y luz de día cerca de una ventana tenés fotos más que decentes. La clave es la constancia: mismo fondo y estilo en todos tus productos genera identidad de marca.</div>
+    <div class="quiz" data-quiz="1">
+      <div class="q" data-i="0" data-correct="0"><p><b>1)</b> ¿Cómo tiene que ser la foto principal?</p><div class="opt">Fondo blanco, buena luz y producto nítido</div><div class="opt">Con muchos textos y "OFERTA" encima para llamar la atención</div></div>
+      <div class="q" data-i="1" data-correct="1"><p><b>2)</b> ¿Por qué conviene subir varias fotos?</p><div class="opt">Porque MercadoLibre obliga a subir mínimo 6</div><div class="opt">Porque generan confianza y muestran el producto real desde todos los ángulos</div></div>
+      <button class="btn" data-corregir="1">Corregir quiz</button>
+      <div class="quiz-result" data-res="1"></div>
     </div>
-
-    <div class="final">MeLi Connect — Modulo educativo. Hecho para que cualquiera pueda empezar a vender bien.</div>
-  </main>
-  <script>
+  </div>
+</section>
+      <section class="step locked" data-step="2">
+  <div class="step-head"><div class="step-num">3</div><div class="step-title">Descripción y ficha técnica</div><div class="step-lock"></div></div>
+  <div class="step-body">
+    <p>Ya te encontraron (título) y les gustó lo que vieron (fotos). Ahora quieren los detalles antes de decidir. Acá entran dos cosas distintas que la gente suele confundir: la <b>ficha técnica</b> (los atributos) y la <b>descripción</b>.</p>
+    <h4>1. La ficha técnica (atributos)</h4>
+    <p>Son esos campos que MercadoLibre te pide completar: marca, modelo, color, material, medidas, etc. Se llaman <span class="term">atributos<span class="tip"><b>Atributos</b>: datos concretos del producto en formato de lista (marca: Samsung, color: negro...). MercadoLibre los usa para sus filtros de búsqueda.</span></span>.</p>
+    <div class="porque"><b>El por qué:</b> cuando alguien filtra "solo color negro" o "marca Samsung" en el costado de la búsqueda, MercadoLibre usa TUS atributos para decidir si te muestra o no. Si dejaste esos campos vacíos, quedaste afuera de esos filtros. Es venta que perdés sin enterarte. <b>Completá todos los atributos que puedas, siempre.</b></div>
+    <h4>2. La descripción</h4>
+    <p>Es el texto libre donde le hablás al comprador. Acá resolvés sus dudas ANTES de que las pregunte. Una buena descripción vende sola y te ahorra un montón de preguntas.</p>
+    <ul class="checklist">
+      <li>Empezá con una frase que resuma el beneficio principal (no la característica, el beneficio).</li>
+      <li>Usá listas cortas y separadas, no un ladrillo de texto.</li>
+      <li>Contestá las dudas típicas: ¿qué incluye la caja? ¿tiene garantía? ¿sirve para tal cosa?</li>
+      <li>Aclará condiciones: garantía, tiempos, si hacés factura.</li>
+    </ul>
+    <div class="porque"><b>Beneficio vs característica:</b> "batería de 5000mAh" es una característica. "Te dura todo el día sin cargar" es el beneficio. La gente compra beneficios. Decií las dos cosas, pero empezá por el beneficio.</div>
+    <div class="mock-pair">
+      <div><div class="ml-mock bad-mock"><div class="ml-mock-badge">✗ Así NO</div><div class="ml-mock-body" style="min-height:120px"><div class="ml-mock-title" style="text-transform:none;font-weight:400;color:#333">"Buen producto. Consultar stock. Envios a todo el pais."</div><p style="color:#999;font-size:11px;margin-top:8px">Atributos: vacíos</p></div></div><p class="mock-note">No dice nada útil y no completó la ficha. Genera preguntas y desconfianza.</p></div>
+      <div><div class="ml-mock good-mock"><div class="ml-mock-badge">✓ Así SÍ</div><div class="ml-mock-body" style="min-height:120px"><div class="ml-mock-title" style="color:#333">Auriculares que te duran todo el día. Incluye: auriculares + estuche + cable. Garantía 6 meses. Factura A/B.</div><p style="color:#00a650;font-size:11px;margin-top:8px">Atributos: completos ✓</p></div></div><p class="mock-note">Resuelve dudas, muestra beneficios y la ficha completa lo hace aparecer en más filtros.</p></div>
+    </div>
+    <div class="quiz" data-quiz="2">
+      <div class="q" data-i="0" data-correct="1"><p><b>1)</b> ¿Por qué conviene completar TODOS los atributos?</p><div class="opt">Porque queda más prolijo aunque nadie los mira</div><div class="opt">Porque MercadoLibre los usa en los filtros: si faltan, no aparecés en esas búsquedas</div></div>
+      <div class="q" data-i="1" data-correct="0"><p><b>2)</b> ¿Qué hace una buena descripción?</p><div class="opt">Responde las dudas del comprador y muestra el beneficio del producto</div><div class="opt">Repite el título en mayúsculas varias veces</div></div>
+      <button class="btn" data-corregir="2">Corregir quiz</button>
+      <div class="quiz-result" data-res="2"></div>
+    </div>
+  </div>
+</section>
+      <section class="step locked" data-step="3">
+  <div class="step-head"><div class="step-num">4</div><div class="step-title">Envíos: Mercado Envíos, Flex y Full en criollo</div><div class="step-lock"></div></div>
+  <div class="step-body">
+    <p>Este tema asusta al principio, pero es más fácil de lo que parece. Te lo explico como si nunca hubieras vendido nada.</p>
+    <h4>¿Qué es Mercado Envíos?</h4>
+    <p><span class="term">Mercado Envíos<span class="tip">Es el sistema de envíos de MercadoLibre. Él organiza el correo, la etiqueta y el seguimiento. Vos casi no te preocupás por la logística.</span></span> es el sistema con el que MercadoLibre maneja los envíos por vos: genera la etiqueta, coordina el correo y le da seguimiento al comprador. Dentro de Mercado Envíos hay dos formas principales: <b>Flex</b> y <b>Full</b>.</p>
+    <h4>📦 Flex: lo enviás vos mismo</h4>
+    <p>Con <span class="term">Flex<span class="tip"><b>Flex</b>: vos guardás el producto en tu casa y lo entregás vos (o un correo) el mismo día. Ideal si vendés poco volumen o productos grandes.</span></span>, el producto se queda en tu casa. Cuando se vende, vos lo empaquetás y lo entregás el mismo día (a veces en tu zona lo hacés vos en auto/moto y cobrás por eso).</p>
+    <ul class="checklist">
+      <li>Te conviene si: vendés pocas unidades, productos grandes/pesados, o querés controlar vos el stock.</li>
+      <li>Ventaja: no pagás almacenamiento y tenés el producto a mano.</li>
+      <li>Desventaja: depénde de vos empacar y despachar rápido todos los días.</li>
+    </ul>
+    <h4>🏬 Full: MercadoLibre guarda y envía por vos</h4>
+    <p>Con <span class="term">Full<span class="tip"><b>Full</b>: mandás tu stock a un depósito de MercadoLibre. Ellos guardan, empacan y envían por vos. Ideal para vender mucho volumen sin ocuparte de la logística.</span></span>, vos mandás tu stock a un depósito de MercadoLibre. Cuando alguien compra, <b>ellos</b> lo empacan y lo mandan. Vos no tocás nada.</p>
+    <ul class="checklist">
+      <li>Te conviene si: vendés bastante volumen y productos chicos/livianos que rotan rápido.</li>
+      <li>Ventaja: tu publicación gana más exposición y la etiqueta "FULL" da confianza y entrega rápida.</li>
+      <li>Desventaja: pagás por el almacenamiento, sobre todo si el producto se queda mucho tiempo sin venderse.</li>
+    </ul>
+    <div class="porque"><b>La regla fácil:</b> producto chico que vendés mucho y rápido → <b>Full</b>. Producto grande, pesado o que vendés de a poco → <b>Flex</b>. Igual no adivines: para eso tenés la calculadora Flex vs Full en el menú, que te lo dice con tus datos.</div>
+    <div class="dato">⚠️ <b>Muy importante si tu cuenta recién arranca:</b> cuando abrís una cuenta nueva en MercadoLibre, NO tenés Flex ni Full disponibles de una. MercadoLibre te los habilita recién cuando demostrás que sos un vendedor confiable: eso se logra haciendo tus primeras ventas y manteniendo buena reputación (entregar a tiempo, sin reclamos). Recién ahí se te desbloquean estas opciones. Así que al principio es normal empezar con envío estándar por correo, y a medida que vendés y subís tu reputación, se te van habilitando Flex y Full.</div>
+    <div class="quiz" data-quiz="3">
+      <div class="q" data-i="0" data-correct="0"><p><b>1)</b> ¿Qué es Full?</p><div class="opt">MercadoLibre guarda tu stock, empaca y envía por vos</div><div class="opt">Vos guardás todo en tu casa y lo entregás vos mismo</div></div>
+      <div class="q" data-i="1" data-correct="1"><p><b>2)</b> Tengo una cuenta recién creada, ¿puedo usar Full ya mismo?</p><div class="opt">Sí, está disponible desde el primer día para todos</div><div class="opt">No: primero hay que hacer ventas y tener buena reputación para que se habilite</div></div>
+      <button class="btn" data-corregir="3">Corregir quiz</button>
+      <div class="quiz-result" data-res="3"></div>
+    </div>
+  </div>
+</section>
+      <section class="step locked" data-step="4">
+  <div class="step-head"><div class="step-num">5</div><div class="step-title">Precio y reputación: cerrar la venta</div><div class="step-lock"></div></div>
+  <div class="step-body">
+    <p>Llegó el momento de la verdad: el comprador ya vio todo y decide. Dos cosas terminan de inclinar la balanza: el <b>precio</b> (bien planteado) y tu <b>reputación</b>.</p>
+    <h4>El precio no es "poner barato"</h4>
+    <div class="porque"><b>El por qué:</b> muchos que arrancan creen que ganan poniendo el precio más bajo. Error. Si ponés demasiado barato, no te queda ganancia (te comés las comisiones y el envío) y además generás sospecha ("¿por qué tan barato? ¿será trucho?"). Y si ponés muy caro sin justificarlo, te van a la competencia.</div>
+    <ul class="checklist">
+      <li>Mirá a qué precio venden los primeros 3-5 de tu categoría y ubicate cerca, no muy lejos.</li>
+      <li>Calculá tu <b>margen real</b> (lo que te queda después de comisión + envío + impuestos). Para eso usá el Calculador de margen del menú.</li>
+      <li>Usá las <b>cuotas sin interés</b> cuando puedas: hacen que el precio "se sienta" más bajo y venden mucho más.</li>
+    </ul>
+    <h4>La reputación: tu activo más valioso</h4>
+    <p>La <span class="term">reputación<span class="tip"><b>Reputación</b>: es el color (verde, amarillo, rojo) que MercadoLibre te asigna según cómo vendés: si entregás a tiempo, si hay reclamos, si cancelás ventas. Verde = confiable.</span></span> es ese termómetro de colores que MercadoLibre te pone. Verde es confiable, rojo es problemático. Se construye entregando a tiempo, respondiendo rápido y evitando reclamos y cancelaciones.</p>
+    <div class="dato">💡 <b>Por qué te conviene el verde:</b> MercadoLibre le muestra más tus publicaciones a los vendedores con buena reputación, y además desbloquea beneficios como MercadoLíder. Dos vendedores con el mismo producto y precio: gana el que tiene mejor reputación. Cuidala como oro.</div>
+    <div class="mock-pair">
+      <div><div class="ml-mock good-mock"><div class="ml-mock-badge">✓ Publicación completa</div><div class="ml-mock-img">📷 foto nítida fondo blanco</div><div class="ml-mock-body"><div class="ml-mock-cond">Nuevo | +50 vendidos</div><div class="ml-mock-title" style="color:#333">Auriculares Inalámbricos Bluetooth Con Micrófono</div><div class="ml-mock-price">$15.000</div><div class="ml-mock-cuotas">en 6 cuotas sin interés</div><div class="ml-mock-ship">Envío gratis - llega mañana</div><div class="ml-mock-rep"><span class="ml-stars">★★★★★</span> Vendedor con reputación verde</div></div></div><p class="mock-note">Así se ve una publicación que junta todo lo que aprendiste: título, foto, precio con cuotas, envío y reputación.</p></div>
+    </div>
+    <div class="quiz" data-quiz="4">
+      <div class="q" data-i="0" data-correct="1"><p><b>1)</b> ¿Qué conviene hacer con el precio?</p><div class="opt">Poner siempre el más barato de todos, cueste lo que cueste</div><div class="opt">Ubicarlo cerca de la competencia cuidando tu margen real</div></div>
+      <div class="q" data-i="1" data-correct="0"><p><b>2)</b> ¿Por qué importa la reputación verde?</p><div class="opt">MercadoLibre te muestra más y el comprador confía más en vos</div><div class="opt">No sirve para nada, es solo un color decorativo</div></div>
+      <button class="btn" data-corregir="4">Corregir quiz</button>
+      <div class="quiz-result" data-res="4"></div>
+    </div>
+  </div>
+</section>
+      <div class="cta" id="ctaFinal" style="display:none"><h3>Terminaste el curso 🎉</h3><p>Ya sabés armar publicaciones que venden. El próximo paso: analizá una publicación real y traé stock que rote de verdad. Si querés que te asesoremos con la importación y el despachante, hablemos.</p><a class="btn" id="ctaAsesoria" href="https://matiasezequielpereira4340-sudo.github.io/InnovaSmart/">Quiero asesoría de importación</a><a class="btn sec" href="analizador.html">Analizar una publicación</a></div>
+      <div class="final">MeLi Connect — Módulo educativo. Hecho para que cualquiera pueda empezar a vender bien.</div>
+    </div>
+<script>(function(){var t=document.getElementById('mnavToggle'),n=document.getElementById('mnav');if(t&&n){t.addEventListener('click',function(){n.classList.toggle('show');});}})();</script>
+<script>
     const TOTAL = 5;
     const passed = new Array(TOTAL).fill(false);
 
