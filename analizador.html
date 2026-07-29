@@ -161,7 +161,7 @@
     $('results').className='results'; $('results').innerHTML='';
     setLoading(true);
     try{
-      var r = await fetch('/api/analyze-listing', {
+      var r = await fetch('/api/herramientas', {
         method:'POST', headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ url: url })
       });
