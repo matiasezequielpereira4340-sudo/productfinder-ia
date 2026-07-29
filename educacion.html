@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aprendé a vender en MercadoLibre — MeLi Connect</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0a0a0a;color:#e8e8e8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6}
+  a{color:#FFE600;text-decoration:none}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;background:#111;border-bottom:1px solid #222;position:sticky;top:0;z-index:50}
+  .brand{font-weight:800;font-size:16px}
+  .brand .tag{background:#FFE600;color:#000;font-size:11px;padding:2px 8px;border-radius:20px;margin-left:8px;font-weight:700}
+  .nav a{margin-left:16px;font-size:14px;color:#bdbdbd}
+  .nav a:hover{color:#FFE600}
+  .wrap{max-width:820px;margin:0 auto;padding:28px 20px 80px}
+  .hero{text-align:center;padding:24px 0 12px}
+  .hero h1{font-size:30px;font-weight:800;line-height:1.2}
+  .hero p{color:#a8a8a8;margin-top:10px;font-size:16px}
+
+  .progress-wrap{margin:26px 0 18px}
+  .progress-bar{height:8px;background:#1c1c1c;border-radius:20px;overflow:hidden}
+  .progress-fill{height:100%;background:#FFE600;width:0%;transition:width .4s ease}
+  .progress-txt{font-size:12px;color:#8a8a8a;margin-top:8px;text-align:center}
+
+  .step{background:#121212;border:1px solid #222;border-radius:14px;padding:22px 22px 24px;margin-bottom:16px;transition:opacity .3s}
+  .step.locked{opacity:.45;pointer-events:none}
+  .step-head{display:flex;align-items:center;gap:10px;cursor:pointer}
+  .step-num{background:#FFE600;color:#000;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:none}
+  .step.done .step-num{background:#2ecc71;color:#000}
+  .step.locked .step-num{background:#333;color:#777}
+  .step-title{font-size:18px;font-weight:700}
+  .step-lock{margin-left:auto;font-size:12px;color:#777}
+  .step-body{margin-top:14px;display:none}
+  .step.open .step-body{display:block}
+  .step-body h4{color:#FFE600;font-size:15px;margin:16px 0 6px}
+  .step-body p{color:#d0d0d0;margin-bottom:10px}
+  .step-body ul{margin:0 0 10px 20px;color:#d0d0d0}
+  .step-body li{margin-bottom:6px}
+  .ejemplo{background:#0d0d0d;border-left:3px solid #FFE600;padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;font-size:14px}
+  .ejemplo .bad{color:#ff6b6b}
+  .ejemplo .good{color:#2ecc71}
+
+  .term{border-bottom:1px dashed #FFE600;color:#FFE600;cursor:help;position:relative}
+  .term .tip{visibility:hidden;opacity:0;position:absolute;left:0;bottom:130%;background:#000;border:1px solid #FFE600;color:#e8e8e8;padding:10px 12px;border-radius:8px;width:260px;font-size:13px;line-height:1.5;z-index:20;transition:opacity .2s;box-shadow:0 6px 20px rgba(0,0,0,.6)}
+  .term:hover .tip{visibility:visible;opacity:1}
+
+  .quiz{background:#0d0d0d;border:1px solid #2a2a2a;border-radius:12px;padding:18px;margin-top:18px}
+  .quiz h4{color:#FFE600;margin-bottom:4px}
+  .quiz .q{margin:14px 0}
+  .quiz .q p{font-weight:600;color:#fff;margin-bottom:8px}
+  .quiz .opt{display:block;background:#151515;border:1px solid #262626;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:pointer;font-size:14px;transition:.15s}
+  .quiz .opt:hover{border-color:#FFE600}
+  .quiz .opt.sel{border-color:#FFE600;background:#1d1d16}
+  .quiz .opt.correct{border-color:#2ecc71;background:#12251a}
+  .quiz .opt.wrong{border-color:#ff6b6b;background:#251414}
+  .btn{background:#FFE600;color:#000;border:none;border-radius:10px;padding:12px 20px;font-size:15px;font-weight:800;cursor:pointer;margin-top:10px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.sec{background:transparent;color:#FFE600;border:1px solid #FFE600}
+  .quiz-result{margin-top:12px;font-weight:700;font-size:14px;display:none}
+  .quiz-result.pass{color:#2ecc71}
+  .quiz-result.fail{color:#ff6b6b}
+
+  .cta{background:linear-gradient(135deg,#1a1a0d,#111);border:1px solid #FFE600;border-radius:14px;padding:26px;text-align:center;margin-top:26px}
+  .cta h3{font-size:20px;margin-bottom:8px}
+  .cta p{color:#c8c8c8;margin-bottom:16px}
+  .final{text-align:center;padding:30px 0;color:#777;font-size:13px}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">MeLi Connect <span class="tag">Aprender a vender</span></div>
+    <nav class="nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="margen.html">Margen</a>
+      <a href="analizador.html">Analizador</a>
+      <a href="calculadora-envios.html">Envios</a>
+      <a href="index.html">Inicio</a>
+    </nav>
+  </div>
+
+  <main class="wrap">
+    <header class="hero">
+      <h1>Aprendé a vender bien lo que importás</h1>
+      <p>Un curso corto y en criollo. Vas a aprender a armar publicaciones que venden, paso a paso. Cada bloque termina con un mini quiz: aprobás con 60% y se desbloquea el siguiente.</p>
+    </header>
+
+    <div class="progress-wrap">
+      <div class="progress-bar"><div class="progress-fill" id="pfill"></div></div>
+      <div class="progress-txt" id="ptxt">0 de 5 bloques completados</div>
+    </div>
+
+    <section class="step done open" data-step="0">
+      <div class="step-head"><div class="step-num">1</div><div class="step-title">El titulo: que te encuentren</div><div class="step-lock"></div></div>
+      <div class="step-body">
+        <p>El titulo es lo primero que ve el buscador de MercadoLibre y tu comprador. Un buen titulo usa <span class="term">SEO<span class="tip"><b>SEO</b>: son las palabras que la gente escribe para buscar. Si tu titulo las incluye, tu producto aparece cuando alguien busca eso.</span></span> para que tu producto aparezca cuando alguien busca lo que vos vendés.</p>
+        <h4>La regla de oro</h4>
+        <p>Escribí como busca tu cliente, no como te gusta a vos. Poné: producto + marca + modelo + una caracteristica clave. Nada de MAYUSCULAS gritadas, emojis ni "OFERTA IMPERDIBLE".</p>
+        <div class="ejemplo">
+          <p class="bad">Mal: "Vendo auricular NUEVO oferta!!! envio ya"</p>
+          <p class="good">Bien: "Auriculares Inalambricos Bluetooth Samsung Galaxy Buds2 Negro"</p>
+        </div>
+        <h4>Tip que casi nadie hace</h4>
+        <p>Usá las palabras que MercadoLibre te sugiere cuando empezás a escribir en el buscador: esas son las busquedas reales de la gente.</p>
+
+        <div class="quiz" data-quiz="0">
+          <h4>Mini quiz</h4>
+          <div class="q" data-correct="1">
+            <p>1) ¿Cual titulo es mejor?</p>
+            <label class="opt" data-i="0">"OFERTA!!! el mejor auricular del mundo"</label>
+            <label class="opt" data-i="1">"Auriculares Bluetooth Sony WH-1000XM4 Negro Inalambrico"</label>
+            <label class="opt" data-i="2">"Vendo auris"</label>
+          </div>
+          <div class="q" data-correct="0">
+            <p>2) ¿Para que sirve el SEO en el titulo?</p>
+            <label class="opt" data-i="0">Para que aparezcas cuando la gente busca ese producto</label>
+            <label class="opt" data-i="1">Para que se vea mas lindo</label>
+            <label class="opt" data-i="2">No sirve para nada</label>
+          </div>
+          <button class="btn" data-corregir="0">Corregir quiz</button>
+          <div class="quiz-result" data-res="0"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step locked" data-step="1">
+      <div class="step-head"><div class="step-num">2</div><div class="step-title">Las fotos: lo que decide la compra</div><div class="step-lock">Aproba el bloque 1</div></div>
+      <div class="step-body">
+        <p>Nadie compra lo que no puede ver bien. Las fotos son tu vidriera. En MercadoLibre podés subir varias, y conviene aprovecharlas todas.</p>
+        <h4>Lo minimo que tenés que cumplir</h4>
+        <ul>
+          <li><b>Fondo blanco</b> en la primera foto (es casi obligatorio y se ve profesional).</li>
+          <li><b>Buena luz y foco</b>: sacale cerca de una ventana, sin flash directo.</li>
+          <li><b>Varias fotos</b>: frente, dorso, detalles, el producto en uso y lo que viene en la caja.</li>
+          <li><b>Alta resolucion</b>: que se pueda hacer zoom sin que se pixele.</li>
+        </ul>
+        <div class="ejemplo">
+          <p class="bad">Mal: 1 sola foto oscura sacada de apuro sobre la cama.</p>
+          <p class="good">Bien: 6 fotos con fondo blanco, mostrando cada angulo y el contenido de la caja.</p>
+        </div>
+        <h4>Por que importa tanto</h4>
+        <p>Publicaciones con muchas fotos buenas venden mas porque generan confianza y responden dudas antes de que el comprador las tenga. Menos preguntas = mas ventas directas.</p>
+
+        <div class="quiz" data-quiz="1">
+          <h4>Mini quiz</h4>
+          <div class="q" data-correct="1">
+            <p>1) ¿Como conviene que sea la primera foto?</p>
+            <label class="opt" data-i="0">Con el producto en la mano y fondo de tu casa</label>
+            <label class="opt" data-i="1">Fondo blanco, buena luz y bien enfocada</label>
+            <label class="opt" data-i="2">Una captura de Google</label>
+          </div>
+          <div class="q" data-correct="2">
+            <p>2) ¿Cuantas fotos conviene subir?</p>
+            <label class="opt" data-i="0">Una sola alcanza</label>
+            <label class="opt" data-i="1">Ninguna, con el titulo basta</label>
+            <label class="opt" data-i="2">Varias: distintos angulos, detalles y lo que trae</label>
+          </div>
+          <button class="btn" data-corregir="1">Corregir quiz</button>
+          <div class="quiz-result" data-res="1"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step locked" data-step="2">
+      <div class="step-head"><div class="step-num">3</div><div class="step-title">Descripcion y ficha tecnica</div><div class="step-lock">Aproba el bloque 2</div></div>
+      <div class="step-body">
+        <p>La descripcion y los <span class="term">atributos<span class="tip"><b>Atributos</b>: son los datos de la ficha tecnica (marca, modelo, color, material, medidas). MercadoLibre los usa para filtrar y mostrar tu producto en las busquedas.</span></span> completos hacen que tu producto aparezca en mas filtros y que el comprador no tenga que preguntar nada.</p>
+        <h4>La descripcion ideal</h4>
+        <ul>
+          <li>Arranca con el beneficio principal, no con la ficha tecnica.</li>
+          <li>Contá que problema resuelve y para quien es.</li>
+          <li>Poné medidas, materiales y que incluye.</li>
+          <li>Aclaraciones de envio y garantia al final.</li>
+        </ul>
+        <h4>Completá TODOS los atributos</h4>
+        <p>Cada atributo que dejás vacio es un filtro por el que no aparecés. Si alguien filtra "color: negro" y vos no lo cargaste, no te ve. Es gratis y te da visibilidad: no hay excusa para dejarlos en blanco.</p>
+        <div class="ejemplo">
+          <p class="good">Bien: marca, modelo, color, material, garantia, y medidas todos cargados.</p>
+        </div>
+
+        <div class="quiz" data-quiz="2">
+          <h4>Mini quiz</h4>
+          <div class="q" data-correct="0">
+            <p>1) ¿Que pasa si dejás atributos sin completar?</p>
+            <label class="opt" data-i="0">No aparecés cuando alguien filtra por ese dato</label>
+            <label class="opt" data-i="1">Nada, es lo mismo</label>
+            <label class="opt" data-i="2">MercadoLibre los completa por vos</label>
+          </div>
+          <div class="q" data-correct="1">
+            <p>2) ¿Con que conviene empezar la descripcion?</p>
+            <label class="opt" data-i="0">Con la politica de devoluciones</label>
+            <label class="opt" data-i="1">Con el beneficio principal del producto</label>
+            <label class="opt" data-i="2">Con tus datos de contacto</label>
+          </div>
+          <button class="btn" data-corregir="2">Corregir quiz</button>
+          <div class="quiz-result" data-res="2"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step locked" data-step="3">
+      <div class="step-head"><div class="step-num">4</div><div class="step-title">Envios: Mercado Envios, Flex y Full en criollo</div><div class="step-lock">Aproba el bloque 3</div></div>
+      <div class="step-body">
+        <p><span class="term">Mercado Envios<span class="tip"><b>Mercado Envios</b>: es el sistema de envios de MercadoLibre. Se encarga de calcular el costo, generar la etiqueta y darle seguimiento al comprador.</span></span> es el sistema de envios de MercadoLibre. Dentro de el hay dos formas principales de trabajar: Flex y Full.</p>
+        <h4><span class="term">Flex<span class="tip"><b>Flex</b>: vos guardás el stock y hacés la entrega en el dia en tu zona, con una app que te organiza el reparto.</span></span> — vos manejás la entrega</h4>
+        <p>Guardás el stock en tu casa o deposito y entregás vos en el dia (en tu zona). Te conviene si tenés poco volumen, querés arrancar sin pagar deposito, o vendés cosas que rotan despacio.</p>
+        <h4><span class="term">Full<span class="tip"><b>Full</b>: mandás el stock a un deposito de MercadoLibre y ellos guardan, empaquetan y despachan por vos. Pagás almacenamiento.</span></span> — MercadoLibre hace todo</h4>
+        <p>Mandás tu stock al deposito de MercadoLibre y ellos guardan, empaquetan y despachan. Te conviene si vendés mucho y no querés ocuparte de la logistica. Ademas suele darte mejor posicionamiento, pero pagás almacenamiento (ojo con el stock que no rota: te come plata).</p>
+        <div class="ejemplo">
+          <p><b>Importante si recien arrancás:</b> las cuentas nuevas normalmente <b>no</b> pueden usar Flex ni Full desde el dia uno. MercadoLibre te los habilita despues de que hagas algunas ventas y construyas <span class="term">reputacion<span class="tip"><b>Reputacion</b>: es tu historial como vendedor (ventas, entregas a tiempo, reclamos). Cuanto mejor, mas te muestra MercadoLibre y mas confia el comprador.</span></span>. Al principio vas a vender con envio estandar; no te preocupes, es normal.</p>
+        </div>
+        <p>¿No sabés cual te conviene para un producto puntual? Usá la <a href="calculadora-envios.html">Calculadora de envios</a> y te lo dice con numeros.</p>
+
+        <div class="quiz" data-quiz="3">
+          <h4>Mini quiz</h4>
+          <div class="q" data-correct="1">
+            <p>1) ¿Que es Full?</p>
+            <label class="opt" data-i="0">Vos entregás en el dia en tu zona</label>
+            <label class="opt" data-i="1">MercadoLibre guarda, empaqueta y despacha tu stock</label>
+            <label class="opt" data-i="2">Un plan de publicidad</label>
+          </div>
+          <div class="q" data-correct="2">
+            <p>2) Si recien abris tu cuenta, ¿podés usar Flex o Full enseguida?</p>
+            <label class="opt" data-i="0">Si, desde el primer minuto</label>
+            <label class="opt" data-i="1">Nunca se puede</label>
+            <label class="opt" data-i="2">Casi siempre no: primero necesitás ventas y reputacion</label>
+          </div>
+          <button class="btn" data-corregir="3">Corregir quiz</button>
+          <div class="quiz-result" data-res="3"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step locked" data-step="4">
+      <div class="step-head"><div class="step-num">5</div><div class="step-title">Precio y reputacion: cerrar la venta</div><div class="step-lock">Aproba el bloque 4</div></div>
+      <div class="step-body">
+        <p>Ya tenés un producto que se ve bien y se encuentra. Ahora falta que el comprador te elija a vos y no al de al lado.</p>
+        <h4>El precio</h4>
+        <p>No se trata de ser el mas barato, sino de ser coherente. Mirá que cobran los que estan primeros en tu categoria (el <a href="analizador.html">Analizador</a> te lo muestra). Si vas a estar mas caro, que se note por que: mejores fotos, envio full, mejor descripcion.</p>
+        <h4>La reputacion</h4>
+        <p>Es tu activo mas valioso. Entregá a tiempo, respondé rapido las preguntas y sé honesto con el estado del producto. Una cuenta con reputacion verde y muchas ventas vende mucho mas facil que una nueva, aunque el producto sea igual.</p>
+        <div class="ejemplo">
+          <p class="good">Regla practica: respondé las preguntas en menos de una hora en horario comercial. La velocidad de respuesta influye en cuanto te muestra MercadoLibre.</p>
+        </div>
+
+        <div class="quiz" data-quiz="4">
+          <h4>Mini quiz</h4>
+          <div class="q" data-correct="0">
+            <p>1) ¿La mejor estrategia de precio es siempre ser el mas barato?</p>
+            <label class="opt" data-i="0">No: hay que ser coherente y justificar si estás mas caro</label>
+            <label class="opt" data-i="1">Si, siempre el mas barato gana</label>
+            <label class="opt" data-i="2">El precio no importa</label>
+          </div>
+          <div class="q" data-correct="2">
+            <p>2) ¿Por que importa la reputacion?</p>
+            <label class="opt" data-i="0">No importa</label>
+            <label class="opt" data-i="1">Solo sirve para el vendedor, al comprador no le interesa</label>
+            <label class="opt" data-i="2">Genera confianza y hace que MercadoLibre te muestre mas</label>
+          </div>
+          <button class="btn" data-corregir="4">Corregir quiz</button>
+          <div class="quiz-result" data-res="4"></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="cta" id="ctaFinal" style="display:none">
+      <h3>Terminaste el curso</h3>
+      <p>Ya sabés armar publicaciones que venden. El proximo paso: analizá una publicacion real y traé stock que rote de verdad. Si querés que te asesoremos con la importacion y el despachante, hablemos.</p>
+      <a class="btn" id="ctaAsesoria" href="https://matiasezequielpereira4340-sudo.github.io/InnovaSmart/">Quiero asesoria de importacion</a>
+      <a class="btn sec" href="analizador.html">Analizar una publicacion</a>
+    </div>
+
+    <div class="final">MeLi Connect — Modulo educativo. Hecho para que cualquiera pueda empezar a vender bien.</div>
+  </main>
+  <script>
+    const TOTAL = 5;
+    const passed = new Array(TOTAL).fill(false);
+
+    document.querySelectorAll('.step-head').forEach(h => {
+      h.addEventListener('click', () => {
+        const step = h.parentElement;
+        if (step.classList.contains('locked')) return;
+        step.classList.toggle('open');
+      });
+    });
+
+    document.querySelectorAll('.quiz .q').forEach(q => {
+      const opts = q.querySelectorAll('.opt');
+      opts.forEach(o => {
+        o.addEventListener('click', () => {
+          if (q.dataset.answered === '1') return;
+          opts.forEach(x => x.classList.remove('sel'));
+          o.classList.add('sel');
+        });
+      });
+    });
+
+    document.querySelectorAll('[data-corregir]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.corregir, 10);
+        const quiz = document.querySelector('.quiz[data-quiz="' + idx + '"]');
+        const preguntas = quiz.querySelectorAll('.q');
+        let ok = 0;
+        preguntas.forEach(q => {
+          const correct = parseInt(q.dataset.correct, 10);
+          const sel = q.querySelector('.opt.sel');
+          q.dataset.answered = '1';
+          q.querySelectorAll('.opt').forEach(o => {
+            const i = parseInt(o.dataset.i, 10);
+            if (i === correct) o.classList.add('correct');
+            if (o.classList.contains('sel') && i !== correct) o.classList.add('wrong');
+          });
+          if (sel && parseInt(sel.dataset.i, 10) === correct) ok++;
+        });
+        const score = ok / preguntas.length;
+        const res = quiz.querySelector('.quiz-result[data-res="' + idx + '"]');
+        res.style.display = 'block';
+        if (score >= 0.6) {
+          res.className = 'quiz-result pass';
+          res.textContent = 'Aprobaste (' + Math.round(score * 100) + '%). Se desbloqueo el siguiente bloque.';
+          aprobar(idx);
+        } else {
+          res.className = 'quiz-result fail';
+          res.textContent = 'Sacaste ' + Math.round(score * 100) + '%. Necesitás 60%. Repasá y volvé a intentar.';
+          preguntas.forEach(q => { q.dataset.answered = ''; q.querySelectorAll('.opt').forEach(o => o.classList.remove('correct','wrong','sel')); });
+        }
+      });
+    });
+
+    function aprobar(idx) {
+      if (!passed[idx]) passed[idx] = true;
+      const stepEl = document.querySelector('.step[data-step="' + idx + '"]');
+      stepEl.classList.add('done');
+      const next = document.querySelector('.step[data-step="' + (idx + 1) + '"]');
+      if (next) {
+        next.classList.remove('locked');
+        next.querySelector('.step-lock').textContent = '';
+        next.classList.add('open');
+        next.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      actualizarProgreso();
+    }
+
+    function actualizarProgreso() {
+      const done = passed.filter(Boolean).length;
+      document.getElementById('pfill').style.width = (done / TOTAL * 100) + '%';
+      document.getElementById('ptxt').textContent = done + ' de ' + TOTAL + ' bloques completados';
+      if (done === TOTAL) {
+        const cta = document.getElementById('ctaFinal');
+        cta.style.display = 'block';
+        cta.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  </script>
+</body>
+</html>

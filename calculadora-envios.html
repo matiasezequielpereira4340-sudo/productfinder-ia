@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculadora Flex vs Full - MeLi Connect</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#f0f0f0;min-height:100vh}
+  a{color:inherit;text-decoration:none}
+  .topbar{background:#111;border-bottom:1px solid #222;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+  .logo-text{font-weight:800;font-size:18px;color:#FFE600}
+  .nav-links{display:flex;gap:16px;font-size:13px;color:#aaa}
+  .nav-links a:hover{color:#FFE600}
+  .wrap{max-width:900px;margin:0 auto;padding:28px 20px 60px}
+  .hero{text-align:center;margin:16px 0 24px}
+  .hero h1{font-size:29px;font-weight:800}
+  .hero h1 span{color:#FFE600}
+  .hero p{color:#9a9a9a;margin-top:8px;font-size:15px;max-width:640px;margin:8px auto 0;line-height:1.5}
+
+  .info{background:#0d0f14;border:1px solid #1e2636;border-radius:12px;padding:16px 18px;margin-bottom:22px;font-size:13.5px;color:#cfd8e6;line-height:1.55}
+  .info b{color:#93c5fd}
+  .info .mini{color:#8fa0b5;font-size:12.5px;margin-top:8px}
+
+  .card{background:#111;border:1px solid #1e1e1e;border-radius:14px;padding:20px}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+  .field label{display:block;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+  .field input,.field select{width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:12px 14px;color:#fff;font-size:15px}
+  .field input:focus,.field select:focus{outline:none;border-color:#FFE600}
+  .field .help{font-size:11px;color:#666;margin-top:5px;line-height:1.4}
+  .actions{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap}
+  .btn{border:none;border-radius:10px;padding:13px 24px;font-size:15px;font-weight:700;cursor:pointer}
+  .btn-yellow{background:#FFE600;color:#000}
+
+  .error-box{display:none;background:#1a0a0a;border:1px solid #7f1d1d;color:#fca5a5;border-radius:10px;padding:14px 16px;margin-top:18px;font-size:14px}
+  .error-box.on{display:block}
+
+  .result{display:none;margin-top:24px}
+  .result.on{display:block}
+  .verdict{background:linear-gradient(135deg,#141200,#1a1400);border:1px solid #4a4200;border-radius:14px;padding:22px;text-align:center}
+  .verdict .lbl{font-size:12px;color:#a89a4a;text-transform:uppercase;letter-spacing:.5px}
+  .verdict .win{font-size:30px;font-weight:800;color:#FFE600;margin:6px 0}
+  .verdict .why{color:#e2d9a8;font-size:14px;line-height:1.6;max-width:640px;margin:10px auto 0;text-align:left}
+
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
+  @media(max-width:620px){.cols{grid-template-columns:1fr}}
+  .mod{background:#111;border:1px solid #1e1e1e;border-radius:14px;padding:18px}
+  .mod.win{border-color:#FFE600}
+  .mod h3{font-size:16px;margin-bottom:4px}
+  .mod .tot{font-size:26px;font-weight:800;margin:6px 0 12px}
+  .mod .win-tag{font-size:11px;font-weight:800;color:#000;background:#FFE600;padding:2px 8px;border-radius:20px;margin-left:8px}
+  .mod ul{list-style:none;font-size:13px;color:#bbb;line-height:1.5}
+  .mod ul li{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a1a1a}
+  .mod ul li span:last-child{color:#eee;font-weight:600}
+
+  .impacto{background:#0d1410;border:1px solid #14532d;border-radius:12px;padding:16px 18px;margin-top:16px;font-size:14px;color:#c7e8d0;line-height:1.55}
+  .impacto b{color:#4ade80}
+
+  .req{background:#1a1206;border:1px solid #5a3a12;border-radius:12px;padding:16px 18px;margin-top:16px;font-size:13.5px;color:#e6cfa8;line-height:1.55}
+  .req h4{color:#f0a95a;font-size:14px;margin-bottom:6px}
+  .req .nota{color:#c9a878;font-size:12.5px;margin-top:8px}
+
+  .disc{font-size:12px;color:#6d6d6d;margin-top:16px;text-align:center;line-height:1.5}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">MeLi Connect <span class="tag">Calculadora de envíos</span></div>
+    <nav class="nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="margen.html">Margen</a>
+      <a href="analizador.html">Analizador</a>
+      <a href="index.html">Inicio</a>
+    </nav>
+  </div>
+
+  <main class="wrap">
+    <header class="hero">
+      <h1>¿Flex o Full? Calculá cuál te conviene</h1>
+      <p>Respondé unas pocas preguntas sobre tu producto y te decimos qué modalidad de envío te conviene, por qué, y cuánto te costaría cada una. Sin vueltas y explicado en criollo.</p>
+    </header>
+
+    <section class="info">
+      <h3>Antes de empezar: ¿qué es cada cosa?</h3>
+      <p><b>Mercado Envíos</b> es el sistema de envíos de Mercado Libre. Dentro de él tenés dos modalidades principales:</p>
+      <p><b>Flex</b>: vos guardás el stock en tu casa o depósito y hacés vos la entrega en el día (en tu zona), con una app que te organiza las entregas. Ideal si tenés poco volumen o querés bajar costos de almacenamiento.</p>
+      <p><b>Full</b>: mandás tu stock a un depósito de Mercado Libre y ellos se encargan de guardar, empaquetar y despachar todo por vos. Ideal si vendés mucho y no querés ocuparte de la logística, pero pagás almacenamiento.</p>
+    </section>
+
+    <section class="card">
+      <h2>Datos de tu producto</h2>
+      <div class="form-grid">
+        <div class="field">
+          <label for="pesoKg">Peso (kg)</label>
+          <input id="pesoKg" type="number" step="0.1" min="0" placeholder="Ej: 0.8">
+        </div>
+        <div class="field">
+          <label for="rotacionMes">Rotación estimada (unidades por mes)</label>
+          <input id="rotacionMes" type="number" step="1" min="0" placeholder="Ej: 40">
+        </div>
+        <div class="field">
+          <label for="largoCm">Largo (cm)</label>
+          <input id="largoCm" type="number" step="1" min="0" placeholder="Ej: 30">
+        </div>
+        <div class="field">
+          <label for="anchoCm">Ancho (cm)</label>
+          <input id="anchoCm" type="number" step="1" min="0" placeholder="Ej: 20">
+        </div>
+        <div class="field">
+          <label for="altoCm">Alto (cm)</label>
+          <input id="altoCm" type="number" step="1" min="0" placeholder="Ej: 15">
+        </div>
+        <div class="field">
+          <label for="toleranciaAlmacenamiento">Tolerancia al costo de almacenamiento</label>
+          <select id="toleranciaAlmacenamiento">
+            <option value="baja">Baja — prefiero no pagar depósito</option>
+            <option value="media" selected>Media — pago algo si me ahorra trabajo</option>
+            <option value="alta">Alta — no me importa pagar por comodidad</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="margenUnidad">Margen por unidad (opcional, en $)</label>
+          <input id="margenUnidad" type="number" step="1" min="0" placeholder="Ej: 2500">
+        </div>
+      </div>
+      <button id="btnCalc" class="btn">Calcular modalidad recomendada</button>
+    </section>
+
+    <section id="resultado" class="hidden"></section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const money = (n) => (n === null || n === undefined || isNaN(n)) ? '—' : '$' + Math.round(n).toLocaleString('es-AR');
+
+    async function calcular() {
+      const btn = $('btnCalc');
+      const box = $('resultado');
+      const payload = {
+        accion: 'flex-full',
+        pesoKg: parseFloat($('pesoKg').value) || 0,
+        largoCm: parseFloat($('largoCm').value) || 0,
+        anchoCm: parseFloat($('anchoCm').value) || 0,
+        altoCm: parseFloat($('altoCm').value) || 0,
+        rotacionMes: parseFloat($('rotacionMes').value) || 0,
+        toleranciaAlmacenamiento: $('toleranciaAlmacenamiento').value,
+        margenUnidad: parseFloat($('margenUnidad').value) || null
+      };
+      btn.disabled = true;
+      btn.textContent = 'Calculando...';
+      box.className = '';
+      box.innerHTML = '<div class="card"><p class="muted">Procesando tus datos...</p></div>';
+      try {
+        const res = await fetch('/api/herramientas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error al calcular');
+        render(data);
+      } catch (e) {
+        box.innerHTML = '<div class="card"><p style="color:#ff6b6b">No pudimos calcular: ' + e.message + '</p></div>';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Calcular modalidad recomendada';
+      }
+    }
+
+    function render(data) {
+      const box = $('resultado');
+      const rec = (data.recomendacion || '').toLowerCase();
+      const fullWins = rec.indexOf('full') !== -1;
+      const flexWins = rec.indexOf('flex') !== -1;
+      let html = '';
+
+      html += '<div class="verdict">';
+      html += '<div class="v-label">Te conviene</div>';
+      html += '<div class="v-main">' + (data.recomendacion || '—') + '</div>';
+      if (data.motivo) html += '<p class="v-motivo">' + data.motivo + '</p>';
+      html += '</div>';
+
+      const cf = (data.costos && data.costos.full) || {};
+      const cx = (data.costos && data.costos.flex) || {};
+
+      html += '<div class="cols">';
+
+      html += '<div class="mod' + (fullWins ? ' win' : '') + '">';
+      if (fullWins) html += '<span class="win-tag">Recomendado</span>';
+      html += '<h3>Mercado Full</h3>';
+      html += '<div class="mod-cost">' + money(cf.total) + '<span> / mes aprox.</span></div>';
+      if (Array.isArray(cf.detalle)) {
+        html += '<ul class="detalle">';
+        cf.detalle.forEach(d => { html += '<li><span>' + d.concepto + '</span><span>' + money(d.monto) + '</span></li>'; });
+        html += '</ul>';
+      }
+      if (cf.nota) html += '<p class="mod-nota">' + cf.nota + '</p>';
+      html += '</div>';
+
+      html += '<div class="mod' + (flexWins ? ' win' : '') + '">';
+      if (flexWins) html += '<span class="win-tag">Recomendado</span>';
+      html += '<h3>Mercado Flex</h3>';
+      html += '<div class="mod-cost">' + money(cx.total) + '<span> / mes aprox.</span></div>';
+      if (Array.isArray(cx.detalle)) {
+        html += '<ul class="detalle">';
+        cx.detalle.forEach(d => { html += '<li><span>' + d.concepto + '</span><span>' + money(d.monto) + '</span></li>'; });
+        html += '</ul>';
+      }
+      if (cx.nota) html += '<p class="mod-nota">' + cx.nota + '</p>';
+      html += '</div>';
+
+      html += '</div>';
+
+      if (data.impacto) {
+        html += '<div class="impacto"><b>Impacto en tu bolsillo:</b> ' + data.impacto + '</div>';
+      }
+
+      if (data.requisitos) {
+        html += '<div class="req">';
+        html += '<h4>' + (data.requisitos.titulo || 'Importante si recién empezás') + '</h4>';
+        html += '<p>' + (data.requisitos.texto || '') + '</p>';
+        if (data.requisitos.nota) html += '<p class="req-nota">' + data.requisitos.nota + '</p>';
+        html += '</div>';
+      }
+
+      if (data.aclaracion) {
+        html += '<p class="disc">' + data.aclaracion + '</p>';
+      }
+
+      box.className = '';
+      box.innerHTML = html;
+      box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    $('btnCalc').addEventListener('click', calcular);
+    document.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') calcular(); });
+    });
+  </script>
+</body>
+</html>
