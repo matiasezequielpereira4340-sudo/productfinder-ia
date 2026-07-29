@@ -2,14 +2,14 @@
 // ============================================================
 // MeLi Connect - Analizador de Publicaciones (Funcionalidad 2)
 // Pegas el link de una publicacion de MercadoLibre y el modulo
-// te dice que esta bien, que esta flojo y que recomendacion
-// concreta aplicar en cada seccion. 100% API oficial de MeLi
-// (items publicos + buscador de categoria). NO scrapea HTML.
+// te dice, EN CRIOLLO, que esta bien, que esta mal, POR QUE
+// importa (impacto en ventas) y que corregir en cada seccion.
+// 100% API oficial de MeLi (items publicos + buscador). NO scrapea HTML.
 //
 // Guarda cada corrida en Supabase (tabla listing_analyses) para:
 //   - cachear y no pegarle de mas a los rate limits de MeLi
 //   - re-correr el analisis a los 30 dias y mostrar la evolucion
-//     (ese es el motivo de vuelta a la app / lead magnet del embudo)
+//     (motivo de vuelta a la app / lead magnet del embudo).
 //
 // FUERA DE ALCANCE v1: visitas y tasa de conversion (solo las ve
 // el dueno de la publicacion via OAuth -> fase 2).
@@ -40,7 +40,7 @@ export default async function handler(req, res) {
       if (!url || typeof url !== 'string') return res.status(400).json({ error: 'url requerida' });
 
       const itemId = await extractItemId(url.trim());
-      if (!itemId) return res.status(400).json({ error: 'No pude reconocer el ID de la publicacion en ese link. Pega el link completo de la publicacion de MercadoLibre.' });
+      if (!itemId) return res.status(400).json({ error: 'No pude reconocer el ID de la publicacion en ese link. Copia y pega el link completo de la publicacion (el que dice MLA-...).' });
 
       if (!forceRefresh) {
         const cached = await getCachedAnalysis(itemId, CACHE_HOURS);
@@ -96,7 +96,7 @@ async function fetchJSON(url) {
 async function buildReport(itemId, inputUrl, userId) {
   const item = await fetchJSON('https://api.mercadolibre.com/items/' + itemId);
   if (!item || item.error || item.status === 404) {
-    return { error: 'No encontre esa publicacion (link invalido, pausada o vencida).', itemId };
+    return { error: 'No encontre esa publicacion. Puede que el link este mal, o que la publicacion este pausada o finalizada.', itemId };
   }
 
   const [descData, sellerData, catAttrs] = await Promise.all([
@@ -122,6 +122,8 @@ async function buildReport(itemId, inputUrl, userId) {
     Object.values(secciones).reduce((acc, s) => acc + s.score, 0) / Object.keys(secciones).length
   );
 
+  const resumen = buildResumen(secciones, scoreTotal);
+
   const previa = await getPreviousAnalysis(itemId, RECHECK_DAYS);
   const evolucion = previa ? {
     fechaAnterior: previa.analyzed_at,
@@ -144,14 +146,40 @@ async function buildReport(itemId, inputUrl, userId) {
     categoryId: item.category_id,
     vendidos: item.sold_quantity || 0,
     scoreTotal,
+    resumen,
     secciones,
     comparacion: top.comparacion,
     topCategoria: top.items,
     evolucion,
     cta,
-    disclaimer: 'Este informe usa solo datos publicos de MercadoLibre. Las visitas y la tasa de conversion solo las ve el dueno de la publicacion conectando su cuenta (proximamente en MeLi Connect).',
+    disclaimer: 'Este informe usa solo datos publicos de MercadoLibre. Las visitas y la tasa de conversion de tu publicacion solo las ve el dueno conectando su cuenta (proximamente en MeLi Connect).',
     analyzedAt: new Date().toISOString()
   };
+}
+
+// Resumen ejecutivo: veredicto en criollo + las prioridades a corregir
+// (las 3 secciones con peor puntaje, ordenadas por impacto).
+function buildResumen(secciones, scoreTotal) {
+  let veredicto;
+  if (scoreTotal >= 80) veredicto = 'Tu publicacion esta muy bien armada. Hay solo detalles finos para pulir.';
+  else if (scoreTotal >= 60) veredicto = 'Tu publicacion esta aceptable, pero le faltan cosas que hoy te estan costando ventas. Con unos ajustes rendiria mucho mas.';
+  else if (scoreTotal >= 40) veredicto = 'Tu publicacion tiene varios puntos flojos importantes. MercadoLibre la esta mostrando menos de lo que podria, y eso se traduce en menos ventas.';
+  else veredicto = 'Tu publicacion tiene problemas de base que la estan enterrando en los resultados de busqueda. La buena noticia: casi todo se corrige gratis y en un rato.';
+
+  const orden = Object.keys(secciones)
+    .map(k => ({ k, s: secciones[k] }))
+    .filter(x => x.s.score < 75 && x.s.puntosFlojos && x.s.puntosFlojos.length)
+    .sort((a, b) => a.s.score - b.s.score)
+    .slice(0, 3);
+
+  const LBL = { titulo: 'Titulo', fotos: 'Fotos', descripcion: 'Descripcion', atributos: 'Ficha tecnica', envio: 'Envio', precio: 'Precio', condicion: 'Condicion', reputacion: 'Reputacion' };
+  const prioridades = orden.map(x => ({
+    seccion: LBL[x.k] || x.k,
+    score: x.s.score,
+    accion: x.s.recomendacion
+  }));
+
+  return { veredicto, prioridades };
 }
 
 async function fetchTopListings(categoryId, ownItemId) {
@@ -187,12 +215,21 @@ async function fetchTopListings(categoryId, ownItemId) {
 }
 
 // ------------------------------------------------------------
-// 3) Evaluadores por seccion (con recomendaciones CONCRETAS)
+// 3) Evaluadores por seccion
+//    Cada uno devuelve:
+//      score, puntosFuertes, puntosFlojos, recomendacion (que hacer),
+//      porQue (por que importa / impacto en ventas, en criollo)
 // ------------------------------------------------------------
-function seccion(score, fuertes, flojos, recomendacion, extra) {
-  return Object.assign({ score: Math.max(0, Math.min(100, Math.round(score))), puntosFuertes: fuertes, puntosFlojos: flojos, recomendacion }, extra || {});
+function seccion(score, fuertes, flojos, recomendacion, porQue, extra) {
+  return Object.assign({
+    score: Math.max(0, Math.min(100, Math.round(score))),
+    puntosFuertes: fuertes,
+    puntosFlojos: flojos,
+    recomendacion: recomendacion,
+    porQue: porQue
+  }, extra || {});
 }
-function fmtARS(n) { return 'ARS ' + Math.round(n).toLocaleString('es-AR'); }
+function fmtARS(n) { return n == null ? '-' : ('ARS ' + Math.round(n).toLocaleString('es-AR')); }
 
 function evalTitulo(item, top) {
   const t = item.title || '';
@@ -202,19 +239,20 @@ function evalTitulo(item, top) {
   const tieneDato = /\d/.test(t);
   const f = [], x = []; let s = 100;
 
-  if (len < 40) { x.push('Titulo corto (' + len + ' caracteres). El top de tu categoria usa en promedio ' + avg + '.'); s -= 25; }
-  else f.push('Longitud competitiva (' + len + ' caracteres, promedio del top: ' + avg + ').');
+  if (len < 40) { x.push('El titulo es corto (' + len + ' caracteres). Las publicaciones que mas venden en tu categoria usan en promedio ' + avg + '.'); s -= 25; }
+  else f.push('Longitud competitiva (' + len + ' caracteres; el promedio del top es ' + avg + ').');
 
-  if (gritos) { x.push('Usa mayusculas sostenidas o signos repetidos ("!!!"): MeLi lo penaliza en el buscador.'); s -= 20; }
-  else f.push('Sin abuso de mayusculas ni signos, respeta las buenas practicas de SEO de MeLi.');
+  if (gritos) { x.push('Usa MAYUSCULAS sostenidas o signos repetidos ("!!!"). MercadoLibre lo interpreta como spam y lo baja en el buscador.'); s -= 20; }
+  else f.push('No abusa de mayusculas ni signos: respeta las buenas practicas de SEO de MeLi.');
 
-  if (!tieneDato) { x.push('No se detecta marca, modelo ni un dato numerico (talle, capacidad, cantidad) en el titulo.'); s -= 15; }
-  else f.push('Incluye datos concretos (numero/modelo) que ayudan al match de busqueda.');
+  if (!tieneDato) { x.push('No se detecta marca, modelo ni un dato numerico (talle, capacidad, cantidad). Justo lo que la gente escribe cuando busca algo puntual.'); s -= 15; }
+  else f.push('Incluye datos concretos (numero/modelo) que ayudan a que aparezcas en busquedas especificas.');
 
   const rec = len < avg
-    ? 'Sumale marca + modelo + un atributo diferencial (color, talle, cantidad) hasta acercarte a los ' + avg + ' caracteres del top. Poné las palabras que la gente busca en las PRIMERAS 3-4 posiciones.'
-    : 'La longitud esta bien; revisa que las primeras palabras sean el nombre generico que la gente busca (no la marca).';
-  return seccion(s, f, x, rec, { valor: t, longitud: len });
+    ? 'Sumale marca + modelo + un atributo clave (color, talle, cantidad) hasta acercarte a los ' + avg + ' caracteres del top. Importante: pone las palabras que la gente busca en las PRIMERAS 3-4 palabras del titulo.'
+    : 'La longitud esta bien. Revisa que las primeras palabras sean el nombre generico que la gente busca (ej: "auriculares bluetooth"), no la marca.';
+  const porQue = 'El titulo es lo primero que lee el buscador de MercadoLibre para decidir en que busquedas te muestra. Si le faltan palabras clave, simplemente no aparecas cuando alguien busca tu producto, por mas bueno que sea. Es la variable de SEO que mas mueve la aguja.';
+  return seccion(s, f, x, rec, porQue, { valor: t, longitud: len });
 }
 
 function evalFotos(item) {
@@ -222,19 +260,20 @@ function evalFotos(item) {
   const count = pics.length;
   const f = [], x = []; let s = 100;
 
-  if (count < 3) { x.push('Solo ' + count + ' foto(s). MeLi recomienda 6-10 para bajar dudas y devoluciones.'); s -= 35; }
-  else if (count < 6) { x.push('Tiene ' + count + ' fotos; sumando 2-3 mas (detalle, uso, packaging) sube la conversion.'); s -= 15; }
-  else f.push('Buena cantidad de fotos (' + count + '), cubre varios angulos.');
+  if (count < 3) { x.push('Solo tiene ' + count + ' foto(s). MercadoLibre recomienda entre 6 y 10.'); s -= 35; }
+  else if (count < 6) { x.push('Tiene ' + count + ' fotos. Sumando 2-3 mas (detalle, uso real, packaging) baja las dudas del comprador.'); s -= 15; }
+  else f.push('Buena cantidad de fotos (' + count + '): cubris varios angulos.');
 
   const res = pics.map(p => { const m = (p.max_size || p.size || '').match(/(\d+)x(\d+)/); return m ? Math.min(+m[1], +m[2]) : null; }).filter(Boolean);
   const baja = res.filter(r => r < 800).length;
-  if (res.length && baja) { x.push(baja + ' de ' + res.length + ' fotos estan por debajo de 800px de lado menor; para zoom sin pixelar conviene 1200px+.'); s -= 15; }
-  else if (res.length) f.push('Las fotos superan 800px, permiten zoom sin pixelarse.');
+  if (res.length && baja) { x.push(baja + ' de ' + res.length + ' fotos estan por debajo de 800px de lado menor. Se ven pixeladas al hacer zoom.'); s -= 15; }
+  else if (res.length) f.push('Las fotos superan los 800px: permiten hacer zoom sin que se pixele.');
 
   const rec = count < 6
-    ? 'Llega a 6-8 fotos: portada con FONDO BLANCO liso, foto de escala/uso real, detalle de materiales y, si aplica, el packaging. Evita fondos con muebles o telas de tu casa.'
-    : 'Verifica que la PRIMERA foto tenga fondo blanco liso: es el filtro visual mas importante en el listado de resultados.';
-  return seccion(s, f, x, rec, { cantidad: count });
+    ? 'Llega a 6-8 fotos con este orden: 1) portada con FONDO BLANCO liso, 2) el producto en uso o con algo al lado para dar escala, 3) detalle de materiales/terminaciones, 4) el packaging. Evita fondos con muebles o telas de tu casa.'
+    : 'Verifica que la PRIMERA foto (la portada) tenga fondo blanco liso. Es la que se ve en la grilla de resultados y define si te hacen clic o siguen de largo.';
+  const porQue = 'La primera foto es lo que decide si el comprador te hace clic o pasa al de al lado, y el resto de las fotos son las que responden "es lo que busco?" sin que te tengan que preguntar. Pocas fotos o de mala calidad generan desconfianza, mas consultas antes de comprar y mas devoluciones despues.';
+  return seccion(s, f, x, rec, porQue, { cantidad: count });
 }
 
 function evalDescripcion(descData) {
@@ -243,17 +282,18 @@ function evalDescripcion(descData) {
   const f = [], x = []; let s = 100;
 
   if (len === 0) { x.push('La publicacion no tiene descripcion cargada.'); s -= 50; }
-  else if (len < 300) { x.push('Descripcion muy corta (' + len + ' caracteres): no alcanza para resolver dudas (medidas, garantia, que incluye).'); s -= 25; }
-  else f.push('Descripcion con buen desarrollo (' + len + ' caracteres).');
+  else if (len < 300) { x.push('La descripcion es muy corta (' + len + ' caracteres). No alcanza para responder las dudas tipicas: medidas, que incluye, garantia.'); s -= 25; }
+  else f.push('Tiene una descripcion con buen desarrollo (' + len + ' caracteres).');
 
   const estructura = /\n|-\s|\u2022/.test(texto);
-  if (len > 0 && !estructura) { x.push('Es un bloque de texto corrido, sin separar por secciones.'); s -= 10; }
-  else if (estructura) f.push('Usa saltos de linea o listas, facil de leer desde el celular.');
+  if (len > 0 && !estructura) { x.push('Es un bloque de texto corrido, sin separar por temas. En el celular se hace intragable.'); s -= 10; }
+  else if (estructura) f.push('Usa saltos de linea o listas: se lee facil desde el celular.');
 
   const rec = len < 300
-    ? 'Arma la descripcion en bloques cortos: 1) que es y para que sirve, 2) que incluye la compra, 3) medidas/especificaciones, 4) garantia y cambios. Nada de texto corrido.'
-    : 'Sumale una seccion de "Preguntas frecuentes" con las 2-3 dudas que mas te consultan por chat: reduce las preguntas previas a la compra.';
-  return seccion(s, f, x, rec, { longitud: len });
+    ? 'Arma la descripcion en bloques cortos y separados: 1) que es y para que sirve, 2) que incluye exactamente la compra, 3) medidas y especificaciones, 4) garantia y politica de cambios. Nada de un solo parrafo corrido.'
+    : 'Sumale al final una seccion de "Preguntas frecuentes" con las 2-3 dudas que mas te consultan por chat. Cada duda resuelta antes es una venta que no se cae.';
+  const porQue = 'La descripcion es tu vendedor silencioso: trabaja cuando vos no estas para contestar. Una buena descripcion resuelve las dudas antes de que el comprador tenga que preguntar (y muchos, si tienen que preguntar, directamente no compran). Ademas, el texto tambien lo lee el buscador.';
+  return seccion(s, f, x, rec, porQue, { longitud: len });
 }
 
 function evalAtributos(item, catAttrs) {
@@ -271,30 +311,33 @@ function evalAtributos(item, catAttrs) {
   }
   if (disponibles) {
     const pct = Math.round((completados / disponibles) * 100);
-    if (pct < 60) { x.push('Solo el ' + pct + '% de los atributos completados (' + completados + '/' + disponibles + '). Cada atributo es un filtro mas donde te encuentran.'); s -= 20; }
-    else f.push('Completaste el ' + pct + '% de los atributos disponibles.');
+    if (pct < 60) { x.push('Solo completaste el ' + pct + '% de los atributos disponibles (' + completados + ' de ' + disponibles + ').'); s -= 20; }
+    else f.push('Completaste el ' + pct + '% de los atributos disponibles de la categoria.');
   }
   if (!disponibles) f.push('No se pudo leer la ficha tecnica de la categoria (igual conviene completar todo lo que MeLi sugiera).');
 
-  return seccion(s, f, x, 'Entra a Editar publicacion > Ficha tecnica y completa TODOS los atributos que MeLi sugiere, aunque no sean obligatorios: cada atributo habilita un filtro de busqueda donde podes aparecer.', { completados, disponibles });
+  const rec = 'Entra a Editar publicacion, seccion "Ficha tecnica", y completa TODOS los atributos que MeLi te ofrece, incluso los que no son obligatorios (color, material, medidas, etc.).';
+  const porQue = 'Cada atributo que completas es un filtro mas del costado izquierdo del buscador donde tu producto puede aparecer. La gente filtra por color, talle, marca, etc.; si no cargaste ese dato, quedas afuera de ese filtro directamente. Ademas, MeLi premia con mejor posicion a las fichas completas.';
+  return seccion(s, f, x, rec, porQue, { completados, disponibles });
 }
 
 function evalEnvio(item) {
   const sh = item.shipping || {};
   const f = [], x = []; let s = 100; let modalidad = 'Sin Mercado Envios / a cargo del comprador';
 
-  if (sh.logistic_type === 'fulfillment') { modalidad = 'Mercado Full'; f.push('Publicado con Mercado Full: mejor exposicion y envios rapidos, MeLi lo prioriza.'); }
-  else if (sh.logistic_type === 'self_service') { modalidad = 'Mercado Flex'; f.push('Usa Mercado Flex (envios el mismo dia con tu logistica): buen empujon de visibilidad.'); }
-  else if (sh.logistic_type === 'drop_off' || sh.logistic_type === 'xd_drop_off') { modalidad = 'Mercado Envios (colecta/agencia)'; f.push('Usa Mercado Envios, habilita el filtro de envio de MeLi.'); }
-  else { x.push('No se detecta Mercado Envios: quedas afuera de los filtros de "llega gratis/rapido" que usa la mayoria de los compradores.'); s -= 30; }
+  if (sh.logistic_type === 'fulfillment') { modalidad = 'Mercado Full'; f.push('Publicado con Mercado Full: MeLi guarda tu stock y hace el envio. Es la modalidad que mas empuja el posicionamiento.'); }
+  else if (sh.logistic_type === 'self_service') { modalidad = 'Mercado Flex'; f.push('Usa Mercado Flex (vos entregas el mismo dia con tu logistica): buen empujon de visibilidad y de conversion.'); }
+  else if (sh.logistic_type === 'drop_off' || sh.logistic_type === 'xd_drop_off') { modalidad = 'Mercado Envios (por agencia/colecta)'; f.push('Usa Mercado Envios: quedas dentro de los filtros de envio de MeLi.'); }
+  else { x.push('No se detecta Mercado Envios activo. Quedas afuera de los filtros de "Llega gratis" y "Llega manana" que usa la mayoria de los compradores.'); s -= 30; }
 
-  if (!sh.free_shipping) { x.push('No ofrece envio gratis, el filtro mas usado por los compradores en casi todas las categorias.'); s -= 25; }
-  else f.push('Ofrece envio gratis, cumple con el filtro mas usado.');
+  if (!sh.free_shipping) { x.push('No ofrece envio gratis. En casi todas las categorias, el envio gratis es el filtro que mas usan los compradores.'); s -= 25; }
+  else f.push('Ofrece envio gratis: cumplis con el filtro mas usado por los compradores.');
 
   const rec = !sh.free_shipping
-    ? 'Antes de activar envio gratis, corre la Calculadora Flex vs Full para ver si te conviene absorber el costo subiendolo al precio: el envio gratis suele multiplicar la visibilidad.'
-    : 'Si el producto es chico/liviano y rota, evalua pasar a Mercado Full: mejora el posicionamiento y te saca la logistica de encima.';
-  return seccion(s, f, x, rec, { modalidadActual: modalidad });
+    ? 'Antes de activar envio gratis, corre la Calculadora Flex vs Full de MeLi Connect para ver si te conviene absorber el costo del envio subiendolo al precio. En la mayoria de las categorias, el envio gratis multiplica la visibilidad.'
+    : 'Si el producto es chico y liviano y ya rota, evalua pasar a Mercado Full: mejora el posicionamiento y te saca la logistica de encima.';
+  const porQue = 'El envio es, junto al precio, lo que mas define la compra en MercadoLibre. Sin Mercado Envios no aparecas en los filtros de "llega gratis/rapido", y esos filtros son justamente donde la gente decide. Es de las palancas que mas rapido suben las ventas.';
+  return seccion(s, f, x, rec, porQue, { modalidadActual: modalidad });
 }
 
 function evalPrecio(item, top) {
@@ -304,47 +347,51 @@ function evalPrecio(item, top) {
   if (avg) {
     const dif = Math.round(((p - avg) / avg) * 100);
     if (dif > 20) { x.push('Tu precio esta ' + dif + '% por ENCIMA del promedio del top de tu categoria (' + fmtARS(avg) + ').'); s -= 25; }
-    else if (dif < -20) { x.push('Tu precio esta muy por DEBAJO del promedio (' + fmtARS(avg) + '): revisa que no regales margen o generes desconfianza.'); s -= 10; }
-    else f.push('Precio alineado con el promedio de la competencia (' + fmtARS(avg) + ').');
-  } else { x.push('No pude comparar contra la competencia (pocas publicaciones de referencia en la categoria).'); }
+    else if (dif < -20) { x.push('Tu precio esta muy por DEBAJO del promedio (' + fmtARS(avg) + '). Ojo: puede que estes regalando margen, o generar desconfianza por "demasiado barato".'); s -= 10; }
+    else f.push('Tu precio esta alineado con el promedio de la competencia (' + fmtARS(avg) + ').');
+  } else { x.push('No pude comparar contra la competencia (hay pocas publicaciones de referencia en la categoria).'); }
   const rec = avg
-    ? 'No bajes precio a ciegas: corre tu margen real en MargenClear y la Calculadora Flex vs Full. A veces conviene absorber el envio en vez de tocar el precio de lista.'
-    : 'Segui manualmente el precio de 3 competidores directos por 2 semanas para tener una referencia real.';
-  return seccion(s, f, x, rec, { precio: p, promedioCategoria: avg });
+    ? 'No bajes el precio a ciegas. Corre tu margen real en MargenClear y la Calculadora Flex vs Full: muchas veces conviene ofrecer envio gratis en vez de tocar el precio de lista.'
+    : 'Segui manualmente el precio de 3 competidores directos durante 2 semanas para tener una referencia real antes de mover el tuyo.';
+  const porQue = 'El precio no se mira solo: el comprador lo compara con las otras publicaciones que ve al lado tuyo. Estar muy por encima te saca de juego, y estar muy por debajo te come el margen que te llevo importar el producto. La idea es competir sin regalar plata.';
+  return seccion(s, f, x, rec, porQue, { precio: p, promedioCategoria: avg });
 }
 
 function evalCondicion(item) {
   const c = item.condition;
   const f = [], x = []; let s = 100;
-  if (c !== 'new') { x.push('Figura como "' + (c || 'sin dato') + '". Si es importado nuevo, la condicion deberia decir "Nuevo": afecta confianza y filtros.'); s -= 20; }
-  else f.push('Condicion cargada como "Nuevo".');
-  return seccion(s, f, x, c !== 'new' ? 'Corrige la condicion a "Nuevo" en la edicion de la publicacion si el producto lo es.' : 'Sin acciones pendientes en este punto.', { condicion: c });
+  if (c !== 'new') { x.push('La publicacion figura como "' + (c || 'sin dato') + '". Si tu producto es importado nuevo, deberia decir "Nuevo".'); s -= 20; }
+  else f.push('La condicion esta cargada correctamente como "Nuevo".');
+  const rec = c !== 'new' ? 'Corrige la condicion a "Nuevo" en la edicion de la publicacion si el producto lo es. Es un cambio de 10 segundos.' : 'Sin acciones pendientes en este punto.';
+  const porQue = 'La condicion es un filtro de busqueda (la gente filtra "Nuevo") y ademas define la confianza. Si vendes producto nuevo importado y quedo marcado como usado, te estas auto-excluyendo de las busquedas de la mayoria de los compradores.';
+  return seccion(s, f, x, rec, porQue, { condicion: c });
 }
 
 function evalReputacion(sellerData) {
   const rep = sellerData && sellerData.seller_reputation;
-  if (!rep) return seccion(60, [], ['No se pudo obtener la reputacion del vendedor.'], 'Revisa tu nivel de reputacion desde tu cuenta de MercadoLibre.', {});
+  const porQue = 'La reputacion es la confianza en numeros. Ante dos publicaciones parecidas, la gente le compra al que tiene mejor color de reputacion y la medalla de Mercado Lider. Ademas, MeLi le da mejor posicion a los vendedores con buena reputacion.';
+  if (!rep) return seccion(60, [], ['No se pudo obtener la reputacion del vendedor.'], 'Revisa tu nivel de reputacion desde el panel de tu cuenta de MercadoLibre.', porQue, {});
   const f = [], x = []; let s = 100;
   const nivel = rep.level_id || 'sin nivel';
   const power = rep.power_seller_status;
   const neg = rep.transactions && rep.transactions.ratings && rep.transactions.ratings.negative;
 
-  if (power) f.push('Sos Mercado Lider (' + power + '): suma confianza y mejora el posicionamiento.');
-  else x.push('Todavia no tenes status de Mercado Lider (se gana con ventas sostenidas y buena atencion).');
+  if (power) f.push('Sos Mercado Lider (' + power + '): suma confianza y mejora tu posicionamiento.');
+  else x.push('Todavia no tenes el status de Mercado Lider. Se gana con ventas sostenidas, buena atencion y pocos reclamos.');
 
-  if (typeof nivel === 'string' && nivel.indexOf('5') !== -1) f.push('Color de reputacion maximo (verde oscuro).');
-  else if (nivel === 'sin nivel') { x.push('Reputacion sin nivel suficiente todavia (cuenta nueva o con pocas ventas).'); s -= 20; }
+  if (typeof nivel === 'string' && nivel.indexOf('5') !== -1) f.push('Tu color de reputacion es el maximo (verde oscuro).');
+  else if (nivel === 'sin nivel') { x.push('Tu reputacion todavia no tiene nivel suficiente (cuenta nueva o con pocas ventas).'); s -= 20; }
 
-  if (neg && neg > 0.02) { x.push('Tu tasa de calificaciones negativas (' + Math.round(neg * 100) + '%) supera el 2% recomendado.'); s -= 25; }
+  if (neg && neg > 0.02) { x.push('Tu tasa de calificaciones negativas (' + Math.round(neg * 100) + '%) supera el 2% que recomienda MeLi.'); s -= 25; }
 
   const rec = !power
-    ? 'Sostene tiempos de entrega y respuesta rapida: son las dos variables que mas pesan para llegar a Mercado Lider.'
-    : 'Manten el nivel respondiendo preguntas en menos de un par de horas.';
-  return seccion(s, f, x, rec, { nivel });
+    ? 'Enfocate en dos cosas: despachar rapido (mismo dia o al dia siguiente) y responder las preguntas en menos de un par de horas. Son las variables que mas pesan para subir de nivel y llegar a Mercado Lider.'
+    : 'Manten el nivel: segui respondiendo rapido y cuidando los tiempos de entrega.';
+  return seccion(s, f, x, rec, porQue, { nivel });
 }
 
 // ------------------------------------------------------------
-// 4) Embudo: el CTA aparece EN EL informe cuando corresponde
+// 4) Embudo: el CTA aparece DENTRO del informe cuando corresponde
 // ------------------------------------------------------------
 function isRotacionBaja(item) {
   if (!item.date_created) return false;
@@ -359,8 +406,8 @@ function buildFunnelCTA(scoreTotal, rotacionBaja) {
     mostrar: true,
     titulo: rotacionBaja ? 'El producto casi no rota' : 'Antes de gastar en Ads, ordena la publicacion',
     mensaje: rotacionBaja
-      ? 'Vende menos de 3 unidades por mes. Si aplicas las mejoras de arriba y aun asi no repunta, puede ser que el producto ya se saturo: quiza sea momento de traer stock nuevo con mas demanda.'
-      : 'Tu publicacion tiene puntos flojos que le restan visibilidad. Aplicar estas mejoras suele costar $0 y sube ventas mas rapido que pautar.',
+      ? 'Esta publicacion vende menos de 3 unidades por mes. Si aplicas las mejoras de arriba y aun asi no repunta, capaz el problema no es la publicacion sino que el producto ya se saturo. Ahi conviene pensar en traer stock nuevo con mas demanda.'
+      : 'Tu publicacion tiene puntos flojos que le estan restando visibilidad. Corregirlos suele costar $0 y sube las ventas mas rapido (y mas barato) que pagar publicidad.',
     acciones: [
       { texto: 'Quiero asesoria para importar mi proximo producto', tipo: 'asesoria_importacion' },
       { texto: 'Hablar con el despachante de aduana', tipo: 'contacto_despachante' }
