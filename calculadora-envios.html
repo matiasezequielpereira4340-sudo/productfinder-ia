@@ -136,6 +136,7 @@
       const btn = $('btnCalc');
       const box = $('resultado');
       const payload = {
+        accion: 'flex-full',
         pesoKg: parseFloat($('pesoKg').value) || 0,
         largoCm: parseFloat($('largoCm').value) || 0,
         anchoCm: parseFloat($('anchoCm').value) || 0,
@@ -149,7 +150,7 @@
       box.className = '';
       box.innerHTML = '<div class="card"><p class="muted">Procesando tus datos...</p></div>';
       try {
-        const res = await fetch('/api/flex-full', {
+        const res = await fetch('/api/herramientas', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
