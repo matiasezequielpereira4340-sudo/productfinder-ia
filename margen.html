@@ -121,15 +121,20 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .cuota-btn .cuota-costo{font-size:.68rem;color:var(--red2);margin-top:2px;}
 .cuota-btn .cuota-label{font-size:.65rem;color:var(--text3);margin-top:1px;}
 </style>
+<style>
+    .mainbar{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:18px;background:#0d0d0d;border-bottom:2px solid #FFE600;padding:0 18px;height:58px;}
+    .mainbrand{display:flex;align-items:center;gap:8px;color:#FFE600;font-weight:800;font-size:17px;text-decoration:none;white-space:nowrap;}
+    .mainbrand-ico{font-size:18px;}
+    .mnav{display:flex;gap:4px;flex:1;overflow-x:auto;}
+    .mnav-link{color:#cfcfcf;text-decoration:none;font-size:14px;font-weight:600;padding:9px 13px;border-radius:8px;white-space:nowrap;transition:background .15s,color .15s;}
+    .mnav-link:hover{background:#1c1c1c;color:#fff;}
+    .mnav-link.active{background:#FFE600;color:#111;}
+    .mnav-toggle{display:none;background:none;border:0;color:#FFE600;font-size:24px;cursor:pointer;}
+    @media (max-width:760px){.mnav{position:absolute;top:58px;left:0;right:0;flex-direction:column;background:#0d0d0d;border-bottom:2px solid #FFE600;padding:8px;gap:4px;display:none;overflow:visible;}.mnav.show{display:flex;}.mnav-toggle{display:block;}}
+</style>
 </head>
 <body>
-<div class="topbar">
-  <div class="topbar-brand">💰 MargenClear <span class="sub">— Ganancia real MercadoLibre Argentina</span></div>
-  <div class="topbar-right">
-    <button class="btn btn-outline btn-sm" onclick="clearAll()">🗑 Limpiar</button>
-    <button class="btn btn-gold btn-sm" onclick="exportPDF()">⬇️ PDF cliente</button>
-  </div>
-</div>
+<header class="mainbar"><a href="index.html" class="mainbrand"><span class="mainbrand-ico">🔗</span> MeLi Connect</a><nav class="mnav" id="mnav"><a href="index.html" class="mnav-link">Inicio</a><a href="meli-connect.html" class="mnav-link">Conectar ML</a><a href="analizador.html" class="mnav-link">Analizador</a><a href="educacion.html" class="mnav-link">Aprendé a publicar</a><a href="calculadora-envios.html" class="mnav-link">Flex vs Full</a><a href="margen.html" class="mnav-link active">Margen</a></nav><button class="mnav-toggle" id="mnavToggle" aria-label="Menu">☰</button></header>
 <main>
 <div class="hero">
   <h1>💰 MargenClear</h1>
@@ -875,5 +880,6 @@ document.addEventListener('DOMContentLoaded', () => {
   else document.body.prepend(b);
 });
 </script>
+<script>(function(){var t=document.getElementById('mnavToggle'),n=document.getElementById('mnav');if(t&&n){t.addEventListener('click',function(){n.classList.toggle('show');});}})();</script>
 </body>
         </html>

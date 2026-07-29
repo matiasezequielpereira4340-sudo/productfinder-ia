@@ -73,6 +73,13 @@
     .mnav-toggle{display:none;background:none;border:0;color:#FFE600;font-size:24px;cursor:pointer;}
     @media (max-width:760px){.mnav{position:absolute;top:58px;left:0;right:0;flex-direction:column;background:#0d0d0d;border-bottom:2px solid #FFE600;padding:8px;gap:4px;display:none;overflow:visible;}.mnav.show{display:flex;}.mnav-toggle{display:block;}}
 </style>
+<style>
+    .field-hint{display:block;font-size:12px;color:#8a8a8a;line-height:1.45;margin-top:5px;}
+    .field-hint b{color:#FFE600;font-weight:600;}
+    .aviso-ventas{background:rgba(255,230,0,.08);border:1px solid rgba(255,230,0,.35);border-radius:10px;padding:14px 16px;margin:16px 0;font-size:13.5px;line-height:1.55;color:#e8e8e8;}
+    .aviso-ventas b{color:#FFE600;}
+    .aviso-ventas .ico{font-size:18px;margin-right:6px;}
+</style>
 </head>
 <body>
   <header class="mainbar"><a href="index.html" class="mainbrand"><span class="mainbrand-ico">🔗</span> MeLi Connect</a><nav class="mnav" id="mnav"><a href="index.html" class="mnav-link">Inicio</a><a href="meli-connect.html" class="mnav-link">Conectar ML</a><a href="analizador.html" class="mnav-link">Analizador</a><a href="educacion.html" class="mnav-link">Aprendé a publicar</a><a href="calculadora-envios.html" class="mnav-link active">Flex vs Full</a><a href="margen.html" class="mnav-link">Margen</a></nav><button class="mnav-toggle" id="mnavToggle" aria-label="Menu">☰</button></header>
@@ -82,6 +89,8 @@
       <h1>¿Flex o Full? Calculá cuál te conviene</h1>
       <p>Respondé unas pocas preguntas sobre tu producto y te decimos qué modalidad de envío te conviene, por qué, y cuánto te costaría cada una. Sin vueltas y explicado en criollo.</p>
     </header>
+
+      <div class="aviso-ventas"><span class="ico">⚠️</span><b>Antes de empezar:</b> Flex y Full no están disponibles apenas abrís tu cuenta. Primero tenés que hacer al menos <b>10 ventas por Mercado Envíos</b> (el envío común por correo) y mantener una <b>buena reputación</b> (entregar a tiempo, sin reclamos). Recién ahí MercadoLibre te habilita Flex y Full. Así que si recién arrancás, usá esta calculadora para planificar hacia dónde vas, pero sabé que primero hay que sumar esas primeras ventas.</div>
 
     <section class="info">
       <h3>Antes de empezar: ¿qué es cada cosa?</h3>
@@ -96,22 +105,27 @@
         <div class="field">
           <label for="pesoKg">Peso (kg)</label>
           <input id="pesoKg" type="number" step="0.1" min="0" placeholder="Ej: 0.8">
+          <span class="field-hint">Pesá tu producto YA EMPAQUETADO (con caja o bolsa) en una balanza de cocina. Si no tenés, fijate el peso en la caja del fabricante o buscá el modelo en internet. Ponélo en kilos: 800 gramos = 0.8.</span>
         </div>
         <div class="field">
           <label for="rotacionMes">Rotación estimada (unidades por mes)</label>
           <input id="rotacionMes" type="number" step="1" min="0" placeholder="Ej: 40">
+          <span class="field-hint">Es cuántas unidades creés que vas a vender por mes. Si recién empezás y no sabés, poné un número conservador (ej: 10 o 20). Más adelante lo ajustás con tus ventas reales.</span>
         </div>
         <div class="field">
           <label for="largoCm">Largo (cm)</label>
           <input id="largoCm" type="number" step="1" min="0" placeholder="Ej: 30">
+          <span class="field-hint">Medí con una regla o cinta métrica el lado más largo del paquete ya cerrado, en centímetros. Si aún no lo empaquetaste, medí la caja del producto.</span>
         </div>
         <div class="field">
           <label for="anchoCm">Ancho (cm)</label>
           <input id="anchoCm" type="number" step="1" min="0" placeholder="Ej: 20">
+          <span class="field-hint">El lado del medio del paquete cerrado, en centímetros. Medí la parte más ancha.</span>
         </div>
         <div class="field">
           <label for="altoCm">Alto (cm)</label>
           <input id="altoCm" type="number" step="1" min="0" placeholder="Ej: 15">
+          <span class="field-hint">La altura del paquete cerrado (lo que mide de abajo hacia arriba), en centímetros.</span>
         </div>
         <div class="field">
           <label for="toleranciaAlmacenamiento">Tolerancia al costo de almacenamiento</label>
@@ -120,10 +134,12 @@
             <option value="media" selected>Media — pago algo si me ahorra trabajo</option>
             <option value="alta">Alta — no me importa pagar por comodidad</option>
           </select>
+          <span class="field-hint">Full cobra por guardar tu stock en su depósito. Elegí cuánto te molesta pagar eso: si preferís no pagar depósito elegí "Baja"; si no te importa pagar por comodidad, "Alta".</span>
         </div>
         <div class="field">
           <label for="margenUnidad">Margen por unidad (opcional, en $)</label>
           <input id="margenUnidad" type="number" step="1" min="0" placeholder="Ej: 2500">
+          <span class="field-hint">Cuánta ganancia limpia te queda por cada unidad vendida (precio de venta menos lo que te costó el producto). Si no lo sabés todavía, dejalo vacío: es opcional.</span>
         </div>
       </div>
       <button id="btnCalc" class="btn">Calcular modalidad recomendada</button>
