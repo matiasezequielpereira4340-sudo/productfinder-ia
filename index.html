@@ -1769,7 +1769,7 @@ async function togglePremium(username, makePremium){
 
         async function toggleUser(username,active){
   try{
-    const res=await fetch('/api/users',{method:'DELETE',headers:{'Content-Type':'application/json','x-admin-key':ADMIN_KEY},body:JSON.stringify({username,action:'toggle',active})});
+    const res=await fetch('/api/users?id='+encodeURIComponent(username),{method:'PATCH',headers:{'Content-Type':'application/json','x-admin-key':ADMIN_KEY},body:JSON.stringify({active})});
     const data=await res.json();
     if(!res.ok){showAdminMsg(data.error||'Error','err');return;}
     showAdminMsg('✅ Usuario "'+username+'" '+(active?'activado':'desactivado'),'ok');
@@ -1780,7 +1780,7 @@ async function togglePremium(username, makePremium){
 async function deleteUser(username){
   if(!confirm('¿Eliminar al usuario "'+username+'"? Esta acción no se puede deshacer.'))return;
   try{
-    const res=await fetch('/api/users',{method:'DELETE',headers:{'Content-Type':'application/json','x-admin-key':ADMIN_KEY},body:JSON.stringify({username,action:'delete'})});
+    const res=await fetch('/api/users?id='+encodeURIComponent(username),{method:'DELETE',headers:{'Content-Type':'application/json','x-admin-key':ADMIN_KEY},body:JSON.stringify({username,action:'delete'})});
     const data=await res.json();
     if(!res.ok){showAdminMsg(data.error||'Error','err');return;}
     showAdminMsg('✅ Usuario "'+username+'" eliminado','ok');
