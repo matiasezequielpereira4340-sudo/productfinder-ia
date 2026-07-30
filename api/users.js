@@ -107,7 +107,7 @@ export default async function handler(req, res) {
             }
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + (parseInt(days) || 30));
-            const newUser = { username, password, active: true, createdAt: new Date().toISOString(), expiresAt: expiresAt.toISOString(), meli_connected: false };
+            const newUser = { username, password, active: true, createdAt: new Date().toISOString(), expiresAt: expiresAt.toISOString(), premium: (req.body.premium === true), meli_connected: false };
             stored.push(newUser);
             await persistUsers(stored);
             return res.status(201).json({ user: { id: username, username, active: true, expiresAt: newUser.expiresAt, createdAt: newUser.createdAt } });
@@ -132,7 +132,7 @@ export default async function handler(req, res) {
             const stored = await getUsers();
             const user = stored.find(u => u.username === id || u.email === id || u.id === id);
             if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-            user.active = active;
+            if (typeof active !== 'undefined') user.active = active;
       if (typeof premium !== 'undefined') user.premium = !!premium;
             await persistUsers(stored);
             return res.status(200).json({ ok: true });
