@@ -174,7 +174,7 @@
             '<tr><td colspan="7" class="loading">Cargando...</td></tr>';
 
     try {
-      const res = await fetch('/api/users', {
+      const res = await fetch('/api/users?id=' + encodeURIComponent(username), {
                 headers: {'x-admin-key': ADMIN_KEY}
         });
       const data = await res.json();
@@ -279,7 +279,7 @@
     }
 
     try {
-      const res = await fetch('/api/users', {
+      const res = await fetch('/api/users?id=' + encodeURIComponent(username), {
                 method: 'POST',
                 headers: {'Content-Type':'application/json','x-admin-key': ADMIN_KEY},
                 body: JSON.stringify({username, password, expiryDays: parseInt(expiryDays)})
@@ -309,10 +309,10 @@
   // -----------------------------------------------
   async function toggleUsuario(username, currentActive) {
     try {
-      await fetch('/api/users', {
-        method: 'DELETE',
+      await fetch('/api/users?id=' + encodeURIComponent(username), {
+        method: 'PATCH',
         headers: {'Content-Type':'application/json','x-admin-key': ADMIN_KEY},
-        body: JSON.stringify({username, action: 'toggle'})
+        body: JSON.stringify({ active: !currentActive })
 });
       cargarClientes();
 } catch(e) {
@@ -339,7 +339,7 @@
   async function eliminarUsuario(username) {
     if (!confirm(`¿Eliminar al usuario "${username}"? Esta accion no se puede deshacer.`)) return;
     try {
-      await fetch('/api/users', {
+      await fetch('/api/users?id=' + encodeURIComponent(username), {
         method: 'DELETE',
         headers: {'Content-Type':'application/json','x-admin-key': ADMIN_KEY},
         body: JSON.stringify({username, action: 'delete'})
