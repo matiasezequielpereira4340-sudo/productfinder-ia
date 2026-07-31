@@ -304,11 +304,11 @@
           const sel = q.querySelector('.opt.sel');
           q.dataset.answered = '1';
           q.querySelectorAll('.opt').forEach(o => {
-            const i = parseInt(o.dataset.i, 10);
+            const i = [...o.parentNode.querySelectorAll('.opt')].indexOf(o);
             if (i === correct) o.classList.add('correct');
             if (o.classList.contains('sel') && i !== correct) o.classList.add('wrong');
           });
-          if (sel && parseInt(sel.dataset.i, 10) === correct) ok++;
+          if (sel && [...sel.parentNode.querySelectorAll('.opt')].indexOf(sel) === correct) ok++;
         });
         const score = ok / preguntas.length;
         const res = quiz.querySelector('.quiz-result[data-res="' + idx + '"]');
