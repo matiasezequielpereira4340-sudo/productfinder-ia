@@ -206,10 +206,10 @@
       html += '<div class="mod' + (fullWins ? ' win' : '') + '">';
       if (fullWins) html += '<span class="win-tag">Recomendado</span>';
       html += '<h3>Mercado Full</h3>';
-      html += '<div class="mod-cost">' + money(cf.total) + '<span> / mes aprox.</span></div>';
+      html += '<div class="mod-cost">' + money(cf.porUnidad) + '<span> / mes aprox.</span></div>';
       if (Array.isArray(cf.detalle)) {
         html += '<ul class="detalle">';
-        cf.detalle.forEach(d => { html += '<li><span>' + d.concepto + '</span><span>' + money(d.monto) + '</span></li>'; });
+        cf.detalle.forEach(d => { html += '<li><span>' + d.concepto + '</span><span>' + money(d.valor) + '</span></li>'; });
         html += '</ul>';
       }
       if (cf.nota) html += '<p class="mod-nota">' + cf.nota + '</p>';
@@ -218,10 +218,10 @@
       html += '<div class="mod' + (flexWins ? ' win' : '') + '">';
       if (flexWins) html += '<span class="win-tag">Recomendado</span>';
       html += '<h3>Mercado Flex</h3>';
-      html += '<div class="mod-cost">' + money(cx.total) + '<span> / mes aprox.</span></div>';
+      html += '<div class="mod-cost">' + money(cx.porUnidad) + '<span> / mes aprox.</span></div>';
       if (Array.isArray(cx.detalle)) {
         html += '<ul class="detalle">';
-        cx.detalle.forEach(d => { html += '<li><span>' + d.concepto + '</span><span>' + money(d.monto) + '</span></li>'; });
+        cx.detalle.forEach(d => { html += '<li><span>' + d.concepto + '</span><span>' + money(d.valor) + '</span></li>'; });
         html += '</ul>';
       }
       if (cx.nota) html += '<p class="mod-nota">' + cx.nota + '</p>';
