@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MeLi Connect — Encontrá qué importar y vendé sin perder plata</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.h5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/hlibs/jspdf/2.h5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
 :root{--gold:#C9A84C;--gold-dim:#8a6e2f;--dark:#0a0a0a;--dark-2:#111111;--dark-3:#1a1a1a;--dark-4:#222222;--text:#e8e0d0;--text-dim:#8a8070;--red:#c0392b;--green:#27ae60;--radius:8px}
@@ -681,7 +681,7 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
       <input type="password" id="loginPass" placeholder="Ingresá tu contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
       <span class="eye-toggle" onclick="toggleEye(this)">👁️</span>
     </div>
-    <button class="btn-login" onclick="doLogin()">Ingresar</button>
+    <button class="btn-login" onclick="doLogin()">Ingresar</button><button type="button" class="btn-login" style="background:transparent;border:1px solid var(--gold-dim);color:var(--gold);margin-top:12px" onclick="doGuest()">Entrar como invitado</button>
     <div class="login-error" id="loginError"></div>
   </div>
 </div>
@@ -961,7 +961,7 @@ function showAdmin(){if(currentRole!=='admin')return;showScreen('adminScreen');l
 function showApp(){showScreen('appScreen');}
 function showMarket(){showScreen('marketScreen');}
 
-function doLogout(){
+function doGuest(){currentRole='guest';sessionExpiry=null;localStorage.setItem('pf_user','Invitado');localStorage.setItem('pf_role','guest');localStorage.removeItem('pf_premium');localStorage.removeItem('pf_expiry');showScreen('appScreen');setupTopbar('Invitado');var ab=document.getElementById('btnAdminPanel');if(ab)ab.style.display='none';var ex=document.getElementById('topbarExpiry');if(ex)ex.style.display='none';} function doLogout(){
   currentRole=null;sessionExpiry=null;analysisResults=null;mrData={};mrCurrentProduct='';
   localStorage.removeItem('pf_user');localStorage.removeItem('pf_role');localStorage.removeItem('pf_expiry');
   document.getElementById('loginUser').value='';
@@ -2958,7 +2958,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   function fmtPct(n){ return (n>=0?"":"-") + Math.abs(Math.round(n)) + "%"; }
   function classify(pct){
     if(pct >= 50) return {cls:"green", label:"Margen sano para importar"};
-    if(pct >= 30) return {cls:"yellow", label:"Margen ajustado, validar bien"};
+    if(pct >= 25) return {cls:"yellow", label:"Margen ajustado, validar bien"};
     return {cls:"red", label:"Margen bajo, no conviene"};
   }
   function computeNet(precio, costo){
@@ -2998,7 +2998,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(!grid || document.getElementById("v19-legend")) return;
     var lg = document.createElement("div");
     lg.id = "v19-legend"; lg.className = "v19-legend";
-    lg.innerHTML = "<b>\u00bfComo leer el margen neto?</b> Es lo que realmente te queda despues de descontar la comision de MercadoLibre (segun categoria), el IVA neto (debito de venta menos credito de la importacion) y IIBB del precio de venta. El IIBB varia segun la provincia; usamos un 3% como promedio estimativo entre jurisdicciones. <span class=\"v19-chip v19-mn green\"><span class=\"v19-dot\"></span>Verde \u2265 50%</span><span class=\"v19-chip v19-mn yellow\"><span class=\"v19-dot\"></span>Amarillo 30-50%</span><span class=\"v19-chip v19-mn red\"><span class=\"v19-dot\"></span>Rojo < 30%</span> Para importar desde China conviene apuntar a verde. El markup bruto (%) que figura arriba no descuenta comisiones, por eso es mucho mas alto.";
+    lg.innerHTML = "<b>\u00bfComo leer el margen neto?</b> Es lo que realmente te queda despues de descontar la comision de MercadoLibre (segun categoria), el IVA neto (debito de venta menos credito de la importacion) y IIBB del precio de venta. El IIBB varia segun la provincia; usamos un 3% como promedio estimativo entre jurisdicciones. <span class=\"v19-chip v19-mn green\"><span class=\"v19-dot\"></span>Verde \u2265 50%</span><span class=\"v19-chip v19-mn yellow\"><span class=\"v19-dot\"></span>Amarillo 25-50%</span><span class=\"v19-chip v19-mn red\"><span class=\"v19-dot\"></span>Rojo < 25%</span> Para importar desde China conviene apuntar a verde. El markup bruto (%) que figura arriba no descuenta comisiones, por eso es mucho mas alto.";
     grid.parentNode.insertBefore(lg, grid.nextSibling);
   }
   var obs = new MutationObserver(function(){ setTimeout(enhance, 60); });
