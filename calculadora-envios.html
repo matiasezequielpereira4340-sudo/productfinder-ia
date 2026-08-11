@@ -80,23 +80,117 @@
     .aviso-ventas b{color:#FFE600;}
     .aviso-ventas .ico{font-size:18px;margin-right:6px;}
 </style>
+
+  <style id="mc-nav-css">
+  .mc-nav{position:sticky;top:0;z-index:1000;display:flex;align-items:center;gap:20px;background:linear-gradient(180deg,#141414 0%,#0d0d0d 100%);border-bottom:2px solid #FFE600;padding:0 20px;height:60px;box-shadow:0 4px 18px rgba(0,0,0,.45);}
+  .mc-brand{display:flex;align-items:center;gap:9px;color:#FFE600;font-weight:800;font-size:18px;text-decoration:none;white-space:nowrap;letter-spacing:.2px;}
+  .mc-brand-ico{display:inline-flex;width:30px;height:30px;align-items:center;justify-content:center;background:#FFE600;color:#111;border-radius:8px;font-size:16px;}
+  .mc-menu{display:flex;align-items:center;gap:4px;flex:1;}
+  .mc-item{position:relative;}
+  .mc-link{display:flex;align-items:center;gap:6px;color:#d6d6d6;text-decoration:none;font-size:14.5px;font-weight:600;padding:9px 14px;border-radius:9px;white-space:nowrap;transition:.15s;cursor:pointer;border:0;background:none;font-family:inherit;}
+  .mc-link:hover{background:#242424;color:#fff;}
+  .mc-link.active{background:#FFE600;color:#111;}
+  .mc-caret{font-size:10px;opacity:.7;transition:transform .15s;}
+  .mc-item:hover .mc-caret{transform:rotate(180deg);}
+  .mc-drop{position:absolute;top:calc(100% + 8px);left:0;min-width:252px;background:#1a1a1a;border:1px solid #2e2e2e;border-radius:12px;padding:7px;box-shadow:0 12px 30px rgba(0,0,0,.55);opacity:0;visibility:hidden;transform:translateY(-6px);transition:.16s;}
+  .mc-item:hover .mc-drop{opacity:1;visibility:visible;transform:translateY(0);}
+  .mc-drop a{display:flex;align-items:flex-start;gap:10px;padding:9px 11px;border-radius:8px;color:#e6e6e6;text-decoration:none;transition:.13s;}
+  .mc-drop a:hover{background:#2a2a2a;}
+  .mc-drop a.active{background:rgba(255,230,0,.14);}
+  .mc-di{font-size:18px;line-height:1.1;width:22px;text-align:center;}
+  .mc-dt{display:flex;flex-direction:column;}
+  .mc-dt b{font-size:13.5px;color:#fff;font-weight:700;}
+  .mc-dt span{font-size:11.5px;color:#9a9a9a;margin-top:1px;}
+  .mc-sechead{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:#FFE600;padding:6px 11px 3px;font-weight:800;}
+  .mc-right{display:flex;align-items:center;gap:12px;}
+  .mc-cta{display:flex;align-items:center;gap:7px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff!important;font-weight:800;font-size:13.5px;padding:9px 15px;border-radius:9px;text-decoration:none;white-space:nowrap;box-shadow:0 3px 12px rgba(37,211,102,.4);position:relative;transition:.15s;}
+  .mc-cta:hover{transform:translateY(-1px);box-shadow:0 5px 18px rgba(37,211,102,.55);}
+  .mc-cta .mc-pulse{position:absolute;top:-3px;right:-3px;width:11px;height:11px;background:#FFE600;border-radius:50%;animation:mcpulse 1.8s infinite;}
+  @keyframes mcpulse{0%{box-shadow:0 0 0 0 rgba(255,230,0,.7)}70%{box-shadow:0 0 0 9px rgba(255,230,0,0)}100%{box-shadow:0 0 0 0 rgba(255,230,0,0)}}
+  .mc-user{display:flex;align-items:center;gap:8px;color:#cfcfcf;font-size:13px;}
+  .mc-avatar{width:30px;height:30px;border-radius:50%;background:#FFE600;color:#111;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;}
+  .mc-logout{background:#242424;border:1px solid #383838;color:#eaeaea;font-size:13px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;transition:.13s;}
+  .mc-logout:hover{background:#3a1414;border-color:#a33;color:#ff9a9a;}
+  .mc-toggle{display:none;background:none;border:0;color:#FFE600;font-size:26px;cursor:pointer;}
+  @media(max-width:960px){
+   .mc-menu{position:fixed;top:60px;left:0;right:0;bottom:0;flex-direction:column;align-items:stretch;background:#0d0d0d;padding:12px;gap:2px;overflow-y:auto;display:none;z-index:1001;}
+   .mc-menu.show{display:flex;}
+   .mc-drop{position:static;opacity:1;visibility:visible;transform:none;box-shadow:none;border:0;background:#151515;margin:2px 0 6px;}
+   .mc-caret{display:none;}.mc-toggle{display:block;}.mc-user .mc-uname{display:none;}.mc-cta span:not(.mc-pulse){display:none;}
+  }
+  .mc-balloon{position:fixed;right:22px;bottom:22px;z-index:1200;width:312px;background:linear-gradient(160deg,#1f1f1f,#141414);border:1px solid #FFE600;border-radius:18px;padding:18px 18px 16px;box-shadow:0 18px 50px rgba(0,0,0,.6);transform:translateY(160%);opacity:0;transition:transform .5s cubic-bezier(.16,1,.3,1),opacity .4s;}
+  .mc-balloon.show{transform:translateY(0);opacity:1;animation:mcfloat 4s ease-in-out infinite 1.2s;}
+  @keyframes mcfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+  .mc-balloon::after{content:"";position:absolute;bottom:-9px;right:38px;width:18px;height:18px;background:linear-gradient(160deg,#1f1f1f,#141414);border-right:1px solid #FFE600;border-bottom:1px solid #FFE600;transform:rotate(45deg);}
+  .mc-bl-close{position:absolute;top:10px;right:12px;background:none;border:0;color:#888;font-size:19px;cursor:pointer;line-height:1;}
+  .mc-bl-close:hover{color:#fff;}
+  .mc-bl-badge{display:inline-block;background:#FFE600;color:#111;font-size:10.5px;font-weight:800;letter-spacing:.5px;padding:3px 9px;border-radius:20px;text-transform:uppercase;margin-bottom:9px;}
+  .mc-bl-title{color:#fff;font-size:16.5px;font-weight:800;line-height:1.25;margin:0 0 6px;}
+  .mc-bl-title b{color:#FFE600;}
+  .mc-bl-text{color:#b9b9b9;font-size:12.8px;line-height:1.5;margin:0 0 13px;}
+  .mc-bl-btn{display:flex;align-items:center;justify-content:center;gap:7px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-weight:800;font-size:13.5px;padding:11px;border-radius:10px;text-decoration:none;transition:.15s;}
+  .mc-bl-btn:hover{filter:brightness(1.08);transform:translateY(-1px);}
+  .mc-bltab{position:fixed;right:22px;bottom:22px;z-index:1190;display:none;align-items:center;gap:8px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-weight:800;font-size:13px;padding:12px 17px;border-radius:30px;box-shadow:0 8px 24px rgba(0,0,0,.45);cursor:pointer;border:0;animation:mcpop .4s;}
+  .mc-bltab:hover{filter:brightness(1.08);}
+  @keyframes mcpop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+  @media(max-width:520px){.mc-balloon{right:12px;left:12px;width:auto;}}
+  </style>
 </head>
 <body>
-  <header class="mainbar"><a href="index.html" class="mainbrand"><span class="mainbrand-ico">🔗</span> MeLi Connect</a><nav class="mnav" id="mnav"><a href="index.html" class="mnav-link">Inicio</a><a href="meli-connect.html" class="mnav-link">Conectar ML</a><a href="analizador.html" class="mnav-link">Analizador</a><a href="educacion.html" class="mnav-link">Aprendé a publicar</a><a href="calculadora-envios.html" class="mnav-link active">Flex vs Full</a><a href="margen.html" class="mnav-link">Margen</a></nav><button class="mnav-toggle" id="mnavToggle" aria-label="Menu">☰</button></header>
+  <header class="mc-nav" id="mcNav">
+    <a href="index.html" class="mc-brand"><span class="mc-brand-ico">&#128279;</span> MeLi Connect</a>
+    <nav class="mc-menu" id="mcMenu">
+      <div class="mc-item"><a href="index.html" class="mc-link">&#127968; Inicio</a></div>
+      <div class="mc-item">
+        <button class="mc-link" type="button">&#128230; Importaci&oacute;n <span class="mc-caret">&#9660;</span></button>
+        <div class="mc-drop">
+          <div class="mc-sechead">Encontr&aacute; y planific&aacute;</div>
+          <a href="index.html"><span class="mc-di">&#127919;</span><span class="mc-dt"><b>Buscador de oportunidades</b><span>Qu&eacute; conviene importar seg&uacute;n tu perfil</span></span></a>
+          <a href="margen.html"><span class="mc-di">&#129518;</span><span class="mc-dt"><b>Calculador de margen</b><span>Cu&aacute;nto vas a ganar de verdad</span></span></a>
+          <a href="educacion.html"><span class="mc-di">&#127891;</span><span class="mc-dt"><b>Aprend&eacute; a publicar</b><span>Gu&iacute;a para arrancar a vender</span></span></a>
+        </div>
+      </div>
+      <div class="mc-item">
+        <button class="mc-link" type="button">&#128722; MercadoLibre <span class="mc-caret">&#9660;</span></button>
+        <div class="mc-drop">
+          <div class="mc-sechead">Tu cuenta y publicaciones</div>
+          <a href="meli-connect.html"><span class="mc-di">&#128279;</span><span class="mc-dt"><b>Conectar cuenta</b><span>Vincul&aacute; tu MercadoLibre</span></span></a>
+          <a href="dashboard.html"><span class="mc-di">&#128202;</span><span class="mc-dt"><b>Dashboard de ventas</b><span>&Oacute;rdenes, comisiones y ganancia neta</span></span></a>
+          <a href="analizador.html"><span class="mc-di">&#128269;</span><span class="mc-dt"><b>Analizador de publicaciones</b><span>Qu&eacute; mejorar en tu publicaci&oacute;n</span></span></a>
+          <a href="calculadora-envios.html" class="active"><span class="mc-di">&#128666;</span><span class="mc-dt"><b>Flex vs Full</b><span>Qu&eacute; env&iacute;o te conviene</span></span></a>
+        </div>
+      </div>
+      <div class="mc-item" id="mcAdminItem" style="display:none"><a href="admin.html" class="mc-link">&#128081; Admin</a></div>
+    </nav>
+    <div class="mc-right">
+      <a class="mc-cta" href="https://wa.me/541160374306" target="_blank" rel="noopener">&#128640; Asesor&iacute;a<span class="mc-pulse"></span></a>
+      <div class="mc-user"><span class="mc-avatar" id="mcAvatar">?</span><span class="mc-uname" id="mcUname">invitado</span></div>
+      <button class="mc-logout" id="mcLogout" type="button">Salir</button>
+    </div>
+    <button class="mc-toggle" id="mcToggle" aria-label="Menu">&#9776;</button>
+  </header>
+  <div class="mc-balloon" id="mcBalloon">
+    <button class="mc-bl-close" id="mcBlClose" aria-label="Cerrar">&times;</button>
+    <span class="mc-bl-badge">&#128293; Asesor&iacute;a 1 a 1</span>
+    <p class="mc-bl-title">&iquest;Vas a importar y no quer&eacute;s <b>perder plata</b>?</p>
+    <p class="mc-bl-text">Te ayudo a elegir el producto, calcular costos reales y despachar sin sorpresas. Primera consulta sin cargo.</p>
+    <a class="mc-bl-btn" href="https://wa.me/541160374306?text=Hola!%20Quiero%20asesor%C3%ADa%20para%20importar" target="_blank" rel="noopener">&#128172; Hablar por WhatsApp</a>
+  </div>
+  <button class="mc-bltab" id="mcBlTab">&#128172; Asesor&iacute;a gratis</button>
 
   <main class="wrap">
     <header class="hero">
-      <h1>¿Flex o Full? Calculá cuál te conviene</h1>
-      <p>Respondé unas pocas preguntas sobre tu producto y te decimos qué modalidad de envío te conviene, por qué, y cuánto te costaría cada una. Sin vueltas y explicado en criollo.</p>
+      <h1>Â¿Flex o Full? CalculÃ¡ cuÃ¡l te conviene</h1>
+      <p>RespondÃ© unas pocas preguntas sobre tu producto y te decimos quÃ© modalidad de envÃ­o te conviene, por quÃ©, y cuÃ¡nto te costarÃ­a cada una. Sin vueltas y explicado en criollo.</p>
     </header>
 
-      <div class="aviso-ventas"><span class="ico">⚠️</span><b>Antes de empezar:</b> Flex y Full no están disponibles apenas abrís tu cuenta. Primero tenés que hacer al menos <b>10 ventas por Mercado Envíos</b> (el envío común por correo) y mantener una <b>buena reputación</b> (entregar a tiempo, sin reclamos). Recién ahí MercadoLibre te habilita Flex y Full. Así que si recién arrancás, usá esta calculadora para planificar hacia dónde vas, pero sabé que primero hay que sumar esas primeras ventas.</div>
+      <div class="aviso-ventas"><span class="ico">â ï¸</span><b>Antes de empezar:</b> Flex y Full no estÃ¡n disponibles apenas abrÃ­s tu cuenta. Primero tenÃ©s que hacer al menos <b>10 ventas por Mercado EnvÃ­os</b> (el envÃ­o comÃºn por correo) y mantener una <b>buena reputaciÃ³n</b> (entregar a tiempo, sin reclamos). ReciÃ©n ahÃ­ MercadoLibre te habilita Flex y Full. AsÃ­ que si reciÃ©n arrancÃ¡s, usÃ¡ esta calculadora para planificar hacia dÃ³nde vas, pero sabÃ© que primero hay que sumar esas primeras ventas.</div>
 
     <section class="info">
-      <h3>Antes de empezar: ¿qué es cada cosa?</h3>
-      <p><b>Mercado Envíos</b> es el sistema de envíos de Mercado Libre. Dentro de él tenés dos modalidades principales:</p>
-      <p><b>Flex</b>: vos guardás el stock en tu casa o depósito y hacés vos la entrega en el día (en tu zona), con una app que te organiza las entregas. Ideal si tenés poco volumen o querés bajar costos de almacenamiento.</p>
-      <p><b>Full</b>: mandás tu stock a un depósito de Mercado Libre y ellos se encargan de guardar, empaquetar y despachar todo por vos. Ideal si vendés mucho y no querés ocuparte de la logística, pero pagás almacenamiento.</p>
+      <h3>Antes de empezar: Â¿quÃ© es cada cosa?</h3>
+      <p><b>Mercado EnvÃ­os</b> es el sistema de envÃ­os de Mercado Libre. Dentro de Ã©l tenÃ©s dos modalidades principales:</p>
+      <p><b>Flex</b>: vos guardÃ¡s el stock en tu casa o depÃ³sito y hacÃ©s vos la entrega en el dÃ­a (en tu zona), con una app que te organiza las entregas. Ideal si tenÃ©s poco volumen o querÃ©s bajar costos de almacenamiento.</p>
+      <p><b>Full</b>: mandÃ¡s tu stock a un depÃ³sito de Mercado Libre y ellos se encargan de guardar, empaquetar y despachar todo por vos. Ideal si vendÃ©s mucho y no querÃ©s ocuparte de la logÃ­stica, pero pagÃ¡s almacenamiento.</p>
     </section>
 
     <section class="card">
@@ -105,41 +199,41 @@
         <div class="field">
           <label for="pesoKg">Peso (kg)</label>
           <input id="pesoKg" type="number" step="0.1" min="0" placeholder="Ej: 0.8">
-          <span class="field-hint">Pesá tu producto YA EMPAQUETADO (con caja o bolsa) en una balanza de cocina. Si no tenés, fijate el peso en la caja del fabricante o buscá el modelo en internet. Ponélo en kilos: 800 gramos = 0.8.</span>
+          <span class="field-hint">PesÃ¡ tu producto YA EMPAQUETADO (con caja o bolsa) en una balanza de cocina. Si no tenÃ©s, fijate el peso en la caja del fabricante o buscÃ¡ el modelo en internet. PonÃ©lo en kilos: 800 gramos = 0.8.</span>
         </div>
         <div class="field">
-          <label for="rotacionMes">Rotación estimada (unidades por mes)</label>
+          <label for="rotacionMes">RotaciÃ³n estimada (unidades por mes)</label>
           <input id="rotacionMes" type="number" step="1" min="0" placeholder="Ej: 40">
-          <span class="field-hint">Es cuántas unidades creés que vas a vender por mes. Si recién empezás y no sabés, poné un número conservador (ej: 10 o 20). Más adelante lo ajustás con tus ventas reales.</span>
+          <span class="field-hint">Es cuÃ¡ntas unidades creÃ©s que vas a vender por mes. Si reciÃ©n empezÃ¡s y no sabÃ©s, ponÃ© un nÃºmero conservador (ej: 10 o 20). MÃ¡s adelante lo ajustÃ¡s con tus ventas reales.</span>
         </div>
         <div class="field">
           <label for="largoCm">Largo (cm)</label>
           <input id="largoCm" type="number" step="1" min="0" placeholder="Ej: 30">
-          <span class="field-hint">Medí con una regla o cinta métrica el lado más largo del paquete ya cerrado, en centímetros. Si aún no lo empaquetaste, medí la caja del producto.</span>
+          <span class="field-hint">MedÃ­ con una regla o cinta mÃ©trica el lado mÃ¡s largo del paquete ya cerrado, en centÃ­metros. Si aÃºn no lo empaquetaste, medÃ­ la caja del producto.</span>
         </div>
         <div class="field">
           <label for="anchoCm">Ancho (cm)</label>
           <input id="anchoCm" type="number" step="1" min="0" placeholder="Ej: 20">
-          <span class="field-hint">El lado del medio del paquete cerrado, en centímetros. Medí la parte más ancha.</span>
+          <span class="field-hint">El lado del medio del paquete cerrado, en centÃ­metros. MedÃ­ la parte mÃ¡s ancha.</span>
         </div>
         <div class="field">
           <label for="altoCm">Alto (cm)</label>
           <input id="altoCm" type="number" step="1" min="0" placeholder="Ej: 15">
-          <span class="field-hint">La altura del paquete cerrado (lo que mide de abajo hacia arriba), en centímetros.</span>
+          <span class="field-hint">La altura del paquete cerrado (lo que mide de abajo hacia arriba), en centÃ­metros.</span>
         </div>
         <div class="field">
           <label for="toleranciaAlmacenamiento">Tolerancia al costo de almacenamiento</label>
           <select id="toleranciaAlmacenamiento">
-            <option value="baja">Baja — prefiero no pagar depósito</option>
-            <option value="media" selected>Media — pago algo si me ahorra trabajo</option>
-            <option value="alta">Alta — no me importa pagar por comodidad</option>
+            <option value="baja">Baja â prefiero no pagar depÃ³sito</option>
+            <option value="media" selected>Media â pago algo si me ahorra trabajo</option>
+            <option value="alta">Alta â no me importa pagar por comodidad</option>
           </select>
-          <span class="field-hint">Full cobra por guardar tu stock en su depósito. Elegí cuánto te molesta pagar eso: si preferís no pagar depósito elegí "Baja"; si no te importa pagar por comodidad, "Alta".</span>
+          <span class="field-hint">Full cobra por guardar tu stock en su depÃ³sito. ElegÃ­ cuÃ¡nto te molesta pagar eso: si preferÃ­s no pagar depÃ³sito elegÃ­ "Baja"; si no te importa pagar por comodidad, "Alta".</span>
         </div>
         <div class="field">
           <label for="margenUnidad">Margen por unidad (opcional, en $)</label>
           <input id="margenUnidad" type="number" step="1" min="0" placeholder="Ej: 2500">
-          <span class="field-hint">Cuánta ganancia limpia te queda por cada unidad vendida (precio de venta menos lo que te costó el producto). Si no lo sabés todavía, dejalo vacío: es opcional.</span>
+          <span class="field-hint">CuÃ¡nta ganancia limpia te queda por cada unidad vendida (precio de venta menos lo que te costÃ³ el producto). Si no lo sabÃ©s todavÃ­a, dejalo vacÃ­o: es opcional.</span>
         </div>
       </div>
       <button id="btnCalc" class="btn">Calcular modalidad recomendada</button>
@@ -149,7 +243,7 @@
   </main>
   <script>
     const $ = (id) => document.getElementById(id);
-    const money = (n) => (n === null || n === undefined || isNaN(n)) ? '—' : '$' + Math.round(n).toLocaleString('es-AR');
+    const money = (n) => (n === null || n === undefined || isNaN(n)) ? 'â' : '$' + Math.round(n).toLocaleString('es-AR');
 
     async function calcular() {
       const btn = $('btnCalc');
@@ -194,7 +288,7 @@
 
       html += '<div class="verdict">';
       html += '<div class="v-label">Te conviene</div>';
-      html += '<div class="v-main">' + (data.recomendacion || '—') + '</div>';
+      html += '<div class="v-main">' + (data.recomendacion || 'â') + '</div>';
       if (data.motivo) html += '<p class="v-motivo">' + data.motivo + '</p>';
       html += '</div>';
 
@@ -235,7 +329,7 @@
 
       if (data.requisitos) {
         html += '<div class="req">';
-        html += '<h4>' + (data.requisitos.titulo || 'Importante si recién empezás') + '</h4>';
+        html += '<h4>' + (data.requisitos.titulo || 'Importante si reciÃ©n empezÃ¡s') + '</h4>';
         html += '<p>' + (data.requisitos.texto || '') + '</p>';
         if (data.requisitos.nota) html += '<p class="req-nota">' + data.requisitos.nota + '</p>';
         html += '</div>';
@@ -256,5 +350,31 @@
     });
   </script>
 <script>(function(){var t=document.getElementById('mnavToggle'),n=document.getElementById('mnav');if(t&&n){t.addEventListener('click',function(){n.classList.toggle('show');});}})();</script>
+
+  <script>
+  (function(){
+    try{
+      var u = localStorage.getItem('pf_user') || 'invitado';
+      var role = localStorage.getItem('pf_role') || 'guest';
+      var un = document.getElementById('mcUname'); if(un) un.textContent = u;
+      var av = document.getElementById('mcAvatar'); if(av) av.textContent = (u.charAt(0)||'?').toUpperCase();
+      if(role === 'admin'){ var ai = document.getElementById('mcAdminItem'); if(ai) ai.style.display=''; }
+    }catch(e){}
+    var t = document.getElementById('mcToggle');
+    if(t) t.addEventListener('click', function(){ var m=document.getElementById('mcMenu'); if(m) m.classList.toggle('show'); });
+    var lo = document.getElementById('mcLogout');
+    if(lo) lo.addEventListener('click', function(){
+      try{ ['pf_user','pf_role','pf_expiry'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
+      window.location.href = 'index.html';
+    });
+    var bal=document.getElementById('mcBalloon'), tab=document.getElementById('mcBlTab'), cb=document.getElementById('mcBlClose'), dm=false;
+    try{ dm = localStorage.getItem('mc_promo_closed')==='1'; }catch(e){}
+    function op(){ if(tab) tab.style.display='none'; if(bal){ bal.style.display='block'; setTimeout(function(){ bal.classList.add('show'); },30);} }
+    function cl(){ if(bal) bal.classList.remove('show'); setTimeout(function(){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; },400); try{ localStorage.setItem('mc_promo_closed','1'); }catch(e){} }
+    if(cb) cb.addEventListener('click', cl);
+    if(tab) tab.addEventListener('click', function(){ try{ localStorage.removeItem('mc_promo_closed'); }catch(e){} op(); });
+    if(dm){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; } else { setTimeout(op, 1400); }
+  })();
+  </script>
 </body>
 </html>
