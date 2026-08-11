@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Conectar MercadoLibre â MeLi Connect</title>
+    <title>Conectar MercadoLibre — MeLi Connect</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -264,14 +264,14 @@
 
     <!-- ESTADO INICIAL (no conectado) -->
     <div class="main-content">
-      <div class="logo">ð</div>
-      <h1 style="font-size:22px;font-weight:800;color:#FFE600;margin-bottom:8px;text-align:center;">ConectÃ¡ tu cuenta de MercadoLibre</h1>
-      <p class="subtitle">AutorizÃ¡ el acceso para que podamos traer tus ventas, comisiones y stock en tiempo real. <b>No guardamos tu contraseÃ±a.</b></p>
+      <div class="logo">🔗</div>
+      <h1 style="font-size:22px;font-weight:800;color:#FFE600;margin-bottom:8px;text-align:center;">Conectá tu cuenta de MercadoLibre</h1>
+      <p class="subtitle">Autorizá el acceso para que podamos traer tus ventas, comisiones y stock en tiempo real. <b>No guardamos tu contraseña.</b></p>
 
       <div class="steps">
-        <div class="step"><div class="step-num">1</div><div>Te redirigimos a MercadoLibre para que inicies sesiÃ³n con tu cuenta</div></div>
-        <div class="step"><div class="step-num">2</div><div>MeLi te pregunta si autorizÃ¡s la app â hacÃ©s clic en <b>Permitir</b></div></div>
-        <div class="step"><div class="step-num">3</div><div>VolvÃ©s acÃ¡ automÃ¡ticamente y listo â tus datos quedan conectados</div></div>
+        <div class="step"><div class="step-num">1</div><div>Te redirigimos a MercadoLibre para que inicies sesión con tu cuenta</div></div>
+        <div class="step"><div class="step-num">2</div><div>MeLi te pregunta si autorizás la app — hacés clic en <b>Permitir</b></div></div>
+        <div class="step"><div class="step-num">3</div><div>Volvés acá automáticamente y listo — tus datos quedan conectados</div></div>
       </div>
 
       <a href="#" id="btnConnect" onclick="startAuth(event)" class="btn-connect">
@@ -280,7 +280,7 @@
         </svg>
         Conectar con MercadoLibre
       </a>
-      <div class="security-note">ð ConexiÃ³n segura via OAuth 2.0 â podÃ©s revocar el acceso en cualquier momento</div>
+      <div class="security-note">🔒 Conexión segura via OAuth 2.0 — podés revocar el acceso en cualquier momento</div>
 
       <hr class="divider">
       
@@ -289,46 +289,46 @@
         <div class="tools-grid">
           <a href="/analizador.html" class="tool-card">
             <span class="tool-tag tag-free">LIBRE</span>
-            <div class="tool-ico">ð</div>
+            <div class="tool-ico">🔍</div>
             <div class="tool-name">Analizador de publicaciones</div>
-            <div class="tool-desc">PegÃ¡ el link de tu publicaciÃ³n y te decimos quÃ© estÃ¡ bien, quÃ© corregir y cÃ³mo mejorarla.</div>
+            <div class="tool-desc">Pegá el link de tu publicación y te decimos qué está bien, qué corregir y cómo mejorarla.</div>
           </a>
           <a href="/educacion.html" class="tool-card">
             <span class="tool-tag tag-free">LIBRE</span>
-            <div class="tool-ico">ð</div>
-            <div class="tool-name">AprendÃ© a publicar</div>
-            <div class="tool-desc">Curso guiado para hacer publicaciones que venden: tÃ­tulo, fotos, descripciÃ³n y envÃ­os, explicado fÃ¡cil.</div>
+            <div class="tool-ico">🎓</div>
+            <div class="tool-name">Aprendé a publicar</div>
+            <div class="tool-desc">Curso guiado para hacer publicaciones que venden: título, fotos, descripción y envíos, explicado fácil.</div>
           </a>
           <a href="/calculadora-envios.html" class="tool-card">
             <span class="tool-tag tag-free">LIBRE</span>
-            <div class="tool-ico">ð¦</div>
+            <div class="tool-ico">📦</div>
             <div class="tool-name">Flex vs Full</div>
-            <div class="tool-desc">Te decimos quÃ© forma de envÃ­o te conviene segÃºn tu producto y cuÃ¡nto te cuesta cada una.</div>
+            <div class="tool-desc">Te decimos qué forma de envío te conviene según tu producto y cuánto te cuesta cada una.</div>
           </a>
           <a href="/margen.html" class="tool-card">
             <span class="tool-tag tag-conn">CUENTA</span>
-            <div class="tool-ico">ð</div>
+            <div class="tool-ico">📊</div>
             <div class="tool-name">Calculador de margen</div>
-            <div class="tool-desc">CalculÃ¡ tu ganancia real descontando comisiones, envÃ­os e impuestos de MercadoLibre.</div>
+            <div class="tool-desc">Calculá tu ganancia real descontando comisiones, envíos e impuestos de MercadoLibre.</div>
           </a>
         </div>
       </div>
 
-      <div class="conn-hint">El analizador, el curso y la calculadora los podÃ©s usar ya mismo. El calculador de margen necesita tu cuenta conectada.</div>
+      <div class="conn-hint">El analizador, el curso y la calculadora los podés usar ya mismo. El calculador de margen necesita tu cuenta conectada.</div>
     </div>
 
     <!-- ESTADO CARGANDO -->
     <div class="loading" id="loadingState" style="display:none;">
       <div class="loading-spinner"></div>
-      <p style="color:#888;margin-top:14px;">Conectando con MercadoLibreâ¦</p>
+      <p style="color:#888;margin-top:14px;">Conectando con MercadoLibre…</p>
     </div>
 
     <!-- ESTADO EXITO -->
     <div class="success-content" id="successState">
-      <div class="success-icon">â</div>
-      <div class="success-title">Â¡Cuenta conectada!</div>
-      <p class="success-sub">Tu cuenta de MercadoLibre quedÃ³ vinculada correctamente.</p>
-      <div class="meli-user-badge" id="meliUserBadge">MeLi User ID: <span id="meliUserId">â</span></div>
+      <div class="success-icon">✅</div>
+      <div class="success-title">¡Cuenta conectada!</div>
+      <p class="success-sub">Tu cuenta de MercadoLibre quedó vinculada correctamente.</p>
+      <div class="meli-user-badge" id="meliUserBadge">MeLi User ID: <span id="meliUserId">—</span></div>
 
       
       <div class="tools-section">
@@ -336,27 +336,27 @@
         <div class="tools-grid">
           <a href="/analizador.html" class="tool-card">
             <span class="tool-tag tag-free">LIBRE</span>
-            <div class="tool-ico">ð</div>
+            <div class="tool-ico">🔍</div>
             <div class="tool-name">Analizador de publicaciones</div>
-            <div class="tool-desc">PegÃ¡ el link de tu publicaciÃ³n y te decimos quÃ© estÃ¡ bien, quÃ© corregir y cÃ³mo mejorarla.</div>
+            <div class="tool-desc">Pegá el link de tu publicación y te decimos qué está bien, qué corregir y cómo mejorarla.</div>
           </a>
           <a href="/educacion.html" class="tool-card">
             <span class="tool-tag tag-free">LIBRE</span>
-            <div class="tool-ico">ð</div>
-            <div class="tool-name">AprendÃ© a publicar</div>
-            <div class="tool-desc">Curso guiado para hacer publicaciones que venden: tÃ­tulo, fotos, descripciÃ³n y envÃ­os, explicado fÃ¡cil.</div>
+            <div class="tool-ico">🎓</div>
+            <div class="tool-name">Aprendé a publicar</div>
+            <div class="tool-desc">Curso guiado para hacer publicaciones que venden: título, fotos, descripción y envíos, explicado fácil.</div>
           </a>
           <a href="/calculadora-envios.html" class="tool-card">
             <span class="tool-tag tag-free">LIBRE</span>
-            <div class="tool-ico">ð¦</div>
+            <div class="tool-ico">📦</div>
             <div class="tool-name">Flex vs Full</div>
-            <div class="tool-desc">Te decimos quÃ© forma de envÃ­o te conviene segÃºn tu producto y cuÃ¡nto te cuesta cada una.</div>
+            <div class="tool-desc">Te decimos qué forma de envío te conviene según tu producto y cuánto te cuesta cada una.</div>
           </a>
           <a href="/margen.html" class="tool-card">
             <span class="tool-tag tag-conn">CUENTA</span>
-            <div class="tool-ico">ð</div>
+            <div class="tool-ico">📊</div>
             <div class="tool-name">Calculador de margen</div>
-            <div class="tool-desc">CalculÃ¡ tu ganancia real descontando comisiones, envÃ­os e impuestos de MercadoLibre.</div>
+            <div class="tool-desc">Calculá tu ganancia real descontando comisiones, envíos e impuestos de MercadoLibre.</div>
           </a>
         </div>
       </div>
@@ -368,7 +368,7 @@
 
     <!-- ESTADO ERROR -->
     <div class="error-content" id="errorState">
-      <div class="error-icon">â ï¸</div>
+      <div class="error-icon">⚠️</div>
       <div class="error-title">No se pudo conectar</div>
       <div class="error-msg" id="errorMsg">Error desconocido</div>
       <a href="#" onclick="startAuth(event)" class="btn-connect" style="margin-top:18px;">Reintentar</a>
@@ -393,9 +393,9 @@
     document.getElementById('card').className = 'card state-error';
     document.getElementById('errorState').style.display = 'block';
     const msgs = {
-            'access_denied': 'Cancelaste la autorizaciÃ³n. PodÃ©s intentarlo de nuevo cuando quieras.',
-            'token_failed': 'Hubo un problema al obtener el token de MercadoLibre. IntentÃ¡ de nuevo.',
-            'invalid_operator_user_id': 'La cuenta que usaste no es la dueÃ±a de la tienda. Tiene que ser el titular.',
+            'access_denied': 'Cancelaste la autorización. Podés intentarlo de nuevo cuando quieras.',
+            'token_failed': 'Hubo un problema al obtener el token de MercadoLibre. Intentá de nuevo.',
+            'invalid_operator_user_id': 'La cuenta que usaste no es la dueña de la tienda. Tiene que ser el titular.',
       };
     document.getElementById('errorMsg').textContent =
             msgs[error] || 'Error: ' + decodeURIComponent(error);
