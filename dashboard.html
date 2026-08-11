@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard â MeLi Connect</title>
+    <title>Dashboard — MeLi Connect</title>
     <style>
       *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#f0f0f0;min-height:100vh}
@@ -200,41 +200,41 @@
 
         <!-- PERIODO -->
         <div class="period-bar">
-          <label>PerÃ­odo:</label>
-          <button class="period-btn" onclick="setPeriodo(15,this)">15 dÃ­as</button>
-          <button class="period-btn active" onclick="setPeriodo(30,this)">30 dÃ­as</button>
-          <button class="period-btn" onclick="setPeriodo(60,this)">60 dÃ­as</button>
-          <button class="period-btn" onclick="setPeriodo(90,this)">90 dÃ­as</button>
-          <button class="refresh-btn" onclick="cargarTodo()">â» Actualizar</button>
+          <label>Período:</label>
+          <button class="period-btn" onclick="setPeriodo(15,this)">15 días</button>
+          <button class="period-btn active" onclick="setPeriodo(30,this)">30 días</button>
+          <button class="period-btn" onclick="setPeriodo(60,this)">60 días</button>
+          <button class="period-btn" onclick="setPeriodo(90,this)">90 días</button>
+          <button class="refresh-btn" onclick="cargarTodo()">↻ Actualizar</button>
         </div>
 
         <!-- ALERTA SIN CONEXION MELI -->
         <div class="alert-bar hidden" id="alertaConexion">
-          â ï¸ <span id="alertaConexionMsg">No se encontrÃ³ conexiÃ³n con MercadoLibre.</span>
-    <a href="/meli-connect.html" style="color:#fca5a5;margin-left:8px;font-weight:700">Conectar ahora â</a>
+          ⚠️ <span id="alertaConexionMsg">No se encontró conexión con MercadoLibre.</span>
+    <a href="/meli-connect.html" style="color:#fca5a5;margin-left:8px;font-weight:700">Conectar ahora →</a>
         </div>
 
         <!-- ALERTA SIN COSTOS -->
         <div class="alert-bar info hidden" id="alertaCostos">
-          â¹ï¸ <strong id="alertaCostosNum">0</strong> productos sin costo de compra cargado â el margen neto real no puede calcularse para esos productos.
-          <a href="#" onclick="irATab('stock')" style="color:#93c5fd;margin-left:8px">Ver productos â</a>
+          ℹ️ <strong id="alertaCostosNum">0</strong> productos sin costo de compra cargado — el margen neto real no puede calcularse para esos productos.
+          <a href="#" onclick="irATab('stock')" style="color:#93c5fd;margin-left:8px">Ver productos →</a>
         </div>
 
         <!-- KPIs -->
-        <div class="section-title">Resumen del perÃ­odo</div>
+        <div class="section-title">Resumen del período</div>
   <div class="kpi-grid" id="kpiGrid">
-          <div class="kpi-card"><div class="kpi-label">Ãrdenes</div><div class="kpi-value" id="kpiOrdenes">â</div><div class="kpi-sub">ventas pagadas</div></div>
-          <div class="kpi-card"><div class="kpi-label">Ingresos brutos</div><div class="kpi-value" id="kpiIngresos">â</div><div class="kpi-sub">lo que cobrÃ³ MeLi</div></div>
-    <div class="kpi-card"><div class="kpi-label">Comisiones MeLi</div><div class="kpi-value" id="kpiComisiones">â</div><div class="kpi-sub">lo que se llevÃ³ MeLi</div></div>
-    <div class="kpi-card"><div class="kpi-label">Costos de envÃ­o</div><div class="kpi-value" id="kpiEnvios">â</div><div class="kpi-sub">MercadoEnvÃ­os</div></div>
-          <div class="kpi-card highlight"><div class="kpi-label">Ganancia neta</div><div class="kpi-value" id="kpiGanancia">â</div><div class="kpi-sub">despuÃ©s de todo</div></div>
-    <div class="kpi-card"><div class="kpi-label">Tipo de cambio</div><div class="kpi-value" id="kpiTC">â</div><div class="kpi-sub">ARS/USD usado</div></div>
+          <div class="kpi-card"><div class="kpi-label">Órdenes</div><div class="kpi-value" id="kpiOrdenes">—</div><div class="kpi-sub">ventas pagadas</div></div>
+          <div class="kpi-card"><div class="kpi-label">Ingresos brutos</div><div class="kpi-value" id="kpiIngresos">—</div><div class="kpi-sub">lo que cobró MeLi</div></div>
+    <div class="kpi-card"><div class="kpi-label">Comisiones MeLi</div><div class="kpi-value" id="kpiComisiones">—</div><div class="kpi-sub">lo que se llevó MeLi</div></div>
+    <div class="kpi-card"><div class="kpi-label">Costos de envío</div><div class="kpi-value" id="kpiEnvios">—</div><div class="kpi-sub">MercadoEnvíos</div></div>
+          <div class="kpi-card highlight"><div class="kpi-label">Ganancia neta</div><div class="kpi-value" id="kpiGanancia">—</div><div class="kpi-sub">después de todo</div></div>
+    <div class="kpi-card"><div class="kpi-label">Tipo de cambio</div><div class="kpi-value" id="kpiTC">—</div><div class="kpi-sub">ARS/USD usado</div></div>
   </div>
 
   <!-- TABS -->
   <div class="tabs">
-    <div class="tab active" onclick="irATab('ventas')">ð¦ Ventas</div>
-          <div class="tab" onclick="irATab('stock')">ð Stock</div>
+    <div class="tab active" onclick="irATab('ventas')">📦 Ventas</div>
+          <div class="tab" onclick="irATab('stock')">📊 Stock</div>
         </div>
 
         <!-- TAB VENTAS -->
@@ -247,8 +247,8 @@
                   <th>Producto</th>
                   <th>Cant.</th>
                   <th>Precio venta</th>
-                  <th>ComisiÃ³n</th>
-                  <th>EnvÃ­o</th>
+                  <th>Comisión</th>
+                  <th>Envío</th>
                   <th>Costo prod.</th>
                   <th>Ganancia neta</th>
                   <th>Margen %</th>
@@ -314,7 +314,7 @@
   }
 
   function formatFecha(iso) {
-        if (!iso) return 'â';
+        if (!iso) return '—';
     const d = new Date(iso);
     return d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit' });
   }
@@ -354,7 +354,7 @@
     if (!userId) {
       document.getElementById('alertaConexion').classList.remove('hidden');
       document.getElementById('alertaConexionMsg').textContent =
-                'No hay usuario logueado. ConectÃ¡ tu cuenta primero.';
+                'No hay usuario logueado. Conectá tu cuenta primero.';
       loading(false);
       return;
     }
@@ -385,7 +385,7 @@
 
     if (!res.ok || !data.success) {
       if (data.error && data.error.includes('token')) {
-        mostrarErrorConexion('Tu sesiÃ³n de MercadoLibre expirÃ³.');
+        mostrarErrorConexion('Tu sesión de MercadoLibre expiró.');
 } else {
         mostrarErrorConexion(data.error || 'Error al traer ventas');
 }
@@ -426,7 +426,7 @@
   function renderTablaVentas(ventas) {
     const tbody = document.getElementById('tablaVentas');
     if (!ventas || !ventas.length) {
-      tbody.innerHTML = `<tr><td colspan="9"><div class="empty"><div class="empty-icon">ð­</div>Sin ventas en este perÃ­odo</div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9"><div class="empty"><div class="empty-icon">📭</div>Sin ventas en este período</div></td></tr>`;
       return;
 }
     tbody.innerHTML = ventas.map(v => {
@@ -439,7 +439,7 @@
 
       const costoProd = v.tiene_costo_cargado
         ? ars(v.costo_producto_ars + v.costo_embalaje_ars)
-        : '<span class="no-costo">â</span>';
+        : '<span class="no-costo">—</span>';
 
       return `<tr>
         <td>${formatFecha(v.fecha)}</td>
@@ -472,7 +472,7 @@
   function renderTablaStock(productos) {
     const tbody = document.getElementById('tablaStock');
     if (!productos || !productos.length) {
-      tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-icon">ð¦</div>Sin productos activos</div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-icon">📦</div>Sin productos activos</div></td></tr>`;
       return;
 }
     tbody.innerHTML = productos.map(p => {
@@ -487,7 +487,7 @@
 
       const stockFullEl = p.stock_full > 0
         ? `<span class="stock-badge-full">Full: ${p.stock_full}</span>`
-        : `<span style="color:#333">â</span>`;
+        : `<span style="color:#333">—</span>`;
 
       const totalEl = p.stock_total === 0
         ? `<span class="stock-zero">0</span>`
@@ -502,7 +502,7 @@
         <td>${stockFullEl}</td>
         <td>${totalEl}</td>
         <td>${estadoBadge}</td>
-        <td>${p.url_meli ? `<a href="${p.url_meli}" target="_blank" style="color:#60a5fa;font-size:12px">Ver â</a>` : 'â'}</td>
+        <td>${p.url_meli ? `<a href="${p.url_meli}" target="_blank" style="color:#60a5fa;font-size:12px">Ver →</a>` : '—'}</td>
       </tr>`;
 }).join('');
 }
