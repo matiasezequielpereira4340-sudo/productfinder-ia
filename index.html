@@ -801,7 +801,7 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 <!-- APP SCREEN -->
 <div id="appScreen" class="screen">
   <header class="mc-nav">
-      <a href="javascript:void(0)" onclick="showApp()" class="mc-brand"><span class="mc-brand-ico">&#128279;</span> MeLi Connect</a>
+      <a href="javascript:void(0)" onclick="goHome()" class="mc-brand"><span class="mc-brand-ico">&#128279;</span> MeLi Connect</a>
       <nav class="mc-menu">
         <div class="mc-item"><a href="javascript:void(0)" onclick="showApp()" class="mc-link active">&#127968; Inicio</a></div>
         <div class="mc-item">
@@ -892,7 +892,7 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 <!-- MARKET READER SCREEN -->
 <div id="marketScreen" class="screen">
   <header class="mc-nav">
-      <a href="javascript:void(0)" onclick="showApp()" class="mc-brand"><span class="mc-brand-ico">&#128279;</span> MeLi Connect</a>
+      <a href="javascript:void(0)" onclick="goHome()" class="mc-brand"><span class="mc-brand-ico">&#128279;</span> MeLi Connect</a>
       <nav class="mc-menu">
         <div class="mc-item"><a href="javascript:void(0)" onclick="showApp()" class="mc-link">&#127968; Inicio</a></div>
         <div class="mc-item">
@@ -1044,7 +1044,7 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 <!-- ADMIN SCREEN -->
 <div id="adminScreen" class="screen">
   <header class="mc-nav">
-      <a href="javascript:void(0)" onclick="showApp()" class="mc-brand"><span class="mc-brand-ico">&#128279;</span> MeLi Connect</a>
+      <a href="javascript:void(0)" onclick="goHome()" class="mc-brand"><span class="mc-brand-ico">&#128279;</span> MeLi Connect</a>
       <nav class="mc-menu">
         <div class="mc-item"><a href="javascript:void(0)" onclick="showApp()" class="mc-link">&#127968; Inicio</a></div>
         <div class="mc-item">
@@ -3226,5 +3226,13 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(dm){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; } else { setTimeout(op, 1400); }
   })();
   </script>
+<script>
+function goHome(){
+  try{ if(typeof showApp==='function'){ showApp(); } }catch(e){}
+  try{ var m=document.querySelector('.mc-menu'); if(m){ m.classList.add('show'); } }catch(e){}
+  try{ window.scrollTo({top:0,behavior:'smooth'}); }catch(e){ window.scrollTo(0,0); }
+}
+(function(){ if(location.hash==='#menu'){ setTimeout(function(){ try{ var m=document.querySelector('.mc-menu'); if(m) m.classList.add('show'); }catch(e){} }, 300); } })();
+</script>
 </body>
 </html>
