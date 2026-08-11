@@ -665,60 +665,118 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 
 </style>
 
-  <style id="mc-nav-css">
-  .mc-nav{position:sticky;top:0;z-index:1000;display:flex;align-items:center;gap:20px;background:linear-gradient(180deg,#141414 0%,#0d0d0d 100%);border-bottom:2px solid #FFE600;padding:0 20px;height:60px;box-shadow:0 4px 18px rgba(0,0,0,.45);}
-  .mc-brand{display:flex;align-items:center;gap:9px;color:#FFE600;font-weight:800;font-size:18px;text-decoration:none;white-space:nowrap;letter-spacing:.2px;}
-  .mc-brand-ico{display:inline-flex;width:30px;height:30px;align-items:center;justify-content:center;background:#FFE600;color:#111;border-radius:8px;font-size:16px;}
-  .mc-menu{display:flex;align-items:center;gap:4px;flex:1;}
-  .mc-item{position:relative;}
-  .mc-link{display:flex;align-items:center;gap:6px;color:#d6d6d6;text-decoration:none;font-size:14.5px;font-weight:600;padding:9px 14px;border-radius:9px;white-space:nowrap;transition:.15s;cursor:pointer;border:0;background:none;font-family:inherit;}
-  .mc-link:hover{background:#242424;color:#fff;}
-  .mc-link.active{background:#FFE600;color:#111;}
-  .mc-caret{font-size:10px;opacity:.7;transition:transform .15s;}
-  .mc-item:hover .mc-caret{transform:rotate(180deg);}
-  .mc-drop{position:absolute;top:calc(100% + 8px);left:0;min-width:252px;background:#1a1a1a;border:1px solid #2e2e2e;border-radius:12px;padding:7px;box-shadow:0 12px 30px rgba(0,0,0,.55);opacity:0;visibility:hidden;transform:translateY(-6px);transition:.16s;}
-  .mc-item:hover .mc-drop{opacity:1;visibility:visible;transform:translateY(0);}
-  .mc-drop a{display:flex;align-items:flex-start;gap:10px;padding:9px 11px;border-radius:8px;color:#e6e6e6;text-decoration:none;transition:.13s;}
-  .mc-drop a:hover{background:#2a2a2a;}
-  .mc-drop a.active{background:rgba(255,230,0,.14);}
-  .mc-di{font-size:18px;line-height:1.1;width:22px;text-align:center;}
-  .mc-dt{display:flex;flex-direction:column;}
-  .mc-dt b{font-size:13.5px;color:#fff;font-weight:700;}
-  .mc-dt span{font-size:11.5px;color:#9a9a9a;margin-top:1px;}
-  .mc-sechead{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:#FFE600;padding:6px 11px 3px;font-weight:800;}
-  .mc-right{display:flex;align-items:center;gap:12px;}
-  .mc-cta{display:flex;align-items:center;gap:7px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff!important;font-weight:800;font-size:13.5px;padding:9px 15px;border-radius:9px;text-decoration:none;white-space:nowrap;box-shadow:0 3px 12px rgba(37,211,102,.4);position:relative;transition:.15s;}
-  .mc-cta:hover{transform:translateY(-1px);box-shadow:0 5px 18px rgba(37,211,102,.55);}
-  .mc-cta .mc-pulse{position:absolute;top:-3px;right:-3px;width:11px;height:11px;background:#FFE600;border-radius:50%;animation:mcpulse 1.8s infinite;}
-  @keyframes mcpulse{0%{box-shadow:0 0 0 0 rgba(255,230,0,.7)}70%{box-shadow:0 0 0 9px rgba(255,230,0,0)}100%{box-shadow:0 0 0 0 rgba(255,230,0,0)}}
-  .mc-user{display:flex;align-items:center;gap:8px;color:#cfcfcf;font-size:13px;}
-  .mc-avatar{width:30px;height:30px;border-radius:50%;background:#FFE600;color:#111;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;}
-  .mc-logout{background:#242424;border:1px solid #383838;color:#eaeaea;font-size:13px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;transition:.13s;}
-  .mc-logout:hover{background:#3a1414;border-color:#a33;color:#ff9a9a;}
-  .mc-toggle{display:none;background:none;border:0;color:#FFE600;font-size:26px;cursor:pointer;}
-  @media(max-width:960px){
-   .mc-menu{position:fixed;top:60px;left:0;right:0;bottom:0;flex-direction:column;align-items:stretch;background:#0d0d0d;padding:12px;gap:2px;overflow-y:auto;display:none;z-index:1001;}
-   .mc-menu.show{display:flex;}
-   .mc-drop{position:static;opacity:1;visibility:visible;transform:none;box-shadow:none;border:0;background:#151515;margin:2px 0 6px;}
-   .mc-caret{display:none;}.mc-toggle{display:block;}.mc-user .mc-uname{display:none;}.mc-cta span:not(.mc-pulse){display:none;}
-  }
-  .mc-balloon{position:fixed;right:22px;bottom:22px;z-index:1200;width:312px;background:linear-gradient(160deg,#1f1f1f,#141414);border:1px solid #FFE600;border-radius:18px;padding:18px 18px 16px;box-shadow:0 18px 50px rgba(0,0,0,.6);transform:translateY(160%);opacity:0;transition:transform .5s cubic-bezier(.16,1,.3,1),opacity .4s;}
-  .mc-balloon.show{transform:translateY(0);opacity:1;animation:mcfloat 4s ease-in-out infinite 1.2s;}
-  @keyframes mcfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
-  .mc-balloon::after{content:"";position:absolute;bottom:-9px;right:38px;width:18px;height:18px;background:linear-gradient(160deg,#1f1f1f,#141414);border-right:1px solid #FFE600;border-bottom:1px solid #FFE600;transform:rotate(45deg);}
-  .mc-bl-close{position:absolute;top:10px;right:12px;background:none;border:0;color:#888;font-size:19px;cursor:pointer;line-height:1;}
-  .mc-bl-close:hover{color:#fff;}
-  .mc-bl-badge{display:inline-block;background:#FFE600;color:#111;font-size:10.5px;font-weight:800;letter-spacing:.5px;padding:3px 9px;border-radius:20px;text-transform:uppercase;margin-bottom:9px;}
-  .mc-bl-title{color:#fff;font-size:16.5px;font-weight:800;line-height:1.25;margin:0 0 6px;}
-  .mc-bl-title b{color:#FFE600;}
-  .mc-bl-text{color:#b9b9b9;font-size:12.8px;line-height:1.5;margin:0 0 13px;}
-  .mc-bl-btn{display:flex;align-items:center;justify-content:center;gap:7px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-weight:800;font-size:13.5px;padding:11px;border-radius:10px;text-decoration:none;transition:.15s;}
-  .mc-bl-btn:hover{filter:brightness(1.08);transform:translateY(-1px);}
-  .mc-bltab{position:fixed;right:22px;bottom:22px;z-index:1190;display:none;align-items:center;gap:8px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-weight:800;font-size:13px;padding:12px 17px;border-radius:30px;box-shadow:0 8px 24px rgba(0,0,0,.45);cursor:pointer;border:0;animation:mcpop .4s;}
-  .mc-bltab:hover{filter:brightness(1.08);}
-  @keyframes mcpop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
-  @media(max-width:520px){.mc-balloon{right:12px;left:12px;width:auto;}}
-  </style>
+  <style>
+
+/* ===== MeLi Connect PRO nav v3 ===== */
+.mc-nav{position:sticky;top:0;z-index:900;display:flex;align-items:center;gap:22px;
+  padding:0 26px;height:66px;
+  background:linear-gradient(180deg,rgba(20,20,22,.92),rgba(11,11,12,.92));
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid rgba(255,230,0,.14);
+  box-shadow:0 10px 30px -18px rgba(0,0,0,.9)}
+.mc-nav::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;
+  background:linear-gradient(90deg,transparent,#FFE600 20%,#FFB800 50%,#FFE600 80%,transparent);opacity:.55}
+.mc-brand{display:flex;align-items:center;gap:11px;text-decoration:none;color:#fff;font-weight:800;font-size:1.16rem;letter-spacing:.2px}
+.mc-brand-ico{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:20px;
+  background:linear-gradient(135deg,#FFE600,#FFB800);color:#111;
+  box-shadow:0 6px 16px -4px rgba(255,214,0,.55);flex:none}
+.mc-brand b{background:linear-gradient(90deg,#fff,#ffe600);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.mc-brand small{display:block;font-size:.6rem;font-weight:600;letter-spacing:1.5px;color:#8a8a8a;text-transform:uppercase;margin-top:1px}
+.mc-menu{display:flex;align-items:center;gap:4px;flex:1}
+.mc-item{position:relative}
+.mc-link{display:flex;align-items:center;gap:7px;background:none;border:0;cursor:pointer;
+  color:#e7e7e7;font-size:.93rem;font-weight:600;font-family:inherit;
+  padding:9px 14px;border-radius:10px;text-decoration:none;transition:.18s;white-space:nowrap}
+.mc-link:hover{background:rgba(255,255,255,.07);color:#fff}
+.mc-link.active{background:linear-gradient(135deg,#FFE600,#FFC400);color:#111;box-shadow:0 4px 14px -4px rgba(255,214,0,.6)}
+.mc-caret{font-size:.6rem;opacity:.6;transition:.2s}
+.mc-item:hover .mc-caret{transform:rotate(180deg);opacity:1}
+.mc-drop{position:absolute;top:calc(100% + 12px);left:0;min-width:320px;
+  background:linear-gradient(180deg,#1c1c1f,#161618);border:1px solid rgba(255,255,255,.09);
+  border-radius:16px;padding:12px;opacity:0;visibility:hidden;transform:translateY(8px);
+  transition:.2s;box-shadow:0 24px 60px -20px rgba(0,0,0,.85);z-index:50}
+.mc-drop::before{content:"";position:absolute;top:-14px;left:0;right:0;height:14px}
+.mc-item:hover .mc-drop{opacity:1;visibility:visible;transform:translateY(0)}
+.mc-sechead{font-size:.66rem;font-weight:800;letter-spacing:1.4px;color:#FFE600;text-transform:uppercase;padding:6px 12px 10px}
+.mc-drop a{display:flex;align-items:center;gap:13px;padding:11px 12px;border-radius:11px;text-decoration:none;transition:.16s}
+.mc-drop a:hover{background:rgba(255,255,255,.06)}
+.mc-drop a.active{background:linear-gradient(135deg,rgba(255,230,0,.16),rgba(255,230,0,.06))}
+.mc-di{width:38px;height:38px;flex:none;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;
+  background:linear-gradient(135deg,#2a2a2e,#202024);border:1px solid rgba(255,255,255,.07)}
+.mc-drop a:hover .mc-di{background:linear-gradient(135deg,#FFE600,#FFB800);border-color:transparent}
+.mc-dt{display:flex;flex-direction:column;gap:1px}
+.mc-dt b{color:#fff;font-size:.92rem;font-weight:700}
+.mc-dt span{color:#8f8f8f;font-size:.76rem}
+.mc-right{display:flex;align-items:center;gap:12px}
+.mc-cta{display:flex;align-items:center;gap:7px;position:relative;text-decoration:none;
+  background:linear-gradient(135deg,#25d366,#128c4b);color:#fff;font-weight:800;font-size:.86rem;
+  padding:9px 15px;border-radius:11px;box-shadow:0 8px 20px -6px rgba(37,211,102,.6);transition:.18s}
+.mc-cta:hover{transform:translateY(-1px);box-shadow:0 12px 26px -6px rgba(37,211,102,.75)}
+.mc-pulse{position:absolute;top:-4px;right:-4px;width:11px;height:11px;border-radius:50%;background:#FFE600;box-shadow:0 0 0 0 rgba(255,230,0,.7);animation:mcpulse 1.8s infinite}
+@keyframes mcpulse{0%{box-shadow:0 0 0 0 rgba(255,230,0,.6)}70%{box-shadow:0 0 0 9px rgba(255,230,0,0)}100%{box-shadow:0 0 0 0 rgba(255,230,0,0)}}
+.mc-user{display:flex;align-items:center;gap:9px;padding:5px 12px 5px 6px;border-radius:30px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}
+.mc-avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;color:#111;
+  background:linear-gradient(135deg,#FFE600,#FFB800);font-size:.85rem}
+.mc-uname{color:#eaeaea;font-size:.85rem;font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc-logout{background:none;border:1px solid rgba(255,255,255,.16);color:#cfcfcf;font-family:inherit;font-weight:600;
+  font-size:.82rem;padding:7px 13px;border-radius:9px;cursor:pointer;transition:.16s}
+.mc-logout:hover{background:#e04141;border-color:#e04141;color:#fff}
+.mc-toggle{display:none;background:none;border:0;color:#fff;font-size:1.6rem;cursor:pointer;padding:4px 8px}
+
+
+/* mobile menu */
+@media(max-width:1000px){
+  .mc-toggle{display:block}
+  .mc-menu{position:fixed;top:66px;left:0;right:0;height:calc(100vh - 66px);flex-direction:column;align-items:stretch;gap:2px;
+    background:linear-gradient(180deg,#141416,#0d0d0e);padding:18px;overflow-y:auto;
+    transform:translateX(-100%);transition:.28s;z-index:800}
+  .mc-menu.show{transform:translateX(0)}
+  .mc-item{width:100%}
+  .mc-drop{position:static;opacity:1;visibility:visible;transform:none;min-width:0;box-shadow:none;
+    background:rgba(255,255,255,.03);margin:4px 0 10px;display:block}
+  
+  .mc-caret{margin-left:auto}
+  .mc-right{gap:9px}
+  .mc-uname{display:none}
+  .mc-cta span.mc-ctatext{display:none}
+}
+@media(max-width:560px){.mc-brand small{display:none}.mc-user{padding:4px}.mc-logout{padding:6px 9px}}
+
+
+/* ===== PRO hero banner ===== */
+.mc-hero{position:relative;margin:0 0 6px;border-radius:20px;overflow:hidden;
+  min-height:230px;display:flex;align-items:center;
+  border:1px solid rgba(255,230,0,.14);
+  background:
+    radial-gradient(120% 140% at 85% 10%,rgba(255,214,0,.22),transparent 55%),
+    radial-gradient(90% 120% at 10% 90%,rgba(37,211,102,.14),transparent 55%),
+    linear-gradient(135deg,#15151a 0%,#0d0d10 60%,#101014 100%)}
+.mc-hero::before{content:"";position:absolute;inset:0;opacity:.5;
+  background-image:radial-gradient(rgba(255,255,255,.06) 1px,transparent 1px);background-size:22px 22px;
+  -webkit-mask-image:linear-gradient(90deg,#000,transparent 70%);mask-image:linear-gradient(90deg,#000,transparent 70%)}
+.mc-hero-art{position:absolute;right:0;top:0;bottom:0;width:46%;opacity:.9;pointer-events:none}
+.mc-hero-in{position:relative;z-index:2;padding:34px 40px;max-width:640px}
+.mc-hero-tag{display:inline-flex;align-items:center;gap:8px;background:rgba(37,211,102,.14);border:1px solid rgba(37,211,102,.35);
+  color:#3ee87f;font-size:.74rem;font-weight:800;letter-spacing:.6px;padding:6px 13px;border-radius:30px;text-transform:uppercase}
+.mc-hero-h{margin:16px 0 10px;font-size:2.15rem;line-height:1.12;font-weight:900;color:#fff}
+.mc-hero-h em{font-style:normal;background:linear-gradient(90deg,#FFE600,#FFB800);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.mc-hero-p{color:#b9b9bf;font-size:1rem;line-height:1.55;max-width:520px}
+.mc-hero-cta{display:inline-flex;align-items:center;gap:9px;margin-top:20px;text-decoration:none;
+  background:linear-gradient(135deg,#25d366,#0f9d55);color:#fff;font-weight:800;font-size:.95rem;
+  padding:13px 22px;border-radius:12px;box-shadow:0 12px 28px -8px rgba(37,211,102,.6);transition:.18s}
+.mc-hero-cta:hover{transform:translateY(-2px)}
+@media(max-width:800px){.mc-hero-art{opacity:.25;width:100%}.mc-hero-h{font-size:1.7rem}.mc-hero-in{padding:26px 22px}}
+
+</style>
+<style>
+.login-or{display:flex;align-items:center;gap:12px;margin:18px 0 14px;color:#666;font-size:.8rem}
+.login-or::before,.login-or::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,transparent,#333,transparent)}
+.btn-guest{background:transparent !important;color:#FFE600 !important;border:1.5px solid rgba(255,230,0,.5) !important;
+  font-weight:700;transition:.18s}
+.btn-guest:hover{background:rgba(255,230,0,.1) !important;border-color:#FFE600 !important}
+.login-note{margin-top:14px;color:#777;font-size:.76rem;line-height:1.5}
+</style>
+<style>.v4-live{display:none !important}</style>
 </head>
 <body>
 <!-- LOGIN SCREEN -->
@@ -736,7 +794,7 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
       <input type="password" id="loginPass" placeholder="Ingresá tu contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
       <span class="eye-toggle" onclick="toggleEye(this)">👁️</span>
     </div>
-    <button class="btn-login" onclick="doLogin()">Ingresar</button><button type="button" class="btn-login" style="background:transparent;border:1px solid var(--gold-dim);color:var(--gold);margin-top:12px" onclick="doGuest()">Entrar como invitado</button>
+    <button class="btn-login" onclick="doLogin()">Ingresar</button><div class="login-or"><span>o</span></div><button type="button" class="btn-login btn-guest" style="background:transparent;border:1px solid var(--gold-dim);color:var(--gold);margin-top:12px" onclick="doGuest()">👀 Explorar como invitado</button>
     <div class="login-error" id="loginError"></div>
   </div>
 </div>
@@ -774,9 +832,9 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
       </div>
       <button class="mc-toggle" onclick="this.previousElementSibling.previousElementSibling.classList.toggle('show')" aria-label="Menu">&#9776;</button>
     </header>
-  <div class="app-content">
-    <div class="app-title">Descubrí qué importar para ganar plata, sin arriesgar de más</div>
-    <div class="app-sub">Dejá de traer productos a ciegas. Analizamos el mercado real de MercadoLibre y te decimos qué conviene importar, cuánto vas a ganar y qué riesgo tiene — en 30 segundos.</div>
+  <div class="app-content"><div class="mc-hero"><svg class="mc-hero-art" viewBox="0 0 520 300" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMaxYMid slice"><defs><linearGradient id="mcg1" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#FFE600" stop-opacity=".0"/><stop offset="1" stop-color="#FFE600" stop-opacity=".9"/></linearGradient><linearGradient id="mcg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#25d366" stop-opacity=".35"/><stop offset="1" stop-color="#25d366" stop-opacity="0"/></linearGradient></defs><path d="M40 250 L140 200 L210 220 L300 140 L380 165 L480 70" stroke="url(#mcg1)" stroke-width="4" stroke-linecap="round"/><path d="M40 250 L140 200 L210 220 L300 140 L380 165 L480 70 L480 300 L40 300 Z" fill="url(#mcg2)"/><circle cx="300" cy="140" r="6" fill="#FFE600"/><circle cx="480" cy="70" r="7" fill="#FFE600"/><g opacity=".85"><rect x="360" y="30" width="120" height="74" rx="12" fill="#1c1c22" stroke="#FFE600" stroke-opacity=".4"/><rect x="374" y="46" width="34" height="34" rx="8" fill="#FFE600" opacity=".9"/><rect x="418" y="48" width="52" height="8" rx="4" fill="#3a3a42"/><rect x="418" y="64" width="38" height="7" rx="3.5" fill="#2c2c33"/><text x="378" y="70" font-size="20" fill="#111" font-family="Arial" font-weight="bold">%</text></g></svg><div class="mc-hero-in"><span class="mc-hero-tag">● Datos reales de MercadoLibre en vivo</span><h1 class="mc-hero-h">Descubrí <em>qué conviene importar</em> y vendé sin perder plata</h1><p class="mc-hero-p">Analizamos el mercado real de MercadoLibre y te decimos qué producto traer, cuánto vas a ganar y qué riesgo tiene. Todo en un solo lugar.</p><a class="mc-hero-cta" href="https://wa.me/541160374306" target="_blank" rel="noopener">💬 Asesoría 1 a 1 en importación</a></div></div>
+    <div class="app-title" style="display:none">Descubrí qué importar para ganar plata, sin arriesgar de más</div>
+    <div class="app-sub" style="display:none">Dejá de traer productos a ciegas. Analizamos el mercado real de MercadoLibre y te decimos qué conviene importar, cuánto vas a ganar y qué riesgo tiene — en 30 segundos.</div>
     <div class="steps-guide">
   <div class="step-box"><div class="step-num">1</div><h4>Definí tu perfil</h4><p>Elegí capital, experiencia, canal de venta, sección y tolerancia al riesgo. Con eso filtramos productos aptos para importar.</p></div>
   <div class="step-box"><div class="step-num">2</div><h4>Analizamos el mercado real</h4><p>Consultamos precios, cantidad de vendedores y saturación reales en MercadoLibre para cada producto de la sección.</p></div>
