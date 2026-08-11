@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Conectar MercadoLibre — MeLi Connect</title>
+    <title>Conectar MercadoLibre â MeLi Connect</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -163,20 +163,115 @@
     .divider { height:1px; background:#222; margin: 26px 0 4px; border:0; }
   </style>
 
+
+  <style id="mc-nav-css">
+  .mc-nav{position:sticky;top:0;z-index:1000;display:flex;align-items:center;gap:20px;background:linear-gradient(180deg,#141414 0%,#0d0d0d 100%);border-bottom:2px solid #FFE600;padding:0 20px;height:60px;box-shadow:0 4px 18px rgba(0,0,0,.45);}
+  .mc-brand{display:flex;align-items:center;gap:9px;color:#FFE600;font-weight:800;font-size:18px;text-decoration:none;white-space:nowrap;letter-spacing:.2px;}
+  .mc-brand-ico{display:inline-flex;width:30px;height:30px;align-items:center;justify-content:center;background:#FFE600;color:#111;border-radius:8px;font-size:16px;}
+  .mc-menu{display:flex;align-items:center;gap:4px;flex:1;}
+  .mc-item{position:relative;}
+  .mc-link{display:flex;align-items:center;gap:6px;color:#d6d6d6;text-decoration:none;font-size:14.5px;font-weight:600;padding:9px 14px;border-radius:9px;white-space:nowrap;transition:.15s;cursor:pointer;border:0;background:none;font-family:inherit;}
+  .mc-link:hover{background:#242424;color:#fff;}
+  .mc-link.active{background:#FFE600;color:#111;}
+  .mc-caret{font-size:10px;opacity:.7;transition:transform .15s;}
+  .mc-item:hover .mc-caret{transform:rotate(180deg);}
+  .mc-drop{position:absolute;top:calc(100% + 8px);left:0;min-width:252px;background:#1a1a1a;border:1px solid #2e2e2e;border-radius:12px;padding:7px;box-shadow:0 12px 30px rgba(0,0,0,.55);opacity:0;visibility:hidden;transform:translateY(-6px);transition:.16s;}
+  .mc-item:hover .mc-drop{opacity:1;visibility:visible;transform:translateY(0);}
+  .mc-drop a{display:flex;align-items:flex-start;gap:10px;padding:9px 11px;border-radius:8px;color:#e6e6e6;text-decoration:none;transition:.13s;}
+  .mc-drop a:hover{background:#2a2a2a;}
+  .mc-drop a.active{background:rgba(255,230,0,.14);}
+  .mc-di{font-size:18px;line-height:1.1;width:22px;text-align:center;}
+  .mc-dt{display:flex;flex-direction:column;}
+  .mc-dt b{font-size:13.5px;color:#fff;font-weight:700;}
+  .mc-dt span{font-size:11.5px;color:#9a9a9a;margin-top:1px;}
+  .mc-sechead{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:#FFE600;padding:6px 11px 3px;font-weight:800;}
+  .mc-right{display:flex;align-items:center;gap:12px;}
+  .mc-cta{display:flex;align-items:center;gap:7px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff!important;font-weight:800;font-size:13.5px;padding:9px 15px;border-radius:9px;text-decoration:none;white-space:nowrap;box-shadow:0 3px 12px rgba(37,211,102,.4);position:relative;transition:.15s;}
+  .mc-cta:hover{transform:translateY(-1px);box-shadow:0 5px 18px rgba(37,211,102,.55);}
+  .mc-cta .mc-pulse{position:absolute;top:-3px;right:-3px;width:11px;height:11px;background:#FFE600;border-radius:50%;animation:mcpulse 1.8s infinite;}
+  @keyframes mcpulse{0%{box-shadow:0 0 0 0 rgba(255,230,0,.7)}70%{box-shadow:0 0 0 9px rgba(255,230,0,0)}100%{box-shadow:0 0 0 0 rgba(255,230,0,0)}}
+  .mc-user{display:flex;align-items:center;gap:8px;color:#cfcfcf;font-size:13px;}
+  .mc-avatar{width:30px;height:30px;border-radius:50%;background:#FFE600;color:#111;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;}
+  .mc-logout{background:#242424;border:1px solid #383838;color:#eaeaea;font-size:13px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;transition:.13s;}
+  .mc-logout:hover{background:#3a1414;border-color:#a33;color:#ff9a9a;}
+  .mc-toggle{display:none;background:none;border:0;color:#FFE600;font-size:26px;cursor:pointer;}
+  @media(max-width:960px){
+   .mc-menu{position:fixed;top:60px;left:0;right:0;bottom:0;flex-direction:column;align-items:stretch;background:#0d0d0d;padding:12px;gap:2px;overflow-y:auto;display:none;z-index:1001;}
+   .mc-menu.show{display:flex;}
+   .mc-drop{position:static;opacity:1;visibility:visible;transform:none;box-shadow:none;border:0;background:#151515;margin:2px 0 6px;}
+   .mc-caret{display:none;}.mc-toggle{display:block;}.mc-user .mc-uname{display:none;}.mc-cta span:not(.mc-pulse){display:none;}
+  }
+  .mc-balloon{position:fixed;right:22px;bottom:22px;z-index:1200;width:312px;background:linear-gradient(160deg,#1f1f1f,#141414);border:1px solid #FFE600;border-radius:18px;padding:18px 18px 16px;box-shadow:0 18px 50px rgba(0,0,0,.6);transform:translateY(160%);opacity:0;transition:transform .5s cubic-bezier(.16,1,.3,1),opacity .4s;}
+  .mc-balloon.show{transform:translateY(0);opacity:1;animation:mcfloat 4s ease-in-out infinite 1.2s;}
+  @keyframes mcfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+  .mc-balloon::after{content:"";position:absolute;bottom:-9px;right:38px;width:18px;height:18px;background:linear-gradient(160deg,#1f1f1f,#141414);border-right:1px solid #FFE600;border-bottom:1px solid #FFE600;transform:rotate(45deg);}
+  .mc-bl-close{position:absolute;top:10px;right:12px;background:none;border:0;color:#888;font-size:19px;cursor:pointer;line-height:1;}
+  .mc-bl-close:hover{color:#fff;}
+  .mc-bl-badge{display:inline-block;background:#FFE600;color:#111;font-size:10.5px;font-weight:800;letter-spacing:.5px;padding:3px 9px;border-radius:20px;text-transform:uppercase;margin-bottom:9px;}
+  .mc-bl-title{color:#fff;font-size:16.5px;font-weight:800;line-height:1.25;margin:0 0 6px;}
+  .mc-bl-title b{color:#FFE600;}
+  .mc-bl-text{color:#b9b9b9;font-size:12.8px;line-height:1.5;margin:0 0 13px;}
+  .mc-bl-btn{display:flex;align-items:center;justify-content:center;gap:7px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-weight:800;font-size:13.5px;padding:11px;border-radius:10px;text-decoration:none;transition:.15s;}
+  .mc-bl-btn:hover{filter:brightness(1.08);transform:translateY(-1px);}
+  .mc-bltab{position:fixed;right:22px;bottom:22px;z-index:1190;display:none;align-items:center;gap:8px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-weight:800;font-size:13px;padding:12px 17px;border-radius:30px;box-shadow:0 8px 24px rgba(0,0,0,.45);cursor:pointer;border:0;animation:mcpop .4s;}
+  .mc-bltab:hover{filter:brightness(1.08);}
+  @keyframes mcpop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+  @media(max-width:520px){.mc-balloon{right:12px;left:12px;width:auto;}}
+  </style>
 </head>
 <body>
+<header class="mc-nav" id="mcNav">
+    <a href="index.html" class="mc-brand"><span class="mc-brand-ico">&#128279;</span> MeLi Connect</a>
+    <nav class="mc-menu" id="mcMenu">
+      <div class="mc-item"><a href="index.html" class="mc-link">&#127968; Inicio</a></div>
+      <div class="mc-item">
+        <button class="mc-link" type="button">&#128230; Importaci&oacute;n <span class="mc-caret">&#9660;</span></button>
+        <div class="mc-drop">
+          <div class="mc-sechead">Encontr&aacute; y planific&aacute;</div>
+          <a href="index.html"><span class="mc-di">&#127919;</span><span class="mc-dt"><b>Buscador de oportunidades</b><span>Qu&eacute; conviene importar seg&uacute;n tu perfil</span></span></a>
+          <a href="margen.html"><span class="mc-di">&#129518;</span><span class="mc-dt"><b>Calculador de margen</b><span>Cu&aacute;nto vas a ganar de verdad</span></span></a>
+          <a href="educacion.html"><span class="mc-di">&#127891;</span><span class="mc-dt"><b>Aprend&eacute; a publicar</b><span>Gu&iacute;a para arrancar a vender</span></span></a>
+        </div>
+      </div>
+      <div class="mc-item">
+        <button class="mc-link" type="button">&#128722; MercadoLibre <span class="mc-caret">&#9660;</span></button>
+        <div class="mc-drop">
+          <div class="mc-sechead">Tu cuenta y publicaciones</div>
+          <a href="meli-connect.html" class="active"><span class="mc-di">&#128279;</span><span class="mc-dt"><b>Conectar cuenta</b><span>Vincul&aacute; tu MercadoLibre</span></span></a>
+          <a href="dashboard.html"><span class="mc-di">&#128202;</span><span class="mc-dt"><b>Dashboard de ventas</b><span>&Oacute;rdenes, comisiones y ganancia neta</span></span></a>
+          <a href="analizador.html"><span class="mc-di">&#128269;</span><span class="mc-dt"><b>Analizador de publicaciones</b><span>Qu&eacute; mejorar en tu publicaci&oacute;n</span></span></a>
+          <a href="calculadora-envios.html"><span class="mc-di">&#128666;</span><span class="mc-dt"><b>Flex vs Full</b><span>Qu&eacute; env&iacute;o te conviene</span></span></a>
+        </div>
+      </div>
+      <div class="mc-item" id="mcAdminItem" style="display:none"><a href="admin.html" class="mc-link">&#128081; Admin</a></div>
+    </nav>
+    <div class="mc-right">
+      <a class="mc-cta" href="https://wa.me/541160374306" target="_blank" rel="noopener">&#128640; Asesor&iacute;a<span class="mc-pulse"></span></a>
+      <div class="mc-user"><span class="mc-avatar" id="mcAvatar">?</span><span class="mc-uname" id="mcUname">invitado</span></div>
+      <button class="mc-logout" id="mcLogout" type="button">Salir</button>
+    </div>
+    <button class="mc-toggle" id="mcToggle" aria-label="Menu">&#9776;</button>
+  </header>
+  <div class="mc-balloon" id="mcBalloon">
+    <button class="mc-bl-close" id="mcBlClose" aria-label="Cerrar">&times;</button>
+    <span class="mc-bl-badge">&#128293; Asesor&iacute;a 1 a 1</span>
+    <p class="mc-bl-title">&iquest;Vas a importar y no quer&eacute;s <b>perder plata</b>?</p>
+    <p class="mc-bl-text">Te ayudo a elegir el producto, calcular costos reales y despachar sin sorpresas. Primera consulta sin cargo.</p>
+    <a class="mc-bl-btn" href="https://wa.me/541160374306?text=Hola!%20Quiero%20asesor%C3%ADa%20para%20importar" target="_blank" rel="noopener">&#128172; Hablar por WhatsApp</a>
+  </div>
+  <button class="mc-bltab" id="mcBlTab">&#128172; Asesor&iacute;a gratis</button>
   <div class="card" id="card">
 
     <!-- ESTADO INICIAL (no conectado) -->
     <div class="main-content">
-      <div class="logo">🔗</div>
-      <h1 style="font-size:22px;font-weight:800;color:#FFE600;margin-bottom:8px;text-align:center;">Conectá tu cuenta de MercadoLibre</h1>
-      <p class="subtitle">Autorizá el acceso para que podamos traer tus ventas, comisiones y stock en tiempo real. <b>No guardamos tu contraseña.</b></p>
+      <div class="logo">ð</div>
+      <h1 style="font-size:22px;font-weight:800;color:#FFE600;margin-bottom:8px;text-align:center;">ConectÃ¡ tu cuenta de MercadoLibre</h1>
+      <p class="subtitle">AutorizÃ¡ el acceso para que podamos traer tus ventas, comisiones y stock en tiempo real. <b>No guardamos tu contraseÃ±a.</b></p>
 
       <div class="steps">
-        <div class="step"><div class="step-num">1</div><div>Te redirigimos a MercadoLibre para que inicies sesión con tu cuenta</div></div>
-        <div class="step"><div class="step-num">2</div><div>MeLi te pregunta si autorizás la app — hacés clic en <b>Permitir</b></div></div>
-        <div class="step"><div class="step-num">3</div><div>Volvés acá automáticamente y listo — tus datos quedan conectados</div></div>
+        <div class="step"><div class="step-num">1</div><div>Te redirigimos a MercadoLibre para que inicies sesiÃ³n con tu cuenta</div></div>
+        <div class="step"><div class="step-num">2</div><div>MeLi te pregunta si autorizÃ¡s la app â hacÃ©s clic en <b>Permitir</b></div></div>
+        <div class="step"><div class="step-num">3</div><div>VolvÃ©s acÃ¡ automÃ¡ticamente y listo â tus datos quedan conectados</div></div>
       </div>
 
       <a href="#" id="btnConnect" onclick="startAuth(event)" class="btn-connect">
@@ -185,7 +280,7 @@
         </svg>
         Conectar con MercadoLibre
       </a>
-      <div class="security-note">🔒 Conexión segura via OAuth 2.0 — podés revocar el acceso en cualquier momento</div>
+      <div class="security-note">ð ConexiÃ³n segura via OAuth 2.0 â podÃ©s revocar el acceso en cualquier momento</div>
 
       <hr class="divider">
       
@@ -194,46 +289,46 @@
         <div class="tools-grid">
           <a href="/analizador.html" class="tool-card">
             <span class="tool-tag tag-free">LIBRE</span>
-            <div class="tool-ico">🔍</div>
+            <div class="tool-ico">ð</div>
             <div class="tool-name">Analizador de publicaciones</div>
-            <div class="tool-desc">Pegá el link de tu publicación y te decimos qué está bien, qué corregir y cómo mejorarla.</div>
+            <div class="tool-desc">PegÃ¡ el link de tu publicaciÃ³n y te decimos quÃ© estÃ¡ bien, quÃ© corregir y cÃ³mo mejorarla.</div>
           </a>
           <a href="/educacion.html" class="tool-card">
             <span class="tool-tag tag-free">LIBRE</span>
-            <div class="tool-ico">🎓</div>
-            <div class="tool-name">Aprendé a publicar</div>
-            <div class="tool-desc">Curso guiado para hacer publicaciones que venden: título, fotos, descripción y envíos, explicado fácil.</div>
+            <div class="tool-ico">ð</div>
+            <div class="tool-name">AprendÃ© a publicar</div>
+            <div class="tool-desc">Curso guiado para hacer publicaciones que venden: tÃ­tulo, fotos, descripciÃ³n y envÃ­os, explicado fÃ¡cil.</div>
           </a>
           <a href="/calculadora-envios.html" class="tool-card">
             <span class="tool-tag tag-free">LIBRE</span>
-            <div class="tool-ico">📦</div>
+            <div class="tool-ico">ð¦</div>
             <div class="tool-name">Flex vs Full</div>
-            <div class="tool-desc">Te decimos qué forma de envío te conviene según tu producto y cuánto te cuesta cada una.</div>
+            <div class="tool-desc">Te decimos quÃ© forma de envÃ­o te conviene segÃºn tu producto y cuÃ¡nto te cuesta cada una.</div>
           </a>
           <a href="/margen.html" class="tool-card">
             <span class="tool-tag tag-conn">CUENTA</span>
-            <div class="tool-ico">📊</div>
+            <div class="tool-ico">ð</div>
             <div class="tool-name">Calculador de margen</div>
-            <div class="tool-desc">Calculá tu ganancia real descontando comisiones, envíos e impuestos de MercadoLibre.</div>
+            <div class="tool-desc">CalculÃ¡ tu ganancia real descontando comisiones, envÃ­os e impuestos de MercadoLibre.</div>
           </a>
         </div>
       </div>
 
-      <div class="conn-hint">El analizador, el curso y la calculadora los podés usar ya mismo. El calculador de margen necesita tu cuenta conectada.</div>
+      <div class="conn-hint">El analizador, el curso y la calculadora los podÃ©s usar ya mismo. El calculador de margen necesita tu cuenta conectada.</div>
     </div>
 
     <!-- ESTADO CARGANDO -->
     <div class="loading" id="loadingState" style="display:none;">
       <div class="loading-spinner"></div>
-      <p style="color:#888;margin-top:14px;">Conectando con MercadoLibre…</p>
+      <p style="color:#888;margin-top:14px;">Conectando con MercadoLibreâ¦</p>
     </div>
 
     <!-- ESTADO EXITO -->
     <div class="success-content" id="successState">
-      <div class="success-icon">✅</div>
-      <div class="success-title">¡Cuenta conectada!</div>
-      <p class="success-sub">Tu cuenta de MercadoLibre quedó vinculada correctamente.</p>
-      <div class="meli-user-badge" id="meliUserBadge">MeLi User ID: <span id="meliUserId">—</span></div>
+      <div class="success-icon">â</div>
+      <div class="success-title">Â¡Cuenta conectada!</div>
+      <p class="success-sub">Tu cuenta de MercadoLibre quedÃ³ vinculada correctamente.</p>
+      <div class="meli-user-badge" id="meliUserBadge">MeLi User ID: <span id="meliUserId">â</span></div>
 
       
       <div class="tools-section">
@@ -241,27 +336,27 @@
         <div class="tools-grid">
           <a href="/analizador.html" class="tool-card">
             <span class="tool-tag tag-free">LIBRE</span>
-            <div class="tool-ico">🔍</div>
+            <div class="tool-ico">ð</div>
             <div class="tool-name">Analizador de publicaciones</div>
-            <div class="tool-desc">Pegá el link de tu publicación y te decimos qué está bien, qué corregir y cómo mejorarla.</div>
+            <div class="tool-desc">PegÃ¡ el link de tu publicaciÃ³n y te decimos quÃ© estÃ¡ bien, quÃ© corregir y cÃ³mo mejorarla.</div>
           </a>
           <a href="/educacion.html" class="tool-card">
             <span class="tool-tag tag-free">LIBRE</span>
-            <div class="tool-ico">🎓</div>
-            <div class="tool-name">Aprendé a publicar</div>
-            <div class="tool-desc">Curso guiado para hacer publicaciones que venden: título, fotos, descripción y envíos, explicado fácil.</div>
+            <div class="tool-ico">ð</div>
+            <div class="tool-name">AprendÃ© a publicar</div>
+            <div class="tool-desc">Curso guiado para hacer publicaciones que venden: tÃ­tulo, fotos, descripciÃ³n y envÃ­os, explicado fÃ¡cil.</div>
           </a>
           <a href="/calculadora-envios.html" class="tool-card">
             <span class="tool-tag tag-free">LIBRE</span>
-            <div class="tool-ico">📦</div>
+            <div class="tool-ico">ð¦</div>
             <div class="tool-name">Flex vs Full</div>
-            <div class="tool-desc">Te decimos qué forma de envío te conviene según tu producto y cuánto te cuesta cada una.</div>
+            <div class="tool-desc">Te decimos quÃ© forma de envÃ­o te conviene segÃºn tu producto y cuÃ¡nto te cuesta cada una.</div>
           </a>
           <a href="/margen.html" class="tool-card">
             <span class="tool-tag tag-conn">CUENTA</span>
-            <div class="tool-ico">📊</div>
+            <div class="tool-ico">ð</div>
             <div class="tool-name">Calculador de margen</div>
-            <div class="tool-desc">Calculá tu ganancia real descontando comisiones, envíos e impuestos de MercadoLibre.</div>
+            <div class="tool-desc">CalculÃ¡ tu ganancia real descontando comisiones, envÃ­os e impuestos de MercadoLibre.</div>
           </a>
         </div>
       </div>
@@ -273,7 +368,7 @@
 
     <!-- ESTADO ERROR -->
     <div class="error-content" id="errorState">
-      <div class="error-icon">⚠️</div>
+      <div class="error-icon">â ï¸</div>
       <div class="error-title">No se pudo conectar</div>
       <div class="error-msg" id="errorMsg">Error desconocido</div>
       <a href="#" onclick="startAuth(event)" class="btn-connect" style="margin-top:18px;">Reintentar</a>
@@ -298,9 +393,9 @@
     document.getElementById('card').className = 'card state-error';
     document.getElementById('errorState').style.display = 'block';
     const msgs = {
-            'access_denied': 'Cancelaste la autorización. Podés intentarlo de nuevo cuando quieras.',
-            'token_failed': 'Hubo un problema al obtener el token de MercadoLibre. Intentá de nuevo.',
-            'invalid_operator_user_id': 'La cuenta que usaste no es la dueña de la tienda. Tiene que ser el titular.',
+            'access_denied': 'Cancelaste la autorizaciÃ³n. PodÃ©s intentarlo de nuevo cuando quieras.',
+            'token_failed': 'Hubo un problema al obtener el token de MercadoLibre. IntentÃ¡ de nuevo.',
+            'invalid_operator_user_id': 'La cuenta que usaste no es la dueÃ±a de la tienda. Tiene que ser el titular.',
       };
     document.getElementById('errorMsg').textContent =
             msgs[error] || 'Error: ' + decodeURIComponent(error);
@@ -331,5 +426,31 @@
   }
 </script>
 
-  </body>
+  
+  <script>
+  (function(){
+    try{
+      var u = localStorage.getItem('pf_user') || 'invitado';
+      var role = localStorage.getItem('pf_role') || 'guest';
+      var un = document.getElementById('mcUname'); if(un) un.textContent = u;
+      var av = document.getElementById('mcAvatar'); if(av) av.textContent = (u.charAt(0)||'?').toUpperCase();
+      if(role === 'admin'){ var ai = document.getElementById('mcAdminItem'); if(ai) ai.style.display=''; }
+    }catch(e){}
+    var t = document.getElementById('mcToggle');
+    if(t) t.addEventListener('click', function(){ var m=document.getElementById('mcMenu'); if(m) m.classList.toggle('show'); });
+    var lo = document.getElementById('mcLogout');
+    if(lo) lo.addEventListener('click', function(){
+      try{ ['pf_user','pf_role','pf_expiry'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
+      window.location.href = 'index.html';
+    });
+    var bal=document.getElementById('mcBalloon'), tab=document.getElementById('mcBlTab'), cb=document.getElementById('mcBlClose'), dm=false;
+    try{ dm = localStorage.getItem('mc_promo_closed')==='1'; }catch(e){}
+    function op(){ if(tab) tab.style.display='none'; if(bal){ bal.style.display='block'; setTimeout(function(){ bal.classList.add('show'); },30);} }
+    function cl(){ if(bal) bal.classList.remove('show'); setTimeout(function(){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; },400); try{ localStorage.setItem('mc_promo_closed','1'); }catch(e){} }
+    if(cb) cb.addEventListener('click', cl);
+    if(tab) tab.addEventListener('click', function(){ try{ localStorage.removeItem('mc_promo_closed'); }catch(e){} op(); });
+    if(dm){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; } else { setTimeout(op, 1400); }
+  })();
+  </script>
+</body>
   </html>
