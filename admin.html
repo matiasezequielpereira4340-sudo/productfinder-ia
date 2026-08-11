@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin — MeLi Connect</title>
+    <title>Admin â MeLi Connect</title>
     <style>
       *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#f0f0f0;min-height:100vh}
@@ -56,28 +56,113 @@
     .loading{text-align:center;padding:40px;color:#555;font-size:14px}
     .empty{text-align:center;padding:40px;color:#444;font-size:14px}
   </style>
+
+  <style id="mc-nav-css">
+  .mc-nav{position:sticky;top:0;z-index:1000;display:flex;align-items:center;gap:20px;background:linear-gradient(180deg,#141414 0%,#0d0d0d 100%);border-bottom:2px solid #FFE600;padding:0 20px;height:60px;box-shadow:0 4px 18px rgba(0,0,0,.45);}
+  .mc-brand{display:flex;align-items:center;gap:9px;color:#FFE600;font-weight:800;font-size:18px;text-decoration:none;white-space:nowrap;letter-spacing:.2px;}
+  .mc-brand-ico{display:inline-flex;width:30px;height:30px;align-items:center;justify-content:center;background:#FFE600;color:#111;border-radius:8px;font-size:16px;}
+  .mc-menu{display:flex;align-items:center;gap:4px;flex:1;}
+  .mc-item{position:relative;}
+  .mc-link{display:flex;align-items:center;gap:6px;color:#d6d6d6;text-decoration:none;font-size:14.5px;font-weight:600;padding:9px 14px;border-radius:9px;white-space:nowrap;transition:.15s;cursor:pointer;border:0;background:none;font-family:inherit;}
+  .mc-link:hover{background:#242424;color:#fff;}
+  .mc-link.active{background:#FFE600;color:#111;}
+  .mc-caret{font-size:10px;opacity:.7;transition:transform .15s;}
+  .mc-item:hover .mc-caret{transform:rotate(180deg);}
+  .mc-drop{position:absolute;top:calc(100% + 8px);left:0;min-width:252px;background:#1a1a1a;border:1px solid #2e2e2e;border-radius:12px;padding:7px;box-shadow:0 12px 30px rgba(0,0,0,.55);opacity:0;visibility:hidden;transform:translateY(-6px);transition:.16s;}
+  .mc-item:hover .mc-drop{opacity:1;visibility:visible;transform:translateY(0);}
+  .mc-drop a{display:flex;align-items:flex-start;gap:10px;padding:9px 11px;border-radius:8px;color:#e6e6e6;text-decoration:none;transition:.13s;}
+  .mc-drop a:hover{background:#2a2a2a;}
+  .mc-drop a.active{background:rgba(255,230,0,.14);}
+  .mc-di{font-size:18px;line-height:1.1;width:22px;text-align:center;}
+  .mc-dt{display:flex;flex-direction:column;}
+  .mc-dt b{font-size:13.5px;color:#fff;font-weight:700;}
+  .mc-dt span{font-size:11.5px;color:#9a9a9a;margin-top:1px;}
+  .mc-sechead{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:#FFE600;padding:6px 11px 3px;font-weight:800;}
+  .mc-right{display:flex;align-items:center;gap:12px;}
+  .mc-cta{display:flex;align-items:center;gap:7px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff!important;font-weight:800;font-size:13.5px;padding:9px 15px;border-radius:9px;text-decoration:none;white-space:nowrap;box-shadow:0 3px 12px rgba(37,211,102,.4);position:relative;transition:.15s;}
+  .mc-cta:hover{transform:translateY(-1px);box-shadow:0 5px 18px rgba(37,211,102,.55);}
+  .mc-cta .mc-pulse{position:absolute;top:-3px;right:-3px;width:11px;height:11px;background:#FFE600;border-radius:50%;animation:mcpulse 1.8s infinite;}
+  @keyframes mcpulse{0%{box-shadow:0 0 0 0 rgba(255,230,0,.7)}70%{box-shadow:0 0 0 9px rgba(255,230,0,0)}100%{box-shadow:0 0 0 0 rgba(255,230,0,0)}}
+  .mc-user{display:flex;align-items:center;gap:8px;color:#cfcfcf;font-size:13px;}
+  .mc-avatar{width:30px;height:30px;border-radius:50%;background:#FFE600;color:#111;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;}
+  .mc-logout{background:#242424;border:1px solid #383838;color:#eaeaea;font-size:13px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;transition:.13s;}
+  .mc-logout:hover{background:#3a1414;border-color:#a33;color:#ff9a9a;}
+  .mc-toggle{display:none;background:none;border:0;color:#FFE600;font-size:26px;cursor:pointer;}
+  @media(max-width:960px){
+   .mc-menu{position:fixed;top:60px;left:0;right:0;bottom:0;flex-direction:column;align-items:stretch;background:#0d0d0d;padding:12px;gap:2px;overflow-y:auto;display:none;z-index:1001;}
+   .mc-menu.show{display:flex;}
+   .mc-drop{position:static;opacity:1;visibility:visible;transform:none;box-shadow:none;border:0;background:#151515;margin:2px 0 6px;}
+   .mc-caret{display:none;}.mc-toggle{display:block;}.mc-user .mc-uname{display:none;}.mc-cta span:not(.mc-pulse){display:none;}
+  }
+  .mc-balloon{position:fixed;right:22px;bottom:22px;z-index:1200;width:312px;background:linear-gradient(160deg,#1f1f1f,#141414);border:1px solid #FFE600;border-radius:18px;padding:18px 18px 16px;box-shadow:0 18px 50px rgba(0,0,0,.6);transform:translateY(160%);opacity:0;transition:transform .5s cubic-bezier(.16,1,.3,1),opacity .4s;}
+  .mc-balloon.show{transform:translateY(0);opacity:1;animation:mcfloat 4s ease-in-out infinite 1.2s;}
+  @keyframes mcfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+  .mc-balloon::after{content:"";position:absolute;bottom:-9px;right:38px;width:18px;height:18px;background:linear-gradient(160deg,#1f1f1f,#141414);border-right:1px solid #FFE600;border-bottom:1px solid #FFE600;transform:rotate(45deg);}
+  .mc-bl-close{position:absolute;top:10px;right:12px;background:none;border:0;color:#888;font-size:19px;cursor:pointer;line-height:1;}
+  .mc-bl-close:hover{color:#fff;}
+  .mc-bl-badge{display:inline-block;background:#FFE600;color:#111;font-size:10.5px;font-weight:800;letter-spacing:.5px;padding:3px 9px;border-radius:20px;text-transform:uppercase;margin-bottom:9px;}
+  .mc-bl-title{color:#fff;font-size:16.5px;font-weight:800;line-height:1.25;margin:0 0 6px;}
+  .mc-bl-title b{color:#FFE600;}
+  .mc-bl-text{color:#b9b9b9;font-size:12.8px;line-height:1.5;margin:0 0 13px;}
+  .mc-bl-btn{display:flex;align-items:center;justify-content:center;gap:7px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-weight:800;font-size:13.5px;padding:11px;border-radius:10px;text-decoration:none;transition:.15s;}
+  .mc-bl-btn:hover{filter:brightness(1.08);transform:translateY(-1px);}
+  .mc-bltab{position:fixed;right:22px;bottom:22px;z-index:1190;display:none;align-items:center;gap:8px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-weight:800;font-size:13px;padding:12px 17px;border-radius:30px;box-shadow:0 8px 24px rgba(0,0,0,.45);cursor:pointer;border:0;animation:mcpop .4s;}
+  .mc-bltab:hover{filter:brightness(1.08);}
+  @keyframes mcpop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+  @media(max-width:520px){.mc-balloon{right:12px;left:12px;width:auto;}}
+  </style>
 </head>
 <body>
 
-<div class="topbar">
-  <div style="display:flex;align-items:center">
-    <span class="logo">🔗 MeLi Connect</span>
-    <span class="badge-admin">ADMIN</span>
-  </div>
-  <div style="display:flex;gap:8px">
-    <button class="btn btn-ghost" onclick="cargarClientes()">↻ Actualizar</button>
-          <button class="btn btn-ghost" onclick="logout()">Salir</button>
+<header class="mc-nav" id="mcNav">
+    <a href="index.html" class="mc-brand"><span class="mc-brand-ico">&#128279;</span> MeLi Connect</a>
+    <nav class="mc-menu" id="mcMenu">
+      <div class="mc-item"><a href="index.html" class="mc-link">&#127968; Inicio</a></div>
+      <div class="mc-item">
+        <button class="mc-link" type="button">&#128230; Importaci&oacute;n <span class="mc-caret">&#9660;</span></button>
+        <div class="mc-drop">
+          <div class="mc-sechead">Encontr&aacute; y planific&aacute;</div>
+          <a href="index.html"><span class="mc-di">&#127919;</span><span class="mc-dt"><b>Buscador de oportunidades</b><span>Qu&eacute; conviene importar seg&uacute;n tu perfil</span></span></a>
+          <a href="margen.html"><span class="mc-di">&#129518;</span><span class="mc-dt"><b>Calculador de margen</b><span>Cu&aacute;nto vas a ganar de verdad</span></span></a>
+          <a href="educacion.html"><span class="mc-di">&#127891;</span><span class="mc-dt"><b>Aprend&eacute; a publicar</b><span>Gu&iacute;a para arrancar a vender</span></span></a>
         </div>
       </div>
+      <div class="mc-item">
+        <button class="mc-link" type="button">&#128722; MercadoLibre <span class="mc-caret">&#9660;</span></button>
+        <div class="mc-drop">
+          <div class="mc-sechead">Tu cuenta y publicaciones</div>
+          <a href="meli-connect.html"><span class="mc-di">&#128279;</span><span class="mc-dt"><b>Conectar cuenta</b><span>Vincul&aacute; tu MercadoLibre</span></span></a>
+          <a href="dashboard.html"><span class="mc-di">&#128202;</span><span class="mc-dt"><b>Dashboard de ventas</b><span>&Oacute;rdenes, comisiones y ganancia neta</span></span></a>
+          <a href="analizador.html"><span class="mc-di">&#128269;</span><span class="mc-dt"><b>Analizador de publicaciones</b><span>Qu&eacute; mejorar en tu publicaci&oacute;n</span></span></a>
+          <a href="calculadora-envios.html"><span class="mc-di">&#128666;</span><span class="mc-dt"><b>Flex vs Full</b><span>Qu&eacute; env&iacute;o te conviene</span></span></a>
+        </div>
+      </div>
+      <div class="mc-item" id="mcAdminItem" style="display:none"><a href="admin.html" class="mc-link active">&#128081; Admin</a></div>
+    </nav>
+    <div class="mc-right">
+      <a class="mc-cta" href="https://wa.me/541160374306" target="_blank" rel="noopener">&#128640; Asesor&iacute;a<span class="mc-pulse"></span></a>
+      <div class="mc-user"><span class="mc-avatar" id="mcAvatar">?</span><span class="mc-uname" id="mcUname">invitado</span></div>
+      <button class="mc-logout" id="mcLogout" type="button">Salir</button>
+    </div>
+    <button class="mc-toggle" id="mcToggle" aria-label="Menu">&#9776;</button>
+  </header>
+  <div class="mc-balloon" id="mcBalloon">
+    <button class="mc-bl-close" id="mcBlClose" aria-label="Cerrar">&times;</button>
+    <span class="mc-bl-badge">&#128293; Asesor&iacute;a 1 a 1</span>
+    <p class="mc-bl-title">&iquest;Vas a importar y no quer&eacute;s <b>perder plata</b>?</p>
+    <p class="mc-bl-text">Te ayudo a elegir el producto, calcular costos reales y despachar sin sorpresas. Primera consulta sin cargo.</p>
+    <a class="mc-bl-btn" href="https://wa.me/541160374306?text=Hola!%20Quiero%20asesor%C3%ADa%20para%20importar" target="_blank" rel="noopener">&#128172; Hablar por WhatsApp</a>
+  </div>
+  <button class="mc-bltab" id="mcBlTab">&#128172; Asesor&iacute;a gratis</button>
 
       <div class="main">
 
         <!-- Stats -->
         <div class="stats" id="statsGrid">
-          <div class="stat-card yellow"><div class="stat-label">Clientes totales</div><div class="stat-value" id="statTotal">—</div></div>
-          <div class="stat-card"><div class="stat-label">MeLi conectado</div><div class="stat-value" id="statConectados">—</div></div>
-          <div class="stat-card"><div class="stat-label">Activos</div><div class="stat-value" id="statActivos">—</div></div>
-          <div class="stat-card"><div class="stat-label">Expirados</div><div class="stat-value" id="statExpirados">—</div></div>
+          <div class="stat-card yellow"><div class="stat-label">Clientes totales</div><div class="stat-value" id="statTotal">â</div></div>
+          <div class="stat-card"><div class="stat-label">MeLi conectado</div><div class="stat-value" id="statConectados">â</div></div>
+          <div class="stat-card"><div class="stat-label">Activos</div><div class="stat-value" id="statActivos">â</div></div>
+          <div class="stat-card"><div class="stat-label">Expirados</div><div class="stat-value" id="statExpirados">â</div></div>
         </div>
 
         <!-- Nuevo usuario -->
@@ -90,17 +175,17 @@
           <input type="text" id="newUser" placeholder="nombre_cliente">
               </div>
               <div class="field">
-                <label>Contraseña</label>
-                <input type="password" id="newPass" placeholder="contraseña">
+                <label>ContraseÃ±a</label>
+                <input type="password" id="newPass" placeholder="contraseÃ±a">
               </div>
               <div class="field">
                 <label>Dias acceso</label>
                 <select id="newDias">
-                  <option value="30">30 días</option>
-                  <option value="60">60 días</option>
-                  <option value="90">90 días</option>
-                  <option value="180">180 días</option>
-                  <option value="365">1 año</option>
+                  <option value="30">30 dÃ­as</option>
+                  <option value="60">60 dÃ­as</option>
+                  <option value="90">90 dÃ­as</option>
+                  <option value="180">180 dÃ­as</option>
+                  <option value="365">1 aÃ±o</option>
                 </select>
               </div>
               <div class="field">
@@ -126,7 +211,7 @@
                   <th>Usuario</th>
                   <th>Creado</th>
                   <th>Expira</th>
-                  <th>Días rest.</th>
+                  <th>DÃ­as rest.</th>
             <th>Estado</th>
             <th>MeLi</th>
             <th>Acciones</th>
@@ -162,7 +247,7 @@
   }
 
   function formatFecha(iso) {
-        if (!iso) return '—';
+        if (!iso) return 'â';
     return new Date(iso).toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'2-digit'});
   }
 
@@ -230,7 +315,7 @@
           ? '<span class="badge badge-blue">Conectado</span>'
           : '<span class="badge badge-gray">Sin conectar</span>';
 
-        const diasStr = dias === null ? '—'
+        const diasStr = dias === null ? 'â'
           : dias <= 0 ? '<span style="color:#f87171">Expirado</span>'
           : dias <= 7 ? `<span style="color:#fb923c">${dias}d</span>`
                     : `<span style="color:#4ade80">${dias}d</span>`;
@@ -238,16 +323,16 @@
         return `<tr>
                     <td style="font-weight:600;color:#f0f0f0">${u.username}</td>
                     <td>${formatFecha(u.createdAt)}</td>
-                    <td>${expiraDate ? formatFecha(expiraDate.toISOString()) : '—'}</td>
+                    <td>${expiraDate ? formatFecha(expiraDate.toISOString()) : 'â'}</td>
                     <td>${diasStr}</td>
                     <td>${estadoBadge}</td>
                     <td>${meliBadge}</td>
                     <td>
                       <div style="display:flex;gap:6px">
-                        <button class="btn btn-ghost btn-sm" onclick="verDashboard('${u.username}')" title="Ver dashboard">📊</button>
-                        <button class="btn btn-ghost btn-sm" onclick="toggleUsuario('${u.username}',${u.active})" title="${u.active ? 'Desactivar' : 'Activar'}">${u.active ? '🔒' : '🔓'}</button>
-                        <button class="btn btn-ghost btn-sm" onclick="togglePremium('${u.username}',${!!u.premium})" title="${u.premium ? 'Quitar acceso completo' : 'Dar acceso completo (asesoria)'}" style="${u.premium ? 'color:#C9A84C' : ''}">${u.premium ? '⭐' : '☆'}</button>
-                        <button class="btn btn-red btn-sm" onclick="eliminarUsuario('${u.username}')" title="Eliminar">🗑</button>
+                        <button class="btn btn-ghost btn-sm" onclick="verDashboard('${u.username}')" title="Ver dashboard">ð</button>
+                        <button class="btn btn-ghost btn-sm" onclick="toggleUsuario('${u.username}',${u.active})" title="${u.active ? 'Desactivar' : 'Activar'}">${u.active ? 'ð' : 'ð'}</button>
+                        <button class="btn btn-ghost btn-sm" onclick="togglePremium('${u.username}',${!!u.premium})" title="${u.premium ? 'Quitar acceso completo' : 'Dar acceso completo (asesoria)'}" style="${u.premium ? 'color:#C9A84C' : ''}">${u.premium ? 'â­' : 'â'}</button>
+                        <button class="btn btn-red btn-sm" onclick="eliminarUsuario('${u.username}')" title="Eliminar">ð</button>
                       </div>
                     </td>
                   </tr>`;
@@ -273,7 +358,7 @@
     errorEl.style.display = 'none';
 
     if (!username || !password) {
-      errorEl.textContent = 'Completá usuario y contraseña';
+      errorEl.textContent = 'CompletÃ¡ usuario y contraseÃ±a';
       errorEl.style.display = 'block';
       return;
     }
@@ -292,7 +377,7 @@
         return;
 }
 
-      successEl.textContent = `✓ Usuario "${username}" creado. Mandále el link de login: productfinder-ia.vercel.app/login.html`;
+      successEl.textContent = `â Usuario "${username}" creado. MandÃ¡le el link de login: productfinder-ia.vercel.app/login.html`;
       successEl.style.display = 'block';
       document.getElementById('newUser').value = '';
       document.getElementById('newPass').value = '';
@@ -337,7 +422,7 @@
   }
 
   async function eliminarUsuario(username) {
-    if (!confirm(`¿Eliminar al usuario "${username}"? Esta accion no se puede deshacer.`)) return;
+    if (!confirm(`Â¿Eliminar al usuario "${username}"? Esta accion no se puede deshacer.`)) return;
     try {
       await fetch('/api/users?id=' + encodeURIComponent(username), {
         method: 'DELETE',
@@ -363,5 +448,31 @@
   // Init
   cargarClientes();
 </script>
+
+  <script>
+  (function(){
+    try{
+      var u = localStorage.getItem('pf_user') || 'invitado';
+      var role = localStorage.getItem('pf_role') || 'guest';
+      var un = document.getElementById('mcUname'); if(un) un.textContent = u;
+      var av = document.getElementById('mcAvatar'); if(av) av.textContent = (u.charAt(0)||'?').toUpperCase();
+      if(role === 'admin'){ var ai = document.getElementById('mcAdminItem'); if(ai) ai.style.display=''; }
+    }catch(e){}
+    var t = document.getElementById('mcToggle');
+    if(t) t.addEventListener('click', function(){ var m=document.getElementById('mcMenu'); if(m) m.classList.toggle('show'); });
+    var lo = document.getElementById('mcLogout');
+    if(lo) lo.addEventListener('click', function(){
+      try{ ['pf_user','pf_role','pf_expiry'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
+      window.location.href = 'index.html';
+    });
+    var bal=document.getElementById('mcBalloon'), tab=document.getElementById('mcBlTab'), cb=document.getElementById('mcBlClose'), dm=false;
+    try{ dm = localStorage.getItem('mc_promo_closed')==='1'; }catch(e){}
+    function op(){ if(tab) tab.style.display='none'; if(bal){ bal.style.display='block'; setTimeout(function(){ bal.classList.add('show'); },30);} }
+    function cl(){ if(bal) bal.classList.remove('show'); setTimeout(function(){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; },400); try{ localStorage.setItem('mc_promo_closed','1'); }catch(e){} }
+    if(cb) cb.addEventListener('click', cl);
+    if(tab) tab.addEventListener('click', function(){ try{ localStorage.removeItem('mc_promo_closed'); }catch(e){} op(); });
+    if(dm){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; } else { setTimeout(op, 1400); }
+  })();
+  </script>
 </body>
 </html>
