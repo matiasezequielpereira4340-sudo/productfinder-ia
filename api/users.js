@@ -87,11 +87,15 @@ export default async function handler(req, res) {
             const users = [adminEntry, ...stored.map(u => ({
                         id: u.username,
                         username: u.username,
+                        email: u.email || u.username,
                         role: 'user',
                         active: u.active !== false,
+                        approved: u.approved !== false,
+                        pending: u.approved === false,
+                        expiryDays: u.expiryDays || null,
                         expired: isExpired(u),
                         createdAt: u.createdAt,
-                        expiresAt: u.expiresAt,
+                        expiresAt: (u.createdAt && u.expiryDays) ? new Date(new Date(u.createdAt).getTime() + u.expiryDays*86400000).toISOString() : (u.expiresAt || null),
                         meli_connected: u.meli_connected || false, premium: u.premium || false,
             }))];
             return res.status(200).json({ users });
@@ -99,18 +103,19 @@ export default async function handler(req, res) {
 
   // POST - create user
   if (req.method === 'POST') {
-            const { username, password, days } = req.body;
-            if (!username || !password) return res.status(400).json({ error: 'username y password requeridos' });
+            const { username, password, email, days } = req.body;
+            const uid = (email || username || '').trim().toLowerCase();
+            if (!uid || !password) return res.status(400).json({ error: 'email y password requeridos' });
             const stored = await getUsers();
-            if (stored.find(u => u.username === username) || username === ADMIN_USER) {
+            if (stored.find(u => (u.username||'').toLowerCase() === uid || (u.email||'').toLowerCase() === uid) || uid === (ADMIN_USER||'').toLowerCase()) {
                         return res.status(409).json({ error: 'El usuario ya existe' });
             }
-            const expiresAt = new Date();
-            expiresAt.setDate(expiresAt.getDate() + (parseInt(days) || 30));
-            const newUser = { username, password, active: true, createdAt: new Date().toISOString(), expiresAt: expiresAt.toISOString(), premium: (req.body.premium === true), meli_connected: false };
+            const expiryDays = parseInt(days) || 120;
+            const createdAt = new Date().toISOString();
+            const newUser = { username: uid, email: uid, password, active: true, approved: true, expiryDays, createdAt, premium: (req.body.premium !== false), meli_connected: false };
             stored.push(newUser);
             await persistUsers(stored);
-            return res.status(201).json({ user: { id: username, username, active: true, expiresAt: newUser.expiresAt, createdAt: newUser.createdAt } });
+            return res.status(201).json({ user: { id: uid, username: uid, email: uid, active: true, approved: true, expiryDays, createdAt } });
   }
 
   // DELETE - remove user by id (username)
@@ -127,13 +132,26 @@ export default async function handler(req, res) {
   // PATCH - toggle active
   if (req.method === 'PATCH') {
             const { id } = req.query;
-            const { active, premium } = req.body;
+            const { active, premium, days, approve } = req.body;
             if (!id) return res.status(400).json({ error: 'id requerido' });
             const stored = await getUsers();
             const user = stored.find(u => u.username === id || u.email === id || u.id === id);
             if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
             if (typeof active !== 'undefined') user.active = active;
       if (typeof premium !== 'undefined') user.premium = !!premium;
+            if (typeof days !== 'undefined' && days !== null && days !== '') {
+                const nd = parseInt(days);
+                if (!isNaN(nd) && nd > 0) {
+                    user.expiryDays = nd;
+                    if (!user.createdAt) user.createdAt = new Date().toISOString();
+                }
+            }
+            if (approve === true) {
+                user.approved = true;
+                user.active = true;
+                if (!user.createdAt) user.createdAt = new Date().toISOString();
+                if (!user.expiryDays) user.expiryDays = 120;
+            }
             await persistUsers(stored);
             return res.status(200).json({ ok: true });
   }
