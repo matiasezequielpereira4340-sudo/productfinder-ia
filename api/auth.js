@@ -76,7 +76,7 @@ export default async function handler(req, res) {
   // POST /api/auth - login
   if (path.endsWith('/auth') && req.method === 'POST') {
         const { username, password, email, action } = req.body || {};
-        if (!username || !password) return res.status(400).json({ success: false, error: 'Faltan credenciales' });
+        if (action !== 'register' && (!username || !password)) return res.status(400).json({ success: false, error: 'Faltan credenciales' });
 
       // --- REGISTRO PUBLICO (self-service, queda pendiente de aprobacion) ---
       if (action === 'register') {
@@ -102,8 +102,8 @@ export default async function handler(req, res) {
       const user = users.find(u => ((u.email||'').toLowerCase() === loginId || (u.username||'').toLowerCase() === loginId) && u.password === password);
         if (!user) return res.status(401).json({ success: false, error: 'Credenciales incorrectas' });
         if (user.approved === false) return res.status(403).json({ success: false, error: 'Tu cuenta esta pendiente de aprobacion. El administrador te habilitara pronto.' });
-      if (!user.active) return res.status(403).json({ success: false, error: 'Usuario desactivado. ContactÃ¡ al administrador.' });
-        if (isExpired(user)) return res.status(403).json({ success: false, error: 'Acceso expirado. ContactÃ¡ al administrador.' });
+      if (!user.active) return res.status(403).json({ success: false, error: 'Usuario desactivado. ContactÃÂ¡ al administrador.' });
+        if (isExpired(user)) return res.status(403).json({ success: false, error: 'Acceso expirado. ContactÃÂ¡ al administrador.' });
 
       return res.status(200).json({
               success: true, role: 'user', user: username, premium: !!user.premium,
