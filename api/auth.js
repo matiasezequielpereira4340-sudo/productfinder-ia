@@ -75,18 +75,35 @@ export default async function handler(req, res) {
 
   // POST /api/auth - login
   if (path.endsWith('/auth') && req.method === 'POST') {
-        const { username, password } = req.body || {};
+        const { username, password, email, action } = req.body || {};
         if (!username || !password) return res.status(400).json({ success: false, error: 'Faltan credenciales' });
+
+      // --- REGISTRO PUBLICO (self-service, queda pendiente de aprobacion) ---
+      if (action === 'register') {
+        const em = (email || username || '').trim().toLowerCase();
+        if (!em || !password) return res.status(400).json({ success: false, error: 'Falta email o contrasena' });
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return res.status(400).json({ success: false, error: 'Email invalido' });
+        if (password.length < 6) return res.status(400).json({ success: false, error: 'La contrasena debe tener al menos 6 caracteres' });
+        const usersR = await getUsers();
+        if (usersR.find(u => (u.email||'').toLowerCase() === em || (u.username||'').toLowerCase() === em)) {
+          return res.status(409).json({ success: false, error: 'Ya existe una cuenta con ese email' });
+        }
+        usersR.push({ username: em, email: em, password, expiryDays: 120, createdAt: null, active: false, approved: false, premium: false, requestedAt: new Date().toISOString() });
+        await persistUsers(usersR);
+        return res.status(201).json({ success: true, pending: true, message: 'Cuenta creada. Queda pendiente de aprobacion del administrador.' });
+      }
 
       if (username === ADMIN_USER && password === ADMIN_PASS) {
               return res.status(200).json({ success: true, role: 'admin', user: username });
       }
 
       const users = await getUsers();
-        const user = users.find(u => u.username === username && u.password === password);
+        const loginId = (username || email || '').trim().toLowerCase();
+      const user = users.find(u => ((u.email||'').toLowerCase() === loginId || (u.username||'').toLowerCase() === loginId) && u.password === password);
         if (!user) return res.status(401).json({ success: false, error: 'Credenciales incorrectas' });
-        if (!user.active) return res.status(403).json({ success: false, error: 'Usuario desactivado. Contactá al administrador.' });
-        if (isExpired(user)) return res.status(403).json({ success: false, error: 'Acceso expirado. Contactá al administrador.' });
+        if (user.approved === false) return res.status(403).json({ success: false, error: 'Tu cuenta esta pendiente de aprobacion. El administrador te habilitara pronto.' });
+      if (!user.active) return res.status(403).json({ success: false, error: 'Usuario desactivado. ContactÃ¡ al administrador.' });
+        if (isExpired(user)) return res.status(403).json({ success: false, error: 'Acceso expirado. ContactÃ¡ al administrador.' });
 
       return res.status(200).json({
               success: true, role: 'user', user: username, premium: !!user.premium,
