@@ -2,7 +2,7 @@
 // Recibe el code de MercadoLibre y lo intercambia por access_token + refresh_token
 // Guarda los tokens en Supabase
 
-const SUPABASE_URL = 'https://qglieqpcmmffgxijbysb.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL;
 
 function cors(res) {
       res.setHeader('Access-Control-Allow-Origin', '*');
@@ -68,6 +68,11 @@ export default async function handler(req, res) {
 
   if (!appId || !secretKey) {
           return res.status(500).json({ error: 'Credenciales MeLi no configuradas' });
+  }
+
+  if (!SUPABASE_URL) {
+          console.error('[api/meli-callback] Falta configurar SUPABASE_URL en las variables de entorno');
+          return res.status(500).json({ error: 'Configuración incompleta' });
   }
 
   try {

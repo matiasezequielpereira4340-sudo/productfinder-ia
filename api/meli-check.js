@@ -4,7 +4,7 @@
 // GET /api/meli-check?user_id=X
 // Responde: { connected: true/false }
 
-const SUPABASE_URL = 'https://qglieqpcmmffgxijbysb.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL;
 
 function cors(res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -18,6 +18,11 @@ export default async function handler(req, res) {
 
   const { user_id } = req.query;
     if (!user_id) return res.status(400).json({ error: 'user_id requerido' });
+
+  if (!SUPABASE_URL) {
+        console.error('[api/meli-check] Falta configurar SUPABASE_URL en las variables de entorno');
+        return res.status(500).json({ error: 'Configuración incompleta' });
+  }
 
   try {
         const key = process.env.SUPABASE_SERVICE_KEY;
