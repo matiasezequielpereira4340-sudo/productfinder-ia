@@ -11,10 +11,10 @@
 :root{
   --bg:#0d0d0d;--bg2:#141414;--bg3:#1a1a1a;--bg4:#222;--bg5:#282828;
   --border:#2a2a2a;--border2:#333;--border3:#444;
-  --gold:#C9A84C;--gold2:#e8c96a;--gold-dim:rgba(201,168,76,0.12);
+  --gold:#FFE600;--gold2:#FFF27A;--gold-dim:rgba(255,230,0,0.12);
   --green:#27ae60;--green2:#2ecc71;--red:#c0392b;--red2:#e74c3c;
   --blue:#2980b9;--orange:#e67e22;--purple:#8e44ad;
-  --text:#e8e0d0;--text2:#b0a090;--text3:#7a7060;--text4:#4a4035;
+  --text:#F6F6F4;--text2:#C6C6C2;--text3:#7A7A82;--text4:#45454C;
   --radius:10px;--radius2:6px;
   --shadow:0 4px 24px rgba(0,0,0,0.5);
 }
@@ -50,7 +50,7 @@ main{max-width:1080px;margin:0 auto;padding:24px 20px 80px;}
 .field{}
 label{display:block;font-size:.72rem;color:var(--text3);margin-bottom:4px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;}
 input[type=text],input[type=number],select,textarea{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius2);color:var(--text);padding:9px 12px;font-size:.9rem;font-family:inherit;outline:none;transition:.15s;}
-input:focus,select:focus,textarea:focus{border-color:var(--gold);box-shadow:0 0 0 2px rgba(201,168,76,.1);}
+input:focus,select:focus,textarea:focus{border-color:var(--gold);box-shadow:0 0 0 2px rgba(255,230,0,.1);}
 input[type=number]{-moz-appearance:textfield;}
 input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
 .pfx{position:relative;}
@@ -63,7 +63,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .divider{border:none;border-top:1px solid var(--border);margin:14px 0;}
 .tag{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:.72rem;font-weight:600;}
 .tag-ok{background:rgba(39,174,96,.15);color:var(--green2);}
-.tag-warn{background:rgba(201,168,76,.15);color:var(--gold);}
+.tag-warn{background:rgba(255,230,0,.15);color:var(--gold);}
 .tag-bad{background:rgba(192,57,43,.15);color:var(--red2);}
 .tag-info{background:rgba(41,128,185,.15);color:#5dade2;}
 .tag-purple{background:rgba(142,68,173,.15);color:#bb8fce;}
@@ -82,7 +82,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .wf-bar-fill{height:100%;border-radius:4px;transition:.5s;}
 .wf-fill-pos{background:rgba(39,174,96,.75);}
 .wf-fill-neg{background:rgba(192,57,43,.6);}
-.wf-fill-total{background:rgba(201,168,76,.8);}
+.wf-fill-total{background:rgba(255,230,0,.8);}
 .wf-fill-orange{background:rgba(230,126,34,.6);}
 .wf-val{min-width:130px;text-align:right;font-size:.8rem;font-weight:600;}
 .wf-val.pos{color:var(--green2);}
@@ -96,7 +96,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .ptable .total-row td{background:var(--bg4);font-weight:700;border-top:2px solid var(--gold);color:var(--gold);}
 .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;}
 @media(max-width:700px){.summary-grid{grid-template-columns:1fr 1fr;}}
-.notice{background:var(--gold-dim);border:1px solid rgba(201,168,76,.25);border-radius:var(--radius2);padding:9px 13px;font-size:.78rem;color:var(--text2);margin-bottom:14px;line-height:1.5;}
+.notice{background:var(--gold-dim);border:1px solid rgba(255,230,0,.25);border-radius:var(--radius2);padding:9px 13px;font-size:.78rem;color:var(--text2);margin-bottom:14px;line-height:1.5;}
 .notice.blue{background:rgba(41,128,185,.1);border-color:rgba(41,128,185,.25);color:#7fb3d3;}
 .notice.red{background:rgba(192,57,43,.1);border-color:rgba(192,57,43,.25);color:#e59595;}
 .collapse-toggle{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;width:100%;}
@@ -187,58 +187,63 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
   @keyframes mcpop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
   @media(max-width:520px){.mc-balloon{right:12px;left:12px;width:auto;}}
   </style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Chivo:wght@300;400;500;600;700;900&family=Chivo+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="theme.css?v=20260825">
 </head>
 <body>
 <header class="mc-nav" id="mcNav">
-    <a href="index.html" class="mc-brand"><span class="mc-brand-ico">&#128279;</span> MeLi Connect</a>
+    <a href="index.html#menu" class="mc-brand"><span class="mc-brand-ico"><svg class="ic" aria-hidden="true"><use href="#i-link"></use></svg></span> MeLi Connect</a>
     <nav class="mc-menu" id="mcMenu">
-      <div class="mc-item"><a href="index.html" class="mc-link">&#127968; Inicio</a></div>
+      <div class="mc-item"><a href="index.html#menu" class="mc-link"><svg class="ic" aria-hidden="true"><use href="#i-home"></use></svg> Inicio</a></div>
       <div class="mc-item">
-        <button class="mc-link" type="button">&#128230; Importaci&oacute;n <span class="mc-caret">&#9660;</span></button>
+        <button class="mc-link" type="button"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Importaci&oacute;n <span class="mc-caret">&#9660;</span></button>
         <div class="mc-drop">
           <div class="mc-sechead">Encontr&aacute; y planific&aacute;</div>
-          <a href="index.html"><span class="mc-di">&#127919;</span><span class="mc-dt"><b>Buscador de oportunidades</b><span>Qu&eacute; conviene importar seg&uacute;n tu perfil</span></span></a>
-          <a href="margen.html" class="active"><span class="mc-di">&#129518;</span><span class="mc-dt"><b>Calculador de margen</b><span>Cu&aacute;nto vas a ganar de verdad</span></span></a>
-          <a href="educacion.html"><span class="mc-di">&#127891;</span><span class="mc-dt"><b>Aprend&eacute; a publicar</b><span>Gu&iacute;a para arrancar a vender</span></span></a>
+          <a href="index.html#market"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-target"></use></svg></span><span class="mc-dt"><b>Buscador de oportunidades</b><span>Qu&eacute; conviene importar seg&uacute;n tu perfil</span></span></a>
+          <a href="index.html#productfinder"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-brain"></use></svg></span><span class="mc-dt"><b>Recomendador por perfil</b><span>Qu&eacute; traer seg&uacute;n tu capital y experiencia</span></span></a>
+          <a href="margen.html" class="active"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-calc"></use></svg></span><span class="mc-dt"><b>Calculador de margen</b><span>Cu&aacute;nto vas a ganar de verdad</span></span></a>
         </div>
       </div>
       <div class="mc-item">
-        <button class="mc-link" type="button">&#128722; MercadoLibre <span class="mc-caret">&#9660;</span></button>
+        <button class="mc-link" type="button"><svg class="ic" aria-hidden="true"><use href="#i-cart"></use></svg> MercadoLibre <span class="mc-caret">&#9660;</span></button>
         <div class="mc-drop">
           <div class="mc-sechead">Tu cuenta y publicaciones</div>
-          <a href="meli-connect.html"><span class="mc-di">&#128279;</span><span class="mc-dt"><b>Conectar cuenta</b><span>Vincul&aacute; tu MercadoLibre</span></span></a>
-          <a href="dashboard.html"><span class="mc-di">&#128202;</span><span class="mc-dt"><b>Dashboard de ventas</b><span>&Oacute;rdenes, comisiones y ganancia neta</span></span></a>
-          <a href="analizador.html"><span class="mc-di">&#128269;</span><span class="mc-dt"><b>Analizador de publicaciones</b><span>Qu&eacute; mejorar en tu publicaci&oacute;n</span></span></a>
-          <a href="calculadora-envios.html"><span class="mc-di">&#128666;</span><span class="mc-dt"><b>Flex vs Full</b><span>Qu&eacute; env&iacute;o te conviene</span></span></a>
+          <a href="meli-connect.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-link"></use></svg></span><span class="mc-dt"><b>Conectar cuenta</b><span>Vincul&aacute; tu MercadoLibre</span></span></a>
+          <a href="dashboard.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span class="mc-dt"><b>Dashboard de ventas</b><span>&Oacute;rdenes, comisiones y ganancia neta</span></span></a>
+          <a href="analizador.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-search"></use></svg></span><span class="mc-dt"><b>Analizador de publicaciones</b><span>Qu&eacute; mejorar en tu publicaci&oacute;n</span></span></a>
+          <a href="calculadora-envios.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-truck"></use></svg></span><span class="mc-dt"><b>Flex vs Full</b><span>Qu&eacute; env&iacute;o te conviene</span></span></a>
+          <a href="educacion.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-cap"></use></svg></span><span class="mc-dt"><b>Aprend&eacute; a publicar</b><span>Gu&iacute;a para arrancar a vender</span></span></a>
         </div>
       </div>
-      <div class="mc-item" id="mcAdminItem" style="display:none"><a href="admin.html" class="mc-link">&#128081; Admin</a></div>
+      <div class="mc-item" id="mcAdminItem" style="display:none"><a href="admin.html" class="mc-link"><svg class="ic" aria-hidden="true"><use href="#i-crown"></use></svg> Admin</a></div>
     </nav>
     <div class="mc-right">
-      <a class="mc-cta" href="https://wa.me/541160374306" target="_blank" rel="noopener">&#128640; Asesor&iacute;a<span class="mc-pulse"></span></a>
+      <a class="mc-cta" href="https://wa.me/541160374306" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Asesor&iacute;a<span class="mc-pulse"></span></a>
       <div class="mc-user"><span class="mc-avatar" id="mcAvatar">?</span><span class="mc-uname" id="mcUname">invitado</span></div>
       <button class="mc-logout" id="mcLogout" type="button">Salir</button>
     </div>
-    <button class="mc-toggle" id="mcToggle" aria-label="Menu">&#9776;</button>
+    <button class="mc-toggle" id="mcToggle" aria-label="Menu"><svg class="ic" aria-hidden="true"><use href="#i-menu"></use></svg></button>
   </header>
   <div class="mc-balloon" id="mcBalloon">
     <button class="mc-bl-close" id="mcBlClose" aria-label="Cerrar">&times;</button>
-    <span class="mc-bl-badge">&#128293; Asesor&iacute;a 1 a 1</span>
+    <span class="mc-bl-badge"><svg class="ic" aria-hidden="true"><use href="#i-fire"></use></svg> Asesor&iacute;a 1 a 1</span>
     <p class="mc-bl-title">&iquest;Vas a importar y no quer&eacute;s <b>perder plata</b>?</p>
     <p class="mc-bl-text">Te ayudo a elegir el producto, calcular costos reales y despachar sin sorpresas. Primera consulta sin cargo.</p>
-    <a class="mc-bl-btn" href="https://wa.me/541160374306?text=Hola!%20Quiero%20asesor%C3%ADa%20para%20importar" target="_blank" rel="noopener">&#128172; Hablar por WhatsApp</a>
+    <a class="mc-bl-btn" href="https://wa.me/541160374306?text=Hola!%20Quiero%20asesor%C3%ADa%20para%20importar" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Hablar por WhatsApp</a>
   </div>
-  <button class="mc-bltab" id="mcBlTab">&#128172; Asesor&iacute;a gratis</button>
+  <button class="mc-bltab" id="mcBlTab"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Asesor&iacute;a gratis</button>
 <main>
 <div class="hero">
-  <h1>💰 MargenClear</h1>
+  <h1><svg class="ic" aria-hidden="true"><use href="#i-money"></use></svg> MargenClear</h1>
   <p>Calculá la <strong>ganancia real</strong> descontando <em>todos</em> los costos de MercadoLibre Argentina.</p>
 </div>
 
 <!-- REFERENCIA COMISIONES MELI -->
 <div class="section">
   <div class="collapse-toggle" onclick="toggleCollapse('refMeli')" id="toggle-refMeli">
-    <div class="section-title" style="margin:0">📋 Referencia: comisiones y cargos reales de MercadoLibre Argentina <span class="badge">info</span></div>
+    <div class="section-title" style="margin:0"><svg class="ic" aria-hidden="true"><use href="#i-info"></use></svg> Referencia: comisiones y cargos reales de MercadoLibre Argentina <span class="badge">info</span></div>
     <span class="arrow">▼</span>
   </div>
   <div class="collapse-body hidden" id="body-refMeli">
@@ -304,7 +309,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 
 <!-- CONFIG GLOBAL -->
 <div class="section">
-  <div class="section-title">⚙️ Configuración global</div>
+  <div class="section-title"><svg class="ic" aria-hidden="true"><use href="#i-gear"></use></svg> Configuración global</div>
   <div class="grid4">
     <div class="field">
       <label>Tipo de cambio USD → ARS</label>
@@ -331,7 +336,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 
 <!-- DESCUENTOS MELI -->
 <div class="section">
-  <div class="section-title">🏪 Descuentos MercadoLibre <span class="badge">todos los cargos reales</span></div>
+  <div class="section-title"><svg class="ic" aria-hidden="true"><use href="#i-store"></use></svg> Descuentos MercadoLibre <span class="badge">todos los cargos reales</span></div>
 
   <!-- Tipo publicacion y comision -->
   <div style="margin-bottom:14px">
@@ -430,7 +435,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 
 <!-- GASTOS OPERATIVOS -->
 <div class="section">
-  <div class="section-title">🏢 Gastos operativos propios</div>
+  <div class="section-title"><svg class="ic" aria-hidden="true"><use href="#i-build"></use></svg> Gastos operativos propios</div>
   <div class="grid4">
     <div class="field">
       <label>Gastos fijos mensuales (ARS)</label>
@@ -456,7 +461,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 
 <!-- AGREGAR PRODUCTO -->
 <div class="section">
-  <div class="section-title">📦 Agregar producto</div>
+  <div class="section-title"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Agregar producto</div>
   <div class="grid3" style="margin-bottom:10px">
     <div class="field">
       <label>Nombre del producto</label>
@@ -502,30 +507,30 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
       <div class="hint">Costo de caja, bolsa, cinta, etc.</div>
     </div>
   </div>
-  <button class="btn btn-green" onclick="addProduct()">➕ Agregar producto</button>
+  <button class="btn btn-green" onclick="addProduct()"><svg class="ic" aria-hidden="true"><use href="#i-plus"></use></svg> Agregar producto</button>
 </div>
 
 <!-- TABLA PRODUCTOS -->
 <div class="section">
-  <div class="section-title">📊 Productos cargados</div>
-  <div id="productsContainer"><div style="text-align:center;padding:28px;color:var(--text3)">📦 Todavía no cargaste ningún producto. Usá el formulario de arriba.</div></div>
+  <div class="section-title"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg> Productos cargados</div>
+  <div id="productsContainer"><div style="text-align:center;padding:28px;color:var(--text3)"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Todavía no cargaste ningún producto. Usá el formulario de arriba.</div></div>
 </div>
 
 <!-- RESUMEN -->
 <div class="section" id="summarySection" style="display:none">
-  <div class="section-title">📈 Resumen ejecutivo — <span id="periodoLabel">Quincenal</span></div>
+  <div class="section-title"><svg class="ic" aria-hidden="true"><use href="#i-trend"></use></svg> Resumen ejecutivo — <span id="periodoLabel">Quincenal</span></div>
   <div class="summary-grid" id="summaryCards"></div>
   <hr class="divider">
-  <div class="section-title" style="margin-bottom:10px">💧 Cascada de costos — total del período</div>
+  <div class="section-title" style="margin-bottom:10px"><svg class="ic" aria-hidden="true"><use href="#i-drop"></use></svg> Cascada de costos — total del período</div>
   <div id="waterfallContainer"></div>
   <hr class="divider">
-  <div class="section-title" style="margin-bottom:8px">📋 Detalle por producto</div>
+  <div class="section-title" style="margin-bottom:8px"><svg class="ic" aria-hidden="true"><use href="#i-info"></use></svg> Detalle por producto</div>
   <div id="detailTableContainer"></div>
 </div>
 
 <!-- PDF CONFIG -->
 <div class="section" id="pdfSection" style="display:none">
-  <div class="section-title">🖨️ Configurar informe PDF para cliente</div>
+  <div class="section-title"><svg class="ic" aria-hidden="true"><use href="#i-print"></use></svg> Configurar informe PDF para cliente</div>
   <div class="notice">PDF con portada profesional, resumen ejecutivo, desglose completo de costos y ficha por producto. Listo para enviar al cliente.</div>
   <div class="grid3">
     <div class="field">
@@ -545,7 +550,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
     <label>Nota personalizada para el cliente</label>
     <textarea id="pdfNota" rows="2" placeholder="Ej: Informe quincenal 01/04–15/04. Cualquier consulta al WhatsApp."></textarea>
   </div>
-  <button class="btn btn-gold" style="margin-top:12px" onclick="exportPDF()">⬇️ Generar y descargar PDF</button>
+  <button class="btn btn-gold" style="margin-top:12px" onclick="exportPDF()"><svg class="ic" aria-hidden="true"><use href="#i-down"></use></svg> Generar y descargar PDF</button>
 </div>
 
 </main>
@@ -961,13 +966,13 @@ async function cargarDesdeMeLi() {
     saveToStorage(); recalcAll();
     alert(n > 0 ? n + ' productos importados!\nCompletá el COSTO de cada uno para ver la ganancia real.' : 'Ya estaban todos cargados.');
   } catch(e) { alert('Error: ' + e.message); }
-  finally { if (btn) { btn.textContent = '🔄 Importar mis productos de MeLi'; btn.disabled = false; } }
+  finally { if (btn) { btn.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-refresh"></use></svg> Importar mis productos de MeLi'; btn.disabled = false; } }
 }
 document.addEventListener('DOMContentLoaded', () => {
   const b = document.createElement('button');
-  b.id='btnCargarMeLi'; b.className='btn';
-  b.style.cssText='background:#FFE600;color:#000;font-weight:700;width:100%;margin-bottom:16px;font-size:16px;padding:14px;border-radius:8px;cursor:pointer;';
-  b.textContent='🔄 Importar mis productos de MeLi';
+  b.id='btnCargarMeLi';
+  b.className='btn mc-import-btn';
+  b.innerHTML='<svg class="ic" aria-hidden="true"><use href="#i-refresh"></use></svg> Importar mis productos de MeLi';
   b.onclick=cargarDesdeMeLi;
   const section = document.querySelector('#productSection') || document.querySelector('.section') || document.querySelector('h3');
   if(section) section.parentNode.insertBefore(b, section);
@@ -1001,5 +1006,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if(dm){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; } else { setTimeout(op, 1400); }
   })();
   </script>
+<script defer src="mc-ui.js?v=20260825"></script>
 </body>
         </html>

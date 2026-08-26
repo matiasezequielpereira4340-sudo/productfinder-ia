@@ -164,49 +164,54 @@
   @keyframes mcpop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
   @media(max-width:520px){.mc-balloon{right:12px;left:12px;width:auto;}}
   </style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Chivo:wght@300;400;500;600;700;900&family=Chivo+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="theme.css?v=20260825">
 </head>
 <body>
 
   <header class="mc-nav" id="mcNav">
-    <a href="index.html" class="mc-brand"><span class="mc-brand-ico">&#128279;</span> MeLi Connect</a>
+    <a href="index.html#menu" class="mc-brand"><span class="mc-brand-ico"><svg class="ic" aria-hidden="true"><use href="#i-link"></use></svg></span> MeLi Connect</a>
     <nav class="mc-menu" id="mcMenu">
-      <div class="mc-item"><a href="index.html" class="mc-link">&#127968; Inicio</a></div>
+      <div class="mc-item"><a href="index.html#menu" class="mc-link"><svg class="ic" aria-hidden="true"><use href="#i-home"></use></svg> Inicio</a></div>
       <div class="mc-item">
-        <button class="mc-link" type="button">&#128230; Importaci&oacute;n <span class="mc-caret">&#9660;</span></button>
+        <button class="mc-link" type="button"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Importaci&oacute;n <span class="mc-caret">&#9660;</span></button>
         <div class="mc-drop">
           <div class="mc-sechead">Encontr&aacute; y planific&aacute;</div>
-          <a href="index.html"><span class="mc-di">&#127919;</span><span class="mc-dt"><b>Buscador de oportunidades</b><span>Qu&eacute; conviene importar seg&uacute;n tu perfil</span></span></a>
-          <a href="margen.html"><span class="mc-di">&#129518;</span><span class="mc-dt"><b>Calculador de margen</b><span>Cu&aacute;nto vas a ganar de verdad</span></span></a>
-          <a href="educacion.html" class="active"><span class="mc-di">&#127891;</span><span class="mc-dt"><b>Aprend&eacute; a publicar</b><span>Gu&iacute;a para arrancar a vender</span></span></a>
+          <a href="index.html#market"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-target"></use></svg></span><span class="mc-dt"><b>Buscador de oportunidades</b><span>Qu&eacute; conviene importar seg&uacute;n tu perfil</span></span></a>
+          <a href="index.html#productfinder"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-brain"></use></svg></span><span class="mc-dt"><b>Recomendador por perfil</b><span>Qu&eacute; traer seg&uacute;n tu capital y experiencia</span></span></a>
+          <a href="margen.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-calc"></use></svg></span><span class="mc-dt"><b>Calculador de margen</b><span>Cu&aacute;nto vas a ganar de verdad</span></span></a>
         </div>
       </div>
       <div class="mc-item">
-        <button class="mc-link" type="button">&#128722; MercadoLibre <span class="mc-caret">&#9660;</span></button>
+        <button class="mc-link" type="button"><svg class="ic" aria-hidden="true"><use href="#i-cart"></use></svg> MercadoLibre <span class="mc-caret">&#9660;</span></button>
         <div class="mc-drop">
           <div class="mc-sechead">Tu cuenta y publicaciones</div>
-          <a href="meli-connect.html"><span class="mc-di">&#128279;</span><span class="mc-dt"><b>Conectar cuenta</b><span>Vincul&aacute; tu MercadoLibre</span></span></a>
-          <a href="dashboard.html"><span class="mc-di">&#128202;</span><span class="mc-dt"><b>Dashboard de ventas</b><span>&Oacute;rdenes, comisiones y ganancia neta</span></span></a>
-          <a href="analizador.html"><span class="mc-di">&#128269;</span><span class="mc-dt"><b>Analizador de publicaciones</b><span>Qu&eacute; mejorar en tu publicaci&oacute;n</span></span></a>
-          <a href="calculadora-envios.html"><span class="mc-di">&#128666;</span><span class="mc-dt"><b>Flex vs Full</b><span>Qu&eacute; env&iacute;o te conviene</span></span></a>
+          <a href="meli-connect.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-link"></use></svg></span><span class="mc-dt"><b>Conectar cuenta</b><span>Vincul&aacute; tu MercadoLibre</span></span></a>
+          <a href="dashboard.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span class="mc-dt"><b>Dashboard de ventas</b><span>&Oacute;rdenes, comisiones y ganancia neta</span></span></a>
+          <a href="analizador.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-search"></use></svg></span><span class="mc-dt"><b>Analizador de publicaciones</b><span>Qu&eacute; mejorar en tu publicaci&oacute;n</span></span></a>
+          <a href="calculadora-envios.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-truck"></use></svg></span><span class="mc-dt"><b>Flex vs Full</b><span>Qu&eacute; env&iacute;o te conviene</span></span></a>
+          <a href="educacion.html" class="active"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-cap"></use></svg></span><span class="mc-dt"><b>Aprend&eacute; a publicar</b><span>Gu&iacute;a para arrancar a vender</span></span></a>
         </div>
       </div>
-      <div class="mc-item" id="mcAdminItem" style="display:none"><a href="admin.html" class="mc-link">&#128081; Admin</a></div>
+      <div class="mc-item" id="mcAdminItem" style="display:none"><a href="admin.html" class="mc-link"><svg class="ic" aria-hidden="true"><use href="#i-crown"></use></svg> Admin</a></div>
     </nav>
     <div class="mc-right">
-      <a class="mc-cta" href="https://wa.me/541160374306" target="_blank" rel="noopener">&#128640; Asesor&iacute;a<span class="mc-pulse"></span></a>
+      <a class="mc-cta" href="https://wa.me/541160374306" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Asesor&iacute;a<span class="mc-pulse"></span></a>
       <div class="mc-user"><span class="mc-avatar" id="mcAvatar">?</span><span class="mc-uname" id="mcUname">invitado</span></div>
       <button class="mc-logout" id="mcLogout" type="button">Salir</button>
     </div>
-    <button class="mc-toggle" id="mcToggle" aria-label="Menu">&#9776;</button>
+    <button class="mc-toggle" id="mcToggle" aria-label="Menu"><svg class="ic" aria-hidden="true"><use href="#i-menu"></use></svg></button>
   </header>
   <div class="mc-balloon" id="mcBalloon">
     <button class="mc-bl-close" id="mcBlClose" aria-label="Cerrar">&times;</button>
-    <span class="mc-bl-badge">&#128293; Asesor&iacute;a 1 a 1</span>
+    <span class="mc-bl-badge"><svg class="ic" aria-hidden="true"><use href="#i-fire"></use></svg> Asesor&iacute;a 1 a 1</span>
     <p class="mc-bl-title">&iquest;Vas a importar y no quer&eacute;s <b>perder plata</b>?</p>
     <p class="mc-bl-text">Te ayudo a elegir el producto, calcular costos reales y despachar sin sorpresas. Primera consulta sin cargo.</p>
-    <a class="mc-bl-btn" href="https://wa.me/541160374306?text=Hola!%20Quiero%20asesor%C3%ADa%20para%20importar" target="_blank" rel="noopener">&#128172; Hablar por WhatsApp</a>
+    <a class="mc-bl-btn" href="https://wa.me/541160374306?text=Hola!%20Quiero%20asesor%C3%ADa%20para%20importar" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Hablar por WhatsApp</a>
   </div>
-  <button class="mc-bltab" id="mcBlTab">&#128172; Asesor&iacute;a gratis</button>
+  <button class="mc-bltab" id="mcBlTab"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Asesor&iacute;a gratis</button>
     <div class="wrap">
       <header class="hero"><h1>Aprendé a vender bien lo que importás</h1><p>Un curso corto y en criollo. Vas a aprender a armar publicaciones que venden, paso a paso, con el porqué de cada cosa y ejemplos reales. Cada bloque termina con un mini quiz: aprobás con 60% y se desbloquea el siguiente.</p></header>
       <div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" id="pfill"></div></div><div class="progress-txt" id="ptxt">0 de 5 bloques completados</div></div>
@@ -220,19 +225,19 @@
     <h4>La fórmula que funciona</h4>
     <p>Armá el título en este orden: <b>Producto + Marca + Modelo + Característica clave</b>. Aprovechá los 60 caracteres que te da MercadoLibre, pero sin repetir ni meter relleno.</p>
     <div class="mock-pair">
-      <div><div class="ml-mock bad-mock"><div class="ml-mock-badge">✗ Así NO</div><div class="ml-mock-img">📷 foto borrosa</div><div class="ml-mock-body"><div class="ml-mock-title">OFERTA!!! EL MEJOR AURICULAR 🔥🔥 ENVÍO YA</div><div class="ml-mock-price">$15.000</div></div></div><p class="mock-note">Nadie busca "el mejor auricular". Este título no aparece en ninguna búsqueda real.</p></div>
-      <div><div class="ml-mock good-mock"><div class="ml-mock-badge">✓ Así SÍ</div><div class="ml-mock-img">📷 foto limpia</div><div class="ml-mock-body"><div class="ml-mock-title">Auriculares Inalámbricos Bluetooth Deportivos Con Micrófono</div><div class="ml-mock-price">$15.000</div></div></div><p class="mock-note">Tiene producto + tipo + características que la gente realmente busca.</p></div>
+      <div><div class="ml-mock bad-mock"><div class="ml-mock-badge"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> Así NO</div><div class="ml-mock-img"><svg class="ic" aria-hidden="true"><use href="#i-camera"></use></svg> foto borrosa</div><div class="ml-mock-body"><div class="ml-mock-title">OFERTA!!! EL MEJOR AURICULAR <svg class="ic" aria-hidden="true"><use href="#i-fire"></use></svg><svg class="ic" aria-hidden="true"><use href="#i-fire"></use></svg> ENVÍO YA</div><div class="ml-mock-price">$15.000</div></div></div><p class="mock-note">Nadie busca "el mejor auricular". Este título no aparece en ninguna búsqueda real.</p></div>
+      <div><div class="ml-mock good-mock"><div class="ml-mock-badge"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Así SÍ</div><div class="ml-mock-img"><svg class="ic" aria-hidden="true"><use href="#i-camera"></use></svg> foto limpia</div><div class="ml-mock-body"><div class="ml-mock-title">Auriculares Inalámbricos Bluetooth Deportivos Con Micrófono</div><div class="ml-mock-price">$15.000</div></div></div><p class="mock-note">Tiene producto + tipo + características que la gente realmente busca.</p></div>
     </div>
     <h4>Errores que te matan las ventas</h4>
     <ul class="checklist warnlist">
       <li>MAYÚSCULAS gritadas: MercadoLibre las penaliza y al comprador le molesta.</li>
-      <li>Emojis y signos (!!!, 🔥): no suman búsquedas y se ven poco serios.</li>
+      <li>Emojis y signos (!!!, <svg class="ic" aria-hidden="true"><use href="#i-fire"></use></svg>): no suman búsquedas y se ven poco serios.</li>
       <li>Palabras vacías como "oferta", "imperdible", "único": nadie las busca.</li>
       <li>Repetir la misma palabra 3 veces: no ayuda, MercadoLibre ya la leyó una vez.</li>
     </ul>
-    <div class="dato">💡 <b>Tip pro:</b> antes de publicar, escribí en el buscador de MercadoLibre lo que vos crees que la gente pone. Fijate qué palabras te autocompleta: esas son las que más se buscan. Usalas en tu título.</div>
+    <div class="dato"><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> <b>Tip pro:</b> antes de publicar, escribí en el buscador de MercadoLibre lo que vos crees que la gente pone. Fijate qué palabras te autocompleta: esas son las que más se buscan. Usalas en tu título.</div>
     <div class="quiz" data-quiz="0">
-      <div class="q" data-i="0" data-correct="1"><p><b>1)</b> ¿Cuál título va a aparecer en más búsquedas?</p><div class="opt">"OFERTA!!! el mejor auricular del mundo 🔥"</div><div class="opt">"Auriculares Inalámbricos Bluetooth Con Micrófono"</div></div>
+      <div class="q" data-i="0" data-correct="1"><p><b>1)</b> ¿Cuál título va a aparecer en más búsquedas?</p><div class="opt">"OFERTA!!! el mejor auricular del mundo <svg class="ic" aria-hidden="true"><use href="#i-fire"></use></svg>"</div><div class="opt">"Auriculares Inalámbricos Bluetooth Con Micrófono"</div></div>
       <div class="q" data-i="1" data-correct="0"><p><b>2)</b> ¿Para qué sirve el SEO en el título?</p><div class="opt">Para que aparezcas cuando la gente busca lo que vendés</div><div class="opt">Para que tu título se vea más lindo y llamativo</div></div>
       <button class="btn" data-corregir="0">Corregir quiz</button>
       <div class="quiz-result" data-res="0"></div>
@@ -261,10 +266,10 @@
       <li>Foto borrosa o con fondo desordenado (tu cocina, la cama, etc.).</li>
     </ul>
     <div class="mock-pair">
-      <div><div class="ml-mock bad-mock"><div class="ml-mock-badge">✗ Así NO</div><div class="ml-mock-img">Foto oscura, fondo desordenado, con logo encima</div><div class="ml-mock-body"><div class="ml-mock-title">Producto</div></div></div><p class="mock-note">Da desconfianza. El comprador no distingue bien qué está comprando.</p></div>
-      <div><div class="ml-mock good-mock"><div class="ml-mock-badge">✓ Así SÍ</div><div class="ml-mock-img">Fondo blanco, buena luz, producto centrado y nítido</div><div class="ml-mock-body"><div class="ml-mock-title">Producto</div></div></div><p class="mock-note">Limpia y profesional. Transmite que el producto es real y que sos serio.</p></div>
+      <div><div class="ml-mock bad-mock"><div class="ml-mock-badge"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> Así NO</div><div class="ml-mock-img">Foto oscura, fondo desordenado, con logo encima</div><div class="ml-mock-body"><div class="ml-mock-title">Producto</div></div></div><p class="mock-note">Da desconfianza. El comprador no distingue bien qué está comprando.</p></div>
+      <div><div class="ml-mock good-mock"><div class="ml-mock-badge"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Así SÍ</div><div class="ml-mock-img">Fondo blanco, buena luz, producto centrado y nítido</div><div class="ml-mock-body"><div class="ml-mock-title">Producto</div></div></div><p class="mock-note">Limpia y profesional. Transmite que el producto es real y que sos serio.</p></div>
     </div>
-    <div class="dato">💡 <b>No necesitás un estudio:</b> con la cámara del celular, una cartulina blanca y luz de día cerca de una ventana tenés fotos más que decentes. La clave es la constancia: mismo fondo y estilo en todos tus productos genera identidad de marca.</div>
+    <div class="dato"><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> <b>No necesitás un estudio:</b> con la cámara del celular, una cartulina blanca y luz de día cerca de una ventana tenés fotos más que decentes. La clave es la constancia: mismo fondo y estilo en todos tus productos genera identidad de marca.</div>
     <div class="quiz" data-quiz="1">
       <div class="q" data-i="0" data-correct="0"><p><b>1)</b> ¿Cómo tiene que ser la foto principal?</p><div class="opt">Fondo blanco, buena luz y producto nítido</div><div class="opt">Con muchos textos y "OFERTA" encima para llamar la atención</div></div>
       <div class="q" data-i="1" data-correct="1"><p><b>2)</b> ¿Por qué conviene subir varias fotos?</p><div class="opt">Porque MercadoLibre obliga a subir mínimo 6</div><div class="opt">Porque generan confianza y muestran el producto real desde todos los ángulos</div></div>
@@ -290,8 +295,8 @@
     </ul>
     <div class="porque"><b>Beneficio vs característica:</b> "batería de 5000mAh" es una característica. "Te dura todo el día sin cargar" es el beneficio. La gente compra beneficios. Decií las dos cosas, pero empezá por el beneficio.</div>
     <div class="mock-pair">
-      <div><div class="ml-mock bad-mock"><div class="ml-mock-badge">✗ Así NO</div><div class="ml-mock-body" style="min-height:120px"><div class="ml-mock-title" style="text-transform:none;font-weight:400;color:#333">"Buen producto. Consultar stock. Envios a todo el pais."</div><p style="color:#999;font-size:11px;margin-top:8px">Atributos: vacíos</p></div></div><p class="mock-note">No dice nada útil y no completó la ficha. Genera preguntas y desconfianza.</p></div>
-      <div><div class="ml-mock good-mock"><div class="ml-mock-badge">✓ Así SÍ</div><div class="ml-mock-body" style="min-height:120px"><div class="ml-mock-title" style="color:#333">Auriculares que te duran todo el día. Incluye: auriculares + estuche + cable. Garantía 6 meses. Factura A/B.</div><p style="color:#00a650;font-size:11px;margin-top:8px">Atributos: completos ✓</p></div></div><p class="mock-note">Resuelve dudas, muestra beneficios y la ficha completa lo hace aparecer en más filtros.</p></div>
+      <div><div class="ml-mock bad-mock"><div class="ml-mock-badge"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> Así NO</div><div class="ml-mock-body" style="min-height:120px"><div class="ml-mock-title" style="text-transform:none;font-weight:400;color:#333">"Buen producto. Consultar stock. Envios a todo el pais."</div><p style="color:#999;font-size:11px;margin-top:8px">Atributos: vacíos</p></div></div><p class="mock-note">No dice nada útil y no completó la ficha. Genera preguntas y desconfianza.</p></div>
+      <div><div class="ml-mock good-mock"><div class="ml-mock-badge"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Así SÍ</div><div class="ml-mock-body" style="min-height:120px"><div class="ml-mock-title" style="color:#333">Auriculares que te duran todo el día. Incluye: auriculares + estuche + cable. Garantía 6 meses. Factura A/B.</div><p style="color:#00a650;font-size:11px;margin-top:8px">Atributos: completos <svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg></p></div></div><p class="mock-note">Resuelve dudas, muestra beneficios y la ficha completa lo hace aparecer en más filtros.</p></div>
     </div>
     <div class="quiz" data-quiz="2">
       <div class="q" data-i="0" data-correct="1"><p><b>1)</b> ¿Por qué conviene completar TODOS los atributos?</p><div class="opt">Porque queda más prolijo aunque nadie los mira</div><div class="opt">Porque MercadoLibre los usa en los filtros: si faltan, no aparecés en esas búsquedas</div></div>
@@ -307,14 +312,14 @@
     <p>Este tema asusta al principio, pero es más fácil de lo que parece. Te lo explico como si nunca hubieras vendido nada.</p>
     <h4>¿Qué es Mercado Envíos?</h4>
     <p><span class="term">Mercado Envíos<span class="tip">Es el sistema de envíos de MercadoLibre. Él organiza el correo, la etiqueta y el seguimiento. Vos casi no te preocupás por la logística.</span></span> es el sistema con el que MercadoLibre maneja los envíos por vos: genera la etiqueta, coordina el correo y le da seguimiento al comprador. Dentro de Mercado Envíos hay dos formas principales: <b>Flex</b> y <b>Full</b>.</p>
-    <h4>📦 Flex: lo enviás vos mismo</h4>
+    <h4><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Flex: lo enviás vos mismo</h4>
     <p>Con <span class="term">Flex<span class="tip"><b>Flex</b>: vos guardás el producto en tu casa y lo entregás vos (o un correo) el mismo día. Ideal si vendés poco volumen o productos grandes.</span></span>, el producto se queda en tu casa. Cuando se vende, vos lo empaquetás y lo entregás el mismo día (a veces en tu zona lo hacés vos en auto/moto y cobrás por eso).</p>
     <ul class="checklist">
       <li>Te conviene si: vendés pocas unidades, productos grandes/pesados, o querés controlar vos el stock.</li>
       <li>Ventaja: no pagás almacenamiento y tenés el producto a mano.</li>
       <li>Desventaja: depénde de vos empacar y despachar rápido todos los días.</li>
     </ul>
-    <h4>🏬 Full: MercadoLibre guarda y envía por vos</h4>
+    <h4><svg class="ic" aria-hidden="true"><use href="#i-store"></use></svg> Full: MercadoLibre guarda y envía por vos</h4>
     <p>Con <span class="term">Full<span class="tip"><b>Full</b>: mandás tu stock a un depósito de MercadoLibre. Ellos guardan, empacan y envían por vos. Ideal para vender mucho volumen sin ocuparte de la logística.</span></span>, vos mandás tu stock a un depósito de MercadoLibre. Cuando alguien compra, <b>ellos</b> lo empacan y lo mandan. Vos no tocás nada.</p>
     <ul class="checklist">
       <li>Te conviene si: vendés bastante volumen y productos chicos/livianos que rotan rápido.</li>
@@ -322,7 +327,7 @@
       <li>Desventaja: pagás por el almacenamiento, sobre todo si el producto se queda mucho tiempo sin venderse.</li>
     </ul>
     <div class="porque"><b>La regla fácil:</b> producto chico que vendés mucho y rápido → <b>Full</b>. Producto grande, pesado o que vendés de a poco → <b>Flex</b>. Igual no adivines: para eso tenés la calculadora Flex vs Full en el menú, que te lo dice con tus datos.</div>
-    <div class="dato">⚠️ <b>Muy importante si tu cuenta recién arranca:</b> cuando abrís una cuenta nueva en MercadoLibre, NO tenés Flex ni Full disponibles de una. Primero tenés que hacer <b>al menos 10 ventas usando Mercado Envíos</b> (el envío común por correo que te ofrece MercadoLibre) y <b>mantener una buena reputación</b> (entregar a tiempo, sin reclamos, responder rápido las preguntas). Recién cuando juntás esas primeras 10 ventas con buena reputación, MercadoLibre te habilita Flex y Full. Así que al principio es totalmente normal empezar solo con envío estándar por correo: no es un error tuyo, es cómo funciona para todas las cuentas nuevas. A medida que sumás esas ventas y cuidás tu reputación, se te van desbloqueando Flex y Full solos.</div>
+    <div class="dato"><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> <b>Muy importante si tu cuenta recién arranca:</b> cuando abrís una cuenta nueva en MercadoLibre, NO tenés Flex ni Full disponibles de una. Primero tenés que hacer <b>al menos 10 ventas usando Mercado Envíos</b> (el envío común por correo que te ofrece MercadoLibre) y <b>mantener una buena reputación</b> (entregar a tiempo, sin reclamos, responder rápido las preguntas). Recién cuando juntás esas primeras 10 ventas con buena reputación, MercadoLibre te habilita Flex y Full. Así que al principio es totalmente normal empezar solo con envío estándar por correo: no es un error tuyo, es cómo funciona para todas las cuentas nuevas. A medida que sumás esas ventas y cuidás tu reputación, se te van desbloqueando Flex y Full solos.</div>
     <div class="quiz" data-quiz="3">
       <div class="q" data-i="0" data-correct="0"><p><b>1)</b> ¿Qué es Full?</p><div class="opt">MercadoLibre guarda tu stock, empaca y envía por vos</div><div class="opt">Vos guardás todo en tu casa y lo entregás vos mismo</div></div>
       <div class="q" data-i="1" data-correct="1"><p><b>2)</b> Tengo una cuenta recién creada, ¿puedo usar Full ya mismo?</p><div class="opt">Sí, está disponible desde el primer día para todos</div><div class="opt">No: primero hay que hacer ventas y tener buena reputación para que se habilite</div></div>
@@ -344,9 +349,9 @@
     </ul>
     <h4>La reputación: tu activo más valioso</h4>
     <p>La <span class="term">reputación<span class="tip"><b>Reputación</b>: es el color (verde, amarillo, rojo) que MercadoLibre te asigna según cómo vendés: si entregás a tiempo, si hay reclamos, si cancelás ventas. Verde = confiable.</span></span> es ese termómetro de colores que MercadoLibre te pone. Verde es confiable, rojo es problemático. Se construye entregando a tiempo, respondiendo rápido y evitando reclamos y cancelaciones.</p>
-    <div class="dato">💡 <b>Por qué te conviene el verde:</b> MercadoLibre le muestra más tus publicaciones a los vendedores con buena reputación, y además desbloquea beneficios como MercadoLíder. Dos vendedores con el mismo producto y precio: gana el que tiene mejor reputación. Cuidala como oro.</div>
+    <div class="dato"><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> <b>Por qué te conviene el verde:</b> MercadoLibre le muestra más tus publicaciones a los vendedores con buena reputación, y además desbloquea beneficios como MercadoLíder. Dos vendedores con el mismo producto y precio: gana el que tiene mejor reputación. Cuidala como oro.</div>
     <div class="mock-pair">
-      <div><div class="ml-mock good-mock"><div class="ml-mock-badge">✓ Publicación completa</div><div class="ml-mock-img">📷 foto nítida fondo blanco</div><div class="ml-mock-body"><div class="ml-mock-cond">Nuevo | +50 vendidos</div><div class="ml-mock-title" style="color:#333">Auriculares Inalámbricos Bluetooth Con Micrófono</div><div class="ml-mock-price">$15.000</div><div class="ml-mock-cuotas">en 6 cuotas sin interés</div><div class="ml-mock-ship">Envío gratis - llega mañana</div><div class="ml-mock-rep"><span class="ml-stars">★★★★★</span> Vendedor con reputación verde</div></div></div><p class="mock-note">Así se ve una publicación que junta todo lo que aprendiste: título, foto, precio con cuotas, envío y reputación.</p></div>
+      <div><div class="ml-mock good-mock"><div class="ml-mock-badge"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Publicación completa</div><div class="ml-mock-img"><svg class="ic" aria-hidden="true"><use href="#i-camera"></use></svg> foto nítida fondo blanco</div><div class="ml-mock-body"><div class="ml-mock-cond">Nuevo | +50 vendidos</div><div class="ml-mock-title" style="color:#333">Auriculares Inalámbricos Bluetooth Con Micrófono</div><div class="ml-mock-price">$15.000</div><div class="ml-mock-cuotas">en 6 cuotas sin interés</div><div class="ml-mock-ship">Envío gratis - llega mañana</div><div class="ml-mock-rep"><span class="ml-stars"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg></span> Vendedor con reputación verde</div></div></div><p class="mock-note">Así se ve una publicación que junta todo lo que aprendiste: título, foto, precio con cuotas, envío y reputación.</p></div>
     </div>
     <div class="quiz" data-quiz="4">
       <div class="q" data-i="0" data-correct="1"><p><b>1)</b> ¿Qué conviene hacer con el precio?</p><div class="opt">Poner siempre el más barato de todos, cueste lo que cueste</div><div class="opt">Ubicarlo cerca de la competencia cuidando tu margen real</div></div>
@@ -356,7 +361,7 @@
     </div>
   </div>
 </section>
-      <div class="cta" id="ctaFinal" style="display:none"><h3>Terminaste el curso 🎉</h3><p>Ya sabés armar publicaciones que venden. El próximo paso: analizá una publicación real y traé stock que rote de verdad. Si querés que te asesoremos con la importación y el despachante, hablemos.</p><a class="btn" id="ctaAsesoria" href="https://matiasezequielpereira4340-sudo.github.io/InnovaSmart/">Quiero asesoría de importación</a><a class="btn sec" href="analizador.html">Analizar una publicación</a></div>
+      <div class="cta" id="ctaFinal" style="display:none"><h3>Terminaste el curso <svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg></h3><p>Ya sabés armar publicaciones que venden. El próximo paso: analizá una publicación real y traé stock que rote de verdad. Si querés que te asesoremos con la importación y el despachante, hablemos.</p><a class="btn" id="ctaAsesoria" href="https://matiasezequielpereira4340-sudo.github.io/InnovaSmart/">Quiero asesoría de importación</a><a class="btn sec" href="analizador.html">Analizar una publicación</a></div>
       <div class="final">MeLi Connect — Módulo educativo. Hecho para que cualquiera pueda empezar a vender bien.</div>
     </div>
 <script>(function(){var t=document.getElementById('mnavToggle'),n=document.getElementById('mnav');if(t&&n){t.addEventListener('click',function(){n.classList.toggle('show');});}})();</script>
@@ -466,5 +471,6 @@
     if(dm){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; } else { setTimeout(op, 1400); }
   })();
   </script>
+<script defer src="mc-ui.js?v=20260825"></script>
 </body>
 </html>

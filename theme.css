@@ -1,0 +1,965 @@
+/* ==========================================================================
+   MeLi Connect — Sistema visual
+   Identidad: amarillo MercadoLibre sobre negro cálido, todo lo demás neutro.
+   Se carga DESPUES de los estilos de cada pagina, asi puede corregirlos.
+   v20260825
+   ========================================================================== */
+
+/* Las tipografias se cargan con <link> en cada pagina (mas rapido que @import). */
+
+/* --------------------------------------------------------------------------
+   1. Tokens
+   -------------------------------------------------------------------------- */
+:root{
+  /* Fondos: negro cálido, no gris azulado */
+  --mc-bg:      #0A0A0B;
+  --mc-bg-2:    #0F0F11;
+  --mc-surface: #16161A;
+  --mc-surface-2:#1D1D22;
+  --mc-surface-3:#25252B;
+
+  /* Líneas */
+  --mc-line:    #26262C;
+  --mc-line-2:  #33333B;
+  --mc-line-hi: rgba(255,230,0,.22);
+
+  /* Tinta */
+  --mc-ink:     #F6F6F4;
+  --mc-ink-2:   #C6C6C2;
+  --mc-ink-3:   #92929A;
+  --mc-ink-4:   #64646C;
+
+  /* El acento: uno solo */
+  --mc-y:       #FFE600;
+  --mc-y-hi:    #FFF27A;
+  --mc-y-deep:  #FFB800;
+  --mc-y-dim:   #6E6300;
+  --mc-y-ink:   #14140A;
+  --mc-y-wash:  rgba(255,230,0,.09);
+
+  /* Semánticos — deliberadamente fuera de la familia amarilla */
+  --mc-ok:      #34D399;
+  --mc-ok-wash: rgba(52,211,153,.11);
+  --mc-warn:    #FF8A3D;
+  --mc-warn-wash:rgba(255,138,61,.11);
+  --mc-bad:     #FF5F57;
+  --mc-bad-wash:rgba(255,95,87,.11);
+
+  /* Elevación */
+  --mc-sh-1: 0 1px 2px rgba(0,0,0,.5);
+  --mc-sh-2: 0 4px 16px -6px rgba(0,0,0,.7);
+  --mc-sh-3: 0 22px 48px -20px rgba(0,0,0,.9);
+  --mc-sh-y: 0 14px 34px -14px rgba(255,230,0,.35);
+
+  /* Ritmo */
+  --mc-r-sm: 8px;
+  --mc-r:    12px;
+  --mc-r-lg: 18px;
+  --mc-r-pill: 999px;
+
+  --mc-ease: cubic-bezier(.22,.61,.36,1);
+  --mc-ease-soft: cubic-bezier(.16,.84,.44,1);
+
+  /* Tipografías */
+  --mc-display:"Bricolage Grotesque","Chivo","Helvetica Neue",Arial,sans-serif;
+  --mc-sans:   "Chivo","Helvetica Neue",Arial,sans-serif;
+  --mc-mono:   "Chivo Mono",ui-monospace,"SF Mono",Menlo,monospace;
+
+  /* Compatibilidad con los nombres viejos que ya usa el HTML */
+  --gold:#FFE600; --gold-2:#FFF27A; --gold-dim:#6E6300;
+  --gold-grad:linear-gradient(135deg,#FFF27A 0%,#FFE600 48%,#FFB800 100%);
+  --text:#F6F6F4; --text-dim:#92929A;
+  --panel:#16161A; --panel-2:#1D1D22; --line:rgba(255,230,0,.16);
+  --shadow-lg:0 22px 48px -20px rgba(0,0,0,.9);
+  --shadow-sm:0 4px 16px -6px rgba(0,0,0,.7);
+}
+
+/* --------------------------------------------------------------------------
+   2. Base tipográfica — el cambio que más se nota
+   -------------------------------------------------------------------------- */
+html{ -webkit-text-size-adjust:100%; }
+
+body,
+button, input, select, textarea, optgroup{
+  font-family:var(--mc-sans) !important;
+}
+
+body{
+  color:var(--mc-ink);
+  font-size:16px;
+  line-height:1.55;
+  letter-spacing:-.003em;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  font-synthesis-weight:none;
+}
+
+h1,h2,h3,h4,
+.login-title,.app-title,.market-title,.hub-h,.mc-hero-h,
+.hub-sechead h2,.results-header h2{
+  font-family:var(--mc-display) !important;
+  font-weight:800;
+  letter-spacing:-.028em;
+  line-height:1.06;
+  text-wrap:balance;
+}
+
+/* Jerarquía de color: el amarillo NO es el color de los títulos.
+   El amarillo es marca, acción y dato clave. Los títulos son tinta. */
+h1,h2,h3,
+.app-title,.market-title,.hub-h,.mc-hero-h,
+.hub-sechead h2,.results-header h2,.login-title{
+  color:var(--mc-ink) !important;
+}
+
+/* Numeros y datos: cifras de ancho fijo, siempre */
+.mc-num,.stat-value,.score-value,[data-num],
+table td,table th,
+input[type="number"]{
+  font-variant-numeric:tabular-nums;
+  font-feature-settings:"tnum" 1;
+}
+
+code,kbd,pre,samp,.mono{ font-family:var(--mc-mono) !important; }
+
+/* Etiquetas y eyebrows: acá sí manda el amarillo */
+.mc-eyebrow,.hub-sechead small,.mc-hero-tag,.hub-card-tag{
+  font-family:var(--mc-sans) !important;
+  font-weight:700;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  font-size:.68rem;
+}
+
+::selection{ background:var(--mc-y); color:var(--mc-y-ink); }
+
+/* --------------------------------------------------------------------------
+   3. Fondo de la aplicación
+   -------------------------------------------------------------------------- */
+body{
+  background:
+    radial-gradient(1100px 560px at 82% -12%, rgba(255,230,0,.055), transparent 62%),
+    radial-gradient(820px 460px at -8% 108%, rgba(255,230,0,.032), transparent 58%),
+    var(--mc-bg) !important;
+  background-attachment:fixed;
+}
+
+/* Grano finísimo: le saca el plano digital al negro */
+body::after{
+  content:""; position:fixed; inset:0; z-index:9998;
+  pointer-events:none; opacity:.035; mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size:180px 180px;
+}
+
+/* --------------------------------------------------------------------------
+   4. Barra de navegación
+   -------------------------------------------------------------------------- */
+.mc-nav{
+  background:rgba(10,10,11,.82) !important;
+  backdrop-filter:saturate(160%) blur(14px);
+  -webkit-backdrop-filter:saturate(160%) blur(14px);
+  border-bottom:1px solid var(--mc-line) !important;
+  box-shadow:0 1px 0 rgba(255,230,0,.07), var(--mc-sh-2);
+}
+/* Respaldo para navegadores sin backdrop-filter */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .mc-nav{ background:#0C0C0E !important; }
+}
+
+.mc-brand{
+  font-family:var(--mc-display) !important;
+  font-weight:800 !important;
+  letter-spacing:-.03em;
+  color:var(--mc-ink) !important;
+  display:inline-flex; align-items:center; gap:9px;
+}
+.mc-brand-ico{
+  width:28px; height:28px; border-radius:9px;
+  display:inline-flex; align-items:center; justify-content:center;
+  background:var(--gold-grad); color:var(--mc-y-ink);
+  box-shadow:0 2px 10px -2px rgba(255,230,0,.5);
+  flex:0 0 auto;
+}
+
+.mc-link{
+  font-weight:500 !important;
+  color:var(--mc-ink-2) !important;
+  border-radius:var(--mc-r-sm);
+  transition:color .18s var(--mc-ease), background .18s var(--mc-ease);
+}
+.mc-link:hover{ color:var(--mc-ink) !important; background:rgba(255,255,255,.045); }
+.mc-link.active{
+  color:var(--mc-y) !important;
+  background:var(--mc-y-wash);
+  font-weight:600 !important;
+}
+
+.mc-drop{
+  background:var(--mc-surface) !important;
+  border:1px solid var(--mc-line) !important;
+  border-radius:var(--mc-r) !important;
+  box-shadow:var(--mc-sh-3) !important;
+  padding:7px !important;
+  overflow:hidden;
+}
+.mc-sechead{
+  font-size:.63rem !important; font-weight:700 !important;
+  letter-spacing:.15em !important; text-transform:uppercase;
+  color:var(--mc-ink-4) !important;
+  padding:9px 11px 7px !important;
+}
+.mc-drop a{
+  border-radius:var(--mc-r-sm) !important;
+  transition:background .16s var(--mc-ease), transform .16s var(--mc-ease);
+}
+.mc-drop a:hover{ background:rgba(255,255,255,.05) !important; }
+.mc-drop a.active{ background:var(--mc-y-wash) !important; }
+.mc-drop a.active .mc-dt b{ color:var(--mc-y) !important; }
+.mc-dt b{ font-weight:600 !important; color:var(--mc-ink) !important; letter-spacing:-.008em; }
+.mc-dt span{ color:var(--mc-ink-3) !important; }
+.mc-di{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:30px; height:30px; border-radius:9px; flex:0 0 auto;
+  background:var(--mc-surface-2); border:1px solid var(--mc-line);
+  color:var(--mc-y);
+}
+.mc-drop a:hover .mc-di{ border-color:var(--mc-line-hi); }
+
+.mc-caret{ opacity:.5; font-size:.6em; }
+
+.mc-cta{
+  font-weight:600 !important;
+  border-radius:var(--mc-r-pill) !important;
+  transition:transform .35s var(--mc-ease-soft), box-shadow .35s var(--mc-ease-soft);
+}
+.mc-cta:hover{ transform:translateY(-2px); }
+
+.mc-user{
+  background:var(--mc-surface-2); border:1px solid var(--mc-line);
+  border-radius:var(--mc-r-pill); padding:3px 12px 3px 3px;
+}
+.mc-avatar{ background:var(--gold-grad) !important; color:var(--mc-y-ink) !important; font-weight:700; }
+.mc-uname{ color:var(--mc-ink-2) !important; font-weight:500; }
+.mc-logout{
+  background:transparent !important; border:1px solid var(--mc-line) !important;
+  color:var(--mc-ink-3) !important; border-radius:var(--mc-r-pill) !important;
+  font-weight:500 !important; transition:all .18s var(--mc-ease);
+}
+.mc-logout:hover{ color:var(--mc-ink) !important; border-color:var(--mc-line-2) !important; }
+
+.mc-toggle{
+  background:var(--mc-surface-2) !important; border:1px solid var(--mc-line) !important;
+  color:var(--mc-ink) !important; border-radius:10px !important;
+}
+
+/* --------------------------------------------------------------------------
+   5. Botones
+   -------------------------------------------------------------------------- */
+.btn-login,.btn-analyze,.btn-mr-analyze,.btn-unlock,.btn-send,
+.hub-btn.primary,.btn-primary,.btn-calc,.btn-gold{
+  font-family:var(--mc-sans) !important;
+  font-weight:700 !important;
+  letter-spacing:-.008em !important;
+  border-radius:var(--mc-r) !important;
+  border:0 !important;
+  background:var(--gold-grad) !important;
+  color:var(--mc-y-ink) !important;
+  box-shadow:0 2px 0 rgba(0,0,0,.35), var(--mc-sh-y);
+  transition:transform .34s var(--mc-ease-soft), box-shadow .34s var(--mc-ease-soft), filter .2s;
+  cursor:pointer;
+}
+.btn-login:hover,.btn-analyze:hover,.btn-mr-analyze:hover,.btn-unlock:hover,
+.btn-send:hover,.hub-btn.primary:hover,.btn-primary:hover,.btn-calc:hover,.btn-gold:hover{
+  transform:translateY(-3px);
+  box-shadow:0 4px 0 rgba(0,0,0,.35), 0 26px 52px -18px rgba(255,230,0,.5);
+  filter:saturate(112%);
+}
+.btn-login:active,.btn-analyze:active,.btn-mr-analyze:active,.hub-btn.primary:active{
+  transform:translateY(-1px); transition-duration:.1s;
+}
+
+.hub-btn.ghost,.btn-outline-dim,.btn-secondary{
+  border:1px solid var(--mc-line-2) !important;
+  background:rgba(255,255,255,.02) !important;
+  color:var(--mc-ink) !important;
+  border-radius:var(--mc-r) !important;
+  font-weight:600 !important;
+  transition:border-color .2s var(--mc-ease), background .2s var(--mc-ease), transform .3s var(--mc-ease-soft);
+}
+.hub-btn.ghost:hover,.btn-outline-dim:hover,.btn-secondary:hover{
+  border-color:var(--mc-line-hi) !important;
+  background:rgba(255,230,0,.06) !important;
+  transform:translateY(-2px);
+}
+
+button:focus-visible,a:focus-visible,input:focus-visible,
+select:focus-visible,textarea:focus-visible{
+  outline:2px solid var(--mc-y);
+  outline-offset:2px;
+  border-radius:6px;
+}
+
+/* --------------------------------------------------------------------------
+   6. Formularios
+   -------------------------------------------------------------------------- */
+input[type="text"],input[type="email"],input[type="password"],
+input[type="number"],input[type="url"],input[type="search"],
+select,textarea{
+  background:var(--mc-surface) !important;
+  border:1px solid var(--mc-line) !important;
+  color:var(--mc-ink) !important;
+  border-radius:var(--mc-r-sm) !important;
+  transition:border-color .18s var(--mc-ease), box-shadow .18s var(--mc-ease), background .18s;
+}
+input:hover,select:hover,textarea:hover{ border-color:var(--mc-line-2) !important; }
+input:focus,select:focus,textarea:focus{
+  border-color:var(--mc-y) !important;
+  background:var(--mc-surface-2) !important;
+  box-shadow:0 0 0 3px rgba(255,230,0,.14) !important;
+  outline:none !important;
+}
+::placeholder{ color:var(--mc-ink-4) !important; opacity:1; }
+
+label,.form-group label,.select-group label{
+  color:var(--mc-ink-3) !important;
+  font-weight:500 !important;
+  letter-spacing:.005em;
+}
+
+/* --------------------------------------------------------------------------
+   7. Superficies: tarjetas y paneles
+   -------------------------------------------------------------------------- */
+.config-card,.chat-section,.contact-section,.history-panel,
+.mr-search-box,.example-preview,.step-box,.card,.panel,
+.hub-card,.tool-card,.login-box{
+  background:var(--mc-surface) !important;
+  border:1px solid var(--mc-line) !important;
+  border-radius:var(--mc-r-lg) !important;
+  box-shadow:var(--mc-sh-2);
+}
+
+.hub-card,.tool-card{
+  overflow:hidden;
+  transition:transform .4s var(--mc-ease-soft), border-color .3s var(--mc-ease), box-shadow .4s var(--mc-ease-soft);
+}
+.hub-card:hover,.tool-card:hover{
+  transform:translateY(-6px);
+  border-color:var(--mc-line-hi) !important;
+  box-shadow:var(--mc-sh-3), 0 0 0 1px rgba(255,230,0,.07);
+}
+.hub-card-body h3,.tool-card h3{
+  font-family:var(--mc-display) !important;
+  font-weight:700 !important; letter-spacing:-.02em;
+  color:var(--mc-ink) !important;
+}
+.hub-card-body p,.tool-card p{ color:var(--mc-ink-3) !important; }
+.hub-card-go{
+  color:var(--mc-y) !important; font-weight:700 !important;
+  letter-spacing:.01em;
+}
+.hub-card-tag{
+  background:var(--mc-y) !important; color:var(--mc-y-ink) !important;
+  border-radius:var(--mc-r-pill) !important; font-weight:800 !important;
+  box-shadow:0 4px 14px -4px rgba(255,230,0,.6);
+}
+
+.hub-sechead h2{ font-size:clamp(1.05rem,2.4vw,1.32rem) !important; }
+.hub-sechead small{ color:var(--mc-ink-4) !important; letter-spacing:.02em; text-transform:none; font-size:.8rem; font-weight:400; }
+.hub-sechead .bar{ background:var(--mc-y) !important; border-radius:2px; }
+
+/* --------------------------------------------------------------------------
+   8. Hero
+   -------------------------------------------------------------------------- */
+.mc-hero,.hub-hero{
+  position:relative; overflow:hidden;
+  background:
+    radial-gradient(760px 380px at var(--mx,70%) var(--my,0%), rgba(255,230,0,.13), transparent 66%),
+    linear-gradient(168deg,#141410 0%,#0C0C0D 58%) !important;
+  border:1px solid var(--mc-line) !important;
+  border-radius:var(--mc-r-lg) !important;
+}
+.mc-hero-h,.hub-h{
+  font-size:clamp(1.9rem,5.2vw,3.35rem) !important;
+  letter-spacing:-.035em !important;
+  line-height:1.03 !important;
+}
+.mc-hero-h em,.hub-h em{
+  font-style:normal;
+  color:var(--mc-y);
+  -webkit-text-fill-color:var(--mc-y);
+}
+.mc-hero-p,.hub-hero p{ color:var(--mc-ink-2) !important; font-size:clamp(.95rem,1.7vw,1.06rem) !important; }
+.mc-hero-tag{
+  display:inline-flex; align-items:center; gap:7px;
+  background:var(--mc-y-wash) !important;
+  border:1px solid var(--mc-line-hi) !important;
+  color:var(--mc-y) !important;
+  border-radius:var(--mc-r-pill) !important;
+  padding:5px 13px !important;
+}
+
+/* --------------------------------------------------------------------------
+   9. Estados semánticos
+   -------------------------------------------------------------------------- */
+.is-ok,.badge-ok{ color:var(--mc-ok) !important; background:var(--mc-ok-wash); }
+.is-warn,.badge-warn{ color:var(--mc-warn) !important; background:var(--mc-warn-wash); }
+.is-bad,.badge-bad{ color:var(--mc-bad) !important; background:var(--mc-bad-wash); }
+
+/* --------------------------------------------------------------------------
+   10. Íconos SVG
+   -------------------------------------------------------------------------- */
+.ic{
+  width:1.05em; height:1.05em;
+  display:inline-block; vertical-align:-.16em;
+  fill:none; stroke:currentColor;
+  stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;
+  flex:0 0 auto;
+}
+.mc-di .ic{ width:16px; height:16px; }
+.mc-brand-ico .ic{ width:16px; height:16px; stroke-width:2.1; }
+.ic-solid{ fill:currentColor; stroke:none; }
+
+/* --------------------------------------------------------------------------
+   11. Aparición al hacer scroll
+   -------------------------------------------------------------------------- */
+.mc-reveal{
+  opacity:0; transform:translateY(16px);
+  transition:opacity .6s var(--mc-ease), transform .6s var(--mc-ease);
+}
+.mc-reveal.is-in{ opacity:1; transform:none; }
+
+/* --------------------------------------------------------------------------
+   12. Barra de desplazamiento
+   -------------------------------------------------------------------------- */
+*{ scrollbar-color:var(--mc-line-2) transparent; scrollbar-width:thin; }
+::-webkit-scrollbar{ width:11px; height:11px; }
+::-webkit-scrollbar-track{ background:transparent; }
+::-webkit-scrollbar-thumb{
+  background:var(--mc-line-2); border-radius:99px;
+  border:3px solid var(--mc-bg);
+}
+::-webkit-scrollbar-thumb:hover{ background:#45454F; }
+
+/* --------------------------------------------------------------------------
+   13. Móvil
+   -------------------------------------------------------------------------- */
+@media (max-width:720px){
+  body{ font-size:15.5px; }
+  .mc-hero-h,.hub-h{ letter-spacing:-.03em !important; }
+  .hub-card:hover,.tool-card:hover{ transform:none; }
+}
+
+/* --------------------------------------------------------------------------
+   14. Movimiento reducido — solo se apagan los efectos intrusivos
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion:reduce){
+  .mc-reveal{ opacity:1 !important; transform:none !important; transition:none !important; }
+  .hub-card:hover,.tool-card:hover{ transform:none; }
+  body::after{ display:none; }
+  *{ scroll-behavior:auto !important; }
+}
+
+/* --------------------------------------------------------------------------
+   15. Ajuste fino de los iconos segun donde viven
+   -------------------------------------------------------------------------- */
+.mc-link .ic{ width:17px; height:17px; opacity:.9; }
+.mc-link.active .ic{ color:var(--mc-y); opacity:1; }
+.mc-brand .ic{ color:var(--mc-y-ink); }
+
+.hub-sechead .ic,.hub-sechead h2 .ic{
+  width:19px; height:19px; color:var(--mc-y);
+  stroke-width:1.9; vertical-align:-.18em; margin-right:2px;
+}
+.hub-card-tag .ic{ width:12px; height:12px; stroke-width:2.4; }
+
+.btn-login .ic,.btn-analyze .ic,.btn-mr-analyze .ic,
+.hub-btn .ic,.mc-cta .ic,.mc-hero-cta .ic{
+  width:16px; height:16px; stroke-width:2;
+}
+
+h1 .ic,h2 .ic,h3 .ic{ color:var(--mc-y); stroke-width:1.9; margin-right:.12em; }
+
+/* El punto "en vivo" es un estado, no marca: verde y con latido */
+.mc-hero-tag .ic,.hub-hero-tag .ic{
+  width:9px; height:9px; color:var(--mc-ok);
+  animation:mcPulse 2s ease-in-out infinite;
+}
+@keyframes mcPulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
+
+/* --------------------------------------------------------------------------
+   16. El boton de asesoria: chip oscuro con punto de WhatsApp
+       (el verde saturado peleaba con el amarillo de marca)
+   -------------------------------------------------------------------------- */
+.mc-cta{
+  background:var(--mc-surface-2) !important;
+  border:1px solid var(--mc-line-2) !important;
+  color:var(--mc-ink) !important;
+  padding:7px 15px 7px 13px !important;
+  display:inline-flex !important; align-items:center; gap:8px;
+  box-shadow:none !important;
+}
+.mc-cta:hover{
+  border-color:rgba(37,211,102,.55) !important;
+  background:rgba(37,211,102,.08) !important;
+  transform:translateY(-2px);
+}
+.mc-cta .ic{ color:#25D366; }
+.mc-pulse{
+  width:7px; height:7px; border-radius:50%; background:#25D366 !important;
+  box-shadow:0 0 0 0 rgba(37,211,102,.6);
+  animation:mcRing 2.2s ease-out infinite;
+  top:auto !important; right:auto !important; position:relative !important;
+}
+@keyframes mcRing{
+  0%{box-shadow:0 0 0 0 rgba(37,211,102,.55)}
+  70%{box-shadow:0 0 0 7px rgba(37,211,102,0)}
+  100%{box-shadow:0 0 0 0 rgba(37,211,102,0)}
+}
+
+/* --------------------------------------------------------------------------
+   17. Hub: encabezados de seccion y hero
+   -------------------------------------------------------------------------- */
+.hub-hero{
+  border-color:var(--mc-line-hi) !important;
+  box-shadow:var(--mc-sh-3) !important;
+}
+.hub-hero h1{
+  font-family:var(--mc-display) !important;
+  font-weight:800 !important;
+  font-size:clamp(1.85rem,4.6vw,3.05rem) !important;
+  letter-spacing:-.035em !important;
+  line-height:1.04 !important;
+  color:var(--mc-ink) !important;
+}
+.hub-hero h1 em,.hub-hero h1 b,.hub-hero h1 span.hl{
+  font-style:normal; font-weight:800;
+  color:var(--mc-y); -webkit-text-fill-color:var(--mc-y);
+}
+.hub-hero-tag{
+  color:var(--mc-y) !important;
+  letter-spacing:.13em !important;
+  font-weight:700 !important;
+}
+.hub-sechead h2{
+  text-transform:uppercase;
+  letter-spacing:.06em !important;
+  font-size:.98rem !important;
+  font-weight:700 !important;
+  display:inline-flex; align-items:center; gap:9px;
+}
+
+/* --------------------------------------------------------------------------
+   18. Entrada: login y registro
+       Dos columnas en escritorio (argumento + formulario), una sola en movil.
+   -------------------------------------------------------------------------- */
+#loginScreen,#registerScreen{
+  align-items:center !important;
+  justify-content:center !important;
+  background:none !important;
+  padding:28px 20px;
+}
+
+.auth{
+  width:100%; max-width:1060px;
+  display:grid; grid-template-columns:1fr; gap:30px;
+  align-items:center;
+}
+@media (min-width:940px){
+  .auth{ grid-template-columns:1.06fr .94fr; gap:60px; }
+}
+
+/* --- columna del argumento --- */
+.auth-brand{ display:flex; flex-direction:column; gap:20px; min-width:0; }
+.auth-logo{
+  display:inline-flex; align-items:center; gap:10px;
+  font-family:var(--mc-display); font-weight:800; font-size:1.18rem;
+  letter-spacing:-.03em; color:var(--mc-ink); text-decoration:none;
+  align-self:flex-start;
+}
+.auth-h{
+  margin:0;
+  font-family:var(--mc-display);
+  font-size:clamp(2rem,5.4vw,3.4rem);
+  font-weight:800; line-height:1.02; letter-spacing:-.038em;
+  color:var(--mc-ink); text-wrap:balance;
+}
+.auth-h em{ font-style:normal; color:var(--mc-y); }
+.auth-p{
+  margin:0; max-width:46ch;
+  color:var(--mc-ink-2); font-size:1.02rem; line-height:1.6;
+}
+.auth-points{
+  list-style:none; margin:6px 0 0; padding:0;
+  display:flex; flex-direction:column; gap:14px;
+}
+.auth-points li{ display:flex; gap:13px; align-items:flex-start; }
+.auth-ic{
+  width:34px; height:34px; flex:0 0 auto; border-radius:10px;
+  display:inline-flex; align-items:center; justify-content:center;
+  background:var(--mc-y-wash); border:1px solid var(--mc-line-hi);
+  color:var(--mc-y);
+}
+.auth-ic .ic{ width:17px; height:17px; }
+.auth-points li > span:last-child{
+  display:flex; flex-direction:column; gap:1px;
+  font-size:.9rem; color:var(--mc-ink-3); line-height:1.45;
+}
+.auth-points b{ color:var(--mc-ink); font-weight:600; font-size:.95rem; }
+.auth-foot{
+  margin:8px 0 0; font-size:.76rem; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--mc-ink-4); font-weight:500;
+}
+
+/* --- la tarjeta del formulario --- */
+.auth-card{
+  background:var(--mc-surface);
+  border:1px solid var(--mc-line);
+  border-radius:20px;
+  padding:34px 30px 30px;
+  box-shadow:var(--mc-sh-3);
+  display:flex; flex-direction:column; gap:14px;
+  min-width:0;
+}
+.auth-card-head{ display:flex; flex-direction:column; gap:5px; margin-bottom:6px; }
+.auth-card-head h2{
+  margin:0; font-family:var(--mc-display); font-size:1.34rem;
+  font-weight:700; letter-spacing:-.022em; color:var(--mc-ink) !important;
+}
+.auth-card-head p{ margin:0; font-size:.88rem; color:var(--mc-ink-3); line-height:1.5; }
+
+/* Campos con etiqueta flotante */
+.fld{ position:relative; display:flex; flex-direction:column; }
+.fld input{
+  width:100%;
+  padding:22px 44px 9px 14px !important;
+  font-size:.98rem !important;
+  border-radius:11px !important;
+  background:var(--mc-bg-2) !important;
+}
+.fld label{
+  position:absolute; left:14px; top:15px;
+  pointer-events:none; color:var(--mc-ink-4) !important;
+  font-size:.95rem !important; font-weight:400 !important;
+  transition:top .18s var(--mc-ease), font-size .18s var(--mc-ease),
+             letter-spacing .18s var(--mc-ease), color .18s var(--mc-ease);
+  margin:0 !important;
+}
+.fld input:focus + label,
+.fld input:not(:placeholder-shown) + label{
+  top:7px; font-size:.63rem !important; letter-spacing:.13em;
+  text-transform:uppercase; font-weight:600 !important;
+  color:var(--mc-ink-3) !important;
+}
+.fld input:focus + label{ color:var(--mc-y) !important; }
+.fld-hint{ margin-top:6px; font-size:.76rem; color:var(--mc-ink-4); }
+
+.eye-toggle{
+  position:absolute !important; right:6px; top:9px; bottom:auto !important;
+  width:32px; height:32px; border-radius:9px;
+  display:flex; align-items:center; justify-content:center;
+  background:transparent; border:0; cursor:pointer;
+  color:var(--mc-ink-4) !important; font-size:0;
+  transition:color .16s var(--mc-ease), background .16s var(--mc-ease);
+}
+.eye-toggle:hover{ color:var(--mc-ink-2) !important; background:rgba(255,255,255,.05); }
+.eye-toggle.is-on{ color:var(--mc-y) !important; }
+.eye-toggle .ic{ width:17px; height:17px; }
+
+.auth-card .btn-login{
+  width:100%; padding:14px !important; font-size:1rem !important; margin-top:4px;
+}
+
+.login-error{ color:var(--mc-bad) !important; font-size:.85rem; min-height:0; margin:0 !important; }
+.login-error:empty{ display:none; }
+.login-ok{
+  color:var(--mc-ok) !important; font-size:.85rem;
+  background:var(--mc-ok-wash); border:1px solid rgba(52,211,153,.28);
+  border-radius:10px; padding:10px 12px; line-height:1.45;
+}
+
+.auth-sep{
+  display:flex; align-items:center; gap:12px;
+  color:var(--mc-ink-4); font-size:.74rem; letter-spacing:.1em; text-transform:uppercase;
+  margin:2px 0;
+}
+.auth-sep::before,.auth-sep::after{
+  content:""; flex:1; height:1px; background:var(--mc-line);
+}
+.auth-alt{
+  width:100%; padding:12px; border-radius:11px;
+  background:transparent; border:1px solid var(--mc-line-2);
+  color:var(--mc-ink) !important; font-weight:600; font-size:.94rem;
+  cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  transition:border-color .2s var(--mc-ease), background .2s var(--mc-ease), transform .3s var(--mc-ease-soft);
+}
+.auth-alt:hover{
+  border-color:var(--mc-line-hi); background:var(--mc-y-wash); transform:translateY(-2px);
+}
+.auth-alt .ic{ width:16px; height:16px; color:var(--mc-ink-3); }
+
+.auth-switch{
+  margin:6px 0 0; text-align:center; font-size:.88rem; color:var(--mc-ink-3);
+}
+.auth-switch a{
+  color:var(--mc-y); font-weight:600; text-decoration:none;
+  border-bottom:1px solid rgba(255,230,0,.32); padding-bottom:1px;
+}
+.auth-switch a:hover{ border-bottom-color:var(--mc-y); }
+
+@media (max-width:939px){
+  .auth-h{ font-size:clamp(1.75rem,7.5vw,2.3rem); }
+  .auth-p{ font-size:.96rem; }
+  .auth-points{ gap:11px; }
+  .auth-foot{ display:none; }
+  .auth-card{ padding:26px 20px 22px; border-radius:18px; }
+}
+
+/* --------------------------------------------------------------------------
+   19. Hero del hub a dos columnas, con una muestra de resultado
+   -------------------------------------------------------------------------- */
+.hub-hero{
+  display:grid; grid-template-columns:1fr; gap:26px; align-items:center;
+  padding:clamp(26px,4vw,44px) clamp(20px,3.4vw,40px) !important;
+}
+@media (min-width:960px){
+  .hub-hero{ grid-template-columns:1.08fr .92fr; gap:44px; }
+}
+.hub-hero-copy{ display:flex; flex-direction:column; gap:14px; min-width:0; position:relative; z-index:1; }
+.hub-hero-copy p{ margin:0; max-width:48ch; }
+.hub-hero-actions{ display:flex; flex-wrap:wrap; gap:11px; margin-top:6px; }
+
+.hub-hero-demo{ position:relative; z-index:1; display:flex; flex-direction:column; gap:9px; min-width:0; }
+.hhd-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.hhd-label{
+  font-size:.65rem; font-weight:700; letter-spacing:.15em; text-transform:uppercase;
+  color:var(--mc-ink-4);
+}
+.hhd-demo{
+  font-size:.62rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--mc-ink-3); background:rgba(255,255,255,.06);
+  border:1px solid var(--mc-line); border-radius:var(--mc-r-pill); padding:3px 9px;
+}
+.hhd-card{
+  background:linear-gradient(168deg,rgba(255,230,0,.05),transparent 46%), var(--mc-bg-2);
+  border:1px solid var(--mc-line-2);
+  border-radius:16px; padding:16px 16px 14px;
+  box-shadow:var(--mc-sh-3);
+  display:flex; flex-direction:column; gap:13px;
+}
+.hhd-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.hhd-name{ font-weight:600; color:var(--mc-ink); font-size:1rem; letter-spacing:-.012em; }
+.hhd-meta{ font-size:.76rem; color:var(--mc-ink-4); margin-top:2px; }
+.hhd-pick{
+  display:inline-flex; align-items:center; gap:5px; white-space:nowrap;
+  background:var(--mc-y); color:var(--mc-y-ink);
+  font-size:.66rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
+  padding:4px 9px; border-radius:var(--mc-r-pill);
+  box-shadow:0 5px 16px -5px rgba(255,230,0,.7);
+}
+.hhd-pick .ic{ width:11px; height:11px; stroke-width:2.4; }
+.hhd-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:7px; }
+@media (max-width:420px){ .hhd-grid{ grid-template-columns:repeat(2,1fr); } }
+.hhd-kpi{
+  background:var(--mc-surface); border:1px solid var(--mc-line);
+  border-radius:10px; padding:9px 6px; text-align:center;
+  display:flex; flex-direction:column; gap:1px;
+}
+.hhd-kpi b{ font-size:1.08rem; font-weight:800; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+.hhd-kpi span{ font-size:.65rem; color:var(--mc-ink-4); letter-spacing:.05em; text-transform:uppercase; }
+.hhd-kpi.is-good b{ color:var(--mc-ok); }
+.hhd-kpi.is-good{ border-color:rgba(52,211,153,.26); background:var(--mc-ok-wash); }
+.hhd-kpi.is-accent b{ color:var(--mc-y); }
+.hhd-kpi.is-accent{ border-color:var(--mc-line-hi); background:var(--mc-y-wash); }
+.hhd-bar{ height:5px; border-radius:99px; background:var(--mc-surface-3); overflow:hidden; }
+.hhd-bar i{ display:block; height:100%; border-radius:99px; background:var(--gold-grad); }
+.hhd-foot{ font-size:.72rem; color:var(--mc-ink-4); line-height:1.45; }
+
+@media (max-width:959px){
+  .hub-hero::after{ display:none; }
+}
+
+/* --------------------------------------------------------------------------
+   20. Correcciones finas
+   -------------------------------------------------------------------------- */
+/* Las etiquetas tipo pastilla se ajustan a su texto, no al ancho del bloque */
+.hub-hero-tag,.mc-hero-tag{ align-self:flex-start; width:auto; max-width:100%; }
+
+/* El punto de WhatsApp acompaña, no compite */
+.mc-pulse{ width:6px; height:6px; opacity:.9; margin-left:1px; }
+
+/* Titulares del hero: que el amarillo no arrastre toda la línea */
+.hub-hero h1 em,.mc-hero-h em{ display:inline; }
+
+/* --------------------------------------------------------------------------
+   21. La barra en pantallas chicas
+       Antes se desbordaba a lo ancho y aparecia scroll horizontal.
+   -------------------------------------------------------------------------- */
+/* Sin overflow-x:hidden aca: rompe position:sticky de la barra.
+   El desborde se corrige en el origen, mas abajo. */
+
+@media (max-width:860px){
+  .mc-nav{ gap:10px !important; padding-left:12px !important; padding-right:12px !important; }
+  .mc-right{ gap:8px !important; min-width:0; flex:0 1 auto; }
+  .mc-brand{ font-size:1rem !important; }
+}
+
+@media (max-width:640px){
+  /* La asesoria queda como boton redondo de icono */
+  .mc-cta{
+    font-size:0 !important; gap:0 !important;
+    width:36px; height:36px; padding:0 !important;
+    justify-content:center; border-radius:50% !important; flex:0 0 auto;
+  }
+  .mc-cta .ic{ width:17px; height:17px; }
+  .mc-pulse{ display:none !important; }
+
+  .mc-uname{ display:none !important; }
+  .mc-user{ padding:0 !important; border:0 !important; background:transparent !important; flex:0 0 auto; }
+  .mc-avatar{ width:32px !important; height:32px !important; }
+
+  .mc-logout{ padding:6px 11px !important; font-size:.8rem !important; flex:0 0 auto; }
+  .mc-toggle{ width:36px; height:36px; flex:0 0 auto; }
+  .mc-brand span:not(.mc-brand-ico){ font-size:.98rem; }
+}
+
+@media (max-width:400px){
+  /* En lo mas angosto, "Salir" vive dentro del menu desplegable */
+  .mc-logout{ display:none !important; }
+  .mc-brand{ font-size:.94rem !important; }
+}
+
+/* Nada dentro de la app puede empujar la pagina a lo ancho */
+.app-content,.market-content,.hub,.wrap,.container,
+.config-card,.chat-section,.mr-search-box,.history-panel{
+  max-width:100%; min-width:0;
+}
+table{ max-width:100%; }
+.table-wrap,.tabla-scroll{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+
+/* --------------------------------------------------------------------------
+   22. Desbordes puntuales en movil (venian de antes)
+   -------------------------------------------------------------------------- */
+
+/* educacion.html — los globos de ayuda se salian de la pantalla */
+@media (max-width:860px){
+  .tip{
+    left:50% !important; right:auto !important;
+    transform:translateX(-50%);
+    width:min(260px, calc(100vw - 32px)) !important;
+    max-width:calc(100vw - 32px);
+  }
+}
+
+/* admin.html — tarjetas, filtros y tabla en pantallas chicas */
+.stats{ grid-template-columns:repeat(auto-fit,minmax(150px,1fr)) !important; }
+@media (max-width:520px){
+  .stats{ grid-template-columns:repeat(2,1fr) !important; gap:10px !important; }
+  .stat-card{ padding:14px !important; }
+}
+.filters,.filter-row,.admin-actions{ flex-wrap:wrap !important; }
+.field{ min-width:0; }
+
+/* Una tabla ancha se desplaza dentro de su caja, nunca empuja la pagina */
+.table-wrap{ overflow-x:auto !important; overflow-y:visible !important; -webkit-overflow-scrolling:touch; }
+.table-wrap table{ min-width:520px; }
+
+/* --------------------------------------------------------------------------
+   23. Tablas
+   -------------------------------------------------------------------------- */
+table th{
+  font-size:.7rem !important; font-weight:700 !important;
+  letter-spacing:.09em; text-transform:uppercase;
+  color:var(--mc-ink-4) !important;
+  background:var(--mc-bg-2) !important;
+  border-bottom:1px solid var(--mc-line) !important;
+}
+table td{ border-bottom:1px solid var(--mc-line) !important; color:var(--mc-ink-2) !important; }
+table tbody tr:hover td{ background:rgba(255,255,255,.025) !important; }
+
+/* --------------------------------------------------------------------------
+   24. Calculador de margen
+   -------------------------------------------------------------------------- */
+/* Traer productos de MeLi: accion secundaria, no un cartel amarillo entero */
+.mc-import-btn{
+  width:100%; margin-bottom:16px;
+  display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  padding:13px 16px; font-size:.95rem; font-weight:600;
+  background:var(--mc-surface) !important;
+  color:var(--mc-ink) !important;
+  border:1px solid var(--mc-line-hi) !important;
+  border-radius:var(--mc-r) !important;
+  cursor:pointer;
+  transition:background .2s var(--mc-ease), border-color .2s var(--mc-ease), transform .3s var(--mc-ease-soft);
+}
+.mc-import-btn:hover{
+  background:var(--mc-y-wash) !important;
+  border-color:var(--mc-y) !important;
+  transform:translateY(-2px);
+}
+.mc-import-btn .ic{ width:17px; height:17px; color:var(--mc-y); }
+.mc-import-btn[disabled]{ opacity:.55; cursor:progress; transform:none; }
+
+/* Estado elegido: borde y texto amarillos, nunca un relleno mostaza */
+.cuota-btn.active,.chip.active,.opt.active,.tab.active{
+  border-color:var(--mc-y) !important;
+  background:var(--mc-y-wash) !important;
+  box-shadow:inset 0 0 0 1px rgba(255,230,0,.18);
+}
+.cuota-btn.active .cuota-num,.chip.active{ color:var(--mc-y) !important; }
+.cuota-btn{
+  border-radius:var(--mc-r-sm) !important;
+  transition:border-color .18s var(--mc-ease), background .18s var(--mc-ease) !important;
+}
+.cuota-btn:hover{ border-color:var(--mc-line-2) !important; }
+.cuotas-grid{ grid-template-columns:repeat(auto-fit,minmax(112px,1fr)) !important; gap:8px !important; }
+
+/* Titulos de seccion: etiqueta amarilla, no titular */
+.section-title,.sec-title,.card-title{
+  font-family:var(--mc-sans) !important;
+  font-weight:700 !important;
+  letter-spacing:.09em !important;
+  display:flex; align-items:center; gap:8px;
+}
+.section-title .ic,.sec-title .ic,.card-title .ic{ width:16px; height:16px; }
+
+/* --------------------------------------------------------------------------
+   25. Conectar cuenta y tarjetas de herramientas
+   -------------------------------------------------------------------------- */
+/* Los iconos de las tarjetas heredaban el azul de enlace del navegador */
+.tool-card .ic,.tool-ic .ic,.tool-card svg.ic{ color:var(--mc-y) !important; }
+.tool-card{ text-decoration:none; }
+.tool-card h3,.tool-card h4{ color:var(--mc-ink) !important; }
+
+.badge,.pill,.tag-libre{
+  font-size:.63rem !important; font-weight:700 !important;
+  letter-spacing:.1em !important; text-transform:uppercase;
+  border-radius:var(--mc-r-pill) !important;
+}
+
+/* Los pasos numerados: circulo amarillo, numero oscuro */
+.step-num,.paso-num,.num-badge{
+  background:var(--gold-grad) !important; color:var(--mc-y-ink) !important;
+  font-weight:800 !important; border:0 !important;
+}
+
+/* La nota de seguridad, discreta */
+.secure-note,.oauth-note{ color:var(--mc-ink-4) !important; }
+.secure-note .ic,.oauth-note .ic{ width:13px; height:13px; color:var(--mc-ok); }
+
+/* Globo de asesoria: el icono toma el color del boton, no el azul de enlace */
+.mc-bl-btn{ color:#0B1F12 !important; }
+.mc-bl-btn .ic{ color:currentColor !important; }
+.mc-balloon{
+  background:var(--mc-surface) !important;
+  border:1px solid var(--mc-line-2) !important;
+  border-radius:16px !important;
+  box-shadow:var(--mc-sh-3) !important;
+}
+.mc-bl-title{ font-family:var(--mc-display) !important; font-weight:700 !important; color:var(--mc-ink) !important; }
+.mc-bl-text{ color:var(--mc-ink-3) !important; }
+.mc-bl-badge{
+  background:var(--mc-y-wash) !important; color:var(--mc-y) !important;
+  border:1px solid var(--mc-line-hi) !important; border-radius:var(--mc-r-pill) !important;
+  font-weight:700 !important; letter-spacing:.1em; text-transform:uppercase; font-size:.62rem !important;
+}
