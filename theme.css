@@ -963,3 +963,24 @@ table tbody tr:hover td{ background:rgba(255,255,255,.025) !important; }
   border:1px solid var(--mc-line-hi) !important; border-radius:var(--mc-r-pill) !important;
   font-weight:700 !important; letter-spacing:.1em; text-transform:uppercase; font-size:.62rem !important;
 }
+
+/* --------------------------------------------------------------------------
+   Hub — fotos reales en las tarjetas (reemplazo de las ilustraciones SVG)
+   El duotono se logra con mix-blend-mode:luminosity sobre la foto en escala
+   de grises, montada encima de un degradado amarillo de marca en ::before.
+   -------------------------------------------------------------------------- */
+.hub-card-img::before{
+  content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:linear-gradient(135deg,var(--mc-y),#6b5a00 70%);
+}
+.hub-card-img img{
+  position:relative;z-index:1;
+  width:100%;height:100%;object-fit:cover;display:block;
+  filter:grayscale(1) contrast(1.08) brightness(.72);
+  mix-blend-mode:luminosity;
+  transition:filter .5s,transform .6s;
+}
+.hub-card:hover .hub-card-img img{
+  filter:grayscale(.55) contrast(1.05) brightness(.86);
+  transform:scale(1.04);
+}
