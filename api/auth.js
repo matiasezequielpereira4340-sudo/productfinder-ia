@@ -2,9 +2,9 @@
 // Admin: matypereira (never expires, full access)
 // Regular users: expire after N days from activation
 
-const ADMIN_USER = process.env.APP_USER || 'matypereira';
-const ADMIN_PASS = process.env.APP_PASS || 'maty123';
-const ADMIN_KEY = process.env.ADMIN_KEY || 'pf-admin-secret-2024';
+const ADMIN_USER = process.env.APP_USER;
+const ADMIN_PASS = process.env.APP_PASS;
+const ADMIN_KEY = process.env.ADMIN_KEY;
 
 // Lee usuarios en tiempo real desde la Vercel API (evita el cache de process.env)
 async function getUsers() {
@@ -41,6 +41,20 @@ function cors(res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type,x-admin-key');
+}
+
+// Devuelve true si puede seguir; si ADMIN_KEY no esta configurada o no coincide, ya respondio.
+function checkAdminKey(req, res) {
+    if (!ADMIN_KEY) {
+        console.error('[api/auth] Falta configurar ADMIN_KEY en las variables de entorno');
+        res.status(500).json({ error: 'Configuración incompleta' });
+        return false;
+    }
+    if (req.headers['x-admin-key'] !== ADMIN_KEY) {
+        res.status(401).json({ error: 'No autorizado' });
+        return false;
+    }
+    return true;
 }
 
 async function persistUsers(users) {
@@ -93,6 +107,11 @@ export default async function handler(req, res) {
         return res.status(201).json({ success: true, pending: true, message: 'Cuenta creada. Queda pendiente de aprobacion del administrador.' });
       }
 
+      if (!ADMIN_USER || !ADMIN_PASS) {
+        console.error('[api/auth] Falta configurar APP_USER y/o APP_PASS en las variables de entorno');
+        return res.status(500).json({ success: false, error: 'Configuración incompleta' });
+      }
+
       if (username === ADMIN_USER && password === ADMIN_PASS) {
               return res.status(200).json({ success: true, role: 'admin', user: username });
       }
@@ -113,14 +132,14 @@ export default async function handler(req, res) {
 
   // GET /api/users - listar usuarios (solo admin)
   if (path.endsWith('/users') && req.method === 'GET') {
-        if (req.headers['x-admin-key'] !== ADMIN_KEY) return res.status(401).json({ error: 'No autorizado' });
+        if (!checkAdminKey(req, res)) return;
         const users = await getUsers();
         return res.status(200).json({ users: users.map(({ password, ...rest }) => rest) });
   }
 
   // POST /api/users - crear usuario (solo admin)
   if (path.endsWith('/users') && req.method === 'POST') {
-        if (req.headers['x-admin-key'] !== ADMIN_KEY) return res.status(401).json({ error: 'No autorizado' });
+        if (!checkAdminKey(req, res)) return;
         const { username, password, expiryDays } = req.body || {};
         if (!username || !password || !expiryDays) return res.status(400).json({ error: 'Faltan campos requeridos' });
         if (username === ADMIN_USER) return res.status(400).json({ error: 'Nombre de usuario reservado' });
@@ -134,7 +153,7 @@ export default async function handler(req, res) {
 
   // DELETE /api/users - desactivar o eliminar (solo admin)
   if (path.endsWith('/users') && req.method === 'DELETE') {
-        if (req.headers['x-admin-key'] !== ADMIN_KEY) return res.status(401).json({ error: 'No autorizado' });
+        if (!checkAdminKey(req, res)) return;
         const { username, action } = req.body || {};
         if (!username) return res.status(400).json({ error: 'username requerido' });
         const users = await getUsers();

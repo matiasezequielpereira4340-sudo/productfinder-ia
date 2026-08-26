@@ -8,7 +8,7 @@
 // ============================================================
 
 const USD_ARS_FALLBACK = 1510;
-const SUPA_URL = process.env.SUPABASE_URL || 'https://qglieqpcmmffgxijbysb.supabase.co';
+const SUPA_URL = process.env.SUPABASE_URL;
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 
 const CATALOGO = {
@@ -505,8 +505,12 @@ export default async function handler(req, res) {
   if (path.endsWith('/auth')) {
     if (req.method !== 'POST') return res.status(405).json({error: 'Method not allowed'});
     const { username, password } = req.body;
-    const validUser = process.env.APP_USER || 'matypereira';
-    const validPass = process.env.APP_PASS || 'maty123';
+    const validUser = process.env.APP_USER;
+    const validPass = process.env.APP_PASS;
+    if (!validUser || !validPass) {
+      console.error('[api/analyze] Falta configurar APP_USER y/o APP_PASS en las variables de entorno');
+      return res.status(500).json({ success: false, error: 'Configuración incompleta' });
+    }
     if (username === validUser && password === validPass) {
       return res.status(200).json({success: true, user: username});
     }
@@ -548,6 +552,10 @@ export default async function handler(req, res) {
   }
   // ANALYZE ENDPOINT (default) - datos reales de MercadoLibre
   if (req.method !== 'POST') return res.status(405).json({error: 'Method not allowed'});
+  if (!SUPA_URL) {
+    console.error('[api/analyze] Falta configurar SUPABASE_URL en las variables de entorno');
+    return res.status(500).json({error: 'Configuración incompleta'});
+  }
   try {
     const { nicho, capital, experiencia, canal, riesgo, user_id } = req.body || {};
     if (!nicho) return res.status(400).json({error: 'Falta elegir un nicho / seccion'});

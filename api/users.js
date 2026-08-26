@@ -1,7 +1,7 @@
 // ProductFinder IA - Users Management API (Vercel KV / env-based storage)
-const ADMIN_USER = process.env.APP_USER || 'matypereira';
-const ADMIN_PASS = process.env.APP_PASS || 'maty123';
-const ADMIN_KEY = process.env.ADMIN_KEY || 'pf-admin-secret-2024';
+const ADMIN_USER = process.env.APP_USER;
+const ADMIN_PASS = process.env.APP_PASS;
+const ADMIN_KEY = process.env.ADMIN_KEY;
 
 async function getUsers() {
         const token = process.env.VERCEL_TOKEN;
@@ -67,6 +67,10 @@ export default async function handler(req, res) {
         cors(res);
         if (req.method === 'OPTIONS') return res.status(200).end();
 
+  if (!ADMIN_KEY) {
+            console.error('[api/users] Falta configurar ADMIN_KEY en las variables de entorno');
+            return res.status(500).json({ error: 'Configuración incompleta' });
+  }
   if (req.headers['x-admin-key'] !== ADMIN_KEY) {
             return res.status(401).json({ error: 'No autorizado' });
   }
