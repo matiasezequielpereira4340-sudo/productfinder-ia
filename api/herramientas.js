@@ -37,7 +37,7 @@ export default async function handler(req, res) {
 // el dueno de la publicacion via OAuth -> fase 2).
 // ============================================================
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://qglieqpcmmffgxijbysb.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 
 const CACHE_HOURS = 12;   // no repetir llamadas a MeLi para el mismo item antes de esto
@@ -48,6 +48,10 @@ async function handleAnalisis(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
+  if (!SUPABASE_URL) {
+    console.error('[api/herramientas] Falta configurar SUPABASE_URL en las variables de entorno');
+    return res.status(500).json({ error: 'Configuración incompleta' });
+  }
 
   try {
     if (req.method === 'GET') {

@@ -7,7 +7,7 @@
 
 import { getValidToken } from './meli-refresh.js';
 
-const SUPABASE_URL = 'https://qglieqpcmmffgxijbysb.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL;
 const MELI_API = 'https://api.mercadolibre.com';
 
 function cors(res) {
@@ -117,7 +117,12 @@ function cors(res) {
                                                                                                                                                                                                 export default async function handler(req, res) {
                                                                                                                                                                                                   cors(res);
                                                                                                                                                                                                     if (req.method === 'OPTIONS') return res.status(200).end();
-                                                                                                                                                                                                    
+
+  if (!SUPABASE_URL) {
+        console.error('[api/meli-ventas] Falta configurar SUPABASE_URL en las variables de entorno');
+        return res.status(500).json({ error: 'Configuración incompleta' });
+  }
+
                                                                                                                                                                                                       const { user_id, dias = '30' } = req.query;
                                                                                                                                                                                                         if (!user_id) return res.status(400).json({ error: 'user_id requerido' });
                                                                                                                                                                                                         
