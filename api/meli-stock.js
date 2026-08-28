@@ -8,7 +8,7 @@ import { getValidToken } from './meli-refresh.js';
 const MELI_API = 'https://api.mercadolibre.com';
 
 function cors(res) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }

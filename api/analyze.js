@@ -495,7 +495,7 @@ export default async function handler(req, res) {
   const path = url.split('?')[0];
 
   // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -505,9 +505,10 @@ export default async function handler(req, res) {
   if (path.endsWith('/auth')) {
     if (req.method !== 'POST') return res.status(405).json({error: 'Method not allowed'});
     const { username, password } = req.body;
-    const validUser = process.env.APP_USER || 'matypereira';
-    const validPass = process.env.APP_PASS || 'maty123';
-    if (username === validUser && password === validPass) {
+    const validUser = process.env.APP_USER;
+    const validPass = process.env.APP_PASS;
+    if (!validUser || !validPass) return res.status(500).json({success:false,error:'Servidor mal configurado'});
+  if (username === validUser && password === validPass) {
       return res.status(200).json({success: true, user: username});
     }
     return res.status(401).json({success: false, error: 'Credenciales incorrectas'});

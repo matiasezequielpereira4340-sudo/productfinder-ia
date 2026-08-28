@@ -2,9 +2,9 @@
 // Admin: matypereira (never expires, full access)
 // Regular users: expire after N days from activation
 
-const ADMIN_USER = process.env.APP_USER || 'matypereira';
-const ADMIN_PASS = process.env.APP_PASS || 'maty123';
-const ADMIN_KEY = process.env.ADMIN_KEY || 'pf-admin-secret-2024';
+const ADMIN_USER = process.env.APP_USER;
+const ADMIN_PASS = process.env.APP_PASS;
+const ADMIN_KEY = process.env.ADMIN_KEY;
 
 // Lee usuarios en tiempo real desde la Vercel API (evita el cache de process.env)
 async function getUsers() {
@@ -38,7 +38,7 @@ function isExpired(u) {
 }
 
 function cors(res) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type,x-admin-key');
 }
@@ -70,6 +70,8 @@ async function persistUsers(users) {
 export default async function handler(req, res) {
     cors(res);
     if (req.method === 'OPTIONS') return res.status(200).end();
+
+  if (!ADMIN_USER || !ADMIN_PASS || !ADMIN_KEY) return res.status(500).json({ success:false, error:'Servidor mal configurado' });
 
   const path = (req.url || '').split('?')[0];
 

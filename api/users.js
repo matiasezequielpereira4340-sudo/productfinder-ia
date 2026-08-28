@@ -1,7 +1,7 @@
 // ProductFinder IA - Users Management API (Vercel KV / env-based storage)
-const ADMIN_USER = process.env.APP_USER || 'matypereira';
-const ADMIN_PASS = process.env.APP_PASS || 'maty123';
-const ADMIN_KEY = process.env.ADMIN_KEY || 'pf-admin-secret-2024';
+const ADMIN_USER = process.env.APP_USER;
+const ADMIN_PASS = process.env.APP_PASS;
+const ADMIN_KEY = process.env.ADMIN_KEY;
 
 async function getUsers() {
         const token = process.env.VERCEL_TOKEN;
@@ -58,7 +58,7 @@ function isExpired(u) {
 }
 
 function cors(res) {
-        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
         res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,PATCH,OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type,x-admin-key');
 }
@@ -66,6 +66,8 @@ function cors(res) {
 export default async function handler(req, res) {
         cors(res);
         if (req.method === 'OPTIONS') return res.status(200).end();
+
+  if (!ADMIN_USER || !ADMIN_PASS || !ADMIN_KEY) return res.status(500).json({ success:false, error:'Servidor mal configurado' });
 
   if (req.headers['x-admin-key'] !== ADMIN_KEY) {
             return res.status(401).json({ error: 'No autorizado' });

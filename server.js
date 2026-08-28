@@ -96,7 +96,7 @@ function getRollingMonths() {
 // ============================================================
 const users = new Map();
 users.set('matypereira', {
-        password: process.env.ADMIN_PASSWORD || 'pf-admin-secret-2024',
+        password: process.env.ADMIN_PASSWORD,
         role: 'admin', expiresAt: null,
         createdAt: new Date().toISOString(), active: true, expiryDays: null, premium: true
 });
@@ -422,7 +422,7 @@ app.post('/api/auth', (req, res) => {
 // ============================================================
 function verifyAdmin(req, res) {
         const key = req.headers['x-admin-key'];
-        const adminPass = process.env.ADMIN_PASSWORD || 'pf-admin-secret-2024';
+        const adminPass = process.env.ADMIN_PASSWORD;
         if (key !== adminPass) { res.status(403).json({ error:'No autorizado' }); return false; }
         return true;
 }
