@@ -15,148 +15,37 @@ export default async function handler(req, res) {
       meli_token_present: !!process.env.MELI_ACCESS_TOKEN,
       meli_client_creds_present: !!((process.env.MELI_CLIENT_ID || process.env.MELI_APP_ID) &&
                                     (process.env.MELI_CLIENT_SECRET || process.env.MELI_SECRET_KEY)),
-      anthropic_present: !!process.env.ANTHROPIC_API_KEY
+      anthropic_present: !!process.env.ANTHROPIC_API_KEY,
+      demo_user: process.env.MELI_DEMO_USER_ID || 'matypereira'
     };
-    // ?probe=1 hace una consulta real y reporta si la demo publica esta viva.
-    // No devuelve el token ni datos sensibles: solo si hubo respuesta y cuantos
-    // resultados vinieron. Sirve para diagnosticar sin abrir la web.
+
+    // ?probe=termino hace una consulta real y reporta a que endpoints de
+    // MercadoLibre llega la app. Sirve para diagnosticar sin abrir la web.
+    // No devuelve tokens ni datos de ningun usuario.
     if (req.query && req.query.probe) {
       const termino = typeof req.query.probe === 'string' && req.query.probe.length > 1
         ? req.query.probe : 'auriculares bluetooth';
-      // Que nombres de variables estan realmente configurados (nunca sus valores)
-      estado.env = {
-        MELI_APP_ID: !!process.env.MELI_APP_ID,
-        MELI_SECRET_KEY: !!process.env.MELI_SECRET_KEY,
-        MELI_CLIENT_ID: !!process.env.MELI_CLIENT_ID,
-        MELI_CLIENT_SECRET: !!process.env.MELI_CLIENT_SECRET,
-        SUPABASE_SERVICE_KEY: !!process.env.SUPABASE_SERVICE_KEY,
-        MELI_DEMO_USER_ID: process.env.MELI_DEMO_USER_ID || '(default: matypereira)'
-      };
-      // Estado del token de la cuenta de la casa, por separado
-      try {
-        const mod = await import('./meli-refresh.js');
-        const t = await mod.getValidToken(process.env.MELI_DEMO_USER_ID || 'matypereira');
-        estado.token_casa = t ? 'ok' : 'vacio';
-      } catch (e) {
-        estado.token_casa = 'error: ' + String((e && e.message) || e).slice(0, 200);
-      }
+      const q = encodeURIComponent(termino);
       try {
         const tok = await getMeliAccessToken();
         estado.token_obtenido = !!tok;
-        const url = 'https://api.mercadolibre.com/sites/MLA/search?q=' +
-                    encodeURIComponent(termino) + '&limit=5';
-        const intentos = {};
-        if (tok) {
+        const auth = tok ? { Authorization: 'Bearer ' + tok, Accept: 'application/json' } : { Accept: 'application/json' };
+        const endpoints = {
+          sites_search:     'https://api.mercadolibre.com/sites/MLA/search?q=' + q + '&limit=1',
+          products_search:  'https://api.mercadolibre.com/products/search?status=active&site_id=MLA&q=' + q,
+          domain_discovery: 'https://api.mercadolibre.com/sites/MLA/domain_discovery/search?limit=3&q=' + q,
+          trends:           'https://api.mercadolibre.com/trends/MLA'
+        };
+        estado.endpoints = {};
+        for (const [nombre, u] of Object.entries(endpoints)) {
           try {
-            const r = await fetch(url, { headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' } });
-            intentos.con_token = r.status;
-            if (!r.ok) intentos.con_token_detalle = (await r.text()).slice(0, 220);
-          } catch (e) { intentos.con_token = 'excepcion: ' + String(e && e.message).slice(0, 120); }
-
-          // MeLi cerro /sites/MLA/search. Probamos que otros endpoints siguen
-          // abiertos con un token de usuario, para saber sobre cual reconstruir
-          // la demo en vez de suponerlo.
-          const q = encodeURIComponent(termino);
-          const alternativas = {
-            products_search: 'https://api.mercadolibre.com/products/search?status=active&site_id=MLA&q=' + q,
-            domain_discovery: 'https://api.mercadolibre.com/sites/MLA/domain_discovery/search?limit=3&q=' + q,
-            highlights: 'https://api.mercadolibre.com/highlights/MLA/category/MLA1051',
-            categoria_predict: 'https://api.mercadolibre.com/sites/MLA/category_predictor/predict?title=' + q,
-            trends: 'https://api.mercadolibre.com/trends/MLA'
-          };
-          // Forma real de los datos de /products/search, para saber si alcanzan
-          // para la demo (precio, competencia) o si hay que pedir mas.
-          // Cuantos de los productos del catalogo traen precio de verdad.
-          // Es lo que decide si la demo puede mostrar precios reales o no.
-          if (req.query.precios) {
-            try {
-              const r = await fetch(alternativas.products_search, { headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' } });
-              const j = await r.json();
-              const ids = (j.results || []).slice(0, 8).map(x => x.id).filter(Boolean);
-              const detalles = await Promise.all(ids.map(id =>
-                fetch('https://api.mercadolibre.com/products/' + id,
-                  { headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' } })
-                  .then(x => x.ok ? x.json() : null).catch(() => null)));
-              const filas = detalles.filter(Boolean).map(d => {
-                const b = d.buy_box_winner;
-                return {
-                  nombre: (d.name || '').slice(0, 42),
-                  precio: b ? b.price : null,
-                  vendidos: b ? b.sold_quantity : null,
-                  envio_gratis: !!(b && b.shipping && b.shipping.free_shipping),
-                  hijos: Array.isArray(d.children_ids) ? d.children_ids.length : 0
-                };
-              });
-              const conPrecio = filas.filter(f => typeof f.precio === 'number' && f.precio > 0);
-              estado.precios = {
-                consultados: filas.length,
-                con_precio: conPrecio.length,
-                muestra: filas.slice(0, 6)
-              };
-            } catch (e) { estado.precios = { error: String(e && e.message).slice(0, 180) }; }
-          }
-
-          if (req.query.forma) {
-            try {
-              const r = await fetch(alternativas.products_search, { headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' } });
-              const j = await r.json();
-              const p0 = (j.results || [])[0] || {};
-              estado.forma = { claves_producto: Object.keys(p0), nombre: p0.name, id: p0.id };
-              if (p0.id) {
-                const rd = await fetch('https://api.mercadolibre.com/products/' + p0.id,
-                  { headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' } });
-                estado.forma.detalle_status = rd.status;
-                if (rd.ok) {
-                  const d = await rd.json();
-                  estado.forma.claves_detalle = Object.keys(d);
-                  estado.forma.buy_box = d.buy_box_winner ? {
-                    price: d.buy_box_winner.price,
-                    currency: d.buy_box_winner.currency_id,
-                    sold: d.buy_box_winner.sold_quantity,
-                    shipping_free: !!(d.buy_box_winner.shipping && d.buy_box_winner.shipping.free_shipping)
-                  } : null;
-                  estado.forma.children_count = Array.isArray(d.children_ids) ? d.children_ids.length : null;
-                }
-                const ri = await fetch('https://api.mercadolibre.com/products/' + p0.id + '/items',
-                  { headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' } });
-                estado.forma.items_status = ri.status;
-                if (ri.ok) {
-                  const di = await ri.json();
-                  const its = di.results || [];
-                  estado.forma.items_count = its.length;
-                  estado.forma.item_muestra = its[0] ? {
-                    price: its[0].price, sold: its[0].sold_quantity,
-                    seller: !!its[0].seller_id,
-                    shipping_free: !!(its[0].shipping && its[0].shipping.free_shipping)
-                  } : null;
-                }
-              }
-            } catch (e) { estado.forma = { error: String(e && e.message).slice(0, 180) }; }
-          }
-
-          intentos.alternativas = {};
-          for (const [nombre, u] of Object.entries(alternativas)) {
-            try {
-              const r = await fetch(u, { headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' } });
-              let resumen = r.status;
-              if (r.ok) {
-                const j = await r.json().catch(() => null);
-                const n = Array.isArray(j) ? j.length
-                        : (j && Array.isArray(j.results) ? j.results.length : 'objeto');
-                resumen = r.status + ' (' + n + ' items)';
-              }
-              intentos.alternativas[nombre] = resumen;
-            } catch (e) {
-              intentos.alternativas[nombre] = 'excepcion';
-            }
-          }
+            const r = await fetch(u, { headers: auth });
+            if (!r.ok) { estado.endpoints[nombre] = r.status; continue; }
+            const j = await r.json().catch(() => null);
+            const n = Array.isArray(j) ? j.length : (j && Array.isArray(j.results) ? j.results.length : '?');
+            estado.endpoints[nombre] = r.status + ' (' + n + ')';
+          } catch (e) { estado.endpoints[nombre] = 'excepcion'; }
         }
-        try {
-          const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-          intentos.anonimo = r.status;
-        } catch (e) { intentos.anonimo = 'excepcion: ' + String(e && e.message).slice(0, 120); }
-        estado.intentos = intentos;
-
         const r = await safeMeliSearch(termino);
         estado.probe = r
           ? { termino, fuente: r.fuente, resultados: (r.results || []).length, total: r.total || 0 }
