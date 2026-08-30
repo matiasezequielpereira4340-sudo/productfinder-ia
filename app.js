@@ -259,7 +259,7 @@ function hhdError(product, motivo){
     '<div class="hhd-errstate">'+
       '<svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg>'+
       '<p class="hhd-errtitle">No pudimos consultar MercadoLibre reci&eacute;n</p>'+
-      '<p class="hhd-errtext">'+hhdEscape(motivo||'La consulta no lleg&oacute; a destino.')+' No mostramos n&uacute;meros estimados: o son datos reales de MercadoLibre, o no son nada.</p>'+
+      '<p class="hhd-errtext">'+hhdEscape(motivo||'La consulta no lleg&oacute; a destino.')+' No muestro n&uacute;meros estimados: o son datos reales de MercadoLibre, o no son nada.</p>'+
       '<button type="button" class="hhd-retry" onclick="runHeroDemo()">Reintentar</button>'+
     '</div>';
   var tsWrap=document.getElementById('hhdTsWrap'); if(tsWrap) tsWrap.style.display='none';
@@ -521,7 +521,7 @@ async function doAnalyze(){
   return (async function(){
     if(btn){ btn.disabled = true; btn.dataset.old = btn.innerHTML; btn.innerHTML = ' Analizando el mercado real...'; }
     const grid = document.getElementById('productsGrid');
-    if(grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">Consultando precios y competencia en MercadoLibre...<br><small>Esto puede tardar unos segundos porque analizamos 12 productos reales.</small></div>';
+    if(grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">Consultando precios y competencia en MercadoLibre...<br><small>Esto puede tardar unos segundos porque analizo 12 productos reales.</small></div>';
     const results = document.getElementById('resultsSection');
     if(results) results.style.display = 'block';
     try{
@@ -554,7 +554,7 @@ function renderResults(data){
   let banner = '';
   if(!data.meliConectado){
     const motivo = data.meliTokenExpirado ? 'tu conexi&#243;n con MercadoLibre expir&#243;' : 'no ten&#233;s MercadoLibre conectado';
-    banner = '<div class="ml-banner" style="grid-column:1/-1;background:rgba(255,230,0,.12);border:1px solid var(--gold);border-radius:10px;padding:14px 16px;margin-bottom:8px;color:var(--text)"><strong><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Precios estimados:</strong> como '+motivo+', mostramos los productos ordenados por su potencial (peso, margen esperado y estacionalidad), pero <strong>sin precios de venta reales</strong>. Conecta tu cuenta para ver precio, competencia y saturaci&#243;n reales de cada producto. <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">Conectar MercadoLibre \u2192</a></div>';
+    banner = '<div class="ml-banner" style="grid-column:1/-1;background:rgba(255,230,0,.12);border:1px solid var(--gold);border-radius:10px;padding:14px 16px;margin-bottom:8px;color:var(--text)"><strong><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Precios estimados:</strong> como '+motivo+', muestro los productos ordenados por su potencial (peso, margen esperado y estacionalidad), pero <strong>sin precios de venta reales</strong>. Conecta tu cuenta para ver precio, competencia y saturaci&#243;n reales de cada producto. <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">Conectar MercadoLibre \u2192</a></div>';
   } else {
     banner = '<div class="ml-banner" style="grid-column:1/-1;background:rgba(39,174,96,.12);border:1px solid var(--green);border-radius:10px;padding:12px 16px;margin-bottom:8px;color:var(--text)"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Datos reales de MercadoLibre. Analizamos <strong>'+data.totalEvaluados+'</strong> productos, <strong>'+data.conDatoReal+'</strong> con datos de mercado en vivo. Cotizacion usada: 1 USD \u2248 $'+nf.format(data.usdArs)+'.</div>';
   }
@@ -876,7 +876,7 @@ async function runMRStep2(product){
     if(!res.ok) throw new Error(r.error||'Error en step competencia');
     mrData.step2=r;
     if(r && r.fuente==='no-disponible'){
-      document.getElementById('mrStep2Body').innerHTML='<div class="mr-row"><span class="mr-row-label" style="color:var(--text-dim)">'+(r.aviso||'Datos de Mercado Libre no disponibles ahora.')+'</span></div><div style="margin-top:8px;font-size:.82rem;opacity:.75">No mostramos datos estimados para no inventar numeros. Prob&#225; nuevamente m&#225;s tarde o peg&#225; un link de un listado de MeLi para leer datos reales del producto.</div>';
+      document.getElementById('mrStep2Body').innerHTML='<div class="mr-row"><span class="mr-row-label" style="color:var(--text-dim)">'+(r.aviso||'Datos de Mercado Libre no disponibles ahora.')+'</span></div><div style="margin-top:8px;font-size:.82rem;opacity:.75">No muestro datos estimados para no inventar numeros. Prob&#225; nuevamente m&#225;s tarde o peg&#225; un link de un listado de MeLi para leer datos reales del producto.</div>';
       return;
     }
     const satMap={'libre':'tag-ok','moderado':'tag-warn','saturado':'tag-bad','muy saturado':'tag-bad'};
@@ -1015,7 +1015,7 @@ async function runMRFinalAnalysis(){
   }catch(e){
         try{ if(typeof window.__v9fallback==='function'){ window.__v9fallback(); } }catch(_e){}
         var _at=document.getElementById('mrAnalysisText');
-        if(_at){ _at.innerHTML='<div class="v9-note"><b><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> An\u00e1lisis inteligente no disponible ahora.</b> Igual calculamos tu veredicto con los n\u00fameros reales que cargaste (arriba). El detalle ampliado con IA no carg\u00f3 esta vez \u2014 prob\u00e1 de nuevo en un momento si quer\u00e9s el texto extendido.</div>'; }
+        if(_at){ _at.innerHTML='<div class="v9-note"><b><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> An\u00e1lisis inteligente no disponible ahora.</b> Igual calculo tu veredicto con los n\u00fameros reales que cargaste (arriba). El detalle ampliado con IA no carg\u00f3 esta vez \u2014 prob\u00e1 de nuevo en un momento si quer\u00e9s el texto extendido.</div>'; }
         var _b=document.getElementById('btnMRAnalyze'); if(_b) _b.disabled=false;
       }
 }
@@ -1725,7 +1725,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(hdr && !document.querySelector('.v5-freebar')){
       var bar=document.createElement('div');
       bar.className='v5-freebar';
-      bar.innerHTML=' Est\u00e1s viendo la <b style="margin:0 4px">versi\u00f3n gratuita</b> \u2014 mostramos '+FREE_LIMIT+' de '+cards.length+' productos. Los clientes de asesor\u00eda acceden a todos.';
+      bar.innerHTML=' Est\u00e1s viendo la <b style="margin:0 4px">versi\u00f3n gratuita</b> \u2014 muestro '+FREE_LIMIT+' de '+cards.length+' productos. Los clientes de asesor\u00eda acceden a todos.';
       hdr.parentNode.insertBefore(bar, hdr.nextSibling);
     }
     // wrap locked cards
@@ -2167,7 +2167,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(document.querySelector('.v13-method')) return;
     var screen=document.getElementById('marketScreen'); if(!screen) return;
     var el=document.createElement('div'); el.className='v13-method';
-    el.innerHTML='<h3><svg class="ic" aria-hidden="true"><use href="#i-search"></use></svg> C\u00f3mo leemos el mercado</h3><div class="v13-m-sub">No inventamos n\u00fameros. Cada veredicto sale de datos reales y c\u00e1lculos transparentes.</div><div class="v13-m-grid"><div class="v13-m-item"><div class="v13-mi-h"><svg class="ic" aria-hidden="true"><use href="#i-trend"></use></svg> Demanda real</div><div class="v13-mi-t">Miramos tendencia y estacionalidad del rubro en Argentina, no corazonadas.</div></div><div class="v13-m-item"><div class="v13-mi-h"><svg class="ic" aria-hidden="true"><use href="#i-store"></use></svg> Competencia</div><div class="v13-mi-t">Evaluamos cu\u00e1ntos venden lo mismo. Cuando ML no da datos, lo decimos \u2014 no estimamos a ciegas.</div></div><div class="v13-m-item"><div class="v13-mi-h"><svg class="ic" aria-hidden="true"><use href="#i-money"></use></svg> Margen con TODOS los costos</div><div class="v13-mi-t">FOB, flete, aranceles, IVA, IIBB, comisi\u00f3n ML y log\u00edstica. El margen que ves es el real.</div></div><div class="v13-m-item"><div class="v13-mi-h"><svg class="ic" aria-hidden="true"><use href="#i-scale"></use></svg> Regulaci\u00f3n</div><div class="v13-mi-t">Consideramos restricciones e intervenciones que puedan complicar la importaci\u00f3n.</div></div></div>';
+    el.innerHTML='<h3><svg class="ic" aria-hidden="true"><use href="#i-search"></use></svg> C\u00f3mo leo el mercado</h3><div class="v13-m-sub">No invento n\u00fameros. Cada veredicto sale de datos reales y c\u00e1lculos transparentes.</div><div class="v13-m-grid"><div class="v13-m-item"><div class="v13-mi-h"><svg class="ic" aria-hidden="true"><use href="#i-trend"></use></svg> Demanda real</div><div class="v13-mi-t">Miramos tendencia y estacionalidad del rubro en Argentina, no corazonadas.</div></div><div class="v13-m-item"><div class="v13-mi-h"><svg class="ic" aria-hidden="true"><use href="#i-store"></use></svg> Competencia</div><div class="v13-mi-t">Evaluamos cu\u00e1ntos venden lo mismo. Cuando ML no da datos, lo digo \u2014 no estimamos a ciegas.</div></div><div class="v13-m-item"><div class="v13-mi-h"><svg class="ic" aria-hidden="true"><use href="#i-money"></use></svg> Margen con TODOS los costos</div><div class="v13-mi-t">FOB, flete, aranceles, IVA, IIBB, comisi\u00f3n ML y log\u00edstica. El margen que ves es el real.</div></div><div class="v13-m-item"><div class="v13-mi-h"><svg class="ic" aria-hidden="true"><use href="#i-scale"></use></svg> Regulaci\u00f3n</div><div class="v13-mi-t">Consideramos restricciones e intervenciones que puedan complicar la importaci\u00f3n.</div></div></div>';
     screen.appendChild(el);
   };
   function wrap(name){ if(typeof window[name]==='function' && !window[name].__v13){ var orig=window[name];if(orig&&orig.__mrw){return;} window[name]=function(){ var o=orig.apply(this,arguments); setTimeout(function(){ window.__v13button(); window.__v13render(); },200); return o; }; window[name].__v13=true;try{window[name].__mrw=1}catch(e){}; } }
