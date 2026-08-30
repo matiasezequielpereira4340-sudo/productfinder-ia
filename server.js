@@ -104,6 +104,52 @@ users.set('matypereira', {
 // ============================================================
 // API MARKET
 // ============================================================
+// GET /api/market?demo=<termino> -> demo publica del hero.
+// Mismo contrato que api/market.js en Vercel: solo dato real de MeLi.
+// Si no hay credenciales o MeLi no responde, devuelve ok:false y el front
+// muestra el estado de error. Nunca completa con numeros inventados.
+app.get('/api/market', async (req, res) => {
+        const termino = String(req.query.demo || '').trim().slice(0, 60);
+        if (!termino) return res.json({ ok: true, service: 'market', modo: 'status' });
+        try {
+                  const tok = await getMeliAppToken();
+                  if (!tok) return res.json({ ok: false, error: 'No pude autenticarme contra MercadoLibre.' });
+                  const auth = { Authorization: 'Bearer ' + tok, Accept: 'application/json' };
+                  const [rDom, rTrend] = await Promise.all([
+                              fetch(MELI_BASE + '/sites/MLA/domain_discovery/search?limit=3&q=' + encodeURIComponent(termino), { headers: auth }),
+                              fetch(MELI_BASE + '/trends/MLA', { headers: auth })
+                  ]);
+                  if (!rDom.ok && !rTrend.ok) return res.json({ ok: false, error: 'MercadoLibre no respondio a la consulta.' });
+                  const dom = rDom.ok ? await rDom.json().catch(() => []) : [];
+                  const trend = rTrend.ok ? await rTrend.json().catch(() => []) : [];
+                  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+                  const t = norm(termino);
+                  const palabras = t.split(/\s+/).filter(w => w.length > 3);
+                  const keywords = (Array.isArray(trend) ? trend : []).map(x => x && x.keyword).filter(Boolean);
+                  let posicion = null;
+                  for (let i = 0; i < keywords.length; i++) {
+                              const k = norm(keywords[i]);
+                              if (k === t || k.includes(t) || t.includes(k)) { posicion = i + 1; break; }
+                  }
+                  const relacionadas = keywords.filter(k => { const nk = norm(k); return palabras.some(w => nk.includes(w)); }).slice(0, 5);
+                  const d0 = Array.isArray(dom) && dom[0] ? dom[0] : null;
+                  return res.json({
+                              ok: true, termino,
+                              categoria: d0 ? (d0.category_name || d0.domain_name || null) : null,
+                              dominio: d0 ? (d0.domain_name || null) : null,
+                              posicionEnTendencias: posicion,
+                              totalTendencias: keywords.length,
+                              relacionadas,
+                              topTendencias: keywords.slice(0, 5),
+                              consultadoEn: new Date().toISOString(),
+                              fuente: 'mercadolibre-trends+domain_discovery'
+                  });
+        } catch (err) {
+                  console.error('Error en GET /api/market:', err.message);
+                  return res.json({ ok: false, error: 'No pude consultar MercadoLibre ahora.' });
+        }
+});
+
 app.post('/api/market', async (req, res) => {
         const { step, product, prompt } = req.body;
         try {

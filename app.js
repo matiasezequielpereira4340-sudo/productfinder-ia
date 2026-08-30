@@ -258,7 +258,7 @@ function hhdError(product, motivo){
   if(el) el.innerHTML =
     '<div class="hhd-errstate">'+
       '<svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg>'+
-      '<p class="hhd-errtitle">No pudimos consultar MercadoLibre reci&eacute;n</p>'+
+      '<p class="hhd-errtitle">No pude consultar MercadoLibre reci&eacute;n</p>'+
       '<p class="hhd-errtext">'+hhdEscape(motivo||'La consulta no lleg&oacute; a destino.')+' No muestro n&uacute;meros estimados: o son datos reales de MercadoLibre, o no son nada.</p>'+
       '<button type="button" class="hhd-retry" onclick="runHeroDemo()">Reintentar</button>'+
     '</div>';
@@ -302,25 +302,47 @@ async function runHeroDemo(term){
     return;
   }
   try{
-    var res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'competencia',product:product})});
+    // GET /api/market?demo= consulta MercadoLibre en el servidor con el token de
+    // la casa y devuelve SOLO dato real: la categoria que MeLi le asigna al
+    // termino y su lugar en las busquedas del momento. Si falla, ok:false.
+    var res=await fetch('/api/market?demo='+encodeURIComponent(product),{headers:{'Accept':'application/json'}});
     var data=await res.json();
-    if(!res.ok) throw new Error('El servidor respondió con un error.');
-    if(!data || data.fuente!=='mercadolibre-search'){
-      throw new Error((data && data.aviso) || 'MercadoLibre no devolvió datos para esa búsqueda.');
-    }
-    var now=Date.now();
+    if(!res.ok) throw new Error('El servidor respondi\u00f3 con un error.');
+    if(!data || data.ok!==true) throw new Error((data && data.error) || 'MercadoLibre no devolvi\u00f3 datos para esa b\u00fasqueda.');
+    if(data.fuente!=='mercadolibre-trends+domain_discovery') throw new Error('La respuesta no vino de MercadoLibre.');
+
+    var now=data.consultadoEn ? new Date(data.consultadoEn).getTime() : Date.now();
+    if(!now || isNaN(now)) now=Date.now();
     if(tag){ tag.textContent='En vivo'; tag.classList.remove('is-example'); tag.classList.remove('is-error'); }
     var nf=new Intl.NumberFormat('es-AR');
-    var envioTxt=data.envioGratisTotal?(data.envioGratisPct+'%'):'—';
+    var total=data.totalTendencias||0;
+    var pos=data.posicionEnTendencias;
+    var kpiPos = pos
+      ? '<div class="hhd-kpi is-accent"><b>#'+nf.format(pos)+'</b><span>En lo m&aacute;s buscado</span></div>'
+      : '<div class="hhd-kpi"><b>No figura</b><span>En lo m&aacute;s buscado</span></div>';
+    var lista=(data.relacionadas&&data.relacionadas.length)?data.relacionadas:(data.topTendencias||[]);
+    var etiqueta=(data.relacionadas&&data.relacionadas.length)
+      ? 'B&uacute;squedas relacionadas de hoy'
+      : 'Lo m&aacute;s buscado hoy en MercadoLibre';
+    var chips='';
+    if(lista.length){
+      chips='<div class="hhd-chips"><span class="hhd-chiplabel">'+etiqueta+'</span>'+
+        lista.map(function(k){ return '<span class="hhd-chip">'+hhdEscape(k)+'</span>'; }).join('')+
+      '</div>';
+    }
+    var pie = pos
+      ? 'Tu producto est&aacute; en el puesto '+nf.format(pos)+' de las '+nf.format(total)+' b&uacute;squedas m&aacute;s frecuentes de MercadoLibre Argentina ahora mismo.'
+      : 'No aparece entre las '+nf.format(total)+' b&uacute;squedas m&aacute;s frecuentes de ahora. Eso no lo descarta: puede ser un nicho chico con menos competencia.';
     if(resEl) resEl.innerHTML=
-      '<div class="hhd-head"><div><div class="hhd-name">'+hhdEscape(product)+'</div><div class="hhd-meta">'+hhdEscape(data.categoryName||'MercadoLibre Argentina')+'</div></div></div>'+
-      '<div class="hhd-grid">'+
-        '<div class="hhd-kpi is-good"><b>$'+nf.format(data.precioPromedioARS||0)+'</b><span>Precio prom.</span></div>'+
-        '<div class="hhd-kpi"><b>$'+nf.format(data.precioMinARS||0)+'</b><span>M&iacute;nimo</span></div>'+
-        '<div class="hhd-kpi"><b>$'+nf.format(data.precioMaxARS||0)+'</b><span>M&aacute;ximo</span></div>'+
-        '<div class="hhd-kpi is-accent"><b>'+nf.format(data.sellersEstimados||0)+'</b><span>Vendedores</span></div>'+
+      '<div class="hhd-head"><div><div class="hhd-name">'+hhdEscape(product)+'</div><div class="hhd-meta">'+
+        (data.categoria ? 'Categor&iacute;a en MercadoLibre: '+hhdEscape(data.categoria) : 'MercadoLibre Argentina')+
+      '</div></div></div>'+
+      '<div class="hhd-grid cols-2">'+
+        kpiPos+
+        '<div class="hhd-kpi"><b>'+nf.format(total)+'</b><span>B&uacute;squedas del ranking</span></div>'+
       '</div>'+
-      '<div class="hhd-foot">'+nf.format(data.totalResults||0)+' publicaciones compitiendo &middot; '+envioTxt+' de las top con env&iacute;o gratis.</div>';
+      chips+
+      '<div class="hhd-foot">'+pie+'</div>';
     if(tsWrap) tsWrap.style.display='';
     hhdStartTimer(now);
     if(ctaEl) ctaEl.style.display='';

@@ -19,6 +19,71 @@ export default async function handler(req, res) {
       demo_user: process.env.MELI_DEMO_USER_ID || 'matypereira'
     };
 
+    // ?demo=termino alimenta la demo publica del hero.
+    // MercadoLibre cerro /sites/MLA/search (403) y /products/search no trae
+    // precios, asi que la demo se apoya en los dos endpoints que si responden:
+    //   - domain_discovery: en que categoria real encuadra MeLi ese termino
+    //   - trends: las busquedas reales del momento en MercadoLibre Argentina
+    // Todo lo que devuelve es dato real de MeLi. Si algo falla, devuelve
+    // ok:false y el front lo dice: nunca se completa con numeros inventados.
+    if (req.query && typeof req.query.demo === 'string') {
+      const termino = req.query.demo.trim().slice(0, 60);
+      if (!termino) return res.status(400).json({ ok: false, error: 'Falta el producto' });
+      try {
+        const tok = await getMeliAccessToken();
+        if (!tok) return res.status(200).json({ ok: false, error: 'No pude autenticarme contra MercadoLibre.' });
+        const auth = { Authorization: 'Bearer ' + tok, Accept: 'application/json' };
+
+        const [rDom, rTrend] = await Promise.all([
+          fetch('https://api.mercadolibre.com/sites/MLA/domain_discovery/search?limit=3&q=' +
+                encodeURIComponent(termino), { headers: auth }),
+          fetch('https://api.mercadolibre.com/trends/MLA', { headers: auth })
+        ]);
+        if (!rDom.ok && !rTrend.ok) {
+          return res.status(200).json({ ok: false, error: 'MercadoLibre no respondio a la consulta.' });
+        }
+
+        const dom = rDom.ok ? await rDom.json().catch(() => []) : [];
+        const trend = rTrend.ok ? await rTrend.json().catch(() => []) : [];
+
+        const norm = s => String(s || '').toLowerCase()
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        const t = norm(termino);
+        const palabras = t.split(/\s+/).filter(w => w.length > 3);
+
+        const keywords = (Array.isArray(trend) ? trend : [])
+          .map(x => x && x.keyword).filter(Boolean);
+
+        let posicion = null;
+        for (let i = 0; i < keywords.length; i++) {
+          const k = norm(keywords[i]);
+          if (k === t || k.includes(t) || t.includes(k)) { posicion = i + 1; break; }
+        }
+        // Busquedas del momento que comparten alguna palabra con lo que escribio
+        const relacionadas = keywords.filter(k => {
+          const nk = norm(k);
+          return palabras.some(w => nk.includes(w));
+        }).slice(0, 5);
+
+        const d0 = Array.isArray(dom) && dom[0] ? dom[0] : null;
+
+        return res.status(200).json({
+          ok: true,
+          termino,
+          categoria: d0 ? (d0.category_name || d0.domain_name || null) : null,
+          dominio: d0 ? (d0.domain_name || null) : null,
+          posicionEnTendencias: posicion,
+          totalTendencias: keywords.length,
+          relacionadas,
+          topTendencias: keywords.slice(0, 5),
+          consultadoEn: new Date().toISOString(),
+          fuente: 'mercadolibre-trends+domain_discovery'
+        });
+      } catch (e) {
+        return res.status(200).json({ ok: false, error: 'No pude consultar MercadoLibre ahora.' });
+      }
+    }
+
     // ?probe=termino hace una consulta real y reporta a que endpoints de
     // MercadoLibre llega la app. Sirve para diagnosticar sin abrir la web.
     // No devuelve tokens ni datos de ningun usuario.

@@ -775,6 +775,21 @@ h1 .ic,h2 .ic,h3 .ic{ color:var(--mc-y); stroke-width:1.9; margin-right:.12em; }
 .hhd-bar i{ display:block; height:100%; border-radius:99px; background:var(--gold-grad); }
 .hhd-foot{ font-size:.72rem; color:var(--mc-ink-4); line-height:1.45; }
 
+/* Demo del hero apoyada en tendencias reales de MeLi: 2 KPIs + chips */
+.hhd-grid.cols-2{ grid-template-columns:repeat(2,1fr); }
+.hhd-chips{ display:flex; flex-wrap:wrap; gap:6px; }
+.hhd-chips .hhd-chiplabel{
+  width:100%; font-size:.65rem; color:var(--mc-ink-4);
+  letter-spacing:.05em; text-transform:uppercase;
+}
+.hhd-chip{
+  display:inline-block; max-width:100%;
+  background:var(--mc-surface); border:1px solid var(--mc-line);
+  border-radius:var(--mc-r-pill); padding:5px 10px;
+  font-size:.72rem; color:var(--mc-ink-2); line-height:1.2;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+
 .sr-only{
   position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
   clip:rect(0,0,0,0); white-space:nowrap; border:0;
