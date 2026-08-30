@@ -63,9 +63,13 @@ export async function getValidToken(userId) {
         return record.access_token;
   }
 
-  // Renovar con refresh_token
-  const appId = process.env.MELI_APP_ID;
-    const secretKey = process.env.MELI_SECRET_KEY;
+  // Renovar con refresh_token.
+  // Aceptamos los dos juegos de nombres porque en el proyecto conviven
+  // MELI_APP_ID/MELI_SECRET_KEY y MELI_CLIENT_ID/MELI_CLIENT_SECRET: si solo
+  // estuviera configurado uno de los dos pares, el refresco fallaba en silencio.
+  const appId = process.env.MELI_APP_ID || process.env.MELI_CLIENT_ID;
+    const secretKey = process.env.MELI_SECRET_KEY || process.env.MELI_CLIENT_SECRET;
+    if (!appId || !secretKey) throw new Error('Faltan credenciales de la app de MeLi');
 
   const res = await fetch('https://api.mercadolibre.com/oauth/token', {
         method: 'POST',

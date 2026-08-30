@@ -23,6 +23,23 @@ export default async function handler(req, res) {
     if (req.query && req.query.probe) {
       const termino = typeof req.query.probe === 'string' && req.query.probe.length > 1
         ? req.query.probe : 'auriculares bluetooth';
+      // Que nombres de variables estan realmente configurados (nunca sus valores)
+      estado.env = {
+        MELI_APP_ID: !!process.env.MELI_APP_ID,
+        MELI_SECRET_KEY: !!process.env.MELI_SECRET_KEY,
+        MELI_CLIENT_ID: !!process.env.MELI_CLIENT_ID,
+        MELI_CLIENT_SECRET: !!process.env.MELI_CLIENT_SECRET,
+        SUPABASE_SERVICE_KEY: !!process.env.SUPABASE_SERVICE_KEY,
+        MELI_DEMO_USER_ID: process.env.MELI_DEMO_USER_ID || '(default: matypereira)'
+      };
+      // Estado del token de la cuenta de la casa, por separado
+      try {
+        const mod = await import('./meli-refresh.js');
+        const t = await mod.getValidToken(process.env.MELI_DEMO_USER_ID || 'matypereira');
+        estado.token_casa = t ? 'ok' : 'vacio';
+      } catch (e) {
+        estado.token_casa = 'error: ' + String((e && e.message) || e).slice(0, 200);
+      }
       try {
         const tok = await getMeliAccessToken();
         estado.token_obtenido = !!tok;
@@ -163,8 +180,12 @@ async function getMeliAccessToken() {
   //    (devuelve 403), asi que el buscador exige un token de usuario real.
   //    Se activa poniendo MELI_DEMO_USER_ID con el user_id de esa cuenta en la
   //    tabla meli_tokens; el refresco automatico ya lo maneja meli-refresh.
-  const demoUser = process.env.MELI_DEMO_USER_ID;
-  if (demoUser) {
+  // Cuenta de la casa por defecto. Matias autorizo expresamente que la demo
+  // publica use el token de su cuenta ya conectada. Se puede cambiar sin tocar
+  // codigo poniendo MELI_DEMO_USER_ID en las variables de entorno, y se puede
+  // apagar del todo poniendola en "off".
+  const demoUser = process.env.MELI_DEMO_USER_ID || 'matypereira';
+  if (demoUser && demoUser !== 'off') {
     try {
       const mod = await import('./meli-refresh.js');
       const t = await mod.getValidToken(demoUser);
