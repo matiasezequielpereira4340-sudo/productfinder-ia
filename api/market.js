@@ -66,6 +66,36 @@ export default async function handler(req, res) {
           };
           // Forma real de los datos de /products/search, para saber si alcanzan
           // para la demo (precio, competencia) o si hay que pedir mas.
+          // Cuantos de los productos del catalogo traen precio de verdad.
+          // Es lo que decide si la demo puede mostrar precios reales o no.
+          if (req.query.precios) {
+            try {
+              const r = await fetch(alternativas.products_search, { headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' } });
+              const j = await r.json();
+              const ids = (j.results || []).slice(0, 8).map(x => x.id).filter(Boolean);
+              const detalles = await Promise.all(ids.map(id =>
+                fetch('https://api.mercadolibre.com/products/' + id,
+                  { headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' } })
+                  .then(x => x.ok ? x.json() : null).catch(() => null)));
+              const filas = detalles.filter(Boolean).map(d => {
+                const b = d.buy_box_winner;
+                return {
+                  nombre: (d.name || '').slice(0, 42),
+                  precio: b ? b.price : null,
+                  vendidos: b ? b.sold_quantity : null,
+                  envio_gratis: !!(b && b.shipping && b.shipping.free_shipping),
+                  hijos: Array.isArray(d.children_ids) ? d.children_ids.length : 0
+                };
+              });
+              const conPrecio = filas.filter(f => typeof f.precio === 'number' && f.precio > 0);
+              estado.precios = {
+                consultados: filas.length,
+                con_precio: conPrecio.length,
+                muestra: filas.slice(0, 6)
+              };
+            } catch (e) { estado.precios = { error: String(e && e.message).slice(0, 180) }; }
+          }
+
           if (req.query.forma) {
             try {
               const r = await fetch(alternativas.products_search, { headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' } });
