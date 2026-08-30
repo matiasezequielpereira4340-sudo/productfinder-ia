@@ -9,12 +9,32 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   // GET = simple status endpoint (sin OAuth). El POST sigue debajo.
   if (req.method === 'GET') {
-    return res.status(200).json({
+    const estado = {
       ok: true,
       service: 'market',
       meli_token_present: !!process.env.MELI_ACCESS_TOKEN,
+      meli_client_creds_present: !!((process.env.MELI_CLIENT_ID || process.env.MELI_APP_ID) &&
+                                    (process.env.MELI_CLIENT_SECRET || process.env.MELI_SECRET_KEY)),
       anthropic_present: !!process.env.ANTHROPIC_API_KEY
-    });
+    };
+    // ?probe=1 hace una consulta real y reporta si la demo publica esta viva.
+    // No devuelve el token ni datos sensibles: solo si hubo respuesta y cuantos
+    // resultados vinieron. Sirve para diagnosticar sin abrir la web.
+    if (req.query && req.query.probe) {
+      const termino = typeof req.query.probe === 'string' && req.query.probe.length > 1
+        ? req.query.probe : 'auriculares bluetooth';
+      try {
+        const tok = await getMeliAccessToken();
+        estado.token_obtenido = !!tok;
+        const r = await safeMeliSearch(termino);
+        estado.probe = r
+          ? { termino, fuente: r.fuente, resultados: (r.results || []).length, total: r.total || 0 }
+          : { termino, fuente: 'no-disponible', resultados: 0 };
+      } catch (e) {
+        estado.probe = { termino, error: String((e && e.message) || e).slice(0, 200) };
+      }
+    }
+    return res.status(200).json(estado);
   }
   const { step, product, url, customPrompt } = req.body || {};
     if (!step) return res.status(400).json({ error: 'step requerido' });
