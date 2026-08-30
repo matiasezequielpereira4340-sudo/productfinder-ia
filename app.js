@@ -839,7 +839,7 @@ async function startMRAnalysis(){
 
 function resetMRGuidedStep(n){
   if(n===3){
-    document.getElementById('mrStep3Body').innerHTML=`<div class="mr-instruction"><strong><svg class="ic" aria-hidden="true"><use href="#i-phone"></use></svg> Hac&#233; esto en 60 segundos:</strong>1. Abr&#237; TikTok y busc&#225; el producto en espa&#241;ol<br>2. Filtr&#225; por "M&#225;s vistos" o "Esta semana"<br>3. Mir&#225; el promedio de vistas de los primeros 3 videos<br>4. Fijate si hay creadores argentinos o solo de otros pa&#237;ses</div><div class="mr-guided-grid"><div class="mr-field"><label>Promedio de vistas top 3 videos (aproximado)</label><input type="text" inputmode="numeric" id="mrTiktokViews" placeholder="Ej: 250k, 1.2M, 300mil" data-mr-smart-num="1"/></div><div class="mr-field"><label>&#191;Hay contenido en espa&#241;ol/Argentina?</label><select id="mrTiktokArg"><option value="si">S&#237;, hay varios videos</option><option value="pocos">Pocos (1-2)</option><option value="no">No, solo ingl&#233;s u otros</option></select></div></div><button class="btn-confirm" onclick="confirmMRStep3()">Confirmar datos TikTok &#8594;</button>`;
+    document.getElementById('mrStep3Body').innerHTML=`<div class="mr-instruction"><strong><svg class="ic" aria-hidden="true"><use href="#i-phone"></use></svg> Opcional. Te lleva 2 o 3 minutos.</strong>Este paso afina la lectura de demanda, pero <b>no es obligatorio</b>: si lo salte&aacute;s calculo el score igual, con menos precisi&oacute;n en la parte de demanda.<br><br>Si quer&eacute;s hacerlo: busc&aacute; el producto en TikTok, orden&aacute; por &quot;M&aacute;s vistos&quot; y anot&aacute; el promedio de vistas de los 3 primeros videos.</div><div class="mr-guided-grid"><div class="mr-field"><label>Promedio de vistas top 3 videos (aproximado)</label><input type="text" inputmode="numeric" id="mrTiktokViews" placeholder="Ej: 250k, 1.2M, 300mil" data-mr-smart-num="1"/></div><div class="mr-field"><label>&#191;Hay contenido en espa&#241;ol/Argentina?</label><select id="mrTiktokArg"><option value="si">S&#237;, hay varios videos</option><option value="pocos">Pocos (1-2)</option><option value="no">No, solo ingl&#233;s u otros</option></select></div></div><button class="btn-confirm" onclick="confirmMRStep3()">Confirmar datos TikTok &#8594;</button><button class="btn-skip" onclick="skipMRStep3()">Saltear este paso</button>`;
   }
   if(n===4){
     document.getElementById('mrStep4Body').innerHTML=`<div class="mr-instruction"><strong><svg class="ic" aria-hidden="true"><use href="#i-cart"></use></svg> Dos cosas para buscar:</strong><strong style="color:var(--text);margin-top:8px;display:block">Ventas MeLi:</strong>Entr&#225; a los 3 primeros listings del producto. Abajo del precio dice "X vendidos". Estim&#225; el promedio mensual de los top 3.<br><br><strong style="color:var(--text)">FOB en Alibaba:</strong>Busc&#225; el producto en alibaba.com o 1688.com. Us&#225; el precio unitario para la cantidad que te interesa.</div><div class="mr-guided-grid"><div class="mr-field"><label>Precio FOB estimado (USD por unidad)</label><input type="number" id="mrFOB" placeholder="Ej: 12.50" step="0.01" min="0"/></div><div class="mr-field"><label>Ventas/mes promedio top 3 listings MeLi</label><input type="number" id="mrVentas" placeholder="Ej: 150" min="0"/></div><div class="mr-field"><label>Precio de venta promedio en MeLi (ARS)</label><input type="number" id="mrPrecioVenta" placeholder="Ej: 45000" min="0"/></div></div><button class="btn-confirm" onclick="confirmMRStep4()">Calcular viabilidad completa &#8594;</button>
@@ -900,6 +900,19 @@ function confirmMRStep3(){
   mrData.step3={views,arg};
   const argLabel=arg==='si'?'S&#237;, hay varios':arg==='pocos'?'Pocos (1-2)':'No';
   document.getElementById('mrStep3Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Vistas promedio top 3</span><span class="mr-row-value">${views.toLocaleString('es-AR')}</span></div><div class="mr-row"><span class="mr-row-label">Contenido en Argentina</span><span class="mr-row-value">${argLabel}</span></div><div style="margin-top:8px"><span class="mr-tag tag-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Datos TikTok registrados</span></div>`;
+}
+
+// El paso de TikTok es opcional: si lo saltean, el score se calcula igual y
+// se deja registrado que la demanda se midio con menos precision.
+function skipMRStep3(){
+  mrData.step3={views:0,arg:'no-informado',omitido:true};
+  document.getElementById('mrStep3Body').innerHTML=
+    '<div class="mr-row"><span class="mr-row-label">Tracci&#243;n en TikTok</span>'+
+    '<span class="mr-row-value">Sin medir</span></div>'+
+    '<div style="margin-top:8px"><span class="mr-tag tag-info">'+
+    '<svg class="ic" aria-hidden="true"><use href="#i-info"></use></svg> '+
+    'Paso salteado: calculo el score igual, con menos precisi&#243;n en demanda.</span></div>';
+  if(window.mcTrack) window.mcTrack('tiktok_salteado',{producto:mrCurrentProduct||''});
 }
 
 function confirmMRStep4(){

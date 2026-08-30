@@ -795,6 +795,37 @@ h1 .ic,h2 .ic,h3 .ic{ color:var(--mc-y); stroke-width:1.9; margin-right:.12em; }
   border-radius:9px; cursor:pointer; min-height:44px; transition:border-color .15s;
 }
 .hhd-retry:hover{ border-color:var(--mc-y); color:var(--mc-y); }
+
+/* ===== Jerarquia de la pantalla de acceso (PASO 1, punto 8) =====
+   "Probar sin registrarme" es la accion principal para un visitante frio;
+   el login queda en segundo plano. */
+.auth-primary{
+  display:flex; align-items:center; justify-content:center; gap:9px; width:100%;
+  background:var(--mc-y); color:var(--mc-y-ink); border:none;
+  font-family:var(--mc-sans); font-weight:800; font-size:1rem;
+  padding:14px 18px; border-radius:11px; cursor:pointer; min-height:48px;
+  box-shadow:0 12px 26px -10px rgba(255,230,0,.55); transition:.18s var(--mc-ease);
+}
+.auth-primary:hover{ filter:brightness(1.06); transform:translateY(-1px); }
+.auth-primary .ic{ width:18px; height:18px; }
+/* El login deja de ser el boton amarillo: hay un solo amarillo por pantalla */
+.btn-login.btn-login-secundario{
+  background:transparent !important; color:var(--mc-ink) !important;
+  border:1px solid var(--mc-line-2) !important; font-weight:600 !important;
+  box-shadow:none !important; min-height:44px;
+}
+.btn-login.btn-login-secundario:hover{
+  border-color:var(--mc-ink-3) !important; background:rgba(255,255,255,.04) !important;
+}
+
+/* Boton de saltear un paso opcional */
+.btn-skip{
+  background:none; border:0; color:var(--mc-ink-3); font-family:var(--mc-sans);
+  font-size:.85rem; font-weight:600; cursor:pointer; padding:12px 14px;
+  margin-left:6px; min-height:44px; border-radius:8px; text-decoration:underline;
+  text-underline-offset:3px;
+}
+.btn-skip:hover{ color:var(--mc-ink); background:rgba(255,255,255,.04); }
 .hhd-form{ display:flex; gap:8px; }
 .hhd-input{
   flex:1; min-width:0; background:var(--mc-surface); border:1px solid var(--mc-line-2);

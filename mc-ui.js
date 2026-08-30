@@ -192,6 +192,36 @@
      ===================================================================== */
   var WA_IMPORT = "https://wa.me/541160374306?text=Hola!%20Quiero%20asesor%C3%ADa%20para%20importar%20%5Bweb%3Anav%5D";
 
+  /* =====================================================================
+     FUENTE DE VERDAD UNICA de las etiquetas de CTA.
+     Dos y solo dos para el embudo de importacion: una accion de producto y
+     una de contacto. Cualquier elemento con data-mc-cta="producto|contacto"
+     toma su texto de aca, asi no vuelven a multiplicarse siete variantes.
+     (El CTA de formacion en IA es otro embudo y tiene su propia etiqueta,
+      a proposito, para poder medir cual de los dos convierte.)
+     ===================================================================== */
+  var CTA = {
+    producto: "Analizar un producto",
+    contacto: "Hablar por WhatsApp"
+  };
+
+  function initCtaLabels() {
+    Array.prototype.forEach.call(document.querySelectorAll("[data-mc-cta]"), function (el) {
+      var clave = el.getAttribute("data-mc-cta");
+      var texto = CTA[clave];
+      if (!texto) return;
+      // Reemplaza solo los nodos de texto, para no pisar el icono SVG.
+      var reemplazado = false;
+      Array.prototype.forEach.call(el.childNodes, function (n) {
+        if (n.nodeType === 3 && n.nodeValue.trim()) {
+          n.nodeValue = reemplazado ? "" : " " + texto;
+          reemplazado = true;
+        }
+      });
+      if (!reemplazado) el.appendChild(document.createTextNode(" " + texto));
+    });
+  }
+
   var NAV = [
     { key: "inicio", label: "Inicio", icon: "i-home", href: "/index.html#menu",
       desc: "Volver a la portada" },
@@ -295,7 +325,7 @@
       '<nav class="mc-menu" id="mcMenu">' + items + "</nav>" +
       '<div class="mc-right">' +
         '<button class="mc-palette-btn" type="button" aria-label="Buscar herramienta (Ctrl+K)" title="Buscar herramienta (Ctrl+K)">' + ic("i-search") + "</button>" +
-        '<a class="mc-cta" data-mc-event="cta_importacion" data-mc-origen="nav" href="' + WA_IMPORT + '" target="_blank" rel="noopener">' + ic("i-chat") + ' Asesoría<span class="mc-pulse"></span></a>' +
+        '<a class="mc-cta" data-mc-event="cta_importacion" data-mc-origen="nav" href="' + WA_IMPORT + '" target="_blank" rel="noopener">' + ic("i-chat") + ' <span data-mc-cta-text>Hablar por WhatsApp</span><span class="mc-pulse"></span></a>' +
         '<button class="mc-enter" id="mcEnterBtn" type="button" style="display:none">Entrar</button>' +
         '<div class="mc-user" id="mcUserBox" style="display:none"><span class="mc-avatar mc-av">?</span><span class="mc-uname mc-un">invitado</span></div>' +
         '<button class="mc-logout" id="mcLogoutBtn" type="button" style="display:none">Salir</button>' +
@@ -530,6 +560,7 @@
     safe(initReveal, "aparicion");
     safe(initHeroGradient, "hero");
     safe(initPalette, "command-palette");
+    safe(initCtaLabels, "etiquetas-cta");
     safe(initTracking, "medicion");
   }
 

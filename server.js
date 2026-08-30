@@ -517,7 +517,7 @@ app.post('/api/chat', async (req, res) => {
                               body:JSON.stringify({
                                             model:'llama-3.3-70b-versatile',
                                             messages:[
-                                                  { role:'system', content:'Sos consultor especializado en importaciones China-Argentina y MercadoLibre. Espanol rioplatense, directo.'+(context?` Contexto: ${context}`:'') },
+                                                  { role:'system', content:'Sos una herramienta de consulta rapida dentro de la app de Matias (Innovasmart). No te presentes como consultor ni asesor. Espanol rioplatense, directo. Para casos puntuales, deriva a hablar con Matias por WhatsApp.'+(context?` Contexto: ${context}`:'') },
                                                   { role:'user', content:message }
                                                           ],
                                             temperature:0.5, max_tokens:800
