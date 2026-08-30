@@ -47,6 +47,20 @@ body{background:var(--dark);color:var(--text);font-family:'Segoe UI',sans-serif;
 .select-group label{display:block;color:var(--text-dim);font-size:.8rem;margin-bottom:5px}
 select{width:100%;background:var(--dark-4);border:1px solid #333;border-radius:var(--radius);padding:10px 12px;color:var(--text);font-size:.9rem;outline:none}
 select:focus{border-color:var(--gold)}
+.nicho-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.nicho-chip{background:var(--dark-4);border:1px solid #333;color:var(--text-dim);font-size:.78rem;font-weight:600;padding:7px 12px;border-radius:20px;cursor:pointer;min-height:44px;transition:.15s}
+.nicho-chip:hover{border-color:var(--gold);color:var(--gold)}
+.nicho-chip.is-active{background:var(--gold);border-color:var(--gold);color:#000}
+.combo{position:relative}
+.combo-input{width:100%;background:var(--dark-4);border:1px solid #333;border-radius:var(--radius);padding:12px 14px;color:var(--text);font-size:.9rem;outline:none;min-height:44px}
+.combo-input:focus{border-color:var(--gold)}
+.combo-listbox{position:absolute;z-index:40;top:calc(100% + 6px);left:0;right:0;max-height:260px;overflow-y:auto;
+  background:var(--dark-3);border:1px solid #333;border-radius:var(--radius);padding:6px;margin:0;list-style:none;
+  box-shadow:0 20px 44px -16px rgba(0,0,0,.8)}
+.combo-listbox[hidden]{display:none}
+.combo-opt{padding:10px 12px;border-radius:8px;color:var(--text);font-size:.88rem;cursor:pointer}
+.combo-opt:hover,.combo-opt.is-active{background:rgba(255,230,0,.12);color:var(--gold)}
+.combo-empty{padding:12px;color:var(--text-dim);font-size:.85rem;text-align:center}
 .btn-analyze{background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#000;border:none;border-radius:var(--radius);padding:14px 32px;font-size:1rem;font-weight:700;cursor:pointer;width:100%;margin-top:16px;transition:opacity .2s}
 .btn-analyze:hover{opacity:.85}
 .btn-analyze:disabled{opacity:.5;cursor:not-allowed}
@@ -90,34 +104,6 @@ select:focus{border-color:var(--gold)}
 .contact-buttons{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
 .btn-wa{background:#25D366;color:#fff;border:none;border-radius:var(--radius);padding:11px 22px;font-weight:700;cursor:pointer;text-decoration:none;font-size:.9rem;display:inline-block}
 .btn-is{background:transparent;border:1px solid var(--gold);color:var(--gold);border-radius:var(--radius);padding:11px 22px;font-weight:700;cursor:pointer;text-decoration:none;font-size:.9rem;display:inline-block}
-#adminScreen{flex-direction:column}
-.admin-content{margin-top:56px;padding:30px 20px;max-width:1000px;width:100%;margin-left:auto;margin-right:auto}
-.admin-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
-.admin-header h2{color:var(--gold);font-size:1.6rem}
-.admin-section{background:var(--dark-3);border:1px solid #333;border-radius:12px;padding:24px;margin-bottom:24px}
-.admin-section h3{color:var(--gold);margin-bottom:16px;font-size:1rem;border-bottom:1px solid #333;padding-bottom:8px}
-.create-user-form{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end}
-.form-field label{display:block;color:var(--text-dim);font-size:.8rem;margin-bottom:5px}
-.form-field input,.form-field select{width:100%;background:var(--dark-4);border:1px solid #333;border-radius:var(--radius);padding:13px 16px;color:var(--text);font-size:1rem;outline:none}
-.form-field input:focus,.form-field select:focus{border-color:var(--gold)}
-.btn-create{background:var(--gold);color:#000;border:none;border-radius:var(--radius);padding:13px 24px;font-weight:700;cursor:pointer;white-space:nowrap;font-size:1rem;letter-spacing:.03em}
-.users-table{width:100%;border-collapse:collapse}
-.users-table th{background:var(--dark-4);color:var(--text-dim);font-size:.8rem;text-align:left;padding:10px 12px;border-bottom:1px solid #333}
-.users-table td{padding:10px 12px;border-bottom:1px solid #2a2a2a;font-size:.88rem}
-.users-table tr:hover td{background:rgba(255,230,0,.05)}
-.badge{padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:600}
-.badge.active{background:rgba(39,174,96,.15);color:var(--green)}
-.badge.inactive{background:rgba(192,57,43,.15);color:var(--red)}
-.badge.expired{background:rgba(192,57,43,.2);color:var(--red)}
-.badge.admin{background:rgba(255,230,0,.15);color:var(--gold)}
-.btn-sm{border:none;border-radius:4px;padding:5px 11px;font-size:.78rem;cursor:pointer;font-weight:600}
-.btn-toggle{background:rgba(39,174,96,.15);color:var(--green)}
-.btn-toggle.deactivate{background:rgba(192,57,43,.15);color:var(--red)}
-.btn-delete{background:rgba(192,57,43,.15);color:var(--red);margin-left:6px} .btn-premium{background:rgba(46,204,113,.15);color:#2ecc71;margin-right:6px} .btn-premium.active{background:rgba(241,196,15,.18);color:#f1c40f}
-.btn-sm:hover{opacity:.75}
-.admin-msg{padding:10px;border-radius:var(--radius);margin-bottom:12px;font-size:.88rem;display:none}
-.admin-msg.ok{background:rgba(39,174,96,.15);color:var(--green);border:1px solid var(--green);display:block}
-.admin-msg.err{background:rgba(192,57,43,.15);color:var(--red);border:1px solid var(--red);display:block}
 .loading{text-align:center;color:var(--text-dim);padding:20px}
 /* ===== MARKET READER ===== */
 #marketScreen{flex-direction:column}
@@ -721,6 +707,13 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 .mc-logout{background:none;border:1px solid rgba(255,255,255,.16);color:#cfcfcf;font-family:inherit;font-weight:600;
   font-size:.82rem;padding:7px 13px;border-radius:9px;cursor:pointer;transition:.16s}
 .mc-logout:hover{background:#e04141;border-color:#e04141;color:#fff}
+.mc-enter{background:var(--mc-y,#FFE600);color:#111;border:none;font-family:inherit;font-weight:800;
+  font-size:.86rem;padding:9px 18px;border-radius:9px;cursor:pointer;transition:.16s;min-height:40px}
+.mc-enter:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.mc-palette-btn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#eaeaea;
+  width:40px;height:40px;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.16s}
+.mc-palette-btn:hover{border-color:var(--mc-y,#FFE600);color:var(--mc-y,#FFE600)}
+.mc-palette-btn .ic{width:18px;height:18px}
 .mc-toggle{display:none;background:none;border:0;color:#fff;font-size:1.6rem;cursor:pointer;padding:4px 8px}
 
 
@@ -739,6 +732,8 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
   .mc-right{gap:9px}
   .mc-uname{display:none}
   .mc-cta span.mc-ctatext{display:none}
+  .mc-toggle,.mc-palette-btn{min-width:44px;min-height:44px}
+  .mc-enter,.mc-logout{min-height:44px}
 }
 @media(max-width:560px){.mc-brand small{display:none}.mc-user{padding:4px}.mc-logout{padding:6px 9px}}
 
@@ -832,8 +827,57 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 <link rel="stylesheet" href="theme.css?v=20260825">
 </head>
 <body>
+<div id="mcNavWrap">
+  <header class="mc-nav" id="mcNavMain">
+      <a href="javascript:void(0)" onclick="goHome()" class="mc-brand"><span class="mc-brand-ico"><svg class="ic" aria-hidden="true"><use href="#i-link"></use></svg></span> MeLi Connect</a>
+      <nav class="mc-menu" id="mcMenuMain">
+        <div class="mc-item"><a href="javascript:void(0)" onclick="showMenu()" class="mc-link" id="mcNavInicio"><svg class="ic" aria-hidden="true"><use href="#i-home"></use></svg> Inicio</a></div>
+        <div class="mc-item">
+          <button class="mc-link" type="button"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Importaci&oacute;n <span class="mc-caret">&#9660;</span></button>
+          <div class="mc-drop">
+            <div class="mc-sechead">Encontr&aacute; y planific&aacute;</div>
+            <a href="javascript:void(0)" onclick="showMarket()" id="mcNavBuscador"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-target"></use></svg></span><span class="mc-dt"><b>Buscador de oportunidades</b><span>Qu&eacute; conviene importar seg&uacute;n tu perfil</span></span></a>
+            <a href="javascript:void(0)" onclick="showApp()" id="mcNavRecomendador"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-brain"></use></svg></span><span class="mc-dt"><b>Recomendador por perfil</b><span>Qu&eacute; traer seg&uacute;n tu capital y experiencia</span></span></a>
+            <a href="margen.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-calc"></use></svg></span><span class="mc-dt"><b>Calculador de margen</b><span>Cu&aacute;nto vas a ganar de verdad</span></span></a>
+          </div>
+        </div>
+        <div class="mc-item">
+          <button class="mc-link" type="button"><svg class="ic" aria-hidden="true"><use href="#i-cart"></use></svg> MercadoLibre <span class="mc-caret">&#9660;</span></button>
+          <div class="mc-drop">
+            <div class="mc-sechead">Tu cuenta y publicaciones</div>
+            <a href="meli-connect.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-link"></use></svg></span><span class="mc-dt"><b>Conectar cuenta</b><span>Vincul&aacute; tu MercadoLibre</span></span></a>
+            <a href="dashboard.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span class="mc-dt"><b>Dashboard de ventas</b><span>&Oacute;rdenes, comisiones y ganancia neta</span></span></a>
+            <a href="analizador.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-search"></use></svg></span><span class="mc-dt"><b>Analizador de publicaciones</b><span>Qu&eacute; mejorar en tu publicaci&oacute;n</span></span></a>
+            <a href="calculadora-envios.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-truck"></use></svg></span><span class="mc-dt"><b>Flex vs Full</b><span>Qu&eacute; env&iacute;o te conviene</span></span></a>
+            <a href="educacion.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-cap"></use></svg></span><span class="mc-dt"><b>Aprend&eacute; a publicar</b><span>Gu&iacute;a para arrancar a vender</span></span></a>
+          </div>
+        </div>
+        <div class="mc-item mc-admin-item" style="display:none"><a href="admin.html" class="mc-link"><svg class="ic" aria-hidden="true"><use href="#i-crown"></use></svg> Admin</a></div>
+      </nav>
+      <div class="mc-right">
+        <button class="mc-palette-btn" type="button" onclick="openPalette()" aria-label="Buscar herramienta (Ctrl+K)" title="Buscar herramienta (Ctrl+K)"><svg class="ic" aria-hidden="true"><use href="#i-search"></use></svg></button>
+        <a class="mc-cta" href="https://wa.me/541160374306" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Asesor&iacute;a<span class="mc-pulse"></span></a>
+        <button class="mc-enter" id="mcEnterBtn" type="button" onclick="showLogin()">Entrar</button>
+        <div class="mc-user" id="mcUserBox" style="display:none"><span class="mc-avatar mc-av">?</span><span class="mc-uname mc-un">invitado</span></div>
+        <button class="mc-logout" id="mcLogoutBtn" onclick="doLogout()" type="button" style="display:none">Salir</button>
+      </div>
+      <button class="mc-toggle" onclick="this.previousElementSibling.previousElementSibling.classList.toggle('show')" aria-label="Menu"><svg class="ic" aria-hidden="true"><use href="#i-menu"></use></svg></button>
+    </header>
+</div>
+
+<div class="cmdk-overlay" id="cmdkOverlay" hidden>
+  <div class="cmdk-modal" role="dialog" aria-modal="true" aria-label="Buscar herramienta">
+    <div class="cmdk-inputrow">
+      <svg class="ic" aria-hidden="true"><use href="#i-search"></use></svg>
+      <label for="cmdkInput" class="sr-only">Buscar herramienta</label>
+      <input type="text" id="cmdkInput" class="cmdk-input" placeholder="Buscar herramienta o accion..." autocomplete="off" aria-autocomplete="list" aria-controls="cmdkList" role="combobox" aria-expanded="true">
+      <kbd class="cmdk-esc">Esc</kbd>
+    </div>
+    <ul class="cmdk-list" id="cmdkList" role="listbox" aria-label="Resultados"></ul>
+  </div>
+</div>
 <!-- LOGIN SCREEN -->
-<div id="loginScreen" class="screen active">
+<div id="loginScreen" class="screen">
   <div class="auth">
     <aside class="auth-brand">
       <a class="auth-logo" href="javascript:void(0)"><span class="mc-brand-ico"><svg class="ic" aria-hidden="true"><use href="#i-link"></use></svg></span> MeLi Connect</a>
@@ -912,40 +956,7 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 </div>
 
 <!-- APP SCREEN -->
-<div id="menuScreen" class="screen">
-  <header class="mc-nav">
-      <a href="javascript:void(0)" onclick="goHome()" class="mc-brand"><span class="mc-brand-ico"><svg class="ic" aria-hidden="true"><use href="#i-link"></use></svg></span> MeLi Connect</a>
-      <nav class="mc-menu">
-        <div class="mc-item"><a href="javascript:void(0)" onclick="showMenu()" class="mc-link active"><svg class="ic" aria-hidden="true"><use href="#i-home"></use></svg> Inicio</a></div>
-        <div class="mc-item">
-          <button class="mc-link" type="button"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Importaci&oacute;n <span class="mc-caret">&#9660;</span></button>
-          <div class="mc-drop">
-            <div class="mc-sechead">Encontr&aacute; y planific&aacute;</div>
-            <a href="javascript:void(0)" onclick="showMarket()"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-target"></use></svg></span><span class="mc-dt"><b>Buscador de oportunidades</b><span>Qu&eacute; conviene importar seg&uacute;n tu perfil</span></span></a>
-            <a href="javascript:void(0)" onclick="showApp()"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-brain"></use></svg></span><span class="mc-dt"><b>Recomendador por perfil</b><span>Qu&eacute; traer seg&uacute;n tu capital y experiencia</span></span></a>
-            <a href="margen.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-calc"></use></svg></span><span class="mc-dt"><b>Calculador de margen</b><span>Cu&aacute;nto vas a ganar de verdad</span></span></a>
-          </div>
-        </div>
-        <div class="mc-item">
-          <button class="mc-link" type="button"><svg class="ic" aria-hidden="true"><use href="#i-cart"></use></svg> MercadoLibre <span class="mc-caret">&#9660;</span></button>
-          <div class="mc-drop">
-            <div class="mc-sechead">Tu cuenta y publicaciones</div>
-            <a href="meli-connect.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-link"></use></svg></span><span class="mc-dt"><b>Conectar cuenta</b><span>Vincul&aacute; tu MercadoLibre</span></span></a>
-            <a href="dashboard.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span class="mc-dt"><b>Dashboard de ventas</b><span>&Oacute;rdenes, comisiones y ganancia neta</span></span></a>
-            <a href="analizador.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-search"></use></svg></span><span class="mc-dt"><b>Analizador de publicaciones</b><span>Qu&eacute; mejorar en tu publicaci&oacute;n</span></span></a>
-            <a href="calculadora-envios.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-truck"></use></svg></span><span class="mc-dt"><b>Flex vs Full</b><span>Qu&eacute; env&iacute;o te conviene</span></span></a>
-            <a href="educacion.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-cap"></use></svg></span><span class="mc-dt"><b>Aprend&eacute; a publicar</b><span>Gu&iacute;a para arrancar a vender</span></span></a>
-          </div>
-        </div>
-        <div class="mc-item mc-admin-item" style="display:none"><a href="javascript:void(0)" onclick="showAdmin()" class="mc-link"><svg class="ic" aria-hidden="true"><use href="#i-crown"></use></svg> Admin</a></div>
-      </nav>
-      <div class="mc-right">
-        <a class="mc-cta" href="https://wa.me/541160374306" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Asesor&iacute;a<span class="mc-pulse"></span></a>
-        <div class="mc-user"><span class="mc-avatar mc-av">?</span><span class="mc-uname mc-un">invitado</span></div>
-        <button class="mc-logout" onclick="doLogout()" type="button">Salir</button>
-      </div>
-      <button class="mc-toggle" onclick="this.previousElementSibling.previousElementSibling.classList.toggle('show')" aria-label="Menu"><svg class="ic" aria-hidden="true"><use href="#i-menu"></use></svg></button>
-    </header>
+<div id="menuScreen" class="screen active">
   <main class="hub">
     <section class="hub-hero">
       <div class="hub-hero-copy">
@@ -957,75 +968,79 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
         <a class="hub-btn ghost" href="https://wa.me/541160374306" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Asesor&iacute;a 1 a 1</a>
       </div>
       </div>
-      <aside class="hub-hero-demo" aria-label="Ejemplo de resultado">
+      <aside class="hub-hero-demo" aria-label="Demo en vivo con datos de MercadoLibre">
         <div class="hhd-top">
-          <span class="hhd-label">As&iacute; se ve un resultado</span>
-          <span class="hhd-demo">Ejemplo</span>
+          <span class="hhd-label">Prob&aacute; con un producto real</span>
+          <span class="hhd-demo" id="hhdModeTag">En vivo</span>
         </div>
+        <form class="hhd-form" onsubmit="runHeroDemo();return false;">
+          <label for="hhdInput" class="sr-only">Producto a analizar</label>
+          <input class="hhd-input" type="text" id="hhdInput" placeholder="Ej: auriculares bluetooth" maxlength="60" autocomplete="off">
+          <button class="hhd-submit" id="hhdBtn" type="submit">Analizar</button>
+        </form>
         <div class="hhd-card">
-          <div class="hhd-head">
-            <div>
-              <div class="hhd-name">Collar GPS para mascotas</div>
-              <div class="hhd-meta">Tecnolog&iacute;a &middot; Argentina</div>
-            </div>
-            <span class="hhd-pick"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> Top pick</span>
+          <div id="hhdResult">
+            <div class="hhd-skeleton"><div class="sk-line"></div><div class="sk-grid"><div class="sk-box"></div><div class="sk-box"></div><div class="sk-box"></div><div class="sk-box"></div></div></div>
           </div>
-          <div class="hhd-grid">
-            <div class="hhd-kpi is-good"><b>62%</b><span>Margen</span></div>
-            <div class="hhd-kpi is-accent"><b>Alta</b><span>Demanda</span></div>
-            <div class="hhd-kpi is-good"><b>Baja</b><span>Competencia</span></div>
-            <div class="hhd-kpi is-good"><b>Bajo</b><span>Riesgo</span></div>
-          </div>
-          <div class="hhd-bar"><i style="width:62%"></i></div>
-          <div class="hhd-foot">Margen calculado con FOB, flete, aranceles, IVA y comisiones.</div>
+          <div class="hhd-ts" id="hhdTsWrap" style="display:none"><span id="hhdTimestamp"></span></div>
+        </div>
+        <div class="hhd-cta" id="hhdCta" style="display:none">
+          <a href="javascript:void(0)" onclick="showMarket()">Ver la herramienta completa &rarr;</a>
         </div>
       </aside>
     </section>
-    <section class="hub-section">
-      <div class="hub-sechead"><span class="bar"></span><h2><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Importaci&oacute;n</h2><small>&mdash; encontr&aacute; qu&eacute; traer y cu&aacute;nto vas a ganar</small></div>
-      <div class="hub-grid"><a class="hub-card" href="javascript:void(0)" onclick="showMarket()"><span class="hub-card-tag"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> Recomendado</span><div class="hub-card-img"><img src="assets/img/hub/01-puerto-contenedores.webp" alt="Contenedores de carga apilados en un puerto al atardecer" loading="lazy" decoding="async" width="800" height="480"></div><div class="hub-card-body"><h3>Buscador de oportunidades</h3><p>Analizamos el mercado real de MercadoLibre y te decimos qu&eacute; conviene importar seg&uacute;n tu perfil.</p><span class="hub-card-go">Abrir &rarr;</span></div></a><a class="hub-card" href="javascript:void(0)" onclick="showApp()"><div class="hub-card-img"><img src="assets/img/hub/02-cajas-pallet.webp" alt="Cajas de cart&oacute;n surtidas apiladas sobre un pallet de madera en un dep&oacute;sito" loading="lazy" decoding="async" width="800" height="480"></div><div class="hub-card-body"><h3>Recomendador por perfil</h3><p>Carg&aacute; tu capital, experiencia y tolerancia al riesgo y te sugerimos qu&eacute; productos traer.</p><span class="hub-card-go">Abrir &rarr;</span></div></a><a class="hub-card" href="margen.html"><div class="hub-card-img"><img src="assets/img/hub/03-calculadora-escritorio.webp" alt="Calculadora y una planilla impresa sobre un escritorio oscuro" loading="lazy" decoding="async" width="800" height="480"></div><div class="hub-card-body"><h3>Calculador de margen</h3><p>Calcul&aacute; cu&aacute;nto vas a ganar de verdad, con costos, impuestos y comisiones incluidos.</p><span class="hub-card-go">Abrir &rarr;</span></div></a></div>
+
+    <section class="ia-section mc-reveal">
+      <span class="ia-tag"><svg class="ic" aria-hidden="true"><use href="#i-brain"></use></svg> C&oacute;mo est&aacute; hecha esta app</span>
+      <h2>Esto lo constru&iacute; yo, <em>sin ser programador</em>, usando IA</h2>
+      <p class="ia-lead">MeLi Connect no es una demo: es la herramienta que uso todos los d&iacute;as para mis propias importaciones. La arm&eacute; entera con inteligencia artificial, sin venir del rubro de software. Si te interes&oacute; c&oacute;mo se hace, tambi&eacute;n doy formaci&oacute;n en IA.</p>
+      <div class="ia-grid">
+        <div>
+          <div class="ia-stats">
+            <div class="ia-stat"><b>8</b><span>Herramientas activas en el hub</span></div>
+            <div class="ia-stat"><b>12</b><span>Funciones backend en producci&oacute;n</span></div>
+            <div class="ia-stat"><b>4</b><span>Integraciones externas reales</span></div>
+          </div>
+          <div class="ia-integrations">
+            <span class="ia-chip"><svg class="ic" aria-hidden="true"><use href="#i-cart"></use></svg> API de MercadoLibre</span>
+            <span class="ia-chip"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Base de datos (Supabase)</span>
+            <span class="ia-chip"><svg class="ic" aria-hidden="true"><use href="#i-key"></use></svg> Autenticaci&oacute;n de usuarios</span>
+            <span class="ia-chip"><svg class="ic" aria-hidden="true"><use href="#i-brain"></use></svg> An&aacute;lisis con IA (Claude)</span>
+          </div>
+        </div>
+        <div>
+          <div class="ia-quote">
+            <p>&ldquo;Nunca escrib&iacute; una l&iacute;nea de c&oacute;digo antes. No sab&iacute;a ni lo que era un c&oacute;digo. Y hoy hasta armo apps.&rdquo;</p>
+            <cite>&mdash; Mat&iacute;as, Innovasmart</cite>
+          </div>
+          <a class="ia-cta-alt" href="https://wa.me/541160374306?text=Hola!%20Quiero%20info%20sobre%20formaci%C3%B3n%20en%20IA" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-rocket"></use></svg> Quiero aprender a hacer esto</a>
+          <p class="ia-cta-note">Asesor&iacute;a y formaci&oacute;n en IA aplicada &mdash; distinta de la asesor&iacute;a de importaci&oacute;n.</p>
+        </div>
+      </div>
     </section>
-    <section class="hub-section">
+
+    <section class="hub-section mc-reveal">
+      <div class="hub-sechead"><span class="bar"></span><h2><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Importaci&oacute;n</h2><small>&mdash; encontr&aacute; qu&eacute; traer y cu&aacute;nto vas a ganar</small></div>
+      <div class="hub-grid bento">
+        <a class="hub-card hc-feature" href="javascript:void(0)" onclick="showMarket()"><span class="hub-card-tag"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> Recomendado</span><div class="hub-card-img"><div class="hub-preview"><div class="hp-bars"><i style="height:35%"></i><i style="height:55%"></i><i style="height:40%"></i><i class="hi" style="height:85%"></i><i style="height:50%"></i></div><span class="hp-chip">62% margen</span></div></div><div class="hub-card-body"><h3>Buscador de oportunidades</h3><p>Analizamos el mercado real de MercadoLibre y te decimos qu&eacute; conviene importar seg&uacute;n tu perfil.</p><span class="hub-card-go">Abrir &rarr;</span></div></a>
+        <a class="hub-card" href="javascript:void(0)" onclick="showApp()"><div class="hub-card-img"><div class="hub-preview"><div class="hp-sliders"><div class="hp-slider-track"><i style="width:70%"></i></div><div class="hp-slider-track"><i style="width:45%"></i></div><div class="hp-slider-track"><i style="width:85%"></i></div></div></div></div><div class="hub-card-body"><h3>Recomendador por perfil</h3><p>Carg&aacute; tu capital, experiencia y tolerancia al riesgo y te sugerimos qu&eacute; productos traer.</p><span class="hub-card-go">Abrir &rarr;</span></div></a>
+        <a class="hub-card" href="margen.html"><div class="hub-card-img"><div class="hub-preview"><div class="hp-donut"><i>62%</i></div></div></div><div class="hub-card-body"><h3>Calculador de margen</h3><p>Calcul&aacute; cu&aacute;nto vas a ganar de verdad, con costos, impuestos y comisiones incluidos.</p><span class="hub-card-go">Abrir &rarr;</span></div></a>
+      </div>
+    </section>
+    <section class="hub-section mc-reveal">
       <div class="hub-sechead"><span class="bar"></span><h2><svg class="ic" aria-hidden="true"><use href="#i-cart"></use></svg> MercadoLibre</h2><small>&mdash; gestion&aacute; tu cuenta y tus publicaciones</small></div>
-      <div class="hub-grid"><a class="hub-card" href="meli-connect.html"><div class="hub-card-img"><img src="assets/img/hub/04-notebook-panel-ventas.webp" alt="Notebook mostrando un panel de ventas en la pantalla" loading="lazy" decoding="async" width="800" height="480"></div><div class="hub-card-body"><h3>Conectar cuenta</h3><p>Vincul&aacute; tu cuenta de MercadoLibre para traer tus datos reales al instante.</p><span class="hub-card-go">Abrir &rarr;</span></div></a><a class="hub-card" href="dashboard.html"><div class="hub-card-img"><img src="assets/img/hub/05-pantalla-graficos.webp" alt="Pantalla mostrando gr&aacute;ficos de l&iacute;neas desenfocados con destellos de luz" loading="lazy" decoding="async" width="800" height="480"></div><div class="hub-card-body"><h3>Dashboard de ventas</h3><p>Visualiz&aacute; &oacute;rdenes, comisiones y tu ganancia neta en un panel claro.</p><span class="hub-card-go">Abrir &rarr;</span></div></a><a class="hub-card" href="analizador.html"><div class="hub-card-img"><img src="assets/img/hub/06-producto-fondo-limpio.webp" alt="Estuche de auriculares inal&aacute;mbricos fotografiado en estudio sobre fondo gris" loading="lazy" decoding="async" width="800" height="480"></div><div class="hub-card-body"><h3>Analizador de publicaciones</h3><p>Descubr&iacute; qu&eacute; mejorar en tu publicaci&oacute;n para vender m&aacute;s.</p><span class="hub-card-go">Abrir &rarr;</span></div></a><a class="hub-card" href="calculadora-envios.html"><div class="hub-card-img"><img src="assets/img/hub/07-deposito-estanterias.webp" alt="Pasillo de dep&oacute;sito con estanter&iacute;as met&aacute;licas cargadas de cajas" loading="lazy" decoding="async" width="800" height="480"></div><div class="hub-card-body"><h3>Flex vs Full</h3><p>Compar&aacute; los tipos de env&iacute;o y descubr&iacute; cu&aacute;l te conviene seg&uacute;n tu producto.</p><span class="hub-card-go">Abrir &rarr;</span></div></a><a class="hub-card" href="educacion.html"><div class="hub-card-img"><img src="assets/img/hub/08-celular-foto-producto.webp" alt="Celular en un tr&iacute;pode fotografiando un producto desde atr&aacute;s" loading="lazy" decoding="async" width="800" height="480"></div><div class="hub-card-body"><h3>Aprend&eacute; a publicar</h3><p>Gu&iacute;a paso a paso para arrancar a vender y publicar como un profesional.</p><span class="hub-card-go">Abrir &rarr;</span></div></a></div>
+      <div class="hub-grid bento">
+        <a class="hub-card hc-feature" href="dashboard.html"><div class="hub-card-img"><div class="hub-preview"><div class="hp-bars"><i style="height:30%"></i><i style="height:50%"></i><i class="hi" style="height:80%"></i><i style="height:60%"></i><i style="height:70%"></i></div></div></div><div class="hub-card-body"><h3>Dashboard de ventas</h3><p>Visualiz&aacute; &oacute;rdenes, comisiones y tu ganancia neta en un panel claro.</p><span class="hub-card-go">Abrir &rarr;</span></div></a>
+        <a class="hub-card" href="meli-connect.html"><div class="hub-card-img"><div class="hub-preview"><div class="hp-link"><span class="hp-node"><svg class="ic" aria-hidden="true"><use href="#i-store"></use></svg></span><span class="hp-dash"></span><span class="hp-check"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg></span><span class="hp-dash"></span><span class="hp-node"><svg class="ic" aria-hidden="true"><use href="#i-link"></use></svg></span></div></div></div><div class="hub-card-body"><h3>Conectar cuenta</h3><p>Vincul&aacute; tu cuenta de MercadoLibre para traer tus datos reales al instante.</p><span class="hub-card-go">Abrir &rarr;</span></div></a>
+        <a class="hub-card" href="analizador.html"><div class="hub-card-img"><div class="hub-preview"><div class="hp-checklist"><div class="hp-checkrow"><span class="hp-dot ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg></span><span class="hp-bar" style="max-width:70%"></span></div><div class="hp-checkrow"><span class="hp-dot warn"><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg></span><span class="hp-bar" style="max-width:45%"></span></div><div class="hp-checkrow"><span class="hp-dot ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg></span><span class="hp-bar" style="max-width:85%"></span></div></div></div></div><div class="hub-card-body"><h3>Analizador de publicaciones</h3><p>Descubr&iacute; qu&eacute; mejorar en tu publicaci&oacute;n para vender m&aacute;s.</p><span class="hub-card-go">Abrir &rarr;</span></div></a>
+        <a class="hub-card" href="calculadora-envios.html"><div class="hub-card-img"><div class="hub-preview"><div class="hp-vs"><span class="hp-box"><svg class="ic" aria-hidden="true"><use href="#i-truck"></use></svg></span><span class="hp-vspill">VS</span><span class="hp-box"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg></span></div></div></div><div class="hub-card-body"><h3>Flex vs Full</h3><p>Compar&aacute; los tipos de env&iacute;o y descubr&iacute; cu&aacute;l te conviene seg&uacute;n tu producto.</p><span class="hub-card-go">Abrir &rarr;</span></div></a>
+        <a class="hub-card" href="educacion.html"><div class="hub-card-img"><div class="hub-preview"><div class="hp-steps"><div class="hp-step"><span class="hp-n">1</span><span class="hp-l" style="max-width:80%"></span></div><div class="hp-step"><span class="hp-n">2</span><span class="hp-l" style="max-width:60%"></span></div><div class="hp-step"><span class="hp-n">3</span><span class="hp-l" style="max-width:70%"></span></div></div></div></div><div class="hub-card-body"><h3>Aprend&eacute; a publicar</h3><p>Gu&iacute;a paso a paso para arrancar a vender y publicar como un profesional.</p><span class="hub-card-go">Abrir &rarr;</span></div></a>
+      </div>
     </section>
   </main>
 </div>
 
 <div id="appScreen" class="screen">
-  <header class="mc-nav">
-      <a href="javascript:void(0)" onclick="goHome()" class="mc-brand"><span class="mc-brand-ico"><svg class="ic" aria-hidden="true"><use href="#i-link"></use></svg></span> MeLi Connect</a>
-      <nav class="mc-menu">
-        <div class="mc-item"><a href="javascript:void(0)" onclick="showMenu()" class="mc-link"><svg class="ic" aria-hidden="true"><use href="#i-home"></use></svg> Inicio</a></div>
-        <div class="mc-item">
-          <button class="mc-link" type="button"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Importaci&oacute;n <span class="mc-caret">&#9660;</span></button>
-          <div class="mc-drop">
-            <div class="mc-sechead">Encontr&aacute; y planific&aacute;</div>
-            <a href="javascript:void(0)" onclick="showMarket()"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-target"></use></svg></span><span class="mc-dt"><b>Buscador de oportunidades</b><span>Qu&eacute; conviene importar seg&uacute;n tu perfil</span></span></a>
-            <a href="javascript:void(0)" onclick="showApp()" class="active"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-brain"></use></svg></span><span class="mc-dt"><b>Recomendador por perfil</b><span>Qu&eacute; traer seg&uacute;n tu capital y experiencia</span></span></a>
-            <a href="margen.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-calc"></use></svg></span><span class="mc-dt"><b>Calculador de margen</b><span>Cu&aacute;nto vas a ganar de verdad</span></span></a>
-          </div>
-        </div>
-        <div class="mc-item">
-          <button class="mc-link" type="button"><svg class="ic" aria-hidden="true"><use href="#i-cart"></use></svg> MercadoLibre <span class="mc-caret">&#9660;</span></button>
-          <div class="mc-drop">
-            <div class="mc-sechead">Tu cuenta y publicaciones</div>
-            <a href="meli-connect.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-link"></use></svg></span><span class="mc-dt"><b>Conectar cuenta</b><span>Vincul&aacute; tu MercadoLibre</span></span></a>
-            <a href="dashboard.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span class="mc-dt"><b>Dashboard de ventas</b><span>&Oacute;rdenes, comisiones y ganancia neta</span></span></a>
-            <a href="analizador.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-search"></use></svg></span><span class="mc-dt"><b>Analizador de publicaciones</b><span>Qu&eacute; mejorar en tu publicaci&oacute;n</span></span></a>
-            <a href="calculadora-envios.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-truck"></use></svg></span><span class="mc-dt"><b>Flex vs Full</b><span>Qu&eacute; env&iacute;o te conviene</span></span></a>
-            <a href="educacion.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-cap"></use></svg></span><span class="mc-dt"><b>Aprend&eacute; a publicar</b><span>Gu&iacute;a para arrancar a vender</span></span></a>
-          </div>
-        </div>
-        <div class="mc-item mc-admin-item" style="display:none"><a href="javascript:void(0)" onclick="showAdmin()" class="mc-link"><svg class="ic" aria-hidden="true"><use href="#i-crown"></use></svg> Admin</a></div>
-      </nav>
-      <div class="mc-right">
-        <a class="mc-cta" href="https://wa.me/541160374306" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Asesor&iacute;a<span class="mc-pulse"></span></a>
-        <div class="mc-user"><span class="mc-avatar mc-av">?</span><span class="mc-uname mc-un">invitado</span></div>
-        <button class="mc-logout" onclick="doLogout()" type="button">Salir</button>
-      </div>
-      <button class="mc-toggle" onclick="this.previousElementSibling.previousElementSibling.classList.toggle('show')" aria-label="Menu"><svg class="ic" aria-hidden="true"><use href="#i-menu"></use></svg></button>
-    </header>
   <div class="app-content"><div class="mc-hero"><svg class="mc-hero-art" viewBox="0 0 520 300" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMaxYMid slice"><defs><linearGradient id="mcg1" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#FFE600" stop-opacity=".0"/><stop offset="1" stop-color="#FFE600" stop-opacity=".9"/></linearGradient><linearGradient id="mcg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#25d366" stop-opacity=".35"/><stop offset="1" stop-color="#25d366" stop-opacity="0"/></linearGradient></defs><path d="M40 250 L140 200 L210 220 L300 140 L380 165 L480 70" stroke="url(#mcg1)" stroke-width="4" stroke-linecap="round"/><path d="M40 250 L140 200 L210 220 L300 140 L380 165 L480 70 L480 300 L40 300 Z" fill="url(#mcg2)"/><circle cx="300" cy="140" r="6" fill="#FFE600"/><circle cx="480" cy="70" r="7" fill="#FFE600"/><g opacity=".85"><rect x="360" y="30" width="120" height="74" rx="12" fill="#1c1c22" stroke="#FFE600" stroke-opacity=".4"/><rect x="374" y="46" width="34" height="34" rx="8" fill="#FFE600" opacity=".9"/><rect x="418" y="48" width="52" height="8" rx="4" fill="#3a3a42"/><rect x="418" y="64" width="38" height="7" rx="3.5" fill="#2c2c33"/><text x="378" y="70" font-size="20" fill="#111" font-family="Arial" font-weight="bold">%</text></g></svg><div class="mc-hero-in"><span class="mc-hero-tag"><svg class="ic" aria-hidden="true"><use href="#i-dot"></use></svg> Datos reales de MercadoLibre en vivo</span><h1 class="mc-hero-h">Descubr&#237; <em>qu&#233; conviene importar</em> y vend&#233; sin perder plata</h1><p class="mc-hero-p">Analizamos el mercado real de MercadoLibre y te decimos qu&#233; producto traer, cu&#225;nto vas a ganar y qu&#233; riesgo tiene. Todo en un solo lugar.</p><a class="mc-hero-cta" href="https://wa.me/541160374306" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Asesor&#237;a 1 a 1 en importaci&#243;n</a></div></div>
     <div class="app-title" style="display:none">Descubr&#237; qu&#233; importar para ganar plata, sin arriesgar de m&#225;s</div>
     <div class="app-sub" style="display:none">Dej&#225; de traer productos a ciegas. Analizamos el mercado real de MercadoLibre y te decimos qu&#233; conviene importar, cu&#225;nto vas a ganar y qu&#233; riesgo tiene &#8212; en 30 segundos.</div>
@@ -1034,22 +1049,21 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
   <div class="step-box"><div class="step-num">2</div><h4>Analizamos el mercado real</h4><p>Consultamos precios, cantidad de vendedores y saturaci&#243;n reales en MercadoLibre para cada producto de la secci&#243;n.</p></div>
   <div class="step-box"><div class="step-num">3</div><h4>Recib&#237; las oportunidades</h4><p>Te mostramos los productos ordenados por su potencial, con margen estimado, demanda y riesgo. El <svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> TOP PICK es el mejor.</p></div>
 </div>
-    <div class="example-preview" style="background:linear-gradient(135deg,var(--dark-3),var(--dark-2));border:1px solid #3a3a3a;border-radius:12px;padding:22px;margin-bottom:20px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:.72rem;letter-spacing:1px;color:var(--gold);font-weight:700">AS&#205; SE VE UN RESULTADO</span><span style="font-size:.7rem;color:var(--text-dim)">&#183; ejemplo real</span></div>
-      <h3 style="margin:0 0 14px;color:var(--text);font-size:1.15rem">Una oportunidad ganadora, en un vistazo</h3>
-      <div style="background:var(--dark-4);border:1px solid #333;border-left:3px solid var(--gold);border-radius:10px;padding:16px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
-          <div><div style="font-weight:700;color:var(--text);font-size:1.02rem">Collar GPS para mascotas</div><div style="font-size:.8rem;color:var(--text-dim)">&#128187; Tecnolog&#237;a &#183; Argentina</div></div>
-          <span style="background:var(--gold);color:#111;font-weight:800;font-size:.72rem;padding:5px 10px;border-radius:20px;white-space:nowrap"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> TOP PICK</span>
+    <div class="example-preview" style="margin-bottom:20px">
+      <div class="hhd-top" style="margin-bottom:10px"><span class="hhd-label">As&iacute; se ve un resultado</span><span class="hhd-demo">Ejemplo ilustrativo</span></div>
+      <div class="hhd-card">
+        <div class="hhd-head">
+          <div><div class="hhd-name">Collar GPS para mascotas</div><div class="hhd-meta">Tecnolog&iacute;a &middot; Argentina</div></div>
+          <span class="hhd-pick"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> Top pick</span>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px">
-          <div style="background:rgba(39,174,96,.08);border:1px solid rgba(39,174,96,.3);border-radius:8px;padding:10px;text-align:center"><div style="font-size:1.25rem;font-weight:800;color:var(--green)">62%</div><div style="font-size:.72rem;color:var(--text-dim)">Margen estimado</div></div>
-          <div style="background:rgba(255,230,0,.07);border:1px solid rgba(255,230,0,.3);border-radius:8px;padding:10px;text-align:center"><div style="font-size:1.25rem;font-weight:800;color:var(--gold)">Alta</div><div style="font-size:.72rem;color:var(--text-dim)">Demanda</div></div>
-          <div style="background:rgba(39,174,96,.08);border:1px solid rgba(39,174,96,.3);border-radius:8px;padding:10px;text-align:center"><div style="font-size:1.25rem;font-weight:800;color:var(--green)">Baja</div><div style="font-size:.72rem;color:var(--text-dim)">Competencia</div></div>
-          <div style="background:rgba(39,174,96,.08);border:1px solid rgba(39,174,96,.3);border-radius:8px;padding:10px;text-align:center"><div style="font-size:1.25rem;font-weight:800;color:var(--green)">Bajo</div><div style="font-size:.72rem;color:var(--text-dim)">Riesgo</div></div>
+        <div class="hhd-grid">
+          <div class="hhd-kpi is-good"><b>62%</b><span>Margen</span></div>
+          <div class="hhd-kpi is-accent"><b>Alta</b><span>Demanda</span></div>
+          <div class="hhd-kpi is-good"><b>Baja</b><span>Competencia</span></div>
+          <div class="hhd-kpi is-good"><b>Bajo</b><span>Riesgo</span></div>
         </div>
+        <div class="hhd-foot">Margen calculado con FOB, flete, aranceles, IVA y comisiones. Este caso es ilustrativo &#8212; abajo analizamos productos reales seg&uacute;n tu perfil.</div>
       </div>
-      <p style="margin:12px 0 0;font-size:.85rem;color:var(--text-dim);text-align:center">&#128071; Configur&#225; tu perfil abajo y recib&#237; <b style="color:var(--text)">tus</b> oportunidades reales en 30 segundos.</p>
     </div>
     <div class="config-card">
       <h3><svg class="ic" aria-hidden="true"><use href="#i-gear"></use></svg>&#65039; Configuraci&#243;n</h3>
@@ -1057,7 +1071,15 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
         <div class="select-group"><label><svg class="ic" aria-hidden="true"><use href="#i-money"></use></svg> Capital disponible</label><select id="selCapital"><option value="bajo">Menos de USD 3.000</option><option value="medio">USD 3.000 - 10.000</option><option value="alto">USD 10.000 - 30.000</option><option value="premium">M&#225;s de USD 30.000</option></select></div>
         <div class="select-group"><label><svg class="ic" aria-hidden="true"><use href="#i-target"></use></svg> Experiencia importando</label><select id="selExperiencia"><option value="ninguna">Sin experiencia</option><option value="poca">1-2 importaciones</option><option value="media">3-10 importaciones</option><option value="alta">Importador frecuente</option></select></div>
         <div class="select-group"><label><svg class="ic" aria-hidden="true"><use href="#i-store"></use></svg> Canal de venta</label><select id="selCanal"><option value="mercadolibre">MercadoLibre</option><option value="tiendanube">Tienda Nube</option><option value="local">Local f&#237;sico</option><option value="mayorista">Mayorista</option></select></div>
-        <div class="select-group"><label>&#127991;&#65039; Nicho de mercado</label><input id="nichoSearch" type="text" placeholder="&#128269; Busc&#225; tu rubro (ej: mascotas, tecno...)" oninput="(function(q){q=q.toLowerCase().trim();var s=document.getElementById('selNicho');var first=null;for(var i=0;i<s.options.length;i++){var o=s.options[i];var m=o.text.toLowerCase().indexOf(q)>-1;o.hidden=!m;o.style.display=m?'':'none';if(m&&!first)first=o;}if(first&&q)s.value=first.value;})(this.value)" style="width:100%;background:var(--dark-4);border:1px solid #333;border-radius:var(--radius);padding:10px 12px;color:var(--text);font-size:.9rem;outline:none;margin-bottom:6px" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='#333'"><select id="selNicho"><option value="tecnologia">&#128187; Tecnolog&#237;a / Gadgets</option><option value="hogar"><svg class="ic" aria-hidden="true"><use href="#i-home"></use></svg> Hogar y Deco</option><option value="deportes">&#127947;&#65039; Deportes / Fitness</option><option value="moda">&#128085; Moda / Indumentaria</option><option value="mascotas">&#128054; Mascotas</option><option value="bebes">&#127868; Beb&#233;s / Ni&#241;os</option><option value="belleza">&#128132; Salud y Belleza</option><option value="cocina">&#127859; Cocina / Gastronom&#237;a</option><option value="automotor">&#128663; Automotor / Moto</option><option value="herramientas">&#128295; Herramientas / Bricolaje</option><option value="camping">&#127957;&#65039; Camping / Outdoor</option><option value="oficina">&#128206; Papeler&#237;a / Oficina</option><option value="domotica">&#127969; Dom&#243;tica / Casa Inteligente</option><option value="jardineria">&#127807; Jardiner&#237;a / Plantas</option><option value="joyeria">&#128141; Joyer&#237;a / Bijouterie</option><option value="relojes">&#8986; Relojes</option><option value="iluminacion"><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> Iluminaci&#243;n / LED</option><option value="gaming">&#127918; Gaming / Consolas</option><option value="ferreteria">&#128297; Ferreter&#237;a / Construcci&#243;n</option><option value="musica">&#127928; M&#250;sica / Instrumentos</option><option value="arte">&#127912; Arte / Manualidades</option><option value="energiasolar">&#128267; Energ&#237;a Solar / Port&#225;til</option><option value="fotografia">&#128247; Fotograf&#237;a / Drones</option><option value="viajes">&#129523; Viajes / Valijas</option><option value="libreria">&#128218; Librer&#237;a / Libros</option><option value="juguetes">&#129528; Juguetes / Juegos</option><option value="audio">&#127911; Audio / Parlantes</option><option value="celulares"><svg class="ic" aria-hidden="true"><use href="#i-phone"></use></svg> Celulares / Accesorios</option><option value="informatica">&#128421;&#65039; Inform&#225;tica / PC</option><option value="electrodomesticos">&#128268; Electrodom&#233;sticos</option><option value="climatizacion">&#10052;&#65039; Climatizaci&#243;n / Ventilaci&#243;n</option><option value="pesca">&#127907; Pesca / N&#225;utica</option><option value="bicicletas">&#128690; Bicicletas / Ciclismo</option><option value="sexshop">&#10084;&#65039; Sex Shop / Intimidad</option><option value="esoterismo">&#128302; Esoterismo / Velas</option><option value="seguridad">&#128249; Seguridad / C&#225;maras</option><option value="pintura">&#127912; Pinturer&#237;a</option><option value="textil">&#129525; Textil / Mercer&#237;a</option><option value="calzado">&#128095; Calzado / Zapatillas</option><option value="reposteria">&#129473; Reposter&#237;a / Panader&#237;a</option><option value="vinos">&#127863; Vinos / Bebidas</option><option value="limpieza">&#129532; Limpieza / Hogar</option><option value="organizacion"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Organizaci&#243;n / Guardado</option><option value="maquillaje">&#128133; Maquillaje / U&#241;as</option><option value="cuidadopersonal">&#129701; Cuidado Personal</option><option value="suplementos">&#128138; Suplementos / Nutrici&#243;n</option><option value="tejido">&#129526; Tejido / Lana</option><option value="agro">&#128668; Agro / Campo</option><option value="motos">&#127949;&#65039; Motos / Repuestos</option><option value="ferrmanuales">&#129691; Herramientas Manuales</option><option value="maternidad">&#129328; Maternidad / Embarazo</option><option value="pilates">&#129496; Yoga / Pilates</option><option value="coleccionables">&#127183; Coleccionables / Figuras</option><option value="drones">&#128641; Drones / RC</option><option value="smartwatch">&#8986; Smartwatch / Wearables</option><option value="bazar">&#127869;&#65039; Bazar / Vajilla</option><option value="muebles">&#128715;&#65039; Muebles</option><option value="decoracion">&#128444;&#65039; Decoraci&#243;n / Cuadros</option><option value="plantas">&#129716; Plantas / Suculentas</option><option value="mate">&#129481; Mate / Termos</option><option value="fitness">&#127939; Running / Fitness</option><option value="natacion">&#127946; Nataci&#243;n / Pileta</option><option value="golf">&#9971; Golf</option><option value="festejos">&#127881; Cotill&#243;n / Fiestas</option></select></div>
+        <div class="select-group nicho-group">
+          <label for="nichoCombo"><svg class="ic" aria-hidden="true"><use href="#i-target"></use></svg> Nicho de mercado</label>
+          <div class="nicho-chips" id="nichoChips"></div>
+          <div class="combo" id="nichoComboWrap">
+            <input type="text" id="nichoCombo" class="combo-input" role="combobox" aria-expanded="false" aria-controls="nichoListbox" aria-autocomplete="list" aria-haspopup="listbox" autocomplete="off" placeholder="Busc&aacute; tu rubro (ej: mascotas, tecno...)">
+            <ul class="combo-listbox" id="nichoListbox" role="listbox" aria-label="Nichos de mercado" hidden></ul>
+          </div>
+          <select id="selNicho" class="sr-only" tabindex="-1" aria-hidden="true"></select>
+        </div>
         <div class="select-group"><label><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg>&#65039; Tolerancia al riesgo</label><select id="selRiesgo"><option value="bajo">Bajo - Prefiero seguridad</option><option value="medio">Medio - Balance</option><option value="alto">Alto - Busco rentabilidad m&#225;xima</option></select></div>
       </div>
       <button class="btn-analyze" id="btnAnalyze" onclick="doAnalyze()"><svg class="ic" aria-hidden="true"><use href="#i-rocket"></use></svg> Analizar Productos</button>
@@ -1085,39 +1107,6 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 </div>
 <!-- MARKET READER SCREEN -->
 <div id="marketScreen" class="screen">
-  <header class="mc-nav">
-      <a href="javascript:void(0)" onclick="goHome()" class="mc-brand"><span class="mc-brand-ico"><svg class="ic" aria-hidden="true"><use href="#i-link"></use></svg></span> MeLi Connect</a>
-      <nav class="mc-menu">
-        <div class="mc-item"><a href="javascript:void(0)" onclick="showMenu()" class="mc-link"><svg class="ic" aria-hidden="true"><use href="#i-home"></use></svg> Inicio</a></div>
-        <div class="mc-item">
-          <button class="mc-link" type="button"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Importaci&oacute;n <span class="mc-caret">&#9660;</span></button>
-          <div class="mc-drop">
-            <div class="mc-sechead">Encontr&aacute; y planific&aacute;</div>
-            <a href="javascript:void(0)" onclick="showMarket()" class="active"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-target"></use></svg></span><span class="mc-dt"><b>Buscador de oportunidades</b><span>Qu&eacute; conviene importar seg&uacute;n tu perfil</span></span></a>
-            <a href="javascript:void(0)" onclick="showApp()"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-brain"></use></svg></span><span class="mc-dt"><b>Recomendador por perfil</b><span>Qu&eacute; traer seg&uacute;n tu capital y experiencia</span></span></a>
-            <a href="margen.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-calc"></use></svg></span><span class="mc-dt"><b>Calculador de margen</b><span>Cu&aacute;nto vas a ganar de verdad</span></span></a>
-          </div>
-        </div>
-        <div class="mc-item">
-          <button class="mc-link" type="button"><svg class="ic" aria-hidden="true"><use href="#i-cart"></use></svg> MercadoLibre <span class="mc-caret">&#9660;</span></button>
-          <div class="mc-drop">
-            <div class="mc-sechead">Tu cuenta y publicaciones</div>
-            <a href="meli-connect.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-link"></use></svg></span><span class="mc-dt"><b>Conectar cuenta</b><span>Vincul&aacute; tu MercadoLibre</span></span></a>
-            <a href="dashboard.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span class="mc-dt"><b>Dashboard de ventas</b><span>&Oacute;rdenes, comisiones y ganancia neta</span></span></a>
-            <a href="analizador.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-search"></use></svg></span><span class="mc-dt"><b>Analizador de publicaciones</b><span>Qu&eacute; mejorar en tu publicaci&oacute;n</span></span></a>
-            <a href="calculadora-envios.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-truck"></use></svg></span><span class="mc-dt"><b>Flex vs Full</b><span>Qu&eacute; env&iacute;o te conviene</span></span></a>
-            <a href="educacion.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-cap"></use></svg></span><span class="mc-dt"><b>Aprend&eacute; a publicar</b><span>Gu&iacute;a para arrancar a vender</span></span></a>
-          </div>
-        </div>
-        <div class="mc-item mc-admin-item" style="display:none"><a href="javascript:void(0)" onclick="showAdmin()" class="mc-link"><svg class="ic" aria-hidden="true"><use href="#i-crown"></use></svg> Admin</a></div>
-      </nav>
-      <div class="mc-right">
-        <a class="mc-cta" href="https://wa.me/541160374306" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Asesor&iacute;a<span class="mc-pulse"></span></a>
-        <div class="mc-user"><span class="mc-avatar mc-av">?</span><span class="mc-uname mc-un">invitado</span></div>
-        <button class="mc-logout" onclick="doLogout()" type="button">Salir</button>
-      </div>
-      <button class="mc-toggle" onclick="this.previousElementSibling.previousElementSibling.classList.toggle('show')" aria-label="Menu"><svg class="ic" aria-hidden="true"><use href="#i-menu"></use></svg></button>
-    </header>
   <div class="market-content">
     <div class="market-title">An&#225;lisis de mercado</div>
     <div class="market-sub">4 factores clave para saber si un producto es viable en Argentina</div>
@@ -1237,57 +1226,7 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
   </div>
 </div>
 <!-- ADMIN SCREEN -->
-<div id="adminScreen" class="screen">
-  <header class="mc-nav">
-      <a href="javascript:void(0)" onclick="goHome()" class="mc-brand"><span class="mc-brand-ico"><svg class="ic" aria-hidden="true"><use href="#i-link"></use></svg></span> MeLi Connect</a>
-      <nav class="mc-menu">
-        <div class="mc-item"><a href="javascript:void(0)" onclick="showMenu()" class="mc-link"><svg class="ic" aria-hidden="true"><use href="#i-home"></use></svg> Inicio</a></div>
-        <div class="mc-item">
-          <button class="mc-link" type="button"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Importaci&oacute;n <span class="mc-caret">&#9660;</span></button>
-          <div class="mc-drop">
-            <div class="mc-sechead">Encontr&aacute; y planific&aacute;</div>
-            <a href="javascript:void(0)" onclick="showMarket()"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-target"></use></svg></span><span class="mc-dt"><b>Buscador de oportunidades</b><span>Qu&eacute; conviene importar seg&uacute;n tu perfil</span></span></a>
-            <a href="javascript:void(0)" onclick="showApp()"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-brain"></use></svg></span><span class="mc-dt"><b>Recomendador por perfil</b><span>Qu&eacute; traer seg&uacute;n tu capital y experiencia</span></span></a>
-            <a href="margen.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-calc"></use></svg></span><span class="mc-dt"><b>Calculador de margen</b><span>Cu&aacute;nto vas a ganar de verdad</span></span></a>
-          </div>
-        </div>
-        <div class="mc-item">
-          <button class="mc-link" type="button"><svg class="ic" aria-hidden="true"><use href="#i-cart"></use></svg> MercadoLibre <span class="mc-caret">&#9660;</span></button>
-          <div class="mc-drop">
-            <div class="mc-sechead">Tu cuenta y publicaciones</div>
-            <a href="meli-connect.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-link"></use></svg></span><span class="mc-dt"><b>Conectar cuenta</b><span>Vincul&aacute; tu MercadoLibre</span></span></a>
-            <a href="dashboard.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span class="mc-dt"><b>Dashboard de ventas</b><span>&Oacute;rdenes, comisiones y ganancia neta</span></span></a>
-            <a href="analizador.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-search"></use></svg></span><span class="mc-dt"><b>Analizador de publicaciones</b><span>Qu&eacute; mejorar en tu publicaci&oacute;n</span></span></a>
-            <a href="calculadora-envios.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-truck"></use></svg></span><span class="mc-dt"><b>Flex vs Full</b><span>Qu&eacute; env&iacute;o te conviene</span></span></a>
-            <a href="educacion.html"><span class="mc-di"><svg class="ic" aria-hidden="true"><use href="#i-cap"></use></svg></span><span class="mc-dt"><b>Aprend&eacute; a publicar</b><span>Gu&iacute;a para arrancar a vender</span></span></a>
-          </div>
-        </div>
-        <div class="mc-item mc-admin-item" style="display:none"><a href="javascript:void(0)" onclick="showAdmin()" class="mc-link active"><svg class="ic" aria-hidden="true"><use href="#i-crown"></use></svg> Admin</a></div>
-      </nav>
-      <div class="mc-right">
-        <a class="mc-cta" href="https://wa.me/541160374306" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Asesor&iacute;a<span class="mc-pulse"></span></a>
-        <div class="mc-user"><span class="mc-avatar mc-av">?</span><span class="mc-uname mc-un">invitado</span></div>
-        <button class="mc-logout" onclick="doLogout()" type="button">Salir</button>
-      </div>
-      <button class="mc-toggle" onclick="this.previousElementSibling.previousElementSibling.classList.toggle('show')" aria-label="Menu"><svg class="ic" aria-hidden="true"><use href="#i-menu"></use></svg></button>
-    </header>
-  <div class="admin-content">
-    <div class="admin-header"><h2><svg class="ic" aria-hidden="true"><use href="#i-crown"></use></svg> Gesti&#243;n de Usuarios</h2></div>
-    <div id="adminMsg" class="admin-msg"></div>
-    <div class="admin-section"><h3>&#10133; Crear Nuevo Usuario</h3>
-      <div class="create-user-form">
-        <div class="form-field"><label>Usuario</label><input type="text" id="newUsername" placeholder="nombre_usuario"></div>
-        <div class="form-field"><label>Contrase&#241;a</label><input type="password" id="newPassword" placeholder="contrase&#241;a"></div>
-        <div class="form-field"><label>Expiraci&#243;n sesi&#243;n</label><select id="newExpiry"><option value="30">30 d&#237;as</option><option value="60">60 d&#237;as</option><option value="90">90 d&#237;as</option><option value="120" selected>120 dias</option><option value="150">150 d&#237;as</option></select></div>
-        <button class="btn-create" onclick="createUser()">+ Crear</button>
-      </div>
-    </div>
-    <div class="admin-section"><h3>&#128101; Usuarios Registrados</h3><div id="usersTableContainer"><div class="loading">Cargando usuarios...</div></div></div>
-  </div>
-</div>
 <script>
-const ADMIN_USER = 'matypereira';
-function getAdminKey(){ var k=localStorage.getItem('pf_admin_key'); if(!k){ k=prompt('Clave de administrador:'); if(k){ localStorage.setItem('pf_admin_key', k); } } return k||''; }
 let currentRole = null;
 let sessionExpiry = null;
 let analysisResults = null;
@@ -1362,6 +1301,15 @@ function setupTopbar(user){
     });
   }catch(e){}
   try{
+    var loggedIn=!!localStorage.getItem('pf_user');
+    var enterBtn=document.getElementById('mcEnterBtn');
+    var userBox=document.getElementById('mcUserBox');
+    var logoutBtn=document.getElementById('mcLogoutBtn');
+    if(enterBtn) enterBtn.style.display=loggedIn?'none':'';
+    if(userBox) userBox.style.display=loggedIn?'':'none';
+    if(logoutBtn) logoutBtn.style.display=loggedIn?'':'none';
+  }catch(e){}
+  try{
     var esAdmin=(currentRole==='admin');
     document.querySelectorAll('.mc-admin-item').forEach(function(el){
       el.style.display=esAdmin?'':'none';
@@ -1386,7 +1334,22 @@ function setupTopbar(user){
   }
 }
 
-function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
+function showScreen(id){
+  function apply(){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    var navWrap=document.getElementById('mcNavWrap');
+    if(navWrap) navWrap.style.display=(id==='loginScreen'||id==='registerScreen')?'none':'';
+    var navMap={menuScreen:'mcNavInicio',marketScreen:'mcNavBuscador',appScreen:'mcNavRecomendador'};
+    document.querySelectorAll('#mcNavInicio,#mcNavBuscador,#mcNavRecomendador').forEach(function(a){a.classList.remove('active');});
+    var activeNavId=navMap[id];
+    if(activeNavId){var navEl=document.getElementById(activeNavId); if(navEl) navEl.classList.add('active');}
+  }
+  var reduced=false;
+  try{ reduced=window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+  if(!reduced && document.startViewTransition){ document.startViewTransition(apply); }
+  else { apply(); }
+}
 function setHash(h){try{history.replaceState(null,'','#'+h);}catch(e){}}
 function routeFromHash(){
   var h=(location.hash||'').replace('#','').toLowerCase();
@@ -1396,7 +1359,6 @@ function routeFromHash(){
   return false;
 }
 window.addEventListener('hashchange',function(){routeFromHash();});
-function showAdmin(){if(currentRole!=='admin')return;showScreen('adminScreen');loadUsers();}
 function showApp(){showScreen('appScreen');setHash('productfinder');try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}}
 function showMenu(){showScreen('menuScreen');setHash('menu');try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}}
 function showMarket(){showScreen('marketScreen');setHash('market');try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}}
@@ -1410,8 +1372,288 @@ function doGuest(){currentRole='guest';sessionExpiry=null;localStorage.setItem('
   document.getElementById('emailGate').style.display='none';
   document.getElementById('resultsSection').style.display='none';
   document.getElementById('productsGrid').innerHTML='';
-  showScreen('loginScreen');
+  showScreen('menuScreen');
+  try{setupTopbar('');}catch(e){}
 }
+// ===== Contador animado para el score de viabilidad (Task 5) =====
+function mcCountUp(el, target, duration){
+  if(!el) return;
+  target = Math.round(target||0);
+  var reduced=false;
+  try{ reduced=window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+  if(reduced){ el.textContent=target; return; }
+  duration = duration || 1100;
+  var start = null;
+  var from = parseInt(el.textContent,10); if(isNaN(from)) from = 0;
+  function ease(t){ return 1 - Math.pow(1-t, 3); }
+  function frame(ts){
+    if(start===null) start = ts;
+    var p = Math.min(1, (ts-start)/duration);
+    el.textContent = Math.round(from + (target-from)*ease(p));
+    if(p < 1) requestAnimationFrame(frame);
+    else el.textContent = target;
+  }
+  requestAnimationFrame(frame);
+}
+
+// ===== DEMO EN VIVO DEL HERO (Task 3) =====
+var HHD_STATE = { timerId: null };
+function hhdEscape(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function hhdSkeleton(){
+  return '<div class="hhd-skeleton"><div class="sk-line"></div><div class="sk-grid"><div class="sk-box"></div><div class="sk-box"></div><div class="sk-box"></div><div class="sk-box"></div></div></div>';
+}
+function hhdFallback(product){
+  var el=document.getElementById('hhdResult');
+  var tag=document.getElementById('hhdModeTag');
+  if(tag){ tag.textContent='Ejemplo'; tag.classList.add('is-example'); }
+  if(el) el.innerHTML =
+    '<div class="hhd-head"><div><div class="hhd-name">Collar GPS para mascotas</div><div class="hhd-meta">Ejemplo ilustrativo &middot; no pudimos consultar MercadoLibre ahora</div></div></div>'+
+    '<div class="hhd-grid">'+
+      '<div class="hhd-kpi"><b>$18.400</b><span>Precio prom.</span></div>'+
+      '<div class="hhd-kpi"><b>$9.900</b><span>M&iacute;nimo</span></div>'+
+      '<div class="hhd-kpi"><b>$34.500</b><span>M&aacute;ximo</span></div>'+
+      '<div class="hhd-kpi"><b>~40</b><span>Vendedores</span></div>'+
+    '</div>'+
+    '<div class="hhd-foot">Este es un ejemplo ilustrativo, no una consulta real &#8212; prob&aacute; de nuevo cuando tengas conexi&oacute;n.</div>';
+  var tsWrap=document.getElementById('hhdTsWrap'); if(tsWrap) tsWrap.style.display='none';
+  var cta=document.getElementById('hhdCta'); if(cta) cta.style.display='';
+}
+function hhdStartTimer(sinceMs){
+  clearInterval(HHD_STATE.timerId);
+  function tick(){
+    var tsEl=document.getElementById('hhdTimestamp'); if(!tsEl) return;
+    var secs=Math.max(0,Math.round((Date.now()-sinceMs)/1000));
+    var txt;
+    if(secs<5) txt='consultado recién';
+    else if(secs<60) txt='consultado hace '+secs+' segundos';
+    else txt='consultado hace '+Math.floor(secs/60)+' min';
+    tsEl.textContent=txt;
+  }
+  tick();
+  HHD_STATE.timerId=setInterval(tick,1000);
+}
+async function runHeroDemo(term){
+  var input=document.getElementById('hhdInput');
+  var product=(term||(input&&input.value)||'').trim();
+  if(!product) product='auriculares bluetooth';
+  if(input) input.value=product;
+  var btn=document.getElementById('hhdBtn');
+  var tag=document.getElementById('hhdModeTag');
+  var resEl=document.getElementById('hhdResult');
+  var ctaEl=document.getElementById('hhdCta');
+  var tsWrap=document.getElementById('hhdTsWrap');
+  if(btn) btn.disabled=true;
+  if(ctaEl) ctaEl.style.display='none';
+  if(tsWrap) tsWrap.style.display='none';
+  if(tag){ tag.textContent='Consultando...'; tag.classList.remove('is-example'); }
+  if(resEl) resEl.innerHTML=hhdSkeleton();
+  clearInterval(HHD_STATE.timerId);
+
+  if(typeof navigator!=='undefined' && navigator.onLine===false){
+    if(btn) btn.disabled=false;
+    hhdFallback(product);
+    return;
+  }
+  try{
+    var res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'competencia',product:product})});
+    var data=await res.json();
+    if(!res.ok || !data || data.fuente!=='mercadolibre-search') throw new Error('sin datos reales');
+    var now=Date.now();
+    if(tag){ tag.textContent='En vivo'; tag.classList.remove('is-example'); }
+    var nf=new Intl.NumberFormat('es-AR');
+    var envioTxt=data.envioGratisTotal?(data.envioGratisPct+'%'):'—';
+    if(resEl) resEl.innerHTML=
+      '<div class="hhd-head"><div><div class="hhd-name">'+hhdEscape(product)+'</div><div class="hhd-meta">'+hhdEscape(data.categoryName||'MercadoLibre Argentina')+'</div></div></div>'+
+      '<div class="hhd-grid">'+
+        '<div class="hhd-kpi is-good"><b>$'+nf.format(data.precioPromedioARS||0)+'</b><span>Precio prom.</span></div>'+
+        '<div class="hhd-kpi"><b>$'+nf.format(data.precioMinARS||0)+'</b><span>M&iacute;nimo</span></div>'+
+        '<div class="hhd-kpi"><b>$'+nf.format(data.precioMaxARS||0)+'</b><span>M&aacute;ximo</span></div>'+
+        '<div class="hhd-kpi is-accent"><b>'+nf.format(data.sellersEstimados||0)+'</b><span>Vendedores</span></div>'+
+      '</div>'+
+      '<div class="hhd-foot">'+nf.format(data.totalResults||0)+' publicaciones compitiendo &middot; '+envioTxt+' de las top con env&iacute;o gratis.</div>';
+    if(tsWrap) tsWrap.style.display='';
+    hhdStartTimer(now);
+    if(ctaEl) ctaEl.style.display='';
+  }catch(e){
+    hhdFallback(product);
+  }finally{
+    if(btn) btn.disabled=false;
+  }
+}
+(function(){
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',function(){ runHeroDemo('auriculares bluetooth'); }); }
+  else { runHeroDemo('auriculares bluetooth'); }
+})();
+
+// ===== COMBOBOX DE NICHOS (Task 8) =====
+(function(){
+  var NICHOS = [
+    {v:'tecnologia',l:'Tecnología / Gadgets'},
+    {v:'hogar',l:'Hogar y Deco'},
+    {v:'deportes',l:'Deportes / Fitness'},
+    {v:'moda',l:'Moda / Indumentaria'},
+    {v:'mascotas',l:'Mascotas'},
+    {v:'bebes',l:'Bebés / Niños'},
+    {v:'belleza',l:'Salud y Belleza'},
+    {v:'cocina',l:'Cocina / Gastronomía'},
+    {v:'automotor',l:'Automotor / Moto'},
+    {v:'herramientas',l:'Herramientas / Bricolaje'},
+    {v:'camping',l:'Camping / Outdoor'},
+    {v:'oficina',l:'Papelería / Oficina'},
+    {v:'domotica',l:'Domótica / Casa Inteligente'},
+    {v:'jardineria',l:'Jardinería / Plantas'},
+    {v:'joyeria',l:'Joyería / Bijouterie'},
+    {v:'relojes',l:'Relojes'},
+    {v:'iluminacion',l:'Iluminación / LED'},
+    {v:'gaming',l:'Gaming / Consolas'},
+    {v:'ferreteria',l:'Ferretería / Construcción'},
+    {v:'musica',l:'Música / Instrumentos'},
+    {v:'arte',l:'Arte / Manualidades'},
+    {v:'energiasolar',l:'Energía Solar / Portátil'},
+    {v:'fotografia',l:'Fotografía / Drones'},
+    {v:'viajes',l:'Viajes / Valijas'},
+    {v:'libreria',l:'Librería / Libros'},
+    {v:'juguetes',l:'Juguetes / Juegos'},
+    {v:'audio',l:'Audio / Parlantes'},
+    {v:'celulares',l:'Celulares / Accesorios'},
+    {v:'informatica',l:'Informática / PC'},
+    {v:'electrodomesticos',l:'Electrodomésticos'},
+    {v:'climatizacion',l:'Climatización / Ventilación'},
+    {v:'pesca',l:'Pesca / Náutica'},
+    {v:'bicicletas',l:'Bicicletas / Ciclismo'},
+    {v:'sexshop',l:'Sex Shop / Intimidad'},
+    {v:'esoterismo',l:'Esoterismo / Velas'},
+    {v:'seguridad',l:'Seguridad / Cámaras'},
+    {v:'pintura',l:'Pinturería'},
+    {v:'textil',l:'Textil / Merceria'},
+    {v:'calzado',l:'Calzado / Zapatillas'},
+    {v:'reposteria',l:'Repostería / Panadería'},
+    {v:'vinos',l:'Vinos / Bebidas'},
+    {v:'limpieza',l:'Limpieza / Hogar'},
+    {v:'organizacion',l:'Organización / Guardado'},
+    {v:'maquillaje',l:'Maquillaje / Uñas'},
+    {v:'cuidadopersonal',l:'Cuidado Personal'},
+    {v:'suplementos',l:'Suplementos / Nutrición'},
+    {v:'tejido',l:'Tejido / Lana'},
+    {v:'agro',l:'Agro / Campo'},
+    {v:'motos',l:'Motos / Repuestos'},
+    {v:'ferrmanuales',l:'Herramientas Manuales'},
+    {v:'maternidad',l:'Maternidad / Embarazo'},
+    {v:'pilates',l:'Yoga / Pilates'},
+    {v:'coleccionables',l:'Coleccionables / Figuras'},
+    {v:'drones',l:'Drones / RC'},
+    {v:'smartwatch',l:'Smartwatch / Wearables'},
+    {v:'bazar',l:'Bazar / Vajilla'},
+    {v:'muebles',l:'Muebles'},
+    {v:'decoracion',l:'Decoración / Cuadros'},
+    {v:'plantas',l:'Plantas / Suculentas'},
+    {v:'mate',l:'Mate / Termos'},
+    {v:'fitness',l:'Running / Fitness'},
+    {v:'natacion',l:'Natación / Pileta'},
+    {v:'golf',l:'Golf'},
+    {v:'festejos',l:'Cotillón / Fiestas'}
+  ];
+  var TOP8 = ['tecnologia','hogar','celulares','deportes','moda','mascotas','bebes','gaming'];
+  var byValue = {};
+  NICHOS.forEach(function(n){ byValue[n.v] = n.l; });
+
+  var sel = document.getElementById('selNicho');
+  var input = document.getElementById('nichoCombo');
+  var listbox = document.getElementById('nichoListbox');
+  var chipsWrap = document.getElementById('nichoChips');
+  if(!sel || !input || !listbox) return;
+
+  // Poblar el <select> real (backwards-compatible con todo el codigo que ya lee su .value)
+  sel.innerHTML = NICHOS.map(function(n){ return '<option value="'+n.v+'">'+n.l+'</option>'; }).join('');
+
+  function selectNicho(v, skipInputSync){
+    sel.value = v;
+    try{ sel.dispatchEvent(new Event('change', {bubbles:true})); }catch(e){}
+    if(!skipInputSync) input.value = byValue[v] || '';
+    chipsWrap.querySelectorAll('.nicho-chip').forEach(function(c){ c.classList.toggle('is-active', c.dataset.v===v); });
+    closeListbox();
+  }
+
+  function renderChips(){
+    chipsWrap.innerHTML = TOP8.map(function(v){
+      return '<button type="button" class="nicho-chip" data-v="'+v+'">'+byValue[v]+'</button>';
+    }).join('');
+    chipsWrap.querySelectorAll('.nicho-chip').forEach(function(c){
+      c.addEventListener('click', function(){ selectNicho(c.dataset.v); });
+    });
+  }
+
+  function openListbox(items){
+    listbox.innerHTML = items.length ? items.map(function(n,i){
+      return '<li class="combo-opt" role="option" id="nicho-opt-'+i+'" data-v="'+n.v+'">'+n.l+'</li>';
+    }).join('') : '<li class="combo-empty">Sin resultados. Probá con otra palabra.</li>';
+    listbox.hidden = false;
+    input.setAttribute('aria-expanded','true');
+    listbox.querySelectorAll('.combo-opt').forEach(function(li){
+      li.addEventListener('mousedown', function(ev){
+        ev.preventDefault();
+        selectNicho(li.dataset.v);
+      });
+    });
+  }
+  function closeListbox(){
+    listbox.hidden = true;
+    input.setAttribute('aria-expanded','false');
+    input.removeAttribute('aria-activedescendant');
+  }
+  function filterNichos(q){
+    q = (q||'').toLowerCase().trim();
+    if(!q) return [];
+    return NICHOS.filter(function(n){ return n.l.toLowerCase().indexOf(q) > -1; }).slice(0,20);
+  }
+
+  input.addEventListener('input', function(){
+    var q = input.value;
+    if(!q.trim()){ closeListbox(); return; }
+    openListbox(filterNichos(q));
+  });
+  input.addEventListener('focus', function(){
+    if(input.value.trim()) openListbox(filterNichos(input.value));
+  });
+  input.addEventListener('keydown', function(ev){
+    var opts = Array.prototype.slice.call(listbox.querySelectorAll('.combo-opt'));
+    if(listbox.hidden || !opts.length){
+      if(ev.key==='ArrowDown' && input.value.trim()){ openListbox(filterNichos(input.value)); }
+      return;
+    }
+    var idx = opts.findIndex(function(o){ return o.classList.contains('is-active'); });
+    if(ev.key==='ArrowDown'){
+      ev.preventDefault();
+      idx = (idx+1) % opts.length;
+      opts.forEach(function(o){ o.classList.remove('is-active'); });
+      opts[idx].classList.add('is-active');
+      input.setAttribute('aria-activedescendant', opts[idx].id);
+      opts[idx].scrollIntoView({block:'nearest'});
+    } else if(ev.key==='ArrowUp'){
+      ev.preventDefault();
+      idx = idx<=0 ? opts.length-1 : idx-1;
+      opts.forEach(function(o){ o.classList.remove('is-active'); });
+      opts[idx].classList.add('is-active');
+      input.setAttribute('aria-activedescendant', opts[idx].id);
+      opts[idx].scrollIntoView({block:'nearest'});
+    } else if(ev.key==='Enter'){
+      ev.preventDefault();
+      var chosen = idx>=0 ? opts[idx] : opts[0];
+      if(chosen) selectNicho(chosen.dataset.v);
+    } else if(ev.key==='Escape'){
+      closeListbox();
+    }
+  });
+  document.addEventListener('click', function(ev){
+    if(!ev.target.closest('#nichoComboWrap') && ev.target!==input && !listbox.contains(ev.target)) closeListbox();
+  });
+
+  renderChips();
+  var storedNicho = null;
+  try{ storedNicho = localStorage.getItem('pf_nicho'); }catch(e){}
+  selectNicho((storedNicho && byValue[storedNicho]) ? storedNicho : 'tecnologia', false);
+})();
+
 // ===== PRODUCTFINDER =====
 async function doAnalyze(){
   const btn = document.getElementById('btnAnalyze');
@@ -1571,7 +1813,7 @@ function loadHistoryItem(idx){
   mrData=item.mrData||{};
   document.getElementById('mrResult').classList.add('visible');
   document.getElementById('mrResultProduct').textContent=item.product;
-  document.getElementById('gaugeScore').textContent=item.score;
+  mcCountUp(document.getElementById('gaugeScore'), item.score);
   document.getElementById('gaugeLabel').textContent=item.score>=65?'Viabilidad alta':item.score>=40?'Viabilidad media':'Viabilidad baja';
   document.getElementById('mrVeredictoTitle').textContent=item.veredicto;
   document.getElementById('mrVeredictoText').textContent=item.analisisTexto||'';
@@ -1936,7 +2178,7 @@ function renderMRResult(r){
   const needleRot=-90+(score/100)*180;
   document.getElementById('gaugeNeedle').style.transform=`rotate(${needleRot}deg)`;
   const scoreColor=score>=65?'#27ae60':score>=40?'#FFE600':'#c0392b';
-  document.getElementById('gaugeScore').textContent=score;
+  mcCountUp(document.getElementById('gaugeScore'), score);
   document.getElementById('gaugeScore').setAttribute('fill',scoreColor);
   document.getElementById('gaugeLabel').textContent=score>=65?'Viabilidad alta':score>=40?'Viabilidad media':'Viabilidad baja';
   const vBox=document.getElementById('mrVeredictoBox');
@@ -2163,122 +2405,6 @@ function resetMR(){
   if(window._waterfallChart){window._waterfallChart.destroy();window._waterfallChart=null;}
   mrData={};mrCurrentProduct='';
 }
-// ===== ADMIN =====
-async function loadUsers(){
-  const container=document.getElementById('usersTableContainer');
-  container.innerHTML='<div class="loading">Cargando usuarios...</div>';
-  try{
-    const res=await fetch('/api/users',{headers:{'x-admin-key':getAdminKey()}});
-    const data=await res.json();
-    if(!res.ok){container.innerHTML='<div class="loading">Error: '+data.error+'</div>';return;}
-    renderUsersTable(data.users||[]);
-  }catch(e){container.innerHTML='<div class="loading">Error de conexi&#243;n</div>';}
-}
-
-function renderUsersTable(users){
-  const container=document.getElementById('usersTableContainer');
-  if(!users.length){container.innerHTML='<div class="loading">No hay usuarios registrados a&#250;n.</div>';return;}
-  const rows=users.map(u=>{
-            const premBtn = u.role==='admin' ? '' : `<button onclick="togglePremium('${u.username}',${u.premium?'false':'true'})" class="btn-sm btn-premium ${u.premium?'active':''}">${u.premium?'Quitar acceso':'Dar acceso'}</button> `;
-    const isAdminUser=(u.username===ADMIN_USER);
-    const now=Date.now();
-    const expiry=u.expiresAt?new Date(u.expiresAt):null;
-    const daysLeft=expiry?Math.ceil((expiry-now)/(1000*60*60*24)):null;
-    const expired=daysLeft!==null&&daysLeft<=0;
-    let badge='';
-    if(isAdminUser){badge='<span class="badge admin">Admin &#8734;</span>';}
-    else if(u.pending){badge='<span class="badge inactive" style="background:#3a2e00;color:#FFD24D">Pendiente</span>';}
-    else if(!u.active){badge='<span class="badge inactive">Inactivo</span>';}
-    else if(expired){badge='<span class="badge expired">Expirado</span>';}
-    else{badge='<span class="badge active">Activo</span>';}
-    const expiryStr=isAdminUser?'Sin expiraci&#243;n':(expiry?expiry.toLocaleDateString('es-AR')+' ('+daysLeft+'d)':'N/A');
-    const created=u.createdAt?new Date(u.createdAt).toLocaleDateString('es-AR'):'-';
-    const toggleBtn=isAdminUser?'':`<button class="btn-sm btn-toggle ${u.active?'deactivate':''}" onclick="toggleUser('${u.username}',${u.active?'false':'true'})">${u.active?'Desactivar':'Activar'}</button>`;
-    const delBtn=isAdminUser?'':`<button class="btn-sm btn-delete" onclick="deleteUser('${u.username}')">Eliminar</button>`;
-    const approveBtn=(!isAdminUser && u.pending)?`<button class="btn-sm btn-premium" style="background:#1f7a3d;border-color:#2ecc71;color:#fff" onclick="approveUser('${u.username}')">Aprobar</button>`:'';
-    const editDaysBtn=isAdminUser?'':`<button class="btn-sm btn-toggle" onclick="editUserDays('${u.username}',${u.expiryDays||120})">Editar dias</button>`;
-    return `<tr><td><strong>${u.username}</strong></td><td>${badge}</td><td>${u.expiryDays||'-'} d&#237;as</td><td>${created}</td><td>${expiryStr}</td><td>${approveBtn}${premBtn}${editDaysBtn}${toggleBtn}${delBtn}</td></tr>`;
-  }).join('');
-  container.innerHTML=`<table class="users-table"><thead><tr><th>Usuario</th><th>Estado</th><th>Sesi&#243;n</th><th>Creado</th><th>Expira</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table>`;
-}
-
-async function createUser(){
-  const username=document.getElementById('newUsername').value.trim();
-  const password=document.getElementById('newPassword').value;
-  const expiryDays=parseInt(document.getElementById('newExpiry').value)||120;
-  if(!username||!password){showAdminMsg('Complet&#225; usuario y contrase&#241;a','err');return;}
-  try{
-    const res=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json','x-admin-key':getAdminKey()},body:JSON.stringify({username,email:username,password,days:(expiryDays||120)})});
-    const data=await res.json();
-    if(!res.ok){showAdminMsg(data.error||'Error al crear usuario','err');return;}
-    showAdminMsg('&#9989; Usuario "'+username+'" creado correctamente','ok');
-    document.getElementById('newUsername').value='';document.getElementById('newPassword').value='';
-    loadUsers();
-  }catch(e){showAdminMsg('Error de conexi&#243;n','err');}
-}
-
-async function togglePremium(username, makePremium){
-            try{
-                const res = await fetch('/api/users?id='+encodeURIComponent(username), { method:'PATCH', headers:{'Content-Type':'application/json','x-admin-key':getAdminKey()}, body: JSON.stringify({ premium: (makePremium==='true'||makePremium===true) }) });
-                const data = await res.json().catch(()=>({}));
-                if(!res.ok){ showAdminMsg(data.error||'Error al cambiar acceso','err'); return; }
-                showAdminMsg('Acceso '+((makePremium==='true'||makePremium===true)?'activado':'desactivado')+' para '+username,'ok');
-                loadUsers();
-            }catch(e){ showAdminMsg('Error de conexi&#243;n','err'); }
-        }
-
-        async function toggleUser(username,active){
-  try{
-    const res=await fetch('/api/users?id='+encodeURIComponent(username),{method:'PATCH',headers:{'Content-Type':'application/json','x-admin-key':getAdminKey()},body:JSON.stringify({active})});
-    const data=await res.json();
-    if(!res.ok){showAdminMsg(data.error||'Error','err');return;}
-    showAdminMsg('&#9989; Usuario "'+username+'" '+(active?'activado':'desactivado'),'ok');
-    loadUsers();
-  }catch(e){showAdminMsg('Error de conexi&#243;n','err');}
-}
-
-async function approveUser(username){
-  if(!confirm('Aprobar y habilitar a "'+username+'"? Se activaran sus dias de acceso desde hoy.'))return;
-  try{
-    const res=await fetch('/api/users?id='+encodeURIComponent(username),{method:'PATCH',headers:{'Content-Type':'application/json','x-admin-key':getAdminKey()},body:JSON.stringify({approve:true})});
-    const data=await res.json();
-    if(!res.ok){showAdminMsg(data.error||'Error','err');return;}
-    showAdminMsg('Usuario "'+username+'" aprobado y habilitado','ok');
-    loadUsers();
-  }catch(e){showAdminMsg('Error de conexion','err');}
-}
-
-async function editUserDays(username,current){
-  const val=prompt('Dias de acceso para "'+username+'" (desde su fecha de alta):',current||120);
-  if(val===null)return;
-  const nd=parseInt(val);
-  if(isNaN(nd)||nd<=0){showAdminMsg('Ingresa un numero de dias valido','err');return;}
-  try{
-    const res=await fetch('/api/users?id='+encodeURIComponent(username),{method:'PATCH',headers:{'Content-Type':'application/json','x-admin-key':getAdminKey()},body:JSON.stringify({days:nd})});
-    const data=await res.json();
-    if(!res.ok){showAdminMsg(data.error||'Error','err');return;}
-    showAdminMsg('Dias de "'+username+'" actualizados a '+nd,'ok');
-    loadUsers();
-  }catch(e){showAdminMsg('Error de conexion','err');}
-}
-
-async function deleteUser(username){
-  if(!confirm('&#191;Eliminar al usuario "'+username+'"? Esta acci&#243;n no se puede deshacer.'))return;
-  try{
-    const res=await fetch('/api/users?id='+encodeURIComponent(username),{method:'DELETE',headers:{'Content-Type':'application/json','x-admin-key':getAdminKey()},body:JSON.stringify({username,action:'delete'})});
-    const data=await res.json();
-    if(!res.ok){showAdminMsg(data.error||'Error','err');return;}
-    showAdminMsg('&#9989; Usuario "'+username+'" eliminado','ok');
-    loadUsers();
-  }catch(e){showAdminMsg('Error de conexi&#243;n','err');}
-}
-
-function showAdminMsg(msg,type){
-  const el=document.getElementById('adminMsg');
-  el.textContent=msg;el.className='admin-msg '+type;
-  setTimeout(()=>{el.className='admin-msg';},4000);
-}
-
 // ===== INIT =====
 window.addEventListener('DOMContentLoaded',()=>{
   const savedUser=localStorage.getItem('pf_user');
@@ -2292,6 +2418,10 @@ window.addEventListener('DOMContentLoaded',()=>{
     currentRole=savedRole;sessionExpiry=savedExpiry||null;
     if(!routeFromHash()) showScreen('menuScreen');
     try{setupTopbar(savedUser);}catch(e){}
+  } else {
+    // Visitante anonimo: la landing publica (menuScreen) ya esta activa por defecto.
+    routeFromHash();
+    try{setupTopbar('');}catch(e){}
   }
 });
 </script>
@@ -2838,6 +2968,10 @@ window.addEventListener('DOMContentLoaded',()=>{
   function showOnboarding(){
     try{ if(localStorage.getItem('pf_onboarded')==='1') return; }catch(e){}
     if(document.querySelector('.v8-ob-overlay')) return;
+    // Este onboarding es del Recomendador por perfil (appScreen): no interrumpir
+    // la landing publica ni ninguna otra pantalla.
+    var appEl=document.getElementById('appScreen');
+    if(!appEl || !appEl.classList.contains('active')) return;
     var ov=document.createElement('div'); ov.className='v8-ob-overlay';
     ov.innerHTML='<div class="v8-ob">'+
       '<span class="v8-ob-badge">Bienvenido</span>'+
@@ -2932,7 +3066,7 @@ window.addEventListener('DOMContentLoaded',()=>{
       var gf=document.getElementById('gaugeFill'); if(gf) gf.style.strokeDashoffset=gOffset;
       var gn=document.getElementById('gaugeNeedle'); if(gn) gn.style.transform='rotate('+(-90+(score/100)*180)+'deg)';
       var col=score>=65?'#27ae60':score>=40?'#FFE600':'#c0392b';
-      var gs=document.getElementById('gaugeScore'); if(gs){ gs.textContent=score; gs.setAttribute('fill',col); }
+      var gs=document.getElementById('gaugeScore'); if(gs){ mcCountUp(gs, score); gs.setAttribute('fill',col); }
       var gl=document.getElementById('gaugeLabel'); if(gl) gl.textContent=score>=65?'Viabilidad alta':score>=40?'Viabilidad media':'Viabilidad baja';
     }catch(e){}
     var margenPct=s4.margenPct;
