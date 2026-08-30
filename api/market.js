@@ -79,8 +79,9 @@ async function stepCompetencia(product) {
     if (total < 200) saturacion = 'libre';
     else if (total > 10000) saturacion = 'muy saturado';
     else if (total > 2000) saturacion = 'saturado';
-    const competitors = meli.results.slice(0,5).map((x,i)=>({rank:i+1, name:(x.seller && x.seller.nickname) || ('Vendedor '+(i+1)), price:x.price||0, soldQty:x.sold_quantity||0, reputation:(x.seller && x.seller.seller_reputation && x.seller.seller_reputation.level_id) || 'N/A', repClass:'comp-rep-ok'}));
-    return { fuente:'mercadolibre-search', sellersEstimados: sellers.size || meli.results.length, precioMinARS:min, precioMaxARS:max, precioPromedioARS:avg, totalResults:total, categoryName:meli.categoryName||'', saturacion, competenciaScore: Math.min(100, Math.round(total/100)), competitors };
+    const conEnvioGratis = meli.results.filter(x => x.shipping && x.shipping.free_shipping).length;
+    const competitors = meli.results.slice(0,5).map((x,i)=>({rank:i+1, name:(x.seller && x.seller.nickname) || ('Vendedor '+(i+1)), price:x.price||0, soldQty:x.sold_quantity||0, reputation:(x.seller && x.seller.seller_reputation && x.seller.seller_reputation.level_id) || 'N/A', repClass:'comp-rep-ok', freeShipping: !!(x.shipping && x.shipping.free_shipping)}));
+    return { fuente:'mercadolibre-search', sellersEstimados: sellers.size || meli.results.length, precioMinARS:min, precioMaxARS:max, precioPromedioARS:avg, totalResults:total, categoryName:meli.categoryName||'', saturacion, competenciaScore: Math.min(100, Math.round(total/100)), competitors, envioGratisCount: conEnvioGratis, envioGratisTotal: meli.results.length, envioGratisPct: meli.results.length ? Math.round((conEnvioGratis/meli.results.length)*100) : 0 };
   }
   // IMPORTANTE: si no hay datos reales de MeLi (API 403 o scraping fallido) NO inventamos numeros via IA.
   return { fuente: 'no-disponible', sellersEstimados: null, precioMinARS: null, precioMaxARS: null, precioPromedioARS: null, totalResults: null, categoryName: '', saturacion: null, competenciaScore: null, competitors: [], aviso: 'Datos de Mercado Libre no disponibles ahora (la API publica requiere autenticacion). Mostramos solo lo verificable.' };
