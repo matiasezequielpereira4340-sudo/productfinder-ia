@@ -429,7 +429,7 @@
   function renderTablaVentas(ventas) {
     const tbody = document.getElementById('tablaVentas');
     if (!ventas || !ventas.length) {
-      tbody.innerHTML = `<tr><td colspan="9"><div class="empty"><div class="empty-icon">📭</div>Sin ventas en este período</div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9"><div class="empty"><div class="empty-icon"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg></div>Sin ventas en este período</div></td></tr>`;
       return;
 }
     tbody.innerHTML = ventas.map(v => {
@@ -475,7 +475,7 @@
   function renderTablaStock(productos) {
     const tbody = document.getElementById('tablaStock');
     if (!productos || !productos.length) {
-      tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-icon">📦</div>Sin productos activos</div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-icon"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg></div>Sin productos activos</div></td></tr>`;
       return;
 }
     tbody.innerHTML = productos.map(p => {
