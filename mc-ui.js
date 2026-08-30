@@ -16,6 +16,37 @@
   }
 
   /* ---------------------------------------------------------------------
+     0. Medicion de eventos
+        Sin cookies, sin identificadores persistentes, sin terceros.
+        Si Vercel Analytics esta disponible (window.va) le pasamos el evento;
+        si no, no hacemos nada mas que dejarlo en consola en modo debug.
+        Agregar ?mcdebug=1 a la URL para ver los eventos que se disparan.
+     --------------------------------------------------------------------- */
+  var MC_DEBUG = false;
+  try { MC_DEBUG = /[?&]mcdebug=1/.test(location.search); } catch (e) {}
+
+  function track(evento, datos) {
+    try {
+      var payload = datos || {};
+      if (typeof window.va === "function") {
+        window.va("event", { name: evento, data: payload });
+      }
+      if (MC_DEBUG && window.console) console.log("[mc-track]", evento, payload);
+    } catch (e) {}
+  }
+  window.mcTrack = track;
+
+  /* Eventos por delegacion: cualquier elemento con data-mc-event se mide solo.
+     Asi los CTAs no necesitan onclick propios y no se nos escapa ninguno. */
+  function initTracking() {
+    document.addEventListener("click", function (ev) {
+      var el = ev.target && ev.target.closest ? ev.target.closest("[data-mc-event]") : null;
+      if (!el) return;
+      track(el.getAttribute("data-mc-event"), { destino: el.getAttribute("href") || undefined });
+    }, true);
+  }
+
+  /* ---------------------------------------------------------------------
      1. Juego de iconos — trazo de 24x24, hereda el color del texto
      --------------------------------------------------------------------- */
   var ICONS = {
@@ -58,7 +89,8 @@
     "i-drop":    '<path d="M12 3.6c3.4 4 5.4 6.6 5.4 9.2A5.4 5.4 0 0 1 6.6 12.8c0-2.6 2-5.2 5.4-9.2z"/>',
     "i-build":   '<path d="M4 20.4V6.2a1 1 0 0 1 1-1h7v15.2"/><path d="M12 10.2h6.8a1 1 0 0 1 1 1v9.2"/><path d="M7 8.8h2M7 12h2M7 15.2h2M15 13.4h2M15 16.6h2"/><path d="M2.6 20.4h18.8"/>',
     "i-lock":    '<rect x="4.8" y="10.4" width="14.4" height="9.6" rx="2.2"/><path d="M8.2 10.4V7.8a3.8 3.8 0 0 1 7.6 0v2.6"/><path d="M12 14.2v2.2"/>',
-    "i-shield":  '<path d="M12 3.6 19.4 6v6c0 4-3 6.8-7.4 8.4C7.6 18.8 4.6 16 4.6 12V6z"/><path d="M9 12.2l2.2 2.2 4-4.2"/>'
+    "i-shield":  '<path d="M12 3.6 19.4 6v6c0 4-3 6.8-7.4 8.4C7.6 18.8 4.6 16 4.6 12V6z"/><path d="M9 12.2l2.2 2.2 4-4.2"/>',
+    "i-chevron": '<path d="M6.5 9.5 12 15l5.5-5.5"/>'
   };
 
   function injectSprite() {
@@ -153,18 +185,193 @@
      4. Command palette (Ctrl+K / Cmd+K) - una sola fuente de verdad
         para saltar a cualquier herramienta desde cualquier pagina.
      --------------------------------------------------------------------- */
-  var COMMANDS = [
-    { label: "Inicio", desc: "Volver a la landing", icon: "i-home", href: "/index.html#menu" },
-    { label: "Buscador de oportunidades", desc: "Qué conviene importar según tu perfil", icon: "i-target", href: "/index.html#market" },
-    { label: "Recomendador por perfil", desc: "Qué traer según tu capital y experiencia", icon: "i-brain", href: "/index.html#productfinder" },
-    { label: "Calculador de margen", desc: "Cuánto vas a ganar de verdad", icon: "i-calc", href: "/margen.html" },
-    { label: "Conectar cuenta de MercadoLibre", desc: "Vinculá tu cuenta", icon: "i-link", href: "/meli-connect.html" },
-    { label: "Dashboard de ventas", desc: "Órdenes, comisiones y ganancia neta", icon: "i-chart", href: "/dashboard.html" },
-    { label: "Analizador de publicaciones", desc: "Qué mejorar en tu publicación", icon: "i-search", href: "/analizador.html" },
-    { label: "Flex vs Full", desc: "Qué envío te conviene", icon: "i-truck", href: "/calculadora-envios.html" },
-    { label: "Aprendé a publicar", desc: "Guía para arrancar a vender", icon: "i-cap", href: "/educacion.html" },
-    { label: "Asesoría de importación (WhatsApp)", desc: "Hablar 1 a 1 sobre tu importación", icon: "i-chat", href: "https://wa.me/541160374306" }
+  /* =====================================================================
+     FUENTE DE VERDAD UNICA de la navegacion.
+     De aca salen: el <header> de todas las paginas y el command palette.
+     Para agregar o renombrar una herramienta se toca SOLO este objeto.
+     ===================================================================== */
+  var WA_IMPORT = "https://wa.me/541160374306?text=Hola!%20Quiero%20asesor%C3%ADa%20para%20importar%20%5Bweb%3Anav%5D";
+
+  var NAV = [
+    { key: "inicio", label: "Inicio", icon: "i-home", href: "/index.html#menu",
+      desc: "Volver a la portada" },
+    { key: "importacion", label: "Importación", icon: "i-box", seccion: "Encontrá y planificá", hijos: [
+      { key: "market", label: "Buscador de oportunidades", icon: "i-target",
+        href: "/index.html#market", desc: "Qué conviene importar según tu perfil" },
+      { key: "productfinder", label: "Recomendador por perfil", icon: "i-brain",
+        href: "/index.html#productfinder", desc: "Qué traer según tu capital y experiencia" },
+      { key: "margen", label: "Calculador de margen", icon: "i-calc",
+        href: "/margen.html", desc: "Cuánto vas a ganar de verdad" }
+    ]},
+    { key: "meli", label: "MercadoLibre", icon: "i-cart", seccion: "Tu cuenta y publicaciones", hijos: [
+      { key: "meli-connect", label: "Conectar cuenta", icon: "i-link",
+        href: "/meli-connect.html", desc: "Vinculá tu MercadoLibre" },
+      { key: "dashboard", label: "Dashboard de ventas", icon: "i-chart",
+        href: "/dashboard.html", desc: "Órdenes, comisiones y ganancia neta" },
+      { key: "analizador", label: "Analizador de publicaciones", icon: "i-search",
+        href: "/analizador.html", desc: "Qué mejorar en tu publicación" },
+      { key: "envios", label: "Flex vs Full", icon: "i-truck",
+        href: "/calculadora-envios.html", desc: "Qué envío te conviene" },
+      { key: "educacion", label: "Aprendé a publicar", icon: "i-cap",
+        href: "/educacion.html", desc: "Guía para arrancar a vender" }
+    ]},
+    { key: "admin", label: "Admin", icon: "i-crown", href: "/admin.html",
+      desc: "Gestión de usuarios", soloAdmin: true }
   ];
+
+  function ic(nombre, extra) {
+    return '<svg class="ic' + (extra ? " " + extra : "") + '" aria-hidden="true"><use href="#' + nombre + '"></use></svg>';
+  }
+
+  // El command palette se deriva del mismo NAV: no hay dos listas que sincronizar.
+  function buildCommands() {
+    var out = [];
+    NAV.forEach(function (item) {
+      if (item.soloAdmin) return;
+      if (item.hijos) item.hijos.forEach(function (h) { out.push(h); });
+      else out.push(item);
+    });
+    out.push({ label: "Asesoría de importación (WhatsApp)", icon: "i-chat",
+               href: WA_IMPORT, desc: "Hablar 1 a 1 sobre tu importación" });
+    return out;
+  }
+  var COMMANDS = buildCommands();
+
+  /* ---------------------------------------------------------------------
+     Render del <header> compartido
+     --------------------------------------------------------------------- */
+  function claveActiva() {
+    var mount = document.querySelector("[data-mc-nav]");
+    var forzada = mount && mount.getAttribute("data-mc-nav");
+    if (forzada) return forzada;
+    var p = (location.pathname || "").replace(/\/$/, "");
+    var h = (location.hash || "").replace("#", "");
+    if (/index\.html$/.test(p) || p === "") {
+      if (h === "market" || h === "mercado") return "market";
+      if (h === "productfinder" || h === "app") return "productfinder";
+      return "inicio";
+    }
+    var m = p.match(/([^/]+)\.html$/);
+    if (!m) return "";
+    var f = m[1];
+    if (f === "margen") return "margen";
+    if (f === "meli-connect") return "meli-connect";
+    if (f === "dashboard") return "dashboard";
+    if (f === "analizador") return "analizador";
+    if (f === "calculadora-envios") return "envios";
+    if (f === "educacion") return "educacion";
+    if (f === "admin") return "admin";
+    return "";
+  }
+
+  function navHTML(activa) {
+    var items = NAV.map(function (item) {
+      var esAdmin = !!item.soloAdmin;
+      var wrapCls = "mc-item" + (esAdmin ? " mc-admin-item" : "");
+      var wrapStyle = esAdmin ? ' style="display:none"' : "";
+
+      if (!item.hijos) {
+        var act = activa === item.key ? " active" : "";
+        return '<div class="' + wrapCls + '"' + wrapStyle + '>' +
+          '<a href="' + item.href + '" class="mc-link' + act + '" data-mc-key="' + item.key + '">' +
+          ic(item.icon) + " " + item.label + "</a></div>";
+      }
+      var hijoActivo = item.hijos.some(function (h) { return h.key === activa; });
+      var drop = '<div class="mc-sechead">' + item.seccion + "</div>" +
+        item.hijos.map(function (h) {
+          return '<a href="' + h.href + '"' + (h.key === activa ? ' class="active"' : "") +
+            ' data-mc-key="' + h.key + '">' +
+            '<span class="mc-di">' + ic(h.icon) + "</span>" +
+            '<span class="mc-dt"><b>' + h.label + "</b><span>" + h.desc + "</span></span></a>";
+        }).join("");
+      return '<div class="' + wrapCls + '"' + wrapStyle + '>' +
+        '<button class="mc-link' + (hijoActivo ? " active" : "") + '" type="button" aria-expanded="false">' +
+        ic(item.icon) + " " + item.label + ' <span class="mc-caret">' + ic("i-chevron") + "</span></button>" +
+        '<div class="mc-drop">' + drop + "</div></div>";
+    }).join("");
+
+    return '' +
+      '<a href="/index.html#menu" class="mc-brand"><span class="mc-brand-ico">' + ic("i-link") + "</span> MeLi Connect</a>" +
+      '<nav class="mc-menu" id="mcMenu">' + items + "</nav>" +
+      '<div class="mc-right">' +
+        '<button class="mc-palette-btn" type="button" aria-label="Buscar herramienta (Ctrl+K)" title="Buscar herramienta (Ctrl+K)">' + ic("i-search") + "</button>" +
+        '<a class="mc-cta" data-mc-event="cta_importacion" data-mc-origen="nav" href="' + WA_IMPORT + '" target="_blank" rel="noopener">' + ic("i-chat") + ' Asesoría<span class="mc-pulse"></span></a>' +
+        '<button class="mc-enter" id="mcEnterBtn" type="button" style="display:none">Entrar</button>' +
+        '<div class="mc-user" id="mcUserBox" style="display:none"><span class="mc-avatar mc-av">?</span><span class="mc-uname mc-un">invitado</span></div>' +
+        '<button class="mc-logout" id="mcLogoutBtn" type="button" style="display:none">Salir</button>' +
+      "</div>" +
+      '<button class="mc-toggle" id="mcToggle" type="button" aria-label="Abrir menú" aria-expanded="false">' + ic("i-menu") + "</button>";
+  }
+
+  function initNav() {
+    var host = document.querySelector("[data-mc-nav]");
+    if (!host) return;                       // pagina sin nav (login)
+    var header = document.createElement("header");
+    header.className = "mc-nav";
+    header.id = "mcNav";
+    header.innerHTML = navHTML(claveActiva());
+    host.parentNode.replaceChild(header, host);
+
+    // En la propia index (servida como "/" o "/index.html") los enlaces a
+    // /index.html#x se reescriben a #x, si no el navegador recargaria la pagina
+    // entera en vez de cambiar de pantalla dentro del SPA.
+    var enIndex = /(^|\/)index\.html$/.test(location.pathname) || location.pathname === "/";
+    if (enIndex) {
+      Array.prototype.forEach.call(header.querySelectorAll('a[href*="index.html#"]'), function (a) {
+        a.setAttribute("href", a.getAttribute("href").replace(/^.*index\.html/, ""));
+      });
+    }
+
+    // Menu movil
+    var toggle = header.querySelector("#mcToggle");
+    var menu = header.querySelector("#mcMenu");
+    if (toggle && menu) {
+      toggle.addEventListener("click", function () {
+        var abierto = menu.classList.toggle("show");
+        toggle.setAttribute("aria-expanded", abierto ? "true" : "false");
+        toggle.setAttribute("aria-label", abierto ? "Cerrar menú" : "Abrir menú");
+      });
+    }
+    // Desplegables por teclado (en desktop abren con hover via CSS)
+    Array.prototype.forEach.call(header.querySelectorAll(".mc-item > button.mc-link"), function (btn) {
+      btn.addEventListener("click", function () {
+        var item = btn.parentNode;
+        var abierto = item.classList.toggle("is-open");
+        btn.setAttribute("aria-expanded", abierto ? "true" : "false");
+      });
+    });
+    header.querySelector(".mc-palette-btn").addEventListener("click", openPalette);
+
+    // Estado de sesion. En index.html manda su propio setupTopbar(); aca damos
+    // el comportamiento por defecto para el resto de las paginas.
+    var esIndex = /index\.html$/.test(location.pathname) || location.pathname === "/";
+    var enterBtn = header.querySelector("#mcEnterBtn");
+    var userBox = header.querySelector("#mcUserBox");
+    var logoutBtn = header.querySelector("#mcLogoutBtn");
+    var usuario = "", rol = "";
+    try { usuario = localStorage.getItem("pf_user") || ""; rol = localStorage.getItem("pf_role") || ""; } catch (e) {}
+
+    if (usuario) {
+      userBox.style.display = "";
+      logoutBtn.style.display = "";
+      header.querySelector(".mc-un").textContent = usuario;
+      header.querySelector(".mc-av").textContent = (usuario.charAt(0) || "?").toUpperCase();
+    } else {
+      enterBtn.style.display = "";
+    }
+    if (rol === "admin") {
+      Array.prototype.forEach.call(header.querySelectorAll(".mc-admin-item"), function (el) { el.style.display = ""; });
+    }
+    enterBtn.addEventListener("click", function () {
+      if (esIndex && typeof window.showLogin === "function") window.showLogin();
+      else window.location.href = "/login.html";
+    });
+    logoutBtn.addEventListener("click", function () {
+      if (esIndex && typeof window.doLogout === "function") { window.doLogout(); return; }
+      try { ["pf_user", "pf_role", "pf_expiry", "pf_premium"].forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
+      window.location.href = "/index.html";
+    });
+  }
 
   function ensurePaletteMarkup() {
     if (document.getElementById("cmdkOverlay")) return;
@@ -319,9 +526,11 @@
      --------------------------------------------------------------------- */
   function boot() {
     safe(injectSprite, "iconos");
+    safe(initNav, "nav");
     safe(initReveal, "aparicion");
     safe(initHeroGradient, "hero");
     safe(initPalette, "command-palette");
+    safe(initTracking, "medicion");
   }
 
   if (document.readyState === "loading") {
