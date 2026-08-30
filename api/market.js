@@ -113,13 +113,37 @@ async function askClaudeJson(prompt) {
   }
 }
 
-// Cache simple del access_token en memoria del proceso (Vercel cold start lo resetea, no es problema)
+// Cache del access_token en memoria del proceso (Vercel cold start lo resetea, no es problema)
+let _appTokenCache = { token: null, expiresAt: 0 };
+
 async function getMeliAccessToken() {
-  // Estrategia simple: si hay MELI_ACCESS_TOKEN en env, lo usamos.
-  // Si no, devolvemos null y safeMeliSearch cae a scraping publico (sin inventar datos).
+  // 1) Token explicito en env, si esta configurado.
   const tk = process.env.MELI_ACCESS_TOKEN;
   if (tk && typeof tk === 'string' && tk.length > 10) return tk;
-  return null;
+
+  // 2) Token de aplicacion via client_credentials. Esto permite que la demo
+  //    publica del hero consulte MeLi sin que el visitante haga OAuth.
+  //    No accede a datos de ningun usuario: solo al buscador publico.
+  if (_appTokenCache.token && Date.now() < _appTokenCache.expiresAt) {
+    return _appTokenCache.token;
+  }
+  const id = process.env.MELI_CLIENT_ID || process.env.MELI_APP_ID;
+  const secret = process.env.MELI_CLIENT_SECRET || process.env.MELI_SECRET_KEY;
+  if (!id || !secret) return null;
+  try {
+    const r = await fetch('https://api.mercadolibre.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+      body: new URLSearchParams({ grant_type: 'client_credentials', client_id: id, client_secret: secret }).toString()
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (!j || !j.access_token) return null;
+    // Renovamos 5 min antes de que venza.
+    const ttl = Math.max(60, (j.expires_in || 21600) - 300);
+    _appTokenCache = { token: j.access_token, expiresAt: Date.now() + ttl * 1000 };
+    return j.access_token;
+  } catch (_) { return null; }
 }
 
 async function safeMeliSearch(product) {
