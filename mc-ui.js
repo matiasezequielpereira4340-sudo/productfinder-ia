@@ -150,12 +150,178 @@
   }
 
   /* ---------------------------------------------------------------------
+     4. Command palette (Ctrl+K / Cmd+K) - una sola fuente de verdad
+        para saltar a cualquier herramienta desde cualquier pagina.
+     --------------------------------------------------------------------- */
+  var COMMANDS = [
+    { label: "Inicio", desc: "Volver a la landing", icon: "i-home", href: "/index.html#menu" },
+    { label: "Buscador de oportunidades", desc: "Qué conviene importar según tu perfil", icon: "i-target", href: "/index.html#market" },
+    { label: "Recomendador por perfil", desc: "Qué traer según tu capital y experiencia", icon: "i-brain", href: "/index.html#productfinder" },
+    { label: "Calculador de margen", desc: "Cuánto vas a ganar de verdad", icon: "i-calc", href: "/margen.html" },
+    { label: "Conectar cuenta de MercadoLibre", desc: "Vinculá tu cuenta", icon: "i-link", href: "/meli-connect.html" },
+    { label: "Dashboard de ventas", desc: "Órdenes, comisiones y ganancia neta", icon: "i-chart", href: "/dashboard.html" },
+    { label: "Analizador de publicaciones", desc: "Qué mejorar en tu publicación", icon: "i-search", href: "/analizador.html" },
+    { label: "Flex vs Full", desc: "Qué envío te conviene", icon: "i-truck", href: "/calculadora-envios.html" },
+    { label: "Aprendé a publicar", desc: "Guía para arrancar a vender", icon: "i-cap", href: "/educacion.html" },
+    { label: "Asesoría de importación (WhatsApp)", desc: "Hablar 1 a 1 sobre tu importación", icon: "i-chat", href: "https://wa.me/541160374306" }
+  ];
+
+  function ensurePaletteMarkup() {
+    if (document.getElementById("cmdkOverlay")) return;
+    var wrap = document.createElement("div");
+    wrap.innerHTML =
+      '<div class="cmdk-overlay" id="cmdkOverlay" hidden>' +
+        '<div class="cmdk-modal" role="dialog" aria-modal="true" aria-label="Buscar herramienta">' +
+          '<div class="cmdk-inputrow">' +
+            '<svg class="ic" aria-hidden="true"><use href="#i-search"></use></svg>' +
+            '<label for="cmdkInput" class="sr-only">Buscar herramienta</label>' +
+            '<input type="text" id="cmdkInput" class="cmdk-input" placeholder="Buscar herramienta o acción..." autocomplete="off" aria-autocomplete="list" aria-controls="cmdkList" role="combobox" aria-expanded="true">' +
+            '<kbd class="cmdk-esc">Esc</kbd>' +
+          '</div>' +
+          '<ul class="cmdk-list" id="cmdkList" role="listbox" aria-label="Resultados"></ul>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(wrap.firstChild);
+  }
+
+  function ensurePaletteButton() {
+    if (document.querySelector(".mc-palette-btn")) return;
+    var right = document.querySelector(".mc-nav .mc-right");
+    if (!right) return;
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "mc-palette-btn";
+    btn.setAttribute("aria-label", "Buscar herramienta (Ctrl+K)");
+    btn.title = "Buscar herramienta (Ctrl+K)";
+    btn.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-search"></use></svg>';
+    btn.addEventListener("click", openPalette);
+    right.insertBefore(btn, right.firstChild);
+  }
+
+  var paletteActiveIndex = 0;
+  var paletteItems = COMMANDS;
+  var paletteLastFocus = null;
+
+  function renderPaletteList(items) {
+    var list = document.getElementById("cmdkList");
+    if (!list) return;
+    paletteItems = items;
+    paletteActiveIndex = items.length ? 0 : -1;
+    if (!items.length) {
+      list.innerHTML = '<li class="cmdk-empty">Sin resultados. Probá con otra palabra.</li>';
+      return;
+    }
+    list.innerHTML = items
+      .map(function (it, i) {
+        return (
+          '<li class="cmdk-item' + (i === 0 ? " is-active" : "") + '" role="option" id="cmdk-item-' + i + '" data-href="' + it.href + '">' +
+          '<svg class="ic" aria-hidden="true"><use href="#' + it.icon + '"></use></svg>' +
+          "<span><b>" + it.label + "</b><span>" + it.desc + "</span></span>" +
+          "</li>"
+        );
+      })
+      .join("");
+    Array.prototype.forEach.call(list.querySelectorAll(".cmdk-item"), function (li) {
+      li.addEventListener("mousedown", function (ev) {
+        ev.preventDefault();
+        goTo(li.getAttribute("data-href"));
+      });
+    });
+  }
+
+  function filterPalette(q) {
+    q = (q || "").toLowerCase().trim();
+    if (!q) return COMMANDS;
+    return COMMANDS.filter(function (it) {
+      return (it.label + " " + it.desc).toLowerCase().indexOf(q) > -1;
+    });
+  }
+
+  function goTo(href) {
+    if (!href) return;
+    closePalette();
+    if (/^https?:\/\//.test(href)) {
+      window.open(href, "_blank", "noopener");
+    } else {
+      window.location.href = href;
+    }
+  }
+
+  function moveActive(delta) {
+    var list = document.getElementById("cmdkList");
+    if (!list) return;
+    var items = Array.prototype.slice.call(list.querySelectorAll(".cmdk-item"));
+    if (!items.length) return;
+    items[paletteActiveIndex] && items[paletteActiveIndex].classList.remove("is-active");
+    paletteActiveIndex = (paletteActiveIndex + delta + items.length) % items.length;
+    items[paletteActiveIndex].classList.add("is-active");
+    items[paletteActiveIndex].scrollIntoView({ block: "nearest" });
+  }
+
+  function openPalette() {
+    ensurePaletteMarkup();
+    var overlay = document.getElementById("cmdkOverlay");
+    var input = document.getElementById("cmdkInput");
+    if (!overlay || !input) return;
+    paletteLastFocus = document.activeElement;
+    overlay.hidden = false;
+    input.value = "";
+    renderPaletteList(COMMANDS);
+    input.focus();
+  }
+  window.openPalette = openPalette;
+
+  function closePalette() {
+    var overlay = document.getElementById("cmdkOverlay");
+    if (overlay) overlay.hidden = true;
+    if (paletteLastFocus && paletteLastFocus.focus) {
+      try { paletteLastFocus.focus(); } catch (e) {}
+    }
+  }
+  window.closePalette = closePalette;
+
+  function initPalette() {
+    ensurePaletteMarkup();
+    safe(ensurePaletteButton, "boton-palette");
+    document.addEventListener("keydown", function (ev) {
+      var overlay = document.getElementById("cmdkOverlay");
+      var isOpen = overlay && !overlay.hidden;
+      if ((ev.metaKey || ev.ctrlKey) && (ev.key === "k" || ev.key === "K")) {
+        ev.preventDefault();
+        isOpen ? closePalette() : openPalette();
+        return;
+      }
+      if (!isOpen) return;
+      if (ev.key === "Escape") { ev.preventDefault(); closePalette(); }
+      else if (ev.key === "ArrowDown") { ev.preventDefault(); moveActive(1); }
+      else if (ev.key === "ArrowUp") { ev.preventDefault(); moveActive(-1); }
+      else if (ev.key === "Enter") {
+        ev.preventDefault();
+        var active = document.querySelector(".cmdk-item.is-active");
+        if (active) goTo(active.getAttribute("data-href"));
+      } else if (ev.key === "Tab") {
+        // Foco atrapado dentro del modal (unico elemento enfocable: el input)
+        ev.preventDefault();
+        document.getElementById("cmdkInput").focus();
+      }
+    });
+    document.addEventListener("input", function (ev) {
+      if (ev.target && ev.target.id === "cmdkInput") renderPaletteList(filterPalette(ev.target.value));
+    });
+    document.addEventListener("mousedown", function (ev) {
+      var overlay = document.getElementById("cmdkOverlay");
+      if (overlay && !overlay.hidden && ev.target === overlay) closePalette();
+    });
+  }
+
+  /* ---------------------------------------------------------------------
      Arranque
      --------------------------------------------------------------------- */
   function boot() {
     safe(injectSprite, "iconos");
     safe(initReveal, "aparicion");
     safe(initHeroGradient, "hero");
+    safe(initPalette, "command-palette");
   }
 
   if (document.readyState === "loading") {
