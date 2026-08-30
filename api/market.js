@@ -52,6 +52,34 @@ export default async function handler(req, res) {
             intentos.con_token = r.status;
             if (!r.ok) intentos.con_token_detalle = (await r.text()).slice(0, 220);
           } catch (e) { intentos.con_token = 'excepcion: ' + String(e && e.message).slice(0, 120); }
+
+          // MeLi cerro /sites/MLA/search. Probamos que otros endpoints siguen
+          // abiertos con un token de usuario, para saber sobre cual reconstruir
+          // la demo en vez de suponerlo.
+          const q = encodeURIComponent(termino);
+          const alternativas = {
+            products_search: 'https://api.mercadolibre.com/products/search?status=active&site_id=MLA&q=' + q,
+            domain_discovery: 'https://api.mercadolibre.com/sites/MLA/domain_discovery/search?limit=3&q=' + q,
+            highlights: 'https://api.mercadolibre.com/highlights/MLA/category/MLA1051',
+            categoria_predict: 'https://api.mercadolibre.com/sites/MLA/category_predictor/predict?title=' + q,
+            trends: 'https://api.mercadolibre.com/trends/MLA'
+          };
+          intentos.alternativas = {};
+          for (const [nombre, u] of Object.entries(alternativas)) {
+            try {
+              const r = await fetch(u, { headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' } });
+              let resumen = r.status;
+              if (r.ok) {
+                const j = await r.json().catch(() => null);
+                const n = Array.isArray(j) ? j.length
+                        : (j && Array.isArray(j.results) ? j.results.length : 'objeto');
+                resumen = r.status + ' (' + n + ' items)';
+              }
+              intentos.alternativas[nombre] = resumen;
+            } catch (e) {
+              intentos.alternativas[nombre] = 'excepcion';
+            }
+          }
         }
         try {
           const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
