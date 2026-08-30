@@ -157,9 +157,23 @@ async function getMeliAccessToken() {
   const tk = process.env.MELI_ACCESS_TOKEN;
   if (tk && typeof tk === 'string' && tk.length > 10) return tk;
 
-  // 2) Token de aplicacion via client_credentials. Esto permite que la demo
-  //    publica del hero consulte MeLi sin que el visitante haga OAuth.
-  //    No accede a datos de ningun usuario: solo al buscador publico.
+  // 2) Token "de la casa": el de una cuenta de MercadoLibre ya conectada, que
+  //    se usa para las busquedas publicas de la demo del hero.
+  //    MercadoLibre dejo de aceptar tokens de aplicacion en /sites/MLA/search
+  //    (devuelve 403), asi que el buscador exige un token de usuario real.
+  //    Se activa poniendo MELI_DEMO_USER_ID con el user_id de esa cuenta en la
+  //    tabla meli_tokens; el refresco automatico ya lo maneja meli-refresh.
+  const demoUser = process.env.MELI_DEMO_USER_ID;
+  if (demoUser) {
+    try {
+      const mod = await import('./meli-refresh.js');
+      const t = await mod.getValidToken(demoUser);
+      if (t) return t;
+    } catch (_) { /* seguimos con la siguiente estrategia */ }
+  }
+
+  // 3) Token de aplicacion via client_credentials. Hoy MeLi lo rechaza para el
+  //    buscador, pero lo dejamos por si vuelve a habilitarlo.
   if (_appTokenCache.token && Date.now() < _appTokenCache.expiresAt) {
     return _appTokenCache.token;
   }
