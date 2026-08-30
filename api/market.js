@@ -26,6 +26,22 @@ export default async function handler(req, res) {
       try {
         const tok = await getMeliAccessToken();
         estado.token_obtenido = !!tok;
+        const url = 'https://api.mercadolibre.com/sites/MLA/search?q=' +
+                    encodeURIComponent(termino) + '&limit=5';
+        const intentos = {};
+        if (tok) {
+          try {
+            const r = await fetch(url, { headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' } });
+            intentos.con_token = r.status;
+            if (!r.ok) intentos.con_token_detalle = (await r.text()).slice(0, 220);
+          } catch (e) { intentos.con_token = 'excepcion: ' + String(e && e.message).slice(0, 120); }
+        }
+        try {
+          const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+          intentos.anonimo = r.status;
+        } catch (e) { intentos.anonimo = 'excepcion: ' + String(e && e.message).slice(0, 120); }
+        estado.intentos = intentos;
+
         const r = await safeMeliSearch(termino);
         estado.probe = r
           ? { termino, fuente: r.fuente, resultados: (r.results || []).length, total: r.total || 0 }
