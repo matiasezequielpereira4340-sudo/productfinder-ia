@@ -232,7 +232,14 @@
       </div>
 
       <script>
-        const ADMIN_KEY = 'pf-admin-secret-2024';
+        function getAdminKey(){ var k=localStorage.getItem('pf_admin_key'); if(!k){ k=prompt('Clave de administrador:'); if(k){ localStorage.setItem('pf_admin_key', k); } } return k||''; }
+        async function adminFetch(url, opts){
+          opts = opts || {};
+          opts.headers = Object.assign({}, opts.headers || {}, {'x-admin-key': getAdminKey()});
+          var res = await fetch(url, opts);
+          if (res.status === 401) { localStorage.removeItem('pf_admin_key'); }
+          return res;
+        }
 
   // Guard: solo admin puede entrar
   const role = localStorage.getItem('pf_role');
@@ -264,10 +271,13 @@
             '<tr><td colspan="7" class="loading">Cargando...</td></tr>';
 
     try {
-      const res = await fetch('/api/users?id=' + encodeURIComponent(username), {
-                headers: {'x-admin-key': ADMIN_KEY}
-        });
+      const res = await adminFetch('/api/users');
       const data = await res.json();
+      if (!res.ok) {
+        document.getElementById('tablaClientes').innerHTML =
+          `<tr><td colspan="7" class="empty">Error: ${data.error || 'clave de administrador incorrecta'}</td></tr>`;
+        return;
+      }
       const users = data.users || [];
 
       // Actualizar stats
@@ -287,7 +297,8 @@
 
       users.forEach(u => {
                 const dias = diasRestantes(u.createdAt, u.expiryDays);
-                if (!u.active || (dias !== null && dias <= 0)) expirados++;
+                if (u.pending) { /* pendiente de aprobacion: no cuenta como activo ni expirado */ }
+                else if (!u.active || (dias !== null && dias <= 0)) expirados++;
         else activos++;
         if (meliStatus[u.username]?.connected) conectados++;
   });
@@ -310,7 +321,8 @@
           : null;
 
         let estadoBadge;
-        if (!u.active) estadoBadge = '<span class="badge badge-gray">Desactivado</span>';
+        if (u.pending) estadoBadge = '<span class="badge badge-yellow">Pendiente</span>';
+        else if (!u.active) estadoBadge = '<span class="badge badge-gray">Desactivado</span>';
         else if (dias !== null && dias <= 0) estadoBadge = '<span class="badge badge-red">Expirado</span>';
         else if (dias !== null && dias <= 7) estadoBadge = '<span class="badge badge-yellow">Expira pronto</span>';
         else estadoBadge = '<span class="badge badge-green">Activo</span>';
@@ -320,10 +332,17 @@
           ? '<span class="badge badge-blue">Conectado</span>'
           : '<span class="badge badge-gray">Sin conectar</span>';
 
-        const diasStr = dias === null ? '—'
+        const diasStr = u.pending ? '—' : dias === null ? '—'
           : dias <= 0 ? '<span style="color:#f87171">Expirado</span>'
           : dias <= 7 ? `<span style="color:#fb923c">${dias}d</span>`
                     : `<span style="color:#4ade80">${dias}d</span>`;
+
+        const aprobarBtn = u.pending
+          ? `<button class="btn btn-yellow btn-sm" onclick="aprobarUsuario('${u.username}')" title="Aprobar y habilitar">Aprobar</button>`
+          : '';
+        const editarDiasBtn = u.pending
+          ? ''
+          : `<button class="btn btn-ghost btn-sm" onclick="editarDias('${u.username}',${u.expiryDays || 120})" title="Editar dias de acceso">Dias</button>`;
 
         return `<tr>
                     <td style="font-weight:600;color:#f0f0f0">${u.username}</td>
@@ -333,11 +352,13 @@
                     <td>${estadoBadge}</td>
                     <td>${meliBadge}</td>
                     <td>
-                      <div style="display:flex;gap:6px">
-                        <button class="btn btn-ghost btn-sm" onclick="verDashboard('${u.username}')" title="Ver dashboard">📊</button>
-                        <button class="btn btn-ghost btn-sm" onclick="toggleUsuario('${u.username}',${u.active})" title="${u.active ? 'Desactivar' : 'Activar'}">${u.active ? '🔒' : '🔓'}</button>
-                        <button class="btn btn-ghost btn-sm" onclick="togglePremium('${u.username}',${!!u.premium})" title="${u.premium ? 'Quitar acceso completo' : 'Dar acceso completo (asesoria)'}" style="${u.premium ? 'color:#FFE600' : ''}">${u.premium ? '⭐' : '☆'}</button>
-                        <button class="btn btn-red btn-sm" onclick="eliminarUsuario('${u.username}')" title="Eliminar">🗑</button>
+                      <div style="display:flex;gap:6px;flex-wrap:wrap">
+                        ${aprobarBtn}
+                        ${editarDiasBtn}
+                        <button class="btn btn-ghost btn-sm" onclick="verDashboard('${u.username}')" title="Ver dashboard">Panel</button>
+                        <button class="btn btn-ghost btn-sm" onclick="toggleUsuario('${u.username}',${u.active})" title="${u.active ? 'Desactivar' : 'Activar'}">${u.active ? 'Desactivar' : 'Activar'}</button>
+                        <button class="btn btn-ghost btn-sm" onclick="togglePremium('${u.username}',${!!u.premium})" title="${u.premium ? 'Quitar acceso completo' : 'Dar acceso completo (asesoria)'}" style="${u.premium ? 'color:#FFE600' : ''}">${u.premium ? 'Quitar acceso' : 'Dar acceso'}</button>
+                        <button class="btn btn-red btn-sm" onclick="eliminarUsuario('${u.username}')" title="Eliminar">Eliminar</button>
                       </div>
                     </td>
                   </tr>`;
@@ -369,9 +390,9 @@
     }
 
     try {
-      const res = await fetch('/api/users?id=' + encodeURIComponent(username), {
+      const res = await adminFetch('/api/users?id=' + encodeURIComponent(username), {
                 method: 'POST',
-                headers: {'Content-Type':'application/json','x-admin-key': ADMIN_KEY},
+                headers: {'Content-Type':'application/json'},
                 body: JSON.stringify({username, password, expiryDays: parseInt(expiryDays)})
         });
       const data = await res.json();
@@ -399,9 +420,9 @@
   // -----------------------------------------------
   async function toggleUsuario(username, currentActive) {
     try {
-      await fetch('/api/users?id=' + encodeURIComponent(username), {
+      await adminFetch('/api/users?id=' + encodeURIComponent(username), {
         method: 'PATCH',
-        headers: {'Content-Type':'application/json','x-admin-key': ADMIN_KEY},
+        headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ active: !currentActive })
 });
       cargarClientes();
@@ -411,15 +432,50 @@
 }
 
   // -----------------------------------------------
-  // Eliminar usuario
+  // Aprobar / editar dias / eliminar
   // -----------------------------------------------
   async function togglePremium(username, current) {
     try {
-      await fetch('/api/users?id=' + encodeURIComponent(username), {
+      await adminFetch('/api/users?id=' + encodeURIComponent(username), {
         method: 'PATCH',
-        headers: {'Content-Type':'application/json','x-admin-key': ADMIN_KEY},
+        headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ premium: !current })
       });
+      cargarClientes();
+    } catch(e) {
+      alert('Error: ' + e.message);
+    }
+  }
+
+  async function aprobarUsuario(username) {
+    if (!confirm(`¿Aprobar y habilitar a "${username}"? Se activan sus dias de acceso desde hoy.`)) return;
+    try {
+      const res = await adminFetch('/api/users?id=' + encodeURIComponent(username), {
+        method: 'PATCH',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ approve: true })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(data.error || 'Error al aprobar'); return; }
+      cargarClientes();
+    } catch(e) {
+      alert('Error: ' + e.message);
+    }
+  }
+
+  async function editarDias(username, current) {
+    const val = prompt(`Dias de acceso para "${username}" (desde su fecha de alta):`, current || 120);
+    if (val === null) return;
+    const nd = parseInt(val);
+    if (isNaN(nd) || nd <= 0) { alert('Ingresa un numero de dias valido'); return; }
+    try {
+      const res = await adminFetch('/api/users?id=' + encodeURIComponent(username), {
+        method: 'PATCH',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ days: nd })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(data.error || 'Error'); return; }
       cargarClientes();
     } catch(e) {
       alert('Error: ' + e.message);
@@ -429,9 +485,9 @@
   async function eliminarUsuario(username) {
     if (!confirm(`¿Eliminar al usuario "${username}"? Esta accion no se puede deshacer.`)) return;
     try {
-      await fetch('/api/users?id=' + encodeURIComponent(username), {
+      await adminFetch('/api/users?id=' + encodeURIComponent(username), {
         method: 'DELETE',
-        headers: {'Content-Type':'application/json','x-admin-key': ADMIN_KEY},
+        headers: {'Content-Type':'application/json'},
         body: JSON.stringify({username, action: 'delete'})
 });
       cargarClientes();
