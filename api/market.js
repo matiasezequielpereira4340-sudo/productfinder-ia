@@ -64,6 +64,46 @@ export default async function handler(req, res) {
             categoria_predict: 'https://api.mercadolibre.com/sites/MLA/category_predictor/predict?title=' + q,
             trends: 'https://api.mercadolibre.com/trends/MLA'
           };
+          // Forma real de los datos de /products/search, para saber si alcanzan
+          // para la demo (precio, competencia) o si hay que pedir mas.
+          if (req.query.forma) {
+            try {
+              const r = await fetch(alternativas.products_search, { headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' } });
+              const j = await r.json();
+              const p0 = (j.results || [])[0] || {};
+              estado.forma = { claves_producto: Object.keys(p0), nombre: p0.name, id: p0.id };
+              if (p0.id) {
+                const rd = await fetch('https://api.mercadolibre.com/products/' + p0.id,
+                  { headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' } });
+                estado.forma.detalle_status = rd.status;
+                if (rd.ok) {
+                  const d = await rd.json();
+                  estado.forma.claves_detalle = Object.keys(d);
+                  estado.forma.buy_box = d.buy_box_winner ? {
+                    price: d.buy_box_winner.price,
+                    currency: d.buy_box_winner.currency_id,
+                    sold: d.buy_box_winner.sold_quantity,
+                    shipping_free: !!(d.buy_box_winner.shipping && d.buy_box_winner.shipping.free_shipping)
+                  } : null;
+                  estado.forma.children_count = Array.isArray(d.children_ids) ? d.children_ids.length : null;
+                }
+                const ri = await fetch('https://api.mercadolibre.com/products/' + p0.id + '/items',
+                  { headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' } });
+                estado.forma.items_status = ri.status;
+                if (ri.ok) {
+                  const di = await ri.json();
+                  const its = di.results || [];
+                  estado.forma.items_count = its.length;
+                  estado.forma.item_muestra = its[0] ? {
+                    price: its[0].price, sold: its[0].sold_quantity,
+                    seller: !!its[0].seller_id,
+                    shipping_free: !!(its[0].shipping && its[0].shipping.free_shipping)
+                  } : null;
+                }
+              }
+            } catch (e) { estado.forma = { error: String(e && e.message).slice(0, 180) }; }
+          }
+
           intentos.alternativas = {};
           for (const [nombre, u] of Object.entries(alternativas)) {
             try {
