@@ -782,6 +782,19 @@ h1 .ic,h2 .ic,h3 .ic{ color:var(--mc-y); stroke-width:1.9; margin-right:.12em; }
 
 /* Demo en vivo del hero (Task 3) */
 .hhd-demo.is-example{ color:var(--mc-warn); background:var(--mc-warn-wash); border-color:rgba(255,138,61,.35); }
+.hhd-demo.is-error{ color:var(--mc-bad); background:var(--mc-bad-wash); border-color:rgba(255,95,87,.35); }
+
+/* Estado de error honesto: preferimos no mostrar nada antes que inventar */
+.hhd-errstate{ display:flex; flex-direction:column; align-items:flex-start; gap:9px; padding:4px 0; }
+.hhd-errstate .ic{ width:22px; height:22px; color:var(--mc-warn); }
+.hhd-errtitle{ margin:0; font-size:.95rem; font-weight:700; color:var(--mc-ink); }
+.hhd-errtext{ margin:0; font-size:.8rem; line-height:1.5; color:var(--mc-ink-3); }
+.hhd-retry{
+  margin-top:3px; background:var(--mc-surface-2); border:1px solid var(--mc-line-2); color:var(--mc-ink);
+  font-family:var(--mc-sans); font-weight:700; font-size:.82rem; padding:10px 16px;
+  border-radius:9px; cursor:pointer; min-height:44px; transition:border-color .15s;
+}
+.hhd-retry:hover{ border-color:var(--mc-y); color:var(--mc-y); }
 .hhd-form{ display:flex; gap:8px; }
 .hhd-input{
   flex:1; min-width:0; background:var(--mc-surface); border:1px solid var(--mc-line-2);
@@ -967,6 +980,16 @@ h1 .ic,h2 .ic,h3 .ic{ color:var(--mc-y); stroke-width:1.9; margin-right:.12em; }
 .cmdk-item:hover,.cmdk-item.is-active{ background:var(--mc-y-wash); }
 .cmdk-item:hover .ic,.cmdk-item.is-active .ic{ color:var(--mc-y); }
 .cmdk-empty{ padding:22px 12px; text-align:center; color:var(--mc-ink-4); font-size:.86rem; }
+
+/* ===== Nav inyectado: caret como SVG y despliegue por teclado ===== */
+.mc-caret{ display:inline-flex; align-items:center; font-size:0 !important; }
+.mc-caret .ic{ width:13px; height:13px; stroke-width:2.4; }
+.mc-item:hover .mc-caret,
+.mc-item.is-open .mc-caret{ transform:rotate(180deg); }
+.mc-item.is-open .mc-drop{ opacity:1; visibility:visible; transform:translateY(0); }
+/* El desplegable tambien se abre al tabular dentro de el */
+.mc-item:focus-within .mc-drop{ opacity:1; visibility:visible; transform:translateY(0); }
+.mc-brand-ico .ic{ width:17px; height:17px; }
 
 /* ===== Scroll-driven animations nativas (Task 5) =====
    Solo corren si el navegador soporta animation-timeline: view() y el usuario
