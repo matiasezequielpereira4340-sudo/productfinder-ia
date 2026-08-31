@@ -87,9 +87,19 @@ funciona. Si el proveedor ya devuelve precios, se usan y se ahorra esa vuelta.
 | `APIFY_ACTOR` | Actor a correr. Default: `devcake~mercadolibre-scraper` |
 | `APIFY_INPUT_JSON` | Input propio del actor, si el default no le sirve. `{{q}}` se reemplaza por el término y `{{max}}` por el límite. Ej: `{"searchTerms":["{{q}}"],"limit":{{max}}}` |
 | `SCRAPINGBEE_KEY` / `SCRAPERAPI_KEY` | Alternativa: traen el HTML del listado desde una IP no bloqueada |
+| `APIFY_MIN_ITEMS` | Mínimo de resultados por corrida. Default 48, que es lo que exige el actor |
+| `BUSQUEDA_CACHE_HORAS` | Ventana del caché de búsquedas. Default 12; `0` lo apaga |
 
 El proveedor externo es la **última** vía de la cadena: primero se prueban las
-gratuitas y sólo se gasta si ninguna respondió. Si falla o se acaba el crédito,
+gratuitas y sólo se gasta si ninguna respondió.
+
+**Caché de búsquedas.** El actor de Apify cobra el lote entero de 48 resultados
+aunque se pidan menos, y el recomendador repite los mismos 12 términos de un
+nicho en cada corrida. El caché guarda cada búsqueda en Supabase (tabla
+`busquedas_cache`, ver `supabase/busquedas_cache_migration.sql`) para que la
+segunda corrida del día no gaste nada. Se controla con `BUSQUEDA_CACHE_HORAS`
+(default 12; `0` lo apaga). Si la tabla no existe, la app funciona igual sin
+caché. Si falla o se acaba el crédito,
 la app no se rompe: vuelve al estado honesto de "sin datos".
 
 Para ver qué está configurado y qué devuelve: `GET /api/market?catalogo=<término>`,
