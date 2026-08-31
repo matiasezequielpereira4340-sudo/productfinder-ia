@@ -454,34 +454,63 @@ export async function publicIdsSearch(product, token, opts) {
   };
 }
 
-export async function fetchListadoHtml(product, timeoutMs) {
-  const url = 'https://listado.mercadolibre.com.ar/' + meliSlug(product);
+// Las direcciones publicas donde MercadoLibre lista resultados. Se prueban en
+// orden hasta que una traiga IDs: si le ponen un muro anti-bot a una, puede
+// que otra siga sirviendo HTML.
+export function candidatosDeListado(product) {
+  const slug = meliSlug(product);
+  const q = encodeURIComponent(product);
+  return [
+    'https://listado.mercadolibre.com.ar/' + slug,
+    'https://www.mercadolibre.com.ar/jm/search?as_word=' + q,
+    'https://listado.mercadolibre.com.ar/' + slug + '_DisplayType_LF',
+    'https://www.mercadolibre.com.ar/ofertas?q=' + q
+  ];
+}
+
+// Un navegador de verdad manda mas que el User-Agent. Sin estas cabeceras
+// MercadoLibre devuelve una pagina intermedia en vez de los resultados.
+const CABECERAS_NAVEGADOR = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  'Accept-Language': 'es-AR,es;q=0.9,en;q=0.8',
+  'Upgrade-Insecure-Requests': '1',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'none',
+  'Sec-Fetch-User': '?1',
+  'Cache-Control': 'no-cache',
+  'Pragma': 'no-cache'
+};
+
+export async function traerPagina(url, timeoutMs) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs || 6000);
   try {
-    const r = await fetch(url, {
-      redirect: 'follow',
-      signal: ctrl.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'es-AR,es;q=0.9',
-        'Cache-Control': 'no-cache'
-      }
-    });
+    const r = await fetch(url, { redirect: 'follow', signal: ctrl.signal, headers: CABECERAS_NAVEGADOR });
     const texto = r.ok ? await r.text() : '';
-    let total = 0;
-    const m = texto.match(/([\d][\d.,]*)\s*resultados/i);
-    if (m) total = parseInt(String(m[1]).replace(/[^0-9]/g, ''), 10) || 0;
-    let categoria = '';
-    const h1 = texto.match(/<h1[^>]*>([^<]{3,80})<\/h1>/i);
-    if (h1) categoria = h1[1].trim();
-    return { status: r.status, url, texto, total, categoria };
+    return { status: r.status, urlFinal: r.url || url, texto };
   } catch (_) {
-    return { status: 0, url, texto: '', total: 0, categoria: '' };
+    return { status: 0, urlFinal: url, texto: '' };
   } finally {
     clearTimeout(t);
   }
+}
+
+// Devuelve la primera pagina publica que realmente traiga IDs de publicacion.
+export async function fetchListadoHtml(product, timeoutMs) {
+  for (const url of candidatosDeListado(product)) {
+    const pag = await traerPagina(url, timeoutMs);
+    if (!pag.texto || !extraerIdsMLA(pag.texto).length) continue;
+    let total = 0;
+    const m = pag.texto.match(/([\d][\d.,]*)\s*resultados/i);
+    if (m) total = parseInt(String(m[1]).replace(/[^0-9]/g, ''), 10) || 0;
+    let categoria = '';
+    const h1 = pag.texto.match(/<h1[^>]*>([^<]{3,80})<\/h1>/i);
+    if (h1) categoria = h1[1].trim();
+    return { status: pag.status, url, texto: pag.texto, total, categoria };
+  }
+  return null;
 }
 
 // Los IDs aparecen en los links (MLA-1234567890) y en los JSON embebidos
