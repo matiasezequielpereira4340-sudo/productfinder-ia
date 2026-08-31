@@ -81,12 +81,34 @@ function urlDeOrdenes(meliUserId, opciones) {
   return url;
 }
 
+// Medido contra la cuenta real: cualquier consulta con order.date_created.from
+// devuelve 0, con Z o con offset, con filtro de estado o sin el. Sin ese
+// parametro, la misma cuenta devuelve 20 ordenes pagadas y 23 en total. O sea
+// que el filtro de fecha de MercadoLibre no se puede usar: se piden las
+// ordenes ordenadas por fecha y se recorta el periodo aca.
 async function getOrdenes(token, meliUserId, fechaDesde) {
-  const res = await fetch(urlDeOrdenes(meliUserId, { estado: 'paid', desde: fechaParaMeli(fechaDesde) }), {
-    headers: { Authorization: 'Bearer ' + token }
+  const corte = new Date(fechaDesde).getTime();
+  const porPagina = 50;
+  const maximo = 200;   // 4 paginas: suficiente para un mes de ventas
+  const todas = [];
+
+  for (let offset = 0; offset < maximo; offset += porPagina) {
+    const res = await fetch(
+      urlDeOrdenes(meliUserId, { estado: 'paid' }) + '&offset=' + offset,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    if (!res.ok) break;
+    const data = await res.json().catch(() => null);
+    const pagina = (data && Array.isArray(data.results)) ? data.results : [];
+    todas.push(...pagina);
+    if (pagina.length < porPagina) break;
+  }
+
+  // El recorte se hace aca y no se confia en el orden que devuelva MeLi.
+  return todas.filter(o => {
+    const f = o && o.date_created ? new Date(o.date_created).getTime() : 0;
+    return f && f >= corte;
   });
-  const data = await res.json();
-  return data.results || [];
 }
 
 // Prueba varias formas de pedir las ordenes y devuelve cuantas trae cada una.
