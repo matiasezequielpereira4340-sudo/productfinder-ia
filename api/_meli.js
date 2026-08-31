@@ -513,18 +513,49 @@ export async function fetchListadoHtml(product, timeoutMs) {
   return null;
 }
 
-// Los IDs aparecen en los links (MLA-1234567890) y en los JSON embebidos
-// (MLA1234567890). Se aceptan las dos formas y se deduplica conservando orden,
-// que es el de relevancia de MercadoLibre.
+// Extraer IDs de publicacion del HTML.
+// La version anterior agarraba cualquier "MLA" seguido de 8 o mas digitos y se
+// traia ids de tracking y de promociones: MLA96631608403 (13 digitos) o
+// MLA108324869725 (15), que /items?ids= rechaza. Un item real tiene 9 a 11
+// digitos y aparece en la URL del articulo o como item_id en los JSON
+// embebidos. Los /p/MLA... quedan afuera a proposito: son productos de
+// catalogo, no publicaciones.
+const PATRONES_ITEM = [
+  /articulo\.mercadolibre\.com\.ar\/MLA-(\d{9,11})-/g,
+  /\/MLA-(\d{9,11})-/g,
+  /"item_id"\s*:\s*"MLA(\d{9,11})"/g,
+  /"itemId"\s*:\s*"MLA(\d{9,11})"/g,
+  /"id"\s*:\s*"MLA(\d{9,11})"/g
+];
+
 export function extraerIdsMLA(html) {
-  const encontrados = String(html || '').match(/MLA-?\d{8,}/g) || [];
+  const texto = String(html || '');
   const vistos = new Set();
   const ids = [];
-  for (const bruto of encontrados) {
-    const id = bruto.replace('-', '');
-    if (!vistos.has(id)) { vistos.add(id); ids.push(id); }
+  for (const patron of PATRONES_ITEM) {
+    patron.lastIndex = 0;
+    let m;
+    while ((m = patron.exec(texto)) !== null) {
+      const id = 'MLA' + m[1];
+      if (!vistos.has(id)) { vistos.add(id); ids.push(id); }
+    }
   }
   return ids;
+}
+
+// Cuantos IDs aporta cada patron: si MercadoLibre cambia el formato de sus
+// links se ve aca, sin tener que leer 600 KB de HTML a mano.
+export function idsPorPatron(html) {
+  const texto = String(html || '');
+  const salida = {};
+  PATRONES_ITEM.forEach((patron, i) => {
+    patron.lastIndex = 0;
+    const encontrados = new Set();
+    let m;
+    while ((m = patron.exec(texto)) !== null) encontrados.add('MLA' + m[1]);
+    salida['patron_' + i] = encontrados.size;
+  });
+  return salida;
 }
 
 // /items?ids= acepta de a 20 y devuelve [{code, body}].

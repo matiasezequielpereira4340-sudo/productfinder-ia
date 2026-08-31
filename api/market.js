@@ -3,7 +3,7 @@
 // Datos de MercadoLibre (catalogo con token de usuario) + Anthropic para el
 // armado del informe.
 
-import { buscarPublicaciones, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
+import { buscarPublicaciones, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
@@ -158,10 +158,11 @@ export default async function handler(req, res) {
             bytes: pag.texto.length,
             titulo: (pag.texto.match(/<title[^>]*>([^<]{0,90})/i) || [])[1] || null,
             ids: ids.length,
-            muro: /captcha|robot|access denied|forbidden|verifica|unusual traffic/.test(t) || undefined,
-            inicio: pag.texto.replace(/\s+/g, ' ').slice(0, 220)
+            muro: /suspicious-traffic|account-verification|captcha|unusual traffic/.test(t) || undefined,
+            patrones: ids.length ? idsPorPatron(pag.texto) : undefined,
+            inicio: pag.texto.replace(/\s+/g, ' ').slice(0, 160)
           });
-          if (ids.length) { paso.ids_de = cand; paso.ids_muestra = ids.slice(0, 5); break; }
+          if (ids.length) { paso.ids_de = cand; paso.ids_muestra = ids.slice(0, 8); break; }
         }
 
         // Prueba decisiva: /items?ids= nunca se pudo probar por falta de IDs.
@@ -174,16 +175,29 @@ export default async function handler(req, res) {
           const mios = await fetchJson(MELI_API + '/users/' + miId + '/items/search?limit=3', tok, 4000);
           const misIds = (mios.json && Array.isArray(mios.json.results)) ? mios.json.results : [];
           paso.mis_publicaciones = { status: mios.status, cantidad: misIds.length };
-          const paraProbar = (paso.ids_muestra || []).concat(misIds).slice(0, 5);
-          if (paraProbar.length) {
-            const hidratados = await hidratarItems(paraProbar, tok, Date.now() + 6000);
-            paso.items_por_ids = {
-              pedidos: paraProbar.length,
+          // Prueba 1: IDs propios, que son validos con certeza. Esto dice si
+          // /items?ids= sirve, sin mezclarlo con IDs sacados del HTML.
+          // (Antes un slice(0,5) se comia estos IDs y la prueba no medía nada.)
+          if (misIds.length) {
+            const propios = await hidratarItems(misIds.slice(0, 3), tok, Date.now() + 5000);
+            paso.items_propios = {
+              pedidos: Math.min(3, misIds.length),
+              devueltos: propios.length,
+              muestra: propios.slice(0, 2).map(b => ({ titulo: String(b.title || '').slice(0, 40), precio: b.price }))
+            };
+            const uno = await fetchJson(MELI_API + '/items/' + misIds[0], tok, 4000);
+            paso.item_individual = { status: uno.status, precio: uno.json ? uno.json.price : null };
+          }
+          // Prueba 2: IDs sacados del HTML publico. Con la extraccion vieja
+          // salian ids de tracking de 13 y 15 digitos que MeLi rechazaba.
+          const delHtml = (paso.ids_muestra || []).slice(0, 5);
+          if (delHtml.length) {
+            const hidratados = await hidratarItems(delHtml, tok, Date.now() + 5000);
+            paso.items_del_html = {
+              pedidos: delHtml.length,
               devueltos: hidratados.length,
               muestra: hidratados.slice(0, 3).map(b => ({ titulo: String(b.title || '').slice(0, 45), precio: b.price }))
             };
-            const uno = await fetchJson(MELI_API + '/items/' + paraProbar[0], tok, 4000);
-            paso.item_individual = { status: uno.status, precio: uno.json ? uno.json.price : null };
           }
         }
 
