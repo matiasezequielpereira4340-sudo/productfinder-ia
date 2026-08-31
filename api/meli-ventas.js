@@ -66,14 +66,59 @@ function cors(res) {
                                                                                                     return data.id;
                                                                                                     }
                                                                                                     
-                                                                                                    async function getOrdenes(token, meliUserId, fechaDesde) {
-                                                                                                      const url = `${MELI_API}/orders/search?seller=${meliUserId}&order.status=paid&order.date_created.from=${fechaDesde}&limit=50&sort=date_desc`;
-                                                                                                        const res = await fetch(url, {
-                                                                                                            headers: { Authorization: `Bearer ${token}` }
-                                                                                                              });
-                                                                                                                const data = await res.json();
-                                                                                                                  return data.results || [];
-                                                                                                                  }
+// MercadoLibre documenta la fecha con offset horario
+// (2026-08-01T00:00:00.000-00:00). Con el sufijo Z que devuelve toISOString()
+// el filtro puede quedar sin aplicarse y la busqueda vuelve vacia.
+function fechaParaMeli(iso) {
+  return String(iso).replace(/\.(\d{3})Z$/, '.$1-00:00');
+}
+
+function urlDeOrdenes(meliUserId, opciones) {
+  const o = opciones || {};
+  let url = MELI_API + '/orders/search?seller=' + meliUserId + '&limit=50&sort=date_desc';
+  if (o.estado) url += '&order.status=' + encodeURIComponent(o.estado);
+  if (o.desde) url += '&order.date_created.from=' + encodeURIComponent(o.desde);
+  return url;
+}
+
+async function getOrdenes(token, meliUserId, fechaDesde) {
+  const res = await fetch(urlDeOrdenes(meliUserId, { estado: 'paid', desde: fechaParaMeli(fechaDesde) }), {
+    headers: { Authorization: 'Bearer ' + token }
+  });
+  const data = await res.json();
+  return data.results || [];
+}
+
+// Prueba varias formas de pedir las ordenes y devuelve cuantas trae cada una.
+// Sirve para distinguir "no hubo ventas" de "la consulta esta mal armada", que
+// desde afuera se ven igual: cero.
+async function diagnosticoOrdenes(token, meliUserId, fechaDesde) {
+  const variantes = {
+    como_lo_pide_la_app: { estado: 'paid', desde: fechaParaMeli(fechaDesde) },
+    con_Z_como_antes: { estado: 'paid', desde: fechaDesde },
+    sin_filtro_de_estado: { desde: fechaParaMeli(fechaDesde) },
+    sin_filtro_de_fecha: { estado: 'paid' },
+    todo_el_historial: {}
+  };
+  const salida = {};
+  for (const [nombre, opciones] of Object.entries(variantes)) {
+    try {
+      const r = await fetch(urlDeOrdenes(meliUserId, opciones), {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      const j = await r.json().catch(() => null);
+      salida[nombre] = {
+        status: r.status,
+        total: (j && j.paging && j.paging.total != null) ? j.paging.total : null,
+        devueltas: (j && Array.isArray(j.results)) ? j.results.length : 0,
+        mensaje: (j && (j.message || j.error)) || undefined
+      };
+    } catch (e) {
+      salida[nombre] = { error: String((e && e.message) || e).slice(0, 120) };
+    }
+  }
+  return salida;
+}
                                                                                                                   
                                                                                                                   async function getEnvioInfo(token, shipmentId) {
                                                                                                                     if (!shipmentId) return 0;
@@ -136,7 +181,19 @@ function cors(res) {
                                                                                                                                                                                                                                               const config = await getClienteConfig(user_id);
                                                                                                                                                                                                                                                   const tipoCambio = parseFloat(config.tipo_cambio_usd) || 1250;
                                                                                                                                                                                                                                                   
-                                                                                                                                                                                                                                                      // 5. Traer ordenes de MeLi
+                                                                                                                                                                                                                                                      // ?diag=1 compara varias formas de pedir las ordenes, para saber si el
+    // cero es real o si el filtro esta mal armado. No expone el token.
+    if (req.query && req.query.diag) {
+      return res.status(200).json({
+        user_id_consultado: String(user_id),
+        meli_user_id: meliUserId,
+        desde: fechaDesde,
+        desde_formato_meli: fechaParaMeli(fechaDesde),
+        variantes: await diagnosticoOrdenes(token, meliUserId, fechaDesde)
+      });
+    }
+
+    // 5. Traer ordenes de MeLi
                                                                                                                                                                                                                                                           const ordenes = await getOrdenes(token, meliUserId, fechaDesde);
                                                                                                                                                                                                                                                           
                                                                                                                                                                                                                                                               // 6. Procesar cada orden
