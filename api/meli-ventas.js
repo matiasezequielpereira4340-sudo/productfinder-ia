@@ -81,6 +81,24 @@ function urlDeOrdenes(meliUserId, opciones) {
   return url;
 }
 
+// La fecha de una orden, mirando todos los campos donde MercadoLibre la puede
+// poner. Si el recorte lee un solo campo y ese campo no viene, se descartan
+// todas las ventas y el dashboard queda en cero sin decir por que.
+function fechaDeOrden(orden) {
+  const candidatos = [
+    orden && orden.date_created,
+    orden && orden.date_closed,
+    orden && orden.last_updated,
+    orden && orden.payments && orden.payments[0] && orden.payments[0].date_created,
+    orden && orden.order_items && orden.order_items[0] && orden.order_items[0].date_created
+  ];
+  for (const c of candidatos) {
+    const t = c ? new Date(c).getTime() : 0;
+    if (t && !isNaN(t)) return t;
+  }
+  return 0;
+}
+
 // Medido contra la cuenta real: cualquier consulta con order.date_created.from
 // devuelve 0, con Z o con offset, con filtro de estado o sin el. Sin ese
 // parametro, la misma cuenta devuelve 20 ordenes pagadas y 23 en total. O sea
@@ -105,9 +123,12 @@ async function getOrdenes(token, meliUserId, fechaDesde) {
   }
 
   // El recorte se hace aca y no se confia en el orden que devuelva MeLi.
+  // Una orden sin ninguna fecha legible se incluye igual y queda marcada: es
+  // preferible mostrarla senalada a hacerla desaparecer en silencio.
   return todas.filter(o => {
-    const f = o && o.date_created ? new Date(o.date_created).getTime() : 0;
-    return f && f >= corte;
+    const f = fechaDeOrden(o);
+    if (!f) { if (o) o._sin_fecha = true; return true; }
+    return f >= corte;
   });
 }
 
@@ -129,12 +150,25 @@ async function diagnosticoOrdenes(token, meliUserId, fechaDesde) {
         headers: { Authorization: 'Bearer ' + token }
       });
       const j = await r.json().catch(() => null);
+      const filas = (j && Array.isArray(j.results)) ? j.results : [];
       salida[nombre] = {
         status: r.status,
         total: (j && j.paging && j.paging.total != null) ? j.paging.total : null,
-        devueltas: (j && Array.isArray(j.results)) ? j.results.length : 0,
+        devueltas: filas.length,
         mensaje: (j && (j.message || j.error)) || undefined
       };
+      // Las fechas de las primeras ordenes: dicen si las ventas son viejas o
+      // si el campo de fecha no es el que estamos leyendo. Sin esto, las dos
+      // situaciones terminan en el mismo cero.
+      if (filas.length) {
+        salida[nombre].fechas = filas.slice(0, 5).map(o => ({
+          date_created: o && o.date_created,
+          date_closed: o && o.date_closed,
+          estado: o && o.status,
+          monto: o && o.total_amount
+        }));
+        salida[nombre].campos_de_una_orden = Object.keys(filas[0] || {}).slice(0, 20);
+      }
     } catch (e) {
       salida[nombre] = { error: String((e && e.message) || e).slice(0, 120) };
     }
@@ -196,7 +230,7 @@ async function diagnosticoOrdenes(token, meliUserId, fechaDesde) {
                                                                                                                                                                                                                           const meliUserId = await getMeliUserId(token);
                                                                                                                                                                                                                           
                                                                                                                                                                                                                               // 3. Calcular fecha de inicio del periodo
-                                                                                                                                                                                                                                  const diasNum = Math.min(parseInt(dias) || 30, 90);
+                                                                                                                                                                                                                                  const diasNum = Math.min(parseInt(dias) || 30, 365);
                                                                                                                                                                                                                                       const fechaDesde = new Date(Date.now() - diasNum * 86400000).toISOString();
                                                                                                                                                                                                                                       
                                                                                                                                                                                                                                           // 4. Configuracion del cliente (tipo de cambio)
@@ -276,7 +310,8 @@ async function diagnosticoOrdenes(token, meliUserId, fechaDesde) {
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               ventas.push({
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       orden_id: orden.id,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              fecha: orden.date_created,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              fecha: orden.date_created || orden.date_closed || orden.last_updated || null,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              fecha_desconocida: !!orden._sin_fecha,
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       item_id: meliItemId,
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               titulo,
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       cantidad,
@@ -306,6 +341,7 @@ async function diagnosticoOrdenes(token, meliUserId, fechaDesde) {
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     total_envios_ars: Math.round(totalEnvios),
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           ganancia_bruta_ars: Math.round(totalGananciasBruta),
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 productos_sin_costo: ventas.filter(v => !v.tiene_costo_cargado).length,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ventas_sin_fecha: ventas.filter(v => v.fecha_desconocida).length,
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       tipo_cambio_usado: tipoCambio
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           };
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
