@@ -116,7 +116,8 @@ export default async function handler(req, res) {
                 }
               : 'sin resultados';
           } catch (e) {
-            paso.proveedor_externo.error = String((e && e.message) || e).slice(0, 220);
+            paso.proveedor_externo.error = String((e && e.message) || e).slice(0, 260);
+            if (e && e.input_enviado) paso.proveedor_externo.campos_enviados = e.input_enviado;
           }
         }
         if (!tok) return res.status(200).json({ termino, paso });
