@@ -612,24 +612,77 @@ function horasDeCache() {
   return isFinite(h) && h >= 0 ? h : 12;
 }
 
+async function leerFilaCache(product) {
+  try {
+    const filas = await supaRows('/rest/v1/busquedas_cache?termino=eq.' +
+      encodeURIComponent(claveDeBusqueda(product)) + '&select=*&limit=1');
+    return filas[0] || null;
+  } catch (_) { return null; }
+}
+
 async function leerCache(product) {
   const horas = horasDeCache();
   if (!horas) return null;
+  const f = await leerFilaCache(product);
+  if (!f || !Array.isArray(f.resultados) || !f.resultados.length) return null;
+  const vence = new Date(f.created_at).getTime() + horas * 3600 * 1000;
+  if (Date.now() > vence) return null;
+  return {
+    fuente: f.fuente || 'cache',
+    total: f.total != null ? f.total : null,
+    categoryName: f.categoria || '',
+    results: f.resultados,
+    desdeCache: true,
+    guardadoEn: f.created_at
+  };
+}
+
+// Una corrida arrancada hace mas de 15 minutos se da por perdida.
+function corridaVigente(fila) {
+  if (!fila || !fila.run_id) return false;
+  const desde = fila.run_desde ? new Date(fila.run_desde).getTime() : 0;
+  return !!desde && (Date.now() - desde) < 15 * 60 * 1000;
+}
+
+async function guardarPendiente(product, corrida) {
   try {
-    const desde = new Date(Date.now() - horas * 3600 * 1000).toISOString();
-    const filas = await supaRows('/rest/v1/busquedas_cache?termino=eq.' +
-      encodeURIComponent(claveDeBusqueda(product)) +
-      '&created_at=gte.' + encodeURIComponent(desde) + '&select=*&limit=1');
-    const f = filas[0];
-    if (!f || !Array.isArray(f.resultados) || !f.resultados.length) return null;
-    return {
-      fuente: f.fuente || 'cache',
-      total: f.total != null ? f.total : null,
-      categoryName: f.categoria || '',
-      results: f.resultados,
-      desdeCache: true,
-      guardadoEn: f.created_at
-    };
+    const { url, key, ok } = supa();
+    if (!ok) return;
+    await fetch(url + '/rest/v1/busquedas_cache?on_conflict=termino', {
+      method: 'POST',
+      headers: {
+        apikey: key, Authorization: 'Bearer ' + key,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates,return=minimal'
+      },
+      body: JSON.stringify({
+        termino: claveDeBusqueda(product),
+        fuente: 'proveedor-apify',
+        resultados: [],
+        run_id: corrida.runId,
+        dataset_id: corrida.datasetId || null,
+        run_estado: corrida.estado || 'RUNNING',
+        run_desde: new Date().toISOString(),
+        created_at: new Date().toISOString()
+      })
+    });
+  } catch (_) { /* no puede romper la busqueda */ }
+}
+
+// Levanta el resultado de una corrida que ya termino. No arranca ninguna
+// corrida nueva, asi que no cuesta plata.
+async function cosecharCorrida(product, fila, token) {
+  try {
+    const bus = await import('./_buscador.js');
+    const est = await bus.estadoCorrida(fila.run_id);
+    if (est.estado !== 'SUCCEEDED') {
+      return est.estado === 'RUNNING' || est.estado === 'READY' ? { pendiente: true } : null;
+    }
+    const filas = await bus.itemsDeCorrida(est.datasetId || fila.dataset_id, { limite: 60 });
+    const r = await bus.armarResultado(product, filas, token, { maxItems: 40 });
+    if (!r || !r.results.length) return null;
+    await guardarCache(product, r);
+    return r;
   } catch (_) { return null; }
 }
 
@@ -651,6 +704,9 @@ async function guardarCache(product, r) {
         total: typeof r.total === 'number' ? r.total : null,
         categoria: r.categoryName || null,
         resultados: r.results,
+        run_id: null,
+        dataset_id: null,
+        run_estado: 'SUCCEEDED',
         created_at: new Date().toISOString()
       })
     });
@@ -661,9 +717,20 @@ export async function buscarPublicaciones(product, token, opts) {
   if (!token || !product) return null;
   const o = opts || {};
 
+  // 1. Resultado ya cacheado.
   if (!o.sinCache) {
     const guardado = await leerCache(product);
     if (guardado) return guardado;
+  }
+
+  // 2. Corrida arrancada antes que ya pueda estar lista. Cosecharla no cuesta
+  //    plata: la corrida ya se pago cuando se arranco.
+  const fila = await leerFilaCache(product);
+  if (corridaVigente(fila)) {
+    const cosechado = await cosecharCorrida(product, fila, token);
+    if (cosechado && cosechado.results) return cosechado;
+    if (cosechado && cosechado.pendiente) return { pendiente: true, results: [], fuente: 'preparando' };
+    // Si la corrida fallo, se sigue de largo y mas abajo se arranca otra.
   }
   const vias = {
     catalogo: () => catalogSearch(product, token, { maxProductos: o.maxProductos || 6, budgetMs: o.budgetMs || 5000 }),
@@ -671,15 +738,17 @@ export async function buscarPublicaciones(product, token, opts) {
     listado: () => publicIdsSearch(product, token, { budgetMs: o.budgetMs || 6000, maxIds: o.maxIds || 40 }),
     // Ultima, porque es la unica que cuesta plata: solo se paga cuando ninguna
     // via gratuita respondio.
+    //
+    // Medido en produccion: una corrida del actor tarda mas de 50 s, o sea que
+    // no entra en un request. Se arranca, se anota el id y se contesta
+    // "preparando"; el resultado lo levanta la consulta siguiente sin volver a
+    // pagar. Es la diferencia entre una pantalla colgada un minuto y una que
+    // avisa y ya trae el dato al reintentar.
     proveedor: async () => {
       const mod = await import('./_buscador.js');
-      return await mod.buscarConProveedor(product, token, {
-        maxItems: o.maxIds || 25,
-        budgetMs: o.budgetMs || 8000,
-        // Tope corto en el camino normal: la funcion tiene 60 s y esto es
-        // lo ultimo que se prueba. La medicion larga va por ?proveedor=.
-        timeoutMs: o.timeoutProveedorMs || 20000
-      });
+      const corrida = await mod.arrancarCorrida(product, { maxItems: o.maxIds || 48 });
+      await guardarPendiente(product, corrida);
+      return { pendiente: true, results: [], fuente: 'preparando' };
     }
   };
   // El orden es de mejor a peor dato (el catalogo trae total de publicaciones,
@@ -694,6 +763,7 @@ export async function buscarPublicaciones(product, token, opts) {
     if (fallos >= 2 && (_viaEstado.preferida || fallos >= 4)) continue;
     try {
       const r = await vias[nombre]();
+      if (r && r.pendiente) return r;
       if (r && r.results && r.results.length) {
         _viaEstado.preferida = nombre;
         await guardarCache(product, r);

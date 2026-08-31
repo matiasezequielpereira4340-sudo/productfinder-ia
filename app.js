@@ -900,7 +900,8 @@ function mrFuenteLabel(f){
     'meli-catalogo':'Datos reales del cat\u00e1logo de Mercado Libre',
     'meli-destacados':'Publicaciones reales de Mercado Libre (m\u00e1s vendidas)',
     'meli-destacados-parcial':'Publicaciones reales de Mercado Libre (coincidencia parcial)',
-    'meli-html':'Datos de Mercado Libre (HTML p\u00fablico)'
+    'meli-html':'Datos de Mercado Libre (HTML p\u00fablico)',
+    'proveedor-apify':'Publicaciones reales de Mercado Libre'
   };
   return mapa[f]||'Datos de Mercado Libre Argentina';
 }
@@ -911,6 +912,12 @@ async function runMRStep2(product){
     const r=await res.json();
     if(!res.ok) throw new Error(r.error||'Error en step competencia');
     mrData.step2=r;
+    if(r && r.fuente==='preparando'){
+      document.getElementById('mrStep2Body').innerHTML=
+        '<div class="mr-row"><span class="mr-row-label">'+(r.aviso||'Estoy trayendo los datos de MercadoLibre.')+'</span></div>'+
+        '<div style="margin-top:10px"><button class="btn-secondary" onclick="runMRStep2('+JSON.stringify(product)+')">Reintentar ahora</button></div>';
+      return;
+    }
     if(r && r.fuente==='no-disponible'){
       document.getElementById('mrStep2Body').innerHTML='<div class="mr-row"><span class="mr-row-label" style="color:var(--text-dim)">'+(r.aviso||'Datos de Mercado Libre no disponibles ahora.')+'</span></div><div style="margin-top:8px;font-size:.82rem;opacity:.75">No muestro datos estimados para no inventar numeros. Prob&#225; nuevamente m&#225;s tarde o peg&#225; un link de un listado de MeLi para leer datos reales del producto.</div>';
       return;
