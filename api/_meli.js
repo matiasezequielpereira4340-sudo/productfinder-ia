@@ -601,12 +601,22 @@ export async function buscarPublicaciones(product, token, opts) {
   const vias = {
     catalogo: () => catalogSearch(product, token, { maxProductos: o.maxProductos || 6, budgetMs: o.budgetMs || 5000 }),
     destacados: () => highlightsSearch(product, token, { budgetMs: o.budgetMs || 5000 }),
-    listado: () => publicIdsSearch(product, token, { budgetMs: o.budgetMs || 6000, maxIds: o.maxIds || 40 })
+    listado: () => publicIdsSearch(product, token, { budgetMs: o.budgetMs || 6000, maxIds: o.maxIds || 40 }),
+    // Ultima, porque es la unica que cuesta plata: solo se paga cuando ninguna
+    // via gratuita respondio.
+    proveedor: async () => {
+      const mod = await import('./_buscador.js');
+      return await mod.buscarConProveedor(product, token, {
+        maxItems: o.maxIds || 25,
+        budgetMs: o.budgetMs || 8000,
+        timeoutMs: o.timeoutProveedorMs || 25000
+      });
+    }
   };
   // El orden es de mejor a peor dato (el catalogo trae total de publicaciones,
   // el listado tambien, los destacados no) y no se altera: lo unico que se
   // recuerda es cual esta muerta, para no reintentarla por cada producto.
-  const orden = ['catalogo', 'destacados', 'listado'];
+  const orden = ['catalogo', 'destacados', 'listado', 'proveedor'];
   for (const nombre of orden) {
     const fallos = _viaEstado.fallos[nombre] || 0;
     // Se saltea la via que ya fallo dos veces, siempre que otra este andando.

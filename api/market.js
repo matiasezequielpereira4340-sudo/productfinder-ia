@@ -99,6 +99,26 @@ export default async function handler(req, res) {
         paso.token = !!tok;
         paso.token_origen = _ultimoMotivoToken;
         paso.via_recordada = viaDeBusquedaUsada();
+
+        // Proveedor externo: que hay configurado y que devuelve. Solo
+        // booleanos, nunca la credencial.
+        const bus = await import('./_buscador.js');
+        paso.proveedor_externo = bus.estadoProveedor();
+        if (bus.proveedor() !== 'off') {
+          try {
+            const ext = await bus.buscarConProveedor(termino, tok, { maxItems: 10, timeoutMs: 25000 });
+            paso.proveedor_externo.resultado = ext
+              ? {
+                  fuente: ext.fuente,
+                  resultados: ext.results.length,
+                  total: ext.total,
+                  muestra: ext.results.slice(0, 3).map(x => ({ titulo: String(x.title).slice(0, 45), precio: x.price }))
+                }
+              : 'sin resultados';
+          } catch (e) {
+            paso.proveedor_externo.error = String((e && e.message) || e).slice(0, 220);
+          }
+        }
         if (!tok) return res.status(200).json({ termino, paso });
 
         const busq = await fetchJson('https://api.mercadolibre.com/products/search?status=active&site_id=MLA&limit=10&q=' + q, tok, 5000);

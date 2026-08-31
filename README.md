@@ -67,6 +67,34 @@ Necesitás un backend que sirva en el mismo dominio o configurá los endpoints.
 Antes de conectar la primera cuenta hay que correr `supabase/meli_tokens_migration.sql`
 en el SQL Editor de Supabase.
 
+### Fuente externa de búsquedas (opcional, es la única paga)
+
+MercadoLibre cerró sus tres endpoints de búsqueda a terceros y además bloquea
+por IP a los servidores: las páginas públicas responden con
+`/gz/account-verification`, su muro de tráfico sospechoso. La app funciona sin
+esto — muestra "sin datos" en vez de inventar números — pero para tener precios
+y competencia hace falta una fuente externa.
+
+Se paga lo mínimo a propósito: **el proveedor externo se usa sólo para obtener
+los IDs de publicación**; el precio, el vendedor, las ventas y el envío se
+siguen pidiendo gratis a la API oficial de MeLi, que desde el servidor
+funciona. Si el proveedor ya devuelve precios, se usan y se ahorra esa vuelta.
+
+| Variable | Descripción |
+|----------|-------------|
+| `BUSCADOR_PROVEEDOR` | `apify`, `scrapingbee`, `scraperapi` u `off`. Si no está, se deduce de la credencial cargada |
+| `APIFY_TOKEN` | Token de Apify (apify.com → Settings → Integrations) |
+| `APIFY_ACTOR` | Actor a correr. Default: `devcake~mercadolibre-scraper` |
+| `APIFY_INPUT_JSON` | Input propio del actor, si el default no le sirve. `{{q}}` se reemplaza por el término y `{{max}}` por el límite. Ej: `{"searchTerms":["{{q}}"],"limit":{{max}}}` |
+| `SCRAPINGBEE_KEY` / `SCRAPERAPI_KEY` | Alternativa: traen el HTML del listado desde una IP no bloqueada |
+
+El proveedor externo es la **última** vía de la cadena: primero se prueban las
+gratuitas y sólo se gasta si ninguna respondió. Si falla o se acaba el crédito,
+la app no se rompe: vuelve al estado honesto de "sin datos".
+
+Para ver qué está configurado y qué devuelve: `GET /api/market?catalogo=<término>`,
+campo `proveedor_externo`. No expone credenciales, sólo si están cargadas.
+
 **La `redirect_uri` tiene que estar cargada igual, carácter por carácter, en el
 panel de la app de MercadoLibre.** `GET /api/meli-auth?diag=1` te dice cuál está
 usando el servidor.
