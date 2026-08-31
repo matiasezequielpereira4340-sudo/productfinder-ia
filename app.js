@@ -891,6 +891,9 @@ async function runMRStep1(product){
   }
 }
 
+// Estado del reintento automatico mientras la busqueda se prepara.
+var MR_PREPARANDO = { producto:null, intentos:0, timer:null };
+
 // De donde salieron los datos que se muestran. Cada via de MercadoLibre trae
 // distinto nivel de detalle y el usuario tiene que poder verlo.
 function mrFuenteLabel(f){
@@ -913,11 +916,26 @@ async function runMRStep2(product){
     if(!res.ok) throw new Error(r.error||'Error en step competencia');
     mrData.step2=r;
     if(r && r.fuente==='preparando'){
-      document.getElementById('mrStep2Body').innerHTML=
-        '<div class="mr-row"><span class="mr-row-label">'+(r.aviso||'Estoy trayendo los datos de MercadoLibre.')+'</span></div>'+
-        '<div style="margin-top:10px"><button class="btn-secondary" onclick="runMRStep2('+JSON.stringify(product)+')">Reintentar ahora</button></div>';
+      // La busqueda tarda dos o tres minutos la primera vez. En vez de dejar al
+      // usuario apretando un boton, reintenta solo cada 20 s. Reintentar no
+      // cuesta plata: la corrida ya se pago al arrancarla, esto solo pregunta
+      // si termino.
+      MR_PREPARANDO.intentos = (MR_PREPARANDO.producto===product ? MR_PREPARANDO.intentos+1 : 0);
+      MR_PREPARANDO.producto = product;
+      const quedan = 12 - MR_PREPARANDO.intentos;
+      const cuerpo = document.getElementById('mrStep2Body');
+      if(cuerpo){
+        cuerpo.innerHTML =
+          '<div class="mr-row"><span class="mr-row-label">'+(r.aviso||'Estoy trayendo los datos de MercadoLibre.')+'</span></div>'+
+          (quedan>0
+            ? '<div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">Reviso solo cada 20 segundos. No hace falta que hagas nada.</div>'
+            : '<div style="margin-top:10px"><button class="btn-secondary" onclick="runMRStep2('+JSON.stringify(product)+')">Reintentar</button></div>');
+      }
+      clearTimeout(MR_PREPARANDO.timer);
+      if(quedan>0) MR_PREPARANDO.timer = setTimeout(function(){ runMRStep2(product); }, 20000);
       return;
     }
+    MR_PREPARANDO.producto=null; MR_PREPARANDO.intentos=0; clearTimeout(MR_PREPARANDO.timer);
     if(r && r.fuente==='no-disponible'){
       document.getElementById('mrStep2Body').innerHTML='<div class="mr-row"><span class="mr-row-label" style="color:var(--text-dim)">'+(r.aviso||'Datos de Mercado Libre no disponibles ahora.')+'</span></div><div style="margin-top:8px;font-size:.82rem;opacity:.75">No muestro datos estimados para no inventar numeros. Prob&#225; nuevamente m&#225;s tarde o peg&#225; un link de un listado de MeLi para leer datos reales del producto.</div>';
       return;

@@ -3,7 +3,7 @@
 // Datos de MercadoLibre (catalogo con token de usuario) + Anthropic para el
 // armado del informe.
 
-import { buscarPublicaciones, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
+import { buscarPublicaciones, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
@@ -137,6 +137,21 @@ export default async function handler(req, res) {
         // pasara del tiempo de la funcion: se prueba en ?proveedor=<termino>.
         const bus = await import('./_buscador.js');
         paso.proveedor_externo = bus.estadoProveedor();
+
+        // Estado vivo de la corrida pendiente, si hay. Consultarlo no arranca
+        // ninguna corrida nueva, asi que no cuesta plata. Sirve para ver si
+        // quedo encolada o si fallo, en vez de deducirlo.
+        try {
+          const fila = await filaDeCache(termino);
+          if (fila && fila.run_id) {
+            const est = await bus.estadoCorrida(fila.run_id);
+            paso.corrida_pendiente = {
+              run_id: fila.run_id,
+              estado_vivo: est.estado,
+              arrancada: fila.run_desde
+            };
+          }
+        } catch (_) { /* el diagnostico no puede romperse por esto */ }
 
         const busq = await fetchJson('https://api.mercadolibre.com/products/search?status=active&site_id=MLA&limit=10&q=' + q, tok, 5000);
         paso.products_search = { ok: busq.ok, status: busq.status };
@@ -346,7 +361,7 @@ async function stepCompetencia(product) {
     return { fuente: 'preparando', sellersEstimados: null, precioMinARS: null, precioMaxARS: null,
       precioPromedioARS: null, totalResults: null, categoryName: '', saturacion: null,
       competenciaScore: null, competitors: [],
-      aviso: 'Estoy trayendo los datos de MercadoLibre para este producto. Tarda un minuto la primera vez; volve a consultarlo y ya van a estar.' };
+      aviso: 'Estoy trayendo los datos de MercadoLibre para este producto. La primera vez tarda dos o tres minutos; despues queda guardado y sale al instante.' };
   }
   if (meli && meli.results && meli.results.length > 0) {
     const prices = meli.results.map(x => x.price).filter(p => typeof p === 'number' && p > 0).sort((a,b)=>a-b);
