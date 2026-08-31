@@ -117,7 +117,18 @@ async function correrApify(product, opts) {
       return { error: 'APIFY_INPUT_JSON no es JSON valido' };
     }
   } else {
-    input = { search: product, query: product, keyword: product, maxItems, country: 'AR', site: 'MLA' };
+    // "queries" es el campo que pide devcake~mercadolibre-scraper (lo dijo el
+    // propio actor: "Field input.queries is required"). Los demas van como
+    // alias para los actores que usan otro nombre; los que sobran se ignoran.
+    input = {
+      queries: [product],
+      search: product,
+      query: product,
+      keyword: product,
+      maxItems,
+      country: 'AR',
+      site: 'MLA'
+    };
   }
 
   const url = 'https://api.apify.com/v2/acts/' + encodeURIComponent(actor) +
@@ -134,7 +145,13 @@ async function correrApify(product, opts) {
       signal: ctrl.signal
     });
     const texto = await r.text();
-    if (!r.ok) return { error: 'Apify HTTP ' + r.status + ': ' + texto.slice(0, 200) };
+    if (!r.ok) {
+      return {
+        error: 'Apify HTTP ' + r.status + ': ' + texto.slice(0, 200),
+        // El input no lleva credenciales: el token va en la URL.
+        input_enviado: Object.keys(input)
+      };
+    }
     let datos;
     try { datos = JSON.parse(texto); } catch (_) { return { error: 'Apify no devolvio JSON' }; }
     if (!Array.isArray(datos)) return { error: 'Apify devolvio ' + typeof datos };
@@ -194,7 +211,12 @@ export async function buscarConProveedor(product, meliToken, opts) {
 
   if (cual === 'apify') {
     const r = await correrApify(product, o);
-    if (r.error) { const e = new Error(r.error); e.proveedor = 'apify'; throw e; }
+    if (r.error) {
+      const e = new Error(r.error);
+      e.proveedor = 'apify';
+      e.input_enviado = r.input_enviado;
+      throw e;
+    }
     filas = r.filas || [];
   } else if (cual === 'scrapingbee' || cual === 'scraperapi') {
     const r = await traerHtmlPorProxy(product, o);
