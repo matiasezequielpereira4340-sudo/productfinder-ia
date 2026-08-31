@@ -1,116 +1,69 @@
 // api/meli-callback.js
-// Recibe el code de MercadoLibre y lo intercambia por access_token + refresh_token
-// Guarda los tokens en Supabase
+// Recibe el code de MercadoLibre, lo canjea por access_token + refresh_token
+// y lo guarda en Supabase con el usuario de la app como clave.
+// Vuelve siempre a meli-connect.html con un resultado legible.
 
-const SUPABASE_URL = 'https://qglieqpcmmffgxijbysb.supabase.co';
+import { cors, meliRedirectUri, appOrigin, exchangeCode, saveTokenRow } from './_meli.js';
 
-function cors(res) {
-      res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
-      res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
-
-async function saveTokens(data) {
-      const serviceKey = process.env.SUPABASE_SERVICE_KEY;
-      if (!serviceKey) throw new Error('SUPABASE_SERVICE_KEY no configurado');
-
-  // Construimos el payload de forma condicional para NO sobrescribir
-  // un refresh_token existente con null si ML no nos devolvio uno nuevo.
-  const payload = {
-          user_id: String(data.user_id),
-          meli_user_id: String(data.meli_user_id),
-          access_token: data.access_token,
-          expires_at: new Date(Date.now() + data.expires_in * 1000).toISOString(),
-          updated_at: new Date().toISOString()
-  };
-      if (data.refresh_token) {
-              payload.refresh_token = data.refresh_token;
-      }
-
-  const res = await fetch(SUPABASE_URL + '/rest/v1/meli_tokens?on_conflict=user_id', {
-          method: 'POST',
-          headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': serviceKey,
-                    'Authorization': 'Bearer ' + serviceKey,
-                    'Prefer': 'resolution=merge-duplicates,return=minimal'
-          },
-          body: JSON.stringify(payload)
-  });
-
-  if (!res.ok) {
-          const err = await res.text();
-          throw new Error('Error guardando tokens: ' + err);
-  }
-      return true;
+function volver(res, origen, params) {
+  const qs = new URLSearchParams(params).toString();
+  return res.redirect(302, origen + '/meli-connect.html?' + qs);
 }
 
 export default async function handler(req, res) {
-      cors(res);
-      if (req.method === 'OPTIONS') return res.status(200).end();
+  cors(res, 'GET,OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { code, state, error } = req.query;
+  const origen = appOrigin(req);
+  const { code, state, error, error_description } = req.query || {};
 
   if (error) {
-          return res.redirect(302,
-                                    'https://productfinder-ia.vercel.app/meli-connect.html?error=' +
-                                    encodeURIComponent(error));
+    return volver(res, origen, { error, detalle: String(error_description || '').slice(0, 200) });
   }
-
   if (!code) {
-          return res.status(400).json({ error: 'Falta el parametro code' });
+    return volver(res, origen, { error: 'sin_code' });
   }
 
-  const appId = process.env.MELI_APP_ID;
-      const secretKey = process.env.MELI_SECRET_KEY;
-      const redirectUri = process.env.MELI_REDIRECT_URI ||
-              'https://productfinder-ia.vercel.app/api/meli-callback';
+  // Misma redirect_uri que se uso para pedir el code: MeLi rechaza el canje si
+  // difiere aunque sea en un caracter.
+  const redirectUri = meliRedirectUri(req);
 
-  if (!appId || !secretKey) {
-          return res.status(500).json({ error: 'Credenciales MeLi no configuradas' });
+  let tokenData;
+  try {
+    tokenData = await exchangeCode(code, redirectUri);
+  } catch (err) {
+    console.error('meli-callback canje:', err && err.message);
+    return volver(res, origen, {
+      error: 'token_failed',
+      detalle: String((err && err.message) || err).slice(0, 200)
+    });
   }
+
+  // El state es el usuario de la app. Si viene vacio caemos al id de MeLi, pero
+  // avisamos: con esa clave el dashboard no va a encontrar la conexion.
+  const userId = state && state !== 'default' && state !== 'invitado'
+    ? decodeURIComponent(String(state))
+    : String(tokenData.user_id);
+  const sinUsuario = !state || state === 'default' || state === 'invitado';
 
   try {
-          const tokenRes = await fetch('https://api.mercadolibre.com/oauth/token', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({
-                                grant_type: 'authorization_code',
-                                client_id: appId,
-                                client_secret: secretKey,
-                                code: code,
-                                redirect_uri: redirectUri
-                    })
-          });
-
-        const tokenData = await tokenRes.json();
-
-        if (!tokenRes.ok || !tokenData.access_token) {
-                  console.error('Error MeLi token:', tokenData);
-                  return res.redirect(302,
-                                              'https://productfinder-ia.vercel.app/meli-connect.html?error=token_failed');
-        }
-
-        const userId = state && state !== 'default'
-            ? decodeURIComponent(state)
-                  : tokenData.user_id;
-
-        await saveTokens({
-                  user_id: userId,
-                  meli_user_id: tokenData.user_id,
-                  access_token: tokenData.access_token,
-                  refresh_token: tokenData.refresh_token,
-                  expires_in: tokenData.expires_in || 21600
-        });
-
-        return res.redirect(302,
-                                  'https://productfinder-ia.vercel.app/meli-connect.html?success=1&meli_user=' +
-                                  tokenData.user_id);
-
+    await saveTokenRow({
+      user_id: userId,
+      meli_user_id: tokenData.user_id,
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      expires_in: tokenData.expires_in || 21600
+    });
   } catch (err) {
-          console.error('meli-callback error:', err.message);
-          return res.redirect(302,
-                                    'https://productfinder-ia.vercel.app/meli-connect.html?error=' +
-                                    encodeURIComponent(err.message));
+    console.error('meli-callback guardado:', err && err.message);
+    return volver(res, origen, {
+      error: 'db_error',
+      detalle: String((err && err.message) || err).slice(0, 200)
+    });
   }
+
+  const params = { success: '1', meli_user: String(tokenData.user_id), app_user: userId };
+  if (!tokenData.refresh_token) params.aviso = 'sin_refresh';
+  if (sinUsuario) params.aviso = 'sin_usuario';
+  return volver(res, origen, params);
 }

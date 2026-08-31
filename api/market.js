@@ -1,6 +1,9 @@
 // Market Reader IA - Backend API
 // Handles /api/market for steps: demanda, competencia, final, productUrl
-// Usa MeLi search publica + Anthropic (claude-haiku-4-5) para datos estructurados
+// Datos de MercadoLibre (catalogo con token de usuario) + Anthropic para el
+// armado del informe.
+
+import { catalogSearch, getUserToken, meliCreds } from './_meli.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
@@ -94,6 +97,7 @@ export default async function handler(req, res) {
       try {
         const tok = await getMeliAccessToken();
         estado.token_obtenido = !!tok;
+        estado.token_origen = _ultimoMotivoToken;
         const auth = tok ? { Authorization: 'Bearer ' + tok, Accept: 'application/json' } : { Accept: 'application/json' };
         const endpoints = {
           sites_search:     'https://api.mercadolibre.com/sites/MLA/search?q=' + q + '&limit=1',
@@ -111,10 +115,12 @@ export default async function handler(req, res) {
             estado.endpoints[nombre] = r.status + ' (' + n + ')';
           } catch (e) { estado.endpoints[nombre] = 'excepcion'; }
         }
+        // Que devuelve hoy la cadena completa de busqueda, con precios.
         const r = await safeMeliSearch(termino);
+        const precios = r ? (r.results || []).map(x => x && x.price).filter(p => typeof p === 'number' && p > 0) : [];
         estado.probe = r
-          ? { termino, fuente: r.fuente, resultados: (r.results || []).length, total: r.total || 0 }
-          : { termino, fuente: 'no-disponible', resultados: 0 };
+          ? { termino, fuente: r.fuente, resultados: (r.results || []).length, con_precio: precios.length, total: r.total || 0 }
+          : { termino, fuente: 'no-disponible', resultados: 0, con_precio: 0 };
       } catch (e) {
         estado.probe = { termino, error: String((e && e.message) || e).slice(0, 200) };
       }
@@ -186,7 +192,7 @@ async function stepCompetencia(product) {
     else if (total > 2000) saturacion = 'saturado';
     const conEnvioGratis = meli.results.filter(x => x.shipping && x.shipping.free_shipping).length;
     const competitors = meli.results.slice(0,5).map((x,i)=>({rank:i+1, name:(x.seller && x.seller.nickname) || ('Vendedor '+(i+1)), price:x.price||0, soldQty:x.sold_quantity||0, reputation:(x.seller && x.seller.seller_reputation && x.seller.seller_reputation.level_id) || 'N/A', repClass:'comp-rep-ok', freeShipping: !!(x.shipping && x.shipping.free_shipping)}));
-    return { fuente:'mercadolibre-search', sellersEstimados: sellers.size || meli.results.length, precioMinARS:min, precioMaxARS:max, precioPromedioARS:avg, totalResults:total, categoryName:meli.categoryName||'', saturacion, competenciaScore: Math.min(100, Math.round(total/100)), competitors, envioGratisCount: conEnvioGratis, envioGratisTotal: meli.results.length, envioGratisPct: meli.results.length ? Math.round((conEnvioGratis/meli.results.length)*100) : 0 };
+    return { fuente: meli.fuente || 'mercadolibre-search', sellersEstimados: sellers.size || meli.results.length, precioMinARS:min, precioMaxARS:max, precioPromedioARS:avg, totalResults:total, categoryName:meli.categoryName||'', saturacion, competenciaScore: Math.min(100, Math.round(total/100)), competitors, envioGratisCount: conEnvioGratis, envioGratisTotal: meli.results.length, envioGratisPct: meli.results.length ? Math.round((conEnvioGratis/meli.results.length)*100) : 0 };
   }
   // IMPORTANTE: si no hay datos reales de MeLi (API 403 o scraping fallido) NO inventamos numeros via IA.
   return { fuente: 'no-disponible', sellersEstimados: null, precioMinARS: null, precioMaxARS: null, precioPromedioARS: null, totalResults: null, categoryName: '', saturacion: null, competenciaScore: null, competitors: [], aviso: 'Datos de Mercado Libre no disponibles ahora (la API publica requiere autenticacion). Mostramos solo lo verificable.' };
@@ -220,29 +226,24 @@ async function askClaudeJson(prompt) {
 
 // Cache del access_token en memoria del proceso (Vercel cold start lo resetea, no es problema)
 let _appTokenCache = { token: null, expiresAt: 0 };
+// Ultimo motivo por el que no se pudo conseguir token: lo reporta ?probe.
+let _ultimoMotivoToken = null;
 
 async function getMeliAccessToken() {
   // 1) Token explicito en env, si esta configurado.
   const tk = process.env.MELI_ACCESS_TOKEN;
-  if (tk && typeof tk === 'string' && tk.length > 10) return tk;
+  if (tk && typeof tk === 'string' && tk.length > 10) { _ultimoMotivoToken = 'env'; return tk; }
 
   // 2) Token "de la casa": el de una cuenta de MercadoLibre ya conectada, que
-  //    se usa para las busquedas publicas de la demo del hero.
-  //    MercadoLibre dejo de aceptar tokens de aplicacion en /sites/MLA/search
-  //    (devuelve 403), asi que el buscador exige un token de usuario real.
-  //    Se activa poniendo MELI_DEMO_USER_ID con el user_id de esa cuenta en la
-  //    tabla meli_tokens; el refresco automatico ya lo maneja meli-refresh.
-  // Cuenta de la casa por defecto. Matias autorizo expresamente que la demo
-  // publica use el token de su cuenta ya conectada. Se puede cambiar sin tocar
-  // codigo poniendo MELI_DEMO_USER_ID en las variables de entorno, y se puede
-  // apagar del todo poniendola en "off".
+  //    se usa para las busquedas de la demo del hero y del analizador publico.
+  //    MercadoLibre cerro las busquedas anonimas, asi que hace falta el token
+  //    de un usuario real. Se elige con MELI_DEMO_USER_ID (el mismo user_id con
+  //    el que la cuenta se conecto en /meli-connect.html) y se apaga con "off".
   const demoUser = process.env.MELI_DEMO_USER_ID || 'matypereira';
   if (demoUser && demoUser !== 'off') {
-    try {
-      const mod = await import('./meli-refresh.js');
-      const t = await mod.getValidToken(demoUser);
-      if (t) return t;
-    } catch (_) { /* seguimos con la siguiente estrategia */ }
+    const t = await getUserToken(demoUser);
+    if (t.token) { _ultimoMotivoToken = 'cuenta:' + demoUser; return t.token; }
+    _ultimoMotivoToken = 'cuenta:' + demoUser + ' -> ' + t.motivo + (t.error ? ' (' + t.error + ')' : '');
   }
 
   // 3) Token de aplicacion via client_credentials. Hoy MeLi lo rechaza para el
@@ -250,14 +251,13 @@ async function getMeliAccessToken() {
   if (_appTokenCache.token && Date.now() < _appTokenCache.expiresAt) {
     return _appTokenCache.token;
   }
-  const id = process.env.MELI_CLIENT_ID || process.env.MELI_APP_ID;
-  const secret = process.env.MELI_CLIENT_SECRET || process.env.MELI_SECRET_KEY;
-  if (!id || !secret) return null;
+  const { clientId, clientSecret, ok } = meliCreds();
+  if (!ok) { _ultimoMotivoToken = (_ultimoMotivoToken || '') + ' | faltan credenciales de la app'; return null; }
   try {
     const r = await fetch('https://api.mercadolibre.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
-      body: new URLSearchParams({ grant_type: 'client_credentials', client_id: id, client_secret: secret }).toString()
+      body: new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: clientSecret }).toString()
     });
     if (!r.ok) return null;
     const j = await r.json();
@@ -265,6 +265,7 @@ async function getMeliAccessToken() {
     // Renovamos 5 min antes de que venza.
     const ttl = Math.max(60, (j.expires_in || 21600) - 300);
     _appTokenCache = { token: j.access_token, expiresAt: Date.now() + ttl * 1000 };
+    _ultimoMotivoToken = 'client_credentials';
     return j.access_token;
   } catch (_) { return null; }
 }
@@ -272,10 +273,12 @@ async function getMeliAccessToken() {
 async function safeMeliSearch(product) {
   const q = encodeURIComponent(product);
   const url = "https://api.mercadolibre.com/sites/MLA/search?q=" + q + "&limit=20";
-  // 1) Intento con OAuth (si hay refresh_token configurado en Vercel)
-  try {
-    const tok = await getMeliAccessToken();
-    if (tok) {
+  const tok = await getMeliAccessToken();
+
+  // 1) Busqueda libre con token de usuario. MeLi la tiene cerrada a terceros
+  //    (403) desde 2025, pero si la reabre esta es la mejor fuente.
+  if (tok) {
+    try {
       const r = await fetch(url, { headers: { "Authorization": "Bearer " + tok, "Accept": "application/json" } });
       if (r.ok) {
         const j = await r.json();
@@ -283,9 +286,19 @@ async function safeMeliSearch(product) {
         const categoryName = catFilter && catFilter.values && catFilter.values[0] ? catFilter.values[0].name : "";
         return { fuente: "meli-api-oauth", total: (j.paging && j.paging.total) || 0, results: j.results || [], categoryName };
       }
-    }
-  } catch (_) {}
-  // 2) Intento API publica anonima (suele dar 403 ahora, pero por si vuelve)
+    } catch (_) {}
+  }
+
+  // 2) Catalogo: /products/search + /products/{id}/items. Es la via que SI
+  //    responde con precios reales y la que sostiene hoy el analizador.
+  if (tok) {
+    try {
+      const cat = await catalogSearch(product, tok, { maxProductos: 8, budgetMs: 6500 });
+      if (cat && cat.results.length) return cat;
+    } catch (_) {}
+  }
+
+  // 3) API publica anonima (suele dar 403 ahora, pero por si vuelve)
   try {
     const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; ProductFinderBot/1.0)" } });
     if (r.ok) {
@@ -295,7 +308,8 @@ async function safeMeliSearch(product) {
       return { fuente: "meli-api", total: (j.paging && j.paging.total) || 0, results: j.results || [], categoryName };
     }
   } catch (_) {}
-  // 3) Fallback: scraping HTML publico (sin auth)
+
+  // 4) Ultimo recurso: HTML publico (desde Vercel MeLi suele bloquearlo)
   try { return await scrapeMeliSearchHtml(product); } catch (_) { return null; }
 }
 

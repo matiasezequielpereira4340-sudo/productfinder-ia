@@ -1,119 +1,80 @@
 // api/meli-refresh.js
-// Renueva el access_token de MeLi usando el refresh_token guardado en Supabase.
-// Se llama automaticamente antes de cada request a la API de MeLi.
-// Tambien se puede llamar como endpoint: POST /api/meli-refresh { user_id }
+// Renueva el access_token de MeLi con el refresh_token guardado en Supabase.
+//
+//   getValidToken(userId)            -> lo usan meli-ventas, meli-stock y market
+//   POST /api/meli-refresh {user_id} -> renueva una cuenta
+//   GET  /api/meli-refresh?all=1     -> renueva todas (lo llama el cron diario)
+//
+// El refresh_token de MercadoLibre caduca si no se usa: el cron diario lo
+// mantiene vivo para que la conexion no se caiga sola.
 
-const SUPABASE_URL = 'https://qglieqpcmmffgxijbysb.supabase.co';
+import { cors, getTokenRow, listTokenRows, refreshWithToken, saveTokenRow } from './_meli.js';
 
-function cors(res) {
-    res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
-    res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
-
-// -----------------------------------------------
-// Helpers Supabase
-// -----------------------------------------------
-
-async function getTokenFromDB(userId) {
-    const key = process.env.SUPABASE_SERVICE_KEY;
-    const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/meli_tokens?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`,
-      { headers: { apikey: key, Authorization: `Bearer ${key}` } }
-        );
-    const rows = await res.json();
-    return rows[0] || null;
-}
-
-async function updateTokenInDB(userId, accessToken, refreshToken, expiresIn) {
-    const key = process.env.SUPABASE_SERVICE_KEY;
-    const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
-    await fetch(
-          `${SUPABASE_URL}/rest/v1/meli_tokens?user_id=eq.${encodeURIComponent(userId)}`,
-      {
-              method: 'PATCH',
-              headers: {
-                        apikey: key,
-                        Authorization: `Bearer ${key}`,
-                        'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                        access_token: accessToken,
-                        refresh_token: refreshToken,
-                        expires_at: expiresAt,
-                        updated_at: new Date().toISOString()
-              })
-      }
-        );
-}
-
-// -----------------------------------------------
-// Funcion principal exportable (usada por otros endpoints)
-// -----------------------------------------------
-
+// Compatibilidad: el resto del codigo espera que tire si no hay token.
 export async function getValidToken(userId) {
-    const record = await getTokenFromDB(userId);
-    if (!record) throw new Error(`No hay token para user_id: ${userId}`);
+  const row = await getTokenRow(userId);
+  if (!row) throw new Error('No hay token para user_id: ' + userId);
 
-  // Si el token vence en menos de 5 minutos, renovar
-  const expiresAt = new Date(record.expires_at).getTime();
-    const needsRefresh = Date.now() > expiresAt - 5 * 60 * 1000;
+  const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
+  if (expiresAt && Date.now() < expiresAt - 5 * 60 * 1000) return row.access_token;
 
-  if (!needsRefresh) {
-        return record.access_token;
-  }
-
-  // Renovar con refresh_token.
-  // Aceptamos los dos juegos de nombres porque en el proyecto conviven
-  // MELI_APP_ID/MELI_SECRET_KEY y MELI_CLIENT_ID/MELI_CLIENT_SECRET: si solo
-  // estuviera configurado uno de los dos pares, el refresco fallaba en silencio.
-  const appId = process.env.MELI_APP_ID || process.env.MELI_CLIENT_ID;
-    const secretKey = process.env.MELI_SECRET_KEY || process.env.MELI_CLIENT_SECRET;
-    if (!appId || !secretKey) throw new Error('Faltan credenciales de la app de MeLi');
-
-  const res = await fetch('https://api.mercadolibre.com/oauth/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-                grant_type: 'refresh_token',
-                client_id: appId,
-                client_secret: secretKey,
-                refresh_token: record.refresh_token
-        })
+  const data = await refreshWithToken(row.refresh_token);
+  await saveTokenRow({
+    user_id: row.user_id || userId,
+    meli_user_id: row.meli_user_id || data.user_id,
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+    expires_in: data.expires_in || 21600
   });
-
-  const data = await res.json();
-    if (!res.ok || !data.access_token) {
-          throw new Error(`Error renovando token: ${JSON.stringify(data)}`);
-    }
-
-  await updateTokenInDB(
-        userId,
-        data.access_token,
-        data.refresh_token,
-        data.expires_in || 21600
-      );
-
   return data.access_token;
 }
 
-// -----------------------------------------------
-// Handler HTTP (llamada directa al endpoint)
-// -----------------------------------------------
+async function refrescarTodos() {
+  const filas = await listTokenRows(200);
+  const salida = [];
+  for (const f of filas) {
+    try {
+      await getValidToken(f.user_id);
+      salida.push({ user_id: f.user_id, ok: true });
+    } catch (e) {
+      salida.push({ user_id: f.user_id, ok: false, error: String((e && e.message) || e).slice(0, 200) });
+    }
+  }
+  return salida;
+}
 
 export default async function handler(req, res) {
-    cors(res);
-    if (req.method === 'OPTIONS') return res.status(200).end();
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Metodo no permitido' });
+  cors(res, 'GET,POST,OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  if (req.method === 'GET') {
+    if (!(req.query && req.query.all)) {
+      return res.status(400).json({ error: 'Usa POST con user_id, o GET ?all=1' });
+    }
+    try {
+      const cuentas = await refrescarTodos();
+      return res.status(200).json({
+        success: true,
+        total: cuentas.length,
+        renovadas: cuentas.filter(c => c.ok).length,
+        cuentas
+      });
+    } catch (err) {
+      return res.status(500).json({ error: String((err && err.message) || err) });
+    }
+  }
+
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Metodo no permitido' });
 
   const { user_id } = req.body || {};
-    if (!user_id) return res.status(400).json({ error: 'user_id requerido' });
+  if (!user_id) return res.status(400).json({ error: 'user_id requerido' });
 
   try {
-        const accessToken = await getValidToken(user_id);
-        return res.status(200).json({ success: true, access_token: accessToken });
+    await getValidToken(user_id);
+    // El access_token no se devuelve: es una credencial y el front no la necesita.
+    return res.status(200).json({ success: true, user_id });
   } catch (err) {
-        console.error('meli-refresh error:', err.message);
-        return res.status(500).json({ error: err.message });
+    console.error('meli-refresh error:', err && err.message);
+    return res.status(500).json({ error: String((err && err.message) || err) });
   }
 }

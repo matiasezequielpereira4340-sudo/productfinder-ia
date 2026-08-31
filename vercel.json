@@ -3,6 +3,6 @@
               { "source": "/api/(.*)", "destination": "/api/$1" }
       ],
       "crons": [
-              { "path": "/api/meli-check?user_id=keepalive", "schedule": "0 12 * * *" }
+              { "path": "/api/meli-refresh?all=1", "schedule": "0 12 * * *" }
       ]
 }

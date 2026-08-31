@@ -384,6 +384,8 @@
   const error = params.get('error');
   const meliUser = params.get('meli_user');
 
+  const detalle = params.get('detalle');
+
   if (success === '1') {
     document.getElementById('card').className = 'card state-success';
     document.getElementById('successState').style.display = 'block';
@@ -393,23 +395,35 @@
     document.getElementById('errorState').style.display = 'block';
     const msgs = {
             'access_denied': 'Cancelaste la autorización. Podés intentarlo de nuevo cuando quieras.',
-            'token_failed': 'Hubo un problema al obtener el token de MercadoLibre. Intentá de nuevo.',
+            'token_failed': 'MercadoLibre no aceptó la autorización. Suele ser porque la URL de retorno no coincide con la cargada en el panel de la app.',
+            'db_error': 'La autorización salió bien pero no pude guardar la conexión. Revisá SUPABASE_SERVICE_KEY.',
+            'sin_code': 'MercadoLibre no devolvió el código de autorización. Probá de nuevo.',
             'invalid_operator_user_id': 'La cuenta que usaste no es la dueña de la tienda. Tiene que ser el titular.',
       };
     document.getElementById('errorMsg').textContent =
-            msgs[error] || 'Error: ' + decodeURIComponent(error);
+            (msgs[error] || 'Error: ' + decodeURIComponent(error)) +
+            (detalle ? ' (' + decodeURIComponent(detalle) + ')' : '');
 }
 
   async function startAuth(e) {
         e.preventDefault();
+
+    // MercadoLibre se guarda contra el usuario con el que entrás a la app: es
+    // la clave con la que después el dashboard y el recomendador buscan tu
+    // conexión. Sin sesión, la cuenta quedaba guardada con el ID numérico de
+    // MeLi y la app nunca la volvía a encontrar.
+    const userId = localStorage.getItem('pf_user');
+    if (!userId || userId === 'invitado' || userId === 'default') {
+      window.location.href = '/login.html?next=meli-connect';
+      return;
+    }
+
     document.querySelector('.main-content').style.display = 'none';
     document.getElementById('successState').style.display = 'none';
     document.getElementById('errorState').style.display = 'none';
     document.getElementById('loadingState').style.display = 'block';
 
     try {
-      // Obtener user_id del localStorage si esta logueado
-      const userId = localStorage.getItem('pf_user') || 'default';
       const res = await fetch('/api/meli-auth?user_id=' + encodeURIComponent(userId));
       const data = await res.json();
       if (data.auth_url) {
@@ -420,7 +434,9 @@
     } catch (err) {
       document.getElementById('loadingState').style.display = 'none';
       document.querySelector('.main-content').style.display = 'block';
-      alert('Error: ' + err.message);
+      document.getElementById('card').className = 'card state-error';
+      document.getElementById('errorState').style.display = 'block';
+      document.getElementById('errorMsg').textContent = err.message;
     }
   }
 </script>
