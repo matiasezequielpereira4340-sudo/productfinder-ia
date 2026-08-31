@@ -140,6 +140,13 @@
         localStorage.setItem('pf_expiry', expiry);
       }
 
+      // Si vino de "Conectar MercadoLibre", volver ahi despues de loguear.
+      const next = new URLSearchParams(window.location.search).get('next');
+      if (next === 'meli-connect') {
+        window.location.replace('/meli-connect.html');
+        return;
+      }
+
       // Redirigir segun rol
       if (data.role === 'admin') {
         window.location.replace('/admin.html');

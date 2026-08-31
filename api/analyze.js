@@ -7,6 +7,8 @@
 // datos como estimados y nunca inventa precios reales.
 // ============================================================
 
+import { resolveUserId } from './_meli.js';
+
 const USD_ARS_FALLBACK = 1510;
 const SUPA_URL = process.env.SUPABASE_URL || 'https://qglieqpcmmffgxijbysb.supabase.co';
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || '';
@@ -350,9 +352,13 @@ const CATALOGO = {
   ]},
 };
 
-async function getMeliToken(userId){
-  if(!SUPA_KEY || !userId) return null;
+async function getMeliToken(userIdEntrada){
+  if(!SUPA_KEY || !userIdEntrada) return null;
   try{
+    // El usuario logueado puede ser un alias del usuario con el que se conecto
+    // MercadoLibre (ver meli_user_aliases): sin resolverlo, el recomendador no
+    // encontraba el token y devolvia todo como estimado.
+    const userId = await resolveUserId(userIdEntrada);
     const url = SUPA_URL + '/rest/v1/meli_tokens?user_id=eq.' + encodeURIComponent(userId) + '&select=access_token,refresh_token,expires_at&limit=1';
     const r = await fetch(url, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY } });
     if(!r.ok) return null;
@@ -365,8 +371,11 @@ async function getMeliToken(userId){
     // Token vencido o por vencer: intentamos renovarlo con el refresh_token.
     if(!row.refresh_token) return { token: null, expired: true };
     try{
-      const appId = process.env.MELI_APP_ID;
-      const secret = process.env.MELI_SECRET_KEY;
+      // Los dos juegos de nombres que conviven en el proyecto. Si aca solo se
+      // leia MELI_APP_ID y en Vercel estaba cargada MELI_CLIENT_ID, el refresco
+      // fallaba en silencio y el recomendador mostraba todo como estimado.
+      const appId = process.env.MELI_APP_ID || process.env.MELI_CLIENT_ID;
+      const secret = process.env.MELI_SECRET_KEY || process.env.MELI_CLIENT_SECRET;
       if(!appId || !secret) return { token: null, expired: true };
       const rr = await fetch('https://api.mercadolibre.com/oauth/token', {
         method: 'POST',
@@ -388,40 +397,39 @@ async function getMeliToken(userId){
 async function meliSearch(query, token, costoTope){
   if(!token) return null;
   try{
-    // Catalogo de MercadoLibre (endpoint que funciona con el token OAuth estandar)
+    // Catalogo de MercadoLibre: es el endpoint que sigue abierto con el token
+    // OAuth del usuario (/sites/MLA/search devuelve 403 desde que MeLi lo cerro).
     const url = 'https://api.mercadolibre.com/products/search?status=active&site_id=MLA&limit=10&q=' + encodeURIComponent(query);
-    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
-    if(!r.ok) return null;
-    const j = await r.json();
+    const r = await _fetchML(url, token, 5000);
+    if(!r) return null;
+    const j = r;
     if(!j.results || !j.results.length) return null;
     const total = (j.paging && j.paging.total) || j.results.length;
-    const precios = [];
-    // Tomar hasta 10 productos del catalogo para tener mas muestra
-    const ids = j.results.slice(0, 10).map(function(x){
+    // Tomar hasta 6 productos del catalogo. Antes eran 10 y se consultaban EN
+    // SERIE (hasta 20 requests encadenados por producto, x12 productos del
+    // nicho): la funcion se pasaba de los 10 s de Vercel y el analisis moria
+    // sin devolver nada. Ahora van en paralelo y con presupuesto de tiempo.
+    const ids = j.results.slice(0, 6).map(function(x){
       return (typeof x === 'string') ? x : (x && (x.id || x.catalog_product_id || x.product_id));
     }).filter(Boolean);
-    for(const id of ids){
-      try{
-        // 1) buy_box_winner del producto de catalogo
-        const pr = await fetch('https://api.mercadolibre.com/products/' + id, { headers: { Authorization: 'Bearer ' + token } });
-        let p = null;
-        if(pr.ok){
-          const pj = await pr.json();
-          if(pj && pj.buy_box_winner && typeof pj.buy_box_winner.price === 'number' && pj.buy_box_winner.price > 0) p = pj.buy_box_winner.price;
-        }
-        // 2) si no hay buy box, tomar precios de los items reales de ese producto
-        if(!p){
-          const ir = await fetch('https://api.mercadolibre.com/products/' + id + '/items', { headers: { Authorization: 'Bearer ' + token } });
-          if(ir.ok){
-            const ij = await ir.json();
-            const items = (ij && Array.isArray(ij.results)) ? ij.results : [];
-            const itemPrices = items.map(function(it){ return (it && typeof it.price === 'number' && it.price > 0) ? it.price : null; }).filter(Boolean);
-            if(itemPrices.length) p = _medianRobusto(itemPrices);
-          }
-        }
-        if(p && p > 0) precios.push(p);
-      }catch(_){/* seguir */}
-    }
+    const limite = Date.now() + 6000;
+
+    const porProducto = await Promise.all(ids.map(async function(id){
+      if(Date.now() > limite) return null;
+      // 1) buy_box_winner del producto de catalogo
+      const pj = await _fetchML('https://api.mercadolibre.com/products/' + id, token, 4000);
+      if(pj && pj.buy_box_winner && typeof pj.buy_box_winner.price === 'number' && pj.buy_box_winner.price > 0){
+        return pj.buy_box_winner.price;
+      }
+      // 2) si no hay buy box, la mediana de los items reales de ese producto
+      if(Date.now() > limite) return null;
+      const ij = await _fetchML('https://api.mercadolibre.com/products/' + id + '/items?limit=10', token, 4000);
+      const items = (ij && Array.isArray(ij.results)) ? ij.results : [];
+      const itemPrices = items.map(function(it){ return (it && typeof it.price === 'number' && it.price > 0) ? it.price : null; }).filter(Boolean);
+      return itemPrices.length ? _medianRobusto(itemPrices) : null;
+    }));
+
+    const precios = porProducto.filter(function(p){ return typeof p === 'number' && p > 0; });
     // Tope objetivo por producto: descartar precios que superen 5x el costo puesto
     // (un margen bruto > 400% casi siempre indica que el precio no corresponde al producto real)
     let preciosAcotados = precios;
@@ -436,6 +444,19 @@ async function meliSearch(query, token, costoTope){
     const preciosFiltrados = _filtrarOutliers(preciosAcotados);
     return { precios: preciosFiltrados, sellers: j.results.length, total: total };
   }catch(e){ return null; }
+}
+
+// fetch a MeLi con timeout: sin esto un endpoint lento cuelga toda la funcion
+// hasta que Vercel la corta, y el usuario no recibe ni un resultado.
+async function _fetchML(url, token, timeoutMs){
+  const ctrl = new AbortController();
+  const t = setTimeout(function(){ ctrl.abort(); }, timeoutMs || 5000);
+  try{
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' }, signal: ctrl.signal });
+    if(!r.ok) return null;
+    return await r.json();
+  }catch(_){ return null; }
+  finally{ clearTimeout(t); }
 }
 
 // Filtro de outliers por rango intercuartil (IQR): recorta precios atipicos altos y bajos

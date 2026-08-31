@@ -53,8 +53,44 @@ Necesitás un backend que sirva en el mismo dominio o configurá los endpoints.
 
 | Variable | Descripción | Requerido |
 |----------|-------------|-----------|
-| `GROQ_API_KEY` | API key de Groq (gratis en groq.com) | No (usa fallback local) |
-| `PORT` | Puerto del servidor (default: 3000) | No |
+| `MELI_APP_ID` (o `MELI_CLIENT_ID`) | App ID de la aplicación de MercadoLibre | Sí, para conectar cuentas |
+| `MELI_SECRET_KEY` (o `MELI_CLIENT_SECRET`) | Secret de esa aplicación | Sí, para conectar cuentas |
+| `MELI_REDIRECT_URI` | Fuerza la URL de retorno del OAuth. Si no está, se arma con el dominio desde el que se sirve la app (`https://<dominio>/api/meli-callback`) | No |
+| `MELI_SCOPES` | Scopes pedidos en el OAuth (default `offline_access read`). `offline_access` es lo que da el `refresh_token` | No |
+| `MELI_DEMO_USER_ID` | Cuenta ya conectada que se usa para las búsquedas públicas del hero. `off` la apaga | No |
+| `SUPABASE_SERVICE_KEY` | Service key de Supabase: sin esto no se puede guardar ni leer ninguna conexión | Sí |
+| `SUPABASE_URL` | URL del proyecto de Supabase (default: el del proyecto) | No |
+| `ANTHROPIC_API_KEY` | Análisis con IA del analizador | Sí, para el analizador |
+| `APP_ORIGIN` | Dominio público de la app, si hace falta fijarlo | No |
+| `PORT` | Puerto del servidor local (default: 3000) | No |
+
+Antes de conectar la primera cuenta hay que correr `supabase/meli_tokens_migration.sql`
+en el SQL Editor de Supabase.
+
+**La `redirect_uri` tiene que estar cargada igual, carácter por carácter, en el
+panel de la app de MercadoLibre.** `GET /api/meli-auth?diag=1` te dice cuál está
+usando el servidor.
+
+---
+
+## Si MercadoLibre no conecta o no trae resultados
+
+Tres endpoints de diagnóstico, en orden:
+
+1. `GET /api/meli-auth?diag=1` — si faltan credenciales en el servidor y qué
+   `redirect_uri` se está mandando.
+2. `GET /api/meli-check?user_id=<tu usuario>&diag=1` — si tu usuario tiene
+   conexión guardada, si el token se puede renovar y si MercadoLibre lo acepta
+   (`meli_users_me`). Muestra también `user_id_de_la_conexion`: el usuario real
+   contra el que está guardado el token.
+3. `GET /api/market?probe=auriculares` — a qué endpoints de MercadoLibre llega
+   la app hoy y cuántos resultados con precio devuelve la búsqueda.
+
+Ninguno expone tokens ni claves: sólo dicen si están y si funcionan.
+
+**Si cambiás `APP_USER`**, la conexión de MercadoLibre queda guardada con el
+nombre viejo. En vez de reconectar, agregá el puente en `meli_user_aliases`
+(hay un ejemplo al final de `supabase/meli_tokens_migration.sql`).
 
 ---
 
