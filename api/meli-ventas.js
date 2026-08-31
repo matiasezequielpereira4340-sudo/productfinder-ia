@@ -129,12 +129,25 @@ async function diagnosticoOrdenes(token, meliUserId, fechaDesde) {
         headers: { Authorization: 'Bearer ' + token }
       });
       const j = await r.json().catch(() => null);
+      const filas = (j && Array.isArray(j.results)) ? j.results : [];
       salida[nombre] = {
         status: r.status,
         total: (j && j.paging && j.paging.total != null) ? j.paging.total : null,
-        devueltas: (j && Array.isArray(j.results)) ? j.results.length : 0,
+        devueltas: filas.length,
         mensaje: (j && (j.message || j.error)) || undefined
       };
+      // Las fechas de las primeras ordenes: dicen si las ventas son viejas o
+      // si el campo de fecha no es el que estamos leyendo. Sin esto, las dos
+      // situaciones terminan en el mismo cero.
+      if (filas.length) {
+        salida[nombre].fechas = filas.slice(0, 5).map(o => ({
+          date_created: o && o.date_created,
+          date_closed: o && o.date_closed,
+          estado: o && o.status,
+          monto: o && o.total_amount
+        }));
+        salida[nombre].campos_de_una_orden = Object.keys(filas[0] || {}).slice(0, 20);
+      }
     } catch (e) {
       salida[nombre] = { error: String((e && e.message) || e).slice(0, 120) };
     }
