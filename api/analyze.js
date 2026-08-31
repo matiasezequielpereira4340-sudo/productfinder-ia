@@ -7,7 +7,7 @@
 // datos como estimados y nunca inventa precios reales.
 // ============================================================
 
-import { resolveUserId } from './_meli.js';
+import { resolveUserId, buscarPublicaciones } from './_meli.js';
 
 const USD_ARS_FALLBACK = 1510;
 const SUPA_URL = process.env.SUPABASE_URL || 'https://qglieqpcmmffgxijbysb.supabase.co';
@@ -397,39 +397,20 @@ async function getMeliToken(userIdEntrada){
 async function meliSearch(query, token, costoTope){
   if(!token) return null;
   try{
-    // Catalogo de MercadoLibre: es el endpoint que sigue abierto con el token
-    // OAuth del usuario (/sites/MLA/search devuelve 403 desde que MeLi lo cerro).
-    const url = 'https://api.mercadolibre.com/products/search?status=active&site_id=MLA&limit=10&q=' + encodeURIComponent(query);
-    const r = await _fetchML(url, token, 5000);
-    if(!r) return null;
-    const j = r;
-    if(!j.results || !j.results.length) return null;
-    const total = (j.paging && j.paging.total) || j.results.length;
-    // Tomar hasta 6 productos del catalogo. Antes eran 10 y se consultaban EN
-    // SERIE (hasta 20 requests encadenados por producto, x12 productos del
-    // nicho): la funcion se pasaba de los 10 s de Vercel y el analisis moria
-    // sin devolver nada. Ahora van en paralelo y con presupuesto de tiempo.
-    const ids = j.results.slice(0, 6).map(function(x){
-      return (typeof x === 'string') ? x : (x && (x.id || x.catalog_product_id || x.product_id));
-    }).filter(Boolean);
-    const limite = Date.now() + 6000;
+    // Misma cadena que usa el analizador: catalogo -> destacados -> listado
+    // publico + /items?ids=. Antes esto tenia su propia copia contra
+    // /products/{id}/items, que hoy devuelve 404, asi que el recomendador
+    // mostraba todo como estimado aun con la cuenta conectada.
+    const r = await buscarPublicaciones(query, token, { budgetMs: 5000, maxIds: 25 });
+    if(!r || !r.results || !r.results.length) return null;
 
-    const porProducto = await Promise.all(ids.map(async function(id){
-      if(Date.now() > limite) return null;
-      // 1) buy_box_winner del producto de catalogo
-      const pj = await _fetchML('https://api.mercadolibre.com/products/' + id, token, 4000);
-      if(pj && pj.buy_box_winner && typeof pj.buy_box_winner.price === 'number' && pj.buy_box_winner.price > 0){
-        return pj.buy_box_winner.price;
-      }
-      // 2) si no hay buy box, la mediana de los items reales de ese producto
-      if(Date.now() > limite) return null;
-      const ij = await _fetchML('https://api.mercadolibre.com/products/' + id + '/items?limit=10', token, 4000);
-      const items = (ij && Array.isArray(ij.results)) ? ij.results : [];
-      const itemPrices = items.map(function(it){ return (it && typeof it.price === 'number' && it.price > 0) ? it.price : null; }).filter(Boolean);
-      return itemPrices.length ? _medianRobusto(itemPrices) : null;
-    }));
+    const precios = r.results.map(function(x){ return x.price; })
+      .filter(function(p){ return typeof p === 'number' && p > 0; });
+    if(!precios.length) return null;
 
-    const precios = porProducto.filter(function(p){ return typeof p === 'number' && p > 0; });
+    const vendedores = new Set(r.results.map(function(x){ return x.seller && x.seller.id; }).filter(Boolean));
+    const total = (typeof r.total === 'number' && r.total > 0) ? r.total : null;
+
     // Tope objetivo por producto: descartar precios que superen 5x el costo puesto
     // (un margen bruto > 400% casi siempre indica que el precio no corresponde al producto real)
     let preciosAcotados = precios;
@@ -442,21 +423,8 @@ async function meliSearch(query, token, costoTope){
     }
     // Filtrar outliers (packs/premium) sobre el conjunto acotado
     const preciosFiltrados = _filtrarOutliers(preciosAcotados);
-    return { precios: preciosFiltrados, sellers: j.results.length, total: total };
+    return { precios: preciosFiltrados, sellers: vendedores.size || r.results.length, total: total };
   }catch(e){ return null; }
-}
-
-// fetch a MeLi con timeout: sin esto un endpoint lento cuelga toda la funcion
-// hasta que Vercel la corta, y el usuario no recibe ni un resultado.
-async function _fetchML(url, token, timeoutMs){
-  const ctrl = new AbortController();
-  const t = setTimeout(function(){ ctrl.abort(); }, timeoutMs || 5000);
-  try{
-    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' }, signal: ctrl.signal });
-    if(!r.ok) return null;
-    return await r.json();
-  }catch(_){ return null; }
-  finally{ clearTimeout(t); }
 }
 
 // Filtro de outliers por rango intercuartil (IQR): recorta precios atipicos altos y bajos
@@ -595,9 +563,20 @@ export default async function handler(req, res) {
         const costoPuestoARS = Math.round(costoUnitARS * 2.75); // x2.5-3.0: estimado gastos de envio/importacion (varia segun producto, impuestos, peso y volumen)
         const data = await meliSearch(prod.q, token, costoPuestoARS);
         function _satFromTotal(t){ if(t==null) return null; if(t < 2000) return 'Baja'; if(t < 5000) return 'Media'; if(t < 9000) return 'Alta'; return 'Muy alta'; }
+        if (data && data.precios.length && data.total == null) {
+          // Precio real pero sin total de publicaciones: MercadoLibre no lo
+          // expone por todas las vias. Antes se caia en data.precios.length y
+          // una muestra de 12 precios se reportaba como "saturacion Baja".
+          const precioVenta = _medianRobusto(data.precios);
+          const margen = costoPuestoARS > 0 ? Math.round(((precioVenta - costoPuestoARS)/costoPuestoARS)*100) : null;
+          return { nombre: prod.nombre, query: prod.q, nota: prod.nota, pesoG: prod.pesoG,
+            fuente: 'MercadoLibre (precio real, sin competencia)', precioVentaARS: precioVenta, sellers: data.sellers,
+            totalResultados: null, competencia: null, costoEstimadoUSD: [prod.costoMin, prod.costoMax], costoPuestoARS: costoPuestoARS,
+            margen: margen, demanda: 'A validar', saturacion: 'A validar', riesgo: 'A validar', score: null };
+        }
         if (data && data.precios.length) {
           const precioVenta = _medianRobusto(data.precios);
-          const total = data.total || data.precios.length;
+          const total = data.total;
           const s = _score({ precioVenta: precioVenta, total: total, costoPuestoARS: costoPuestoARS, pesoG: prod.pesoG });
           return { nombre: prod.nombre, query: prod.q, nota: prod.nota, pesoG: prod.pesoG,
             fuente: 'MercadoLibre (real)', precioVentaARS: precioVenta, sellers: data.sellers,

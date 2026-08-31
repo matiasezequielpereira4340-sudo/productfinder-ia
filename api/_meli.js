@@ -402,3 +402,171 @@ export async function highlightsSearch(product, token, opts) {
     }))
   };
 }
+
+// Slug del listado publico de MercadoLibre ("auriculares bluetooth" ->
+// "auriculares-bluetooth"). Saca acentos en vez de borrar la letra.
+export function meliSlug(product) {
+  return String(product || '').trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+}
+
+// Tercera via, y la que queda cuando el catalogo y los destacados fallan:
+//   1. Del listado publico se sacan SOLO los IDs de publicacion. Un ID es un
+//      MLA seguido de numeros: sobrevive a cualquier rediseño del HTML, al
+//      contrario de scrapear precios y titulos de las clases CSS.
+//   2. Los numeros (precio, vendedor, vendidos, envio) salen de /items?ids=,
+//      la API oficial. Nada de precios leidos del HTML.
+// Si MercadoLibre bloquea el listado desde el server, devuelve null y la
+// cadena sigue con la ultima opcion.
+export async function publicIdsSearch(product, token, opts) {
+  const o = opts || {};
+  const deadline = Date.now() + (o.budgetMs || 7000);
+  const html = await fetchListadoHtml(product, o.timeoutMs || 6000);
+  if (!html || !html.texto) return null;
+
+  const ids = extraerIdsMLA(html.texto).slice(0, o.maxIds || 40);
+  if (!ids.length) return null;
+
+  const items = await hidratarItems(ids, token, deadline);
+  if (!items.length) return null;
+
+  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const palabras = norm(product).split(/\s+/).filter(w => w.length > 2);
+  const conTodas = items.filter(it => { const t = norm(it.title); return palabras.every(w => t.includes(w)); });
+  const elegidos = conTodas.length >= 3 ? conTodas : items;
+
+  return {
+    fuente: 'meli-listado+items',
+    total: html.total || null,
+    muestra: elegidos.length,
+    categoryName: html.categoria || '',
+    results: elegidos.map(it => ({
+      id: it.id,
+      title: it.title,
+      price: it.price,
+      sold_quantity: it.sold_quantity || 0,
+      seller: { id: it.seller_id || null, nickname: it.seller_id ? ('Vendedor ' + it.seller_id) : '' },
+      shipping: { free_shipping: !!(it.shipping && it.shipping.free_shipping) }
+    }))
+  };
+}
+
+export async function fetchListadoHtml(product, timeoutMs) {
+  const url = 'https://listado.mercadolibre.com.ar/' + meliSlug(product);
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs || 6000);
+  try {
+    const r = await fetch(url, {
+      redirect: 'follow',
+      signal: ctrl.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'es-AR,es;q=0.9',
+        'Cache-Control': 'no-cache'
+      }
+    });
+    const texto = r.ok ? await r.text() : '';
+    let total = 0;
+    const m = texto.match(/([\d][\d.,]*)\s*resultados/i);
+    if (m) total = parseInt(String(m[1]).replace(/[^0-9]/g, ''), 10) || 0;
+    let categoria = '';
+    const h1 = texto.match(/<h1[^>]*>([^<]{3,80})<\/h1>/i);
+    if (h1) categoria = h1[1].trim();
+    return { status: r.status, url, texto, total, categoria };
+  } catch (_) {
+    return { status: 0, url, texto: '', total: 0, categoria: '' };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Los IDs aparecen en los links (MLA-1234567890) y en los JSON embebidos
+// (MLA1234567890). Se aceptan las dos formas y se deduplica conservando orden,
+// que es el de relevancia de MercadoLibre.
+export function extraerIdsMLA(html) {
+  const encontrados = String(html || '').match(/MLA-?\d{8,}/g) || [];
+  const vistos = new Set();
+  const ids = [];
+  for (const bruto of encontrados) {
+    const id = bruto.replace('-', '');
+    if (!vistos.has(id)) { vistos.add(id); ids.push(id); }
+  }
+  return ids;
+}
+
+// /items?ids= acepta de a 20 y devuelve [{code, body}].
+export async function hidratarItems(ids, token, deadline) {
+  const atributos = 'id,title,price,sold_quantity,seller_id,shipping,category_id,status';
+  const lotes = [];
+  for (let i = 0; i < ids.length; i += 20) lotes.push(ids.slice(i, i + 20));
+  const respuestas = await Promise.all(lotes.map(l => {
+    if (deadline && Date.now() > deadline) return { ok: false, json: null };
+    return fetchJson(MELI_API + '/items?ids=' + l.join(',') + '&attributes=' + atributos, token, 5000);
+  }));
+  const items = [];
+  for (const r of respuestas) {
+    if (!r.ok || !Array.isArray(r.json)) continue;
+    for (const fila of r.json) {
+      const b = fila && (fila.body || fila);
+      if (b && b.title && typeof b.price === 'number' && b.price > 0) items.push(b);
+    }
+  }
+  return items;
+}
+
+// ------------------------------------------------------------
+// Cadena unica de busqueda de publicaciones
+// La usan el analizador (market) y el recomendador (analyze), para que no haya
+// dos versiones distintas de "como se busca en MercadoLibre".
+//
+// Estado medido en produccion el 31/08/2026:
+//   /sites/MLA/search        403 (cerrado a terceros)
+//   /products/{id}/items     404
+//   /products/{id} buy_box   null
+//   /highlights/{categoria}  403
+//   listado publico + /items?ids=  <- la via que queda
+//
+// El orden se mantiene por si MeLi reabre alguno, pero se recuerda cual anduvo:
+// probar tres vias muertas por cada producto se comia el tiempo de la funcion.
+// ------------------------------------------------------------
+const _viaEstado = { preferida: null, fallos: {} };
+
+export async function buscarPublicaciones(product, token, opts) {
+  if (!token || !product) return null;
+  const o = opts || {};
+  const vias = {
+    catalogo: () => catalogSearch(product, token, { maxProductos: o.maxProductos || 6, budgetMs: o.budgetMs || 5000 }),
+    destacados: () => highlightsSearch(product, token, { budgetMs: o.budgetMs || 5000 }),
+    listado: () => publicIdsSearch(product, token, { budgetMs: o.budgetMs || 6000, maxIds: o.maxIds || 40 })
+  };
+  // El orden es de mejor a peor dato (el catalogo trae total de publicaciones,
+  // el listado tambien, los destacados no) y no se altera: lo unico que se
+  // recuerda es cual esta muerta, para no reintentarla por cada producto.
+  const orden = ['catalogo', 'destacados', 'listado'];
+  for (const nombre of orden) {
+    const fallos = _viaEstado.fallos[nombre] || 0;
+    // Se saltea la via que ya fallo dos veces, siempre que otra este andando.
+    // El tope de 4 cubre el caso de que no ande ninguna. Si MeLi reabre una,
+    // el proximo cold start la vuelve a probar.
+    if (fallos >= 2 && (_viaEstado.preferida || fallos >= 4)) continue;
+    try {
+      const r = await vias[nombre]();
+      if (r && r.results && r.results.length) {
+        _viaEstado.preferida = nombre;
+        return r;
+      }
+      _viaEstado.fallos[nombre] = (_viaEstado.fallos[nombre] || 0) + 1;
+    } catch (_) {
+      _viaEstado.fallos[nombre] = (_viaEstado.fallos[nombre] || 0) + 1;
+    }
+  }
+  return null;
+}
+
+export function viaDeBusquedaUsada() {
+  return { preferida: _viaEstado.preferida, fallos: { ..._viaEstado.fallos } };
+}
