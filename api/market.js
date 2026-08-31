@@ -87,6 +87,38 @@ export default async function handler(req, res) {
       }
     }
 
+    // ?proveedor=termino corre el proveedor externo y mide cuanto tarda.
+    // Va aparte de ?catalogo= porque una corrida de Apify puede llevar
+    // decenas de segundos y arrastraba a todo el diagnostico al timeout.
+    if (req.query && typeof req.query.proveedor === 'string') {
+      const termino = req.query.proveedor.length > 1 ? req.query.proveedor : 'auriculares bluetooth';
+      const bus = await import('./_buscador.js');
+      const salida = { termino, ...bus.estadoProveedor() };
+      if (bus.proveedor() === 'off') {
+        salida.aviso = 'No hay proveedor configurado (falta APIFY_TOKEN o similar).';
+        return res.status(200).json(salida);
+      }
+      const arranque = Date.now();
+      try {
+        const tok = await getMeliAccessToken();
+        const ext = await bus.buscarConProveedor(termino, tok, { maxItems: 48, timeoutMs: 50000 });
+        salida.tardo_ms = Date.now() - arranque;
+        salida.resultado = ext
+          ? {
+              fuente: ext.fuente,
+              resultados: ext.results.length,
+              total: ext.total,
+              muestra: ext.results.slice(0, 5).map(x => ({ titulo: String(x.title).slice(0, 45), precio: x.price }))
+            }
+          : 'sin resultados';
+      } catch (e) {
+        salida.tardo_ms = Date.now() - arranque;
+        salida.error = String((e && e.message) || e).slice(0, 300);
+        if (e && e.input_enviado) salida.campos_enviados = e.input_enviado;
+      }
+      return res.status(200).json(salida);
+    }
+
     // ?catalogo=termino recorre paso a paso las vias de precio y reporta que
     // devuelve cada endpoint de MercadoLibre. Es para diagnosticar por que una
     // busqueda vuelve vacia, sin adivinar. No expone tokens.
@@ -100,27 +132,11 @@ export default async function handler(req, res) {
         paso.token_origen = _ultimoMotivoToken;
         paso.via_recordada = viaDeBusquedaUsada();
 
-        // Proveedor externo: que hay configurado y que devuelve. Solo
-        // booleanos, nunca la credencial.
+        // Proveedor externo: aca solo la configuracion. Correr el actor es
+        // lento (levanta un contenedor) y hacia que el diagnostico entero se
+        // pasara del tiempo de la funcion: se prueba en ?proveedor=<termino>.
         const bus = await import('./_buscador.js');
         paso.proveedor_externo = bus.estadoProveedor();
-        if (bus.proveedor() !== 'off') {
-          try {
-            const ext = await bus.buscarConProveedor(termino, tok, { maxItems: 10, timeoutMs: 25000 });
-            paso.proveedor_externo.resultado = ext
-              ? {
-                  fuente: ext.fuente,
-                  resultados: ext.results.length,
-                  total: ext.total,
-                  muestra: ext.results.slice(0, 3).map(x => ({ titulo: String(x.title).slice(0, 45), precio: x.price }))
-                }
-              : 'sin resultados';
-          } catch (e) {
-            paso.proveedor_externo.error = String((e && e.message) || e).slice(0, 260);
-            if (e && e.input_enviado) paso.proveedor_externo.campos_enviados = e.input_enviado;
-          }
-        }
-        if (!tok) return res.status(200).json({ termino, paso });
 
         const busq = await fetchJson('https://api.mercadolibre.com/products/search?status=active&site_id=MLA&limit=10&q=' + q, tok, 5000);
         paso.products_search = { ok: busq.ok, status: busq.status };
