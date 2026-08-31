@@ -16,9 +16,23 @@ CREATE TABLE IF NOT EXISTS busquedas_cache (
   fuente     TEXT,                    -- de que via salio el dato
   total      INTEGER,                 -- publicaciones totales, si la via lo expone
   categoria  TEXT,
-  resultados JSONB NOT NULL,          -- publicaciones ya normalizadas
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  resultados JSONB NOT NULL DEFAULT '[]'::jsonb,  -- publicaciones ya normalizadas
+  -- Una corrida del scraper tarda mas de 50 s, o sea que no entra en un
+  -- request. Se arranca, se anota el id aca, y la consulta siguiente levanta
+  -- el resultado sin volver a pagar.
+  run_id      TEXT,
+  dataset_id  TEXT,
+  run_estado  TEXT,
+  run_desde   TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Si la tabla ya existia de la version anterior:
+ALTER TABLE busquedas_cache ADD COLUMN IF NOT EXISTS run_id     TEXT;
+ALTER TABLE busquedas_cache ADD COLUMN IF NOT EXISTS dataset_id TEXT;
+ALTER TABLE busquedas_cache ADD COLUMN IF NOT EXISTS run_estado TEXT;
+ALTER TABLE busquedas_cache ADD COLUMN IF NOT EXISTS run_desde  TIMESTAMPTZ;
+ALTER TABLE busquedas_cache ALTER COLUMN resultados SET DEFAULT '[]'::jsonb;
 
 -- Para limpiar lo viejo y para el filtro por antiguedad.
 CREATE INDEX IF NOT EXISTS idx_busquedas_cache_fecha ON busquedas_cache(created_at DESC);

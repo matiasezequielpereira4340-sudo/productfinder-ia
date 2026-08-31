@@ -168,6 +168,153 @@ async function correrApify(product, opts) {
 }
 
 // ------------------------------------------------------------
+// Corridas asincronicas de Apify
+// Medido en produccion: una corrida tarda MAS de 50 s, o sea que esperarla
+// dentro del request es imposible (la funcion tiene 60 s y el usuario no va a
+// mirar una pantalla en blanco un minuto). Entonces: se arranca la corrida, se
+// guarda el id, se contesta enseguida, y el resultado se levanta despues.
+// ------------------------------------------------------------
+function inputDeActor(product, maxItems) {
+  if (process.env.APIFY_INPUT_JSON) {
+    return JSON.parse(process.env.APIFY_INPUT_JSON
+      .replace(/\{\{q\}\}/g, product.replace(/"/g, '\\"'))
+      .replace(/\{\{max\}\}/g, String(maxItems)));
+  }
+  return {
+    queries: [product],
+    search: product,
+    query: product,
+    keyword: product,
+    maxItems,
+    country: 'AR',
+    site: 'MLA'
+  };
+}
+
+function actorId() {
+  return (process.env.APIFY_ACTOR || 'devcake~mercadolibre-scraper').replace('/', '~');
+}
+
+function minimoItems(pedido) {
+  const minimo = parseInt(process.env.APIFY_MIN_ITEMS || '48', 10);
+  return Math.max(minimo, pedido || 0);
+}
+
+// Arranca la corrida y devuelve el id. No espera a que termine.
+export async function arrancarCorrida(product, opts) {
+  const token = process.env.APIFY_TOKEN;
+  if (!token) throw new Error('APIFY_TOKEN no configurado');
+  const o = opts || {};
+  const input = inputDeActor(product, minimoItems(o.maxItems));
+  const url = 'https://api.apify.com/v2/acts/' + encodeURIComponent(actorId()) +
+    '/runs?token=' + encodeURIComponent(token);
+
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), o.timeoutMs || 12000);
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+      signal: ctrl.signal
+    });
+    const texto = await r.text();
+    if (!r.ok) {
+      const e = new Error('Apify HTTP ' + r.status + ': ' + texto.slice(0, 200));
+      e.input_enviado = Object.keys(input);
+      throw e;
+    }
+    const j = JSON.parse(texto);
+    const datos = j && j.data;
+    if (!datos || !datos.id) throw new Error('Apify no devolvio id de corrida');
+    return { runId: datos.id, datasetId: datos.defaultDatasetId || null, estado: datos.status };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Estado de una corrida ya arrancada. No cuesta una corrida nueva.
+export async function estadoCorrida(runId, opts) {
+  const token = process.env.APIFY_TOKEN;
+  if (!token || !runId) return { estado: 'sin-token' };
+  const o = opts || {};
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), o.timeoutMs || 8000);
+  try {
+    const r = await fetch('https://api.apify.com/v2/actor-runs/' + encodeURIComponent(runId) +
+      '?token=' + encodeURIComponent(token), { signal: ctrl.signal });
+    if (!r.ok) return { estado: 'error-' + r.status };
+    const j = await r.json();
+    const d = (j && j.data) || {};
+    return { estado: d.status || 'desconocido', datasetId: d.defaultDatasetId || null };
+  } catch (_) {
+    return { estado: 'sin-respuesta' };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Filas ya normalizadas de una corrida terminada.
+export async function itemsDeCorrida(datasetId, opts) {
+  const token = process.env.APIFY_TOKEN;
+  if (!token || !datasetId) return [];
+  const o = opts || {};
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), o.timeoutMs || 12000);
+  try {
+    const r = await fetch('https://api.apify.com/v2/datasets/' + encodeURIComponent(datasetId) +
+      '/items?token=' + encodeURIComponent(token) + '&format=json&clean=true&limit=' + (o.limite || 60),
+      { signal: ctrl.signal });
+    if (!r.ok) return [];
+    const j = await r.json();
+    return Array.isArray(j) ? j : [];
+  } catch (_) {
+    return [];
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Convierte las filas crudas del actor en el formato de la app. Si el actor no
+// trajo precios, se completan gratis con la API oficial de MercadoLibre.
+export async function armarResultado(product, filas, meliToken, opts) {
+  const o = opts || {};
+  let resultados = (filas || []).map(normalizarFila).filter(x => x && x.title);
+  const conPrecio = resultados.filter(x => x.price > 0);
+
+  if (!conPrecio.length && meliToken) {
+    const ids = resultados.map(x => x.id).filter(Boolean).slice(0, o.maxItems || 40);
+    if (ids.length) {
+      const oficiales = await hidratarItems(ids, meliToken, Date.now() + (o.budgetMs || 8000));
+      resultados = oficiales.map(it => ({
+        id: it.id,
+        title: it.title,
+        price: it.price,
+        sold_quantity: it.sold_quantity || 0,
+        seller: { id: it.seller_id || null, nickname: it.seller_id ? ('Vendedor ' + it.seller_id) : '' },
+        shipping: { free_shipping: !!(it.shipping && it.shipping.free_shipping) }
+      }));
+    }
+  } else {
+    resultados = conPrecio;
+  }
+  if (!resultados.length) return null;
+
+  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const palabras = norm(product).split(/\s+/).filter(w => w.length > 2);
+  const conTodas = resultados.filter(it => { const t = norm(it.title); return palabras.every(w => t.includes(w)); });
+  const elegidos = conTodas.length >= 3 ? conTodas : resultados;
+
+  return {
+    fuente: 'proveedor-apify',
+    total: null,
+    muestra: elegidos.length,
+    categoryName: '',
+    results: elegidos
+  };
+}
+
+// ------------------------------------------------------------
 // Proxies de HTML (ScrapingBee / ScraperAPI)
 // Traen la pagina de listado desde una IP que MeLi no bloquea. De ahi salen
 // solo los IDs; los numeros los pone la API oficial.

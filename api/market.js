@@ -340,6 +340,14 @@ async function stepDemanda(product) {
 async function stepCompetencia(product) {
   if (!product) throw new Error('product requerido');
   const meli = await safeMeliSearch(product);
+  // La busqueda arranco pero todavia no termino: se avisa en vez de mostrar
+  // un vacio que parece un error.
+  if (meli && meli.pendiente) {
+    return { fuente: 'preparando', sellersEstimados: null, precioMinARS: null, precioMaxARS: null,
+      precioPromedioARS: null, totalResults: null, categoryName: '', saturacion: null,
+      competenciaScore: null, competitors: [],
+      aviso: 'Estoy trayendo los datos de MercadoLibre para este producto. Tarda un minuto la primera vez; volve a consultarlo y ya van a estar.' };
+  }
   if (meli && meli.results && meli.results.length > 0) {
     const prices = meli.results.map(x => x.price).filter(p => typeof p === 'number' && p > 0).sort((a,b)=>a-b);
     const min = prices[0] || 0;
@@ -456,11 +464,12 @@ async function safeMeliSearch(product) {
     } catch (_) {}
   }
 
-  // 2) Cadena compartida: catalogo -> destacados -> listado publico + /items.
-  //    Recuerda cual de las tres responde para no reintentar las muertas.
+  // 2) Cadena compartida: catalogo -> destacados -> listado publico -> el
+  //    proveedor externo. Recuerda cual responde para no reintentar las muertas.
   if (tok) {
     try {
       const r = await buscarPublicaciones(product, tok, { budgetMs: 6000 });
+      if (r && r.pendiente) return r;
       if (r && r.results.length) return r;
     } catch (_) {}
   }
