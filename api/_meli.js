@@ -676,7 +676,9 @@ export async function buscarPublicaciones(product, token, opts) {
       return await mod.buscarConProveedor(product, token, {
         maxItems: o.maxIds || 25,
         budgetMs: o.budgetMs || 8000,
-        timeoutMs: o.timeoutProveedorMs || 25000
+        // Tope corto en el camino normal: la funcion tiene 60 s y esto es
+        // lo ultimo que se prueba. La medicion larga va por ?proveedor=.
+        timeoutMs: o.timeoutProveedorMs || 20000
       });
     }
   };
