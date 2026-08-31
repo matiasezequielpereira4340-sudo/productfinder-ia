@@ -3,7 +3,7 @@
 // Datos de MercadoLibre (catalogo con token de usuario) + Anthropic para el
 // armado del informe.
 
-import { catalogSearch, highlightsSearch, getUserToken, meliCreds, fetchJson } from './_meli.js';
+import { buscarPublicaciones, viaDeBusquedaUsada, fetchListadoHtml, extraerIdsMLA, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
@@ -98,6 +98,7 @@ export default async function handler(req, res) {
         const tok = await getMeliAccessToken();
         paso.token = !!tok;
         paso.token_origen = _ultimoMotivoToken;
+        paso.via_recordada = viaDeBusquedaUsada();
         if (!tok) return res.status(200).json({ termino, paso });
 
         const busq = await fetchJson('https://api.mercadolibre.com/products/search?status=active&site_id=MLA&limit=10&q=' + q, tok, 5000);
@@ -140,6 +141,30 @@ export default async function handler(req, res) {
               muestra: cuerpos.slice(0, 3).map(b => ({ titulo: String(b.title || '').slice(0, 50), precio: b.price }))
             };
           }
+        }
+
+        // Via del listado publico: IDs del HTML + precios de la API oficial.
+        const lst = await fetchListadoHtml(termino, 6000);
+        const idsHtml = lst ? extraerIdsMLA(lst.texto) : [];
+        paso.listado_publico = {
+          status: lst ? lst.status : 0,
+          bytes: lst && lst.texto ? lst.texto.length : 0,
+          ids_encontrados: idsHtml.length,
+          total_declarado: lst ? lst.total : 0
+        };
+        if (idsHtml.length) {
+          const hidratados = await hidratarItems(idsHtml.slice(0, 20), tok, Date.now() + 6000);
+          paso.items_por_ids = {
+            devueltos: hidratados.length,
+            muestra: hidratados.slice(0, 3).map(b => ({ titulo: String(b.title || '').slice(0, 50), precio: b.price }))
+          };
+        }
+
+        // Lectura de un item suelto: es lo que usa el lector de links.
+        const idSuelto = idsHtml[0];
+        if (idSuelto) {
+          const uno = await fetchJson(MELI_API + '/items/' + idSuelto, tok, 4000);
+          paso.item_individual = { status: uno.status, precio: uno.json ? uno.json.price : null };
         }
 
         const final = await safeMeliSearch(termino);
@@ -360,26 +385,16 @@ async function safeMeliSearch(product) {
     } catch (_) {}
   }
 
-  // 2) Catalogo: /products/search + /products/{id}/items. Es la via que SI
-  //    responde con precios reales y la que sostiene hoy el analizador.
+  // 2) Cadena compartida: catalogo -> destacados -> listado publico + /items.
+  //    Recuerda cual de las tres responde para no reintentar las muertas.
   if (tok) {
     try {
-      const cat = await catalogSearch(product, tok, { maxProductos: 8, budgetMs: 6500 });
-      if (cat && cat.results.length) return cat;
+      const r = await buscarPublicaciones(product, tok, { budgetMs: 6000 });
+      if (r && r.results.length) return r;
     } catch (_) {}
   }
 
-  // 3) Destacados de la categoria + /items?ids=: la via que queda cuando el
-  //    catalogo no devuelve precios. Se filtra por titulo para no mezclar
-  //    productos de la misma categoria.
-  if (tok) {
-    try {
-      const hl = await highlightsSearch(product, tok, { budgetMs: 6000 });
-      if (hl && hl.results.length) return hl;
-    } catch (_) {}
-  }
-
-  // 4) API publica anonima (suele dar 403 ahora, pero por si vuelve)
+  // 3) API publica anonima (suele dar 403 ahora, pero por si vuelve)
   try {
     const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; ProductFinderBot/1.0)" } });
     if (r.ok) {
@@ -390,7 +405,7 @@ async function safeMeliSearch(product) {
     }
   } catch (_) {}
 
-  // 5) Ultimo recurso: HTML publico (desde Vercel MeLi suele bloquearlo)
+  // 4) Ultimo recurso: HTML publico (desde Vercel MeLi suele bloquearlo)
   try { return await scrapeMeliSearchHtml(product); } catch (_) { return null; }
 }
 
