@@ -3,7 +3,7 @@
 // Datos de MercadoLibre (catalogo con token de usuario) + Anthropic para el
 // armado del informe.
 
-import { buscarPublicaciones, viaDeBusquedaUsada, fetchListadoHtml, extraerIdsMLA, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
+import { buscarPublicaciones, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
@@ -143,28 +143,48 @@ export default async function handler(req, res) {
           }
         }
 
-        // Via del listado publico: IDs del HTML + precios de la API oficial.
-        const lst = await fetchListadoHtml(termino, 6000);
-        const idsHtml = lst ? extraerIdsMLA(lst.texto) : [];
-        paso.listado_publico = {
-          status: lst ? lst.status : 0,
-          bytes: lst && lst.texto ? lst.texto.length : 0,
-          ids_encontrados: idsHtml.length,
-          total_declarado: lst ? lst.total : 0
-        };
-        if (idsHtml.length) {
-          const hidratados = await hidratarItems(idsHtml.slice(0, 20), tok, Date.now() + 6000);
-          paso.items_por_ids = {
-            devueltos: hidratados.length,
-            muestra: hidratados.slice(0, 3).map(b => ({ titulo: String(b.title || '').slice(0, 50), precio: b.price }))
-          };
+        // Que devuelven las paginas publicas desde el server. El listado
+        // contestaba 200 pero con 0 IDs y 38 KB: eso no es una pagina de
+        // resultados, asi que hay que ver que es.
+        paso.paginas_publicas = [];
+        for (const cand of candidatosDeListado(termino)) {
+          const pag = await traerPagina(cand, 6000);
+          const ids = extraerIdsMLA(pag.texto);
+          const t = pag.texto.toLowerCase();
+          paso.paginas_publicas.push({
+            url: cand,
+            status: pag.status,
+            url_final: pag.urlFinal !== cand ? pag.urlFinal : undefined,
+            bytes: pag.texto.length,
+            titulo: (pag.texto.match(/<title[^>]*>([^<]{0,90})/i) || [])[1] || null,
+            ids: ids.length,
+            muro: /captcha|robot|access denied|forbidden|verifica|unusual traffic/.test(t) || undefined,
+            inicio: pag.texto.replace(/\s+/g, ' ').slice(0, 220)
+          });
+          if (ids.length) { paso.ids_de = cand; paso.ids_muestra = ids.slice(0, 5); break; }
         }
 
-        // Lectura de un item suelto: es lo que usa el lector de links.
-        const idSuelto = idsHtml[0];
-        if (idSuelto) {
-          const uno = await fetchJson(MELI_API + '/items/' + idSuelto, tok, 4000);
-          paso.item_individual = { status: uno.status, precio: uno.json ? uno.json.price : null };
+        // Prueba decisiva: /items?ids= nunca se pudo probar por falta de IDs.
+        // Se prueba con publicaciones de la propia cuenta, que son IDs validos
+        // seguros. Si esto anda, el problema es solo de donde sacar los IDs.
+        const yo = await fetchJson(MELI_API + '/users/me', tok, 4000);
+        const miId = yo.json && yo.json.id;
+        paso.mi_cuenta = { status: yo.status, id: miId || null };
+        if (miId) {
+          const mios = await fetchJson(MELI_API + '/users/' + miId + '/items/search?limit=3', tok, 4000);
+          const misIds = (mios.json && Array.isArray(mios.json.results)) ? mios.json.results : [];
+          paso.mis_publicaciones = { status: mios.status, cantidad: misIds.length };
+          const paraProbar = (paso.ids_muestra || []).concat(misIds).slice(0, 5);
+          if (paraProbar.length) {
+            const hidratados = await hidratarItems(paraProbar, tok, Date.now() + 6000);
+            paso.items_por_ids = {
+              pedidos: paraProbar.length,
+              devueltos: hidratados.length,
+              muestra: hidratados.slice(0, 3).map(b => ({ titulo: String(b.title || '').slice(0, 45), precio: b.price }))
+            };
+            const uno = await fetchJson(MELI_API + '/items/' + paraProbar[0], tok, 4000);
+            paso.item_individual = { status: uno.status, precio: uno.json ? uno.json.price : null };
+          }
         }
 
         const final = await safeMeliSearch(termino);
