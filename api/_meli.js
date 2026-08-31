@@ -612,6 +612,11 @@ function horasDeCache() {
   return isFinite(h) && h >= 0 ? h : 12;
 }
 
+// Expuesta para el diagnostico: deja ver la corrida pendiente sin arrancar una.
+export async function filaDeCache(product) {
+  return await leerFilaCache(product);
+}
+
 async function leerFilaCache(product) {
   try {
     const filas = await supaRows('/rest/v1/busquedas_cache?termino=eq.' +
