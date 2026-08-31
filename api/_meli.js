@@ -328,3 +328,77 @@ export async function catalogSearch(product, token, opts) {
     categoryName: (catalogo[0] && (catalogo[0].domain_id || '').split('-').pop()) || ''
   };
 }
+
+// Segunda via de precios reales, para cuando el catalogo no los da.
+// /products/{id}/items puede venir vacio, pero estos tres endpoints siguen
+// abiertos con token de usuario:
+//   /sites/MLA/domain_discovery/search -> la categoria real del termino
+//   /highlights/MLA/category/{cat}     -> los items mas vendidos de esa categoria
+//   /items?ids=...                     -> precio, vendedor, vendidos y envio
+// Despues se filtran por titulo, asi lo que se muestra son publicaciones del
+// producto buscado y no "lo mas vendido de la categoria" disfrazado.
+export async function highlightsSearch(product, token, opts) {
+  if (!token) return null;
+  const o = opts || {};
+  const deadline = Date.now() + (o.budgetMs || 6500);
+  const q = encodeURIComponent(product);
+
+  const dom = await fetchJson(MELI_API + '/sites/MLA/domain_discovery/search?limit=3&q=' + q, token, 4000);
+  const cats = (dom.ok && Array.isArray(dom.json))
+    ? dom.json.map(d => d && d.category_id).filter(Boolean) : [];
+  if (!cats.length) return null;
+
+  const nombreCat = (dom.json[0] && (dom.json[0].category_name || dom.json[0].domain_name)) || '';
+  const hl = await fetchJson(MELI_API + '/highlights/MLA/category/' + cats[0], token, 4000);
+  const contenido = (hl.ok && hl.json && Array.isArray(hl.json.content)) ? hl.json.content : [];
+  const ids = contenido
+    .filter(c => c && c.id && (!c.type || c.type === 'ITEM'))
+    .map(c => c.id).slice(0, 40);
+  if (!ids.length) return null;
+
+  // /items?ids= acepta de a 20.
+  const lotes = [];
+  for (let i = 0; i < ids.length; i += 20) lotes.push(ids.slice(i, i + 20));
+  const atributos = 'id,title,price,sold_quantity,seller_id,shipping,category_id';
+  const respuestas = await Promise.all(lotes.map(l => {
+    if (Date.now() > deadline) return { ok: false, json: null };
+    return fetchJson(MELI_API + '/items?ids=' + l.join(',') + '&attributes=' + atributos, token, 5000);
+  }));
+
+  const items = [];
+  for (const r of respuestas) {
+    if (!r.ok || !Array.isArray(r.json)) continue;
+    for (const fila of r.json) {
+      const b = fila && (fila.body || fila);
+      if (b && typeof b.price === 'number' && b.price > 0 && b.title) items.push(b);
+    }
+  }
+  if (!items.length) return null;
+
+  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const palabras = norm(product).split(/\s+/).filter(w => w.length > 2);
+  const conTodas = items.filter(it => { const t = norm(it.title); return palabras.every(w => t.includes(w)); });
+  const conAlguna = items.filter(it => { const t = norm(it.title); return palabras.some(w => t.includes(w)); });
+
+  // Si nada del ranking habla del producto, no forzamos: mejor sin dato que un
+  // dato de otra cosa.
+  const elegidos = conTodas.length >= 3 ? conTodas : (conAlguna.length >= 3 ? conAlguna : []);
+  if (!elegidos.length) return null;
+
+  return {
+    fuente: conTodas.length >= 3 ? 'meli-destacados' : 'meli-destacados-parcial',
+    // No hay total de publicaciones por esta via: se deja en null a proposito
+    // para que la saturacion no se calcule sobre una muestra de 40 items.
+    total: null,
+    muestra: elegidos.length,
+    categoryName: nombreCat,
+    results: elegidos.map(it => ({
+      id: it.id,
+      title: it.title,
+      price: it.price,
+      sold_quantity: it.sold_quantity || 0,
+      seller: { id: it.seller_id || null, nickname: it.seller_id ? ('Vendedor ' + it.seller_id) : '' },
+      shipping: { free_shipping: !!(it.shipping && it.shipping.free_shipping) }
+    }))
+  };
+}

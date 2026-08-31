@@ -3,7 +3,7 @@
 // Datos de MercadoLibre (catalogo con token de usuario) + Anthropic para el
 // armado del informe.
 
-import { catalogSearch, getUserToken, meliCreds } from './_meli.js';
+import { catalogSearch, highlightsSearch, getUserToken, meliCreds, fetchJson } from './_meli.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
@@ -85,6 +85,71 @@ export default async function handler(req, res) {
       } catch (e) {
         return res.status(200).json({ ok: false, error: 'No pude consultar MercadoLibre ahora.' });
       }
+    }
+
+    // ?catalogo=termino recorre paso a paso las vias de precio y reporta que
+    // devuelve cada endpoint de MercadoLibre. Es para diagnosticar por que una
+    // busqueda vuelve vacia, sin adivinar. No expone tokens.
+    if (req.query && typeof req.query.catalogo === 'string') {
+      const termino = req.query.catalogo.length > 1 ? req.query.catalogo : 'auriculares bluetooth';
+      const q = encodeURIComponent(termino);
+      const paso = {};
+      try {
+        const tok = await getMeliAccessToken();
+        paso.token = !!tok;
+        paso.token_origen = _ultimoMotivoToken;
+        if (!tok) return res.status(200).json({ termino, paso });
+
+        const busq = await fetchJson('https://api.mercadolibre.com/products/search?status=active&site_id=MLA&limit=10&q=' + q, tok, 5000);
+        paso.products_search = { ok: busq.ok, status: busq.status };
+        const lista = (busq.json && Array.isArray(busq.json.results)) ? busq.json.results : [];
+        paso.products_search.resultados = lista.length;
+        paso.products_search.claves = lista[0] ? Object.keys(lista[0]).slice(0, 14) : [];
+        const pid = lista[0] && (lista[0].id || lista[0].catalog_product_id || lista[0].product_id);
+        paso.products_search.primer_id = pid || null;
+
+        if (pid) {
+          const det = await fetchJson('https://api.mercadolibre.com/products/' + pid, tok, 4000);
+          paso.producto_detalle = { status: det.status, buy_box: det.json ? !!det.json.buy_box_winner : false };
+          const its = await fetchJson('https://api.mercadolibre.com/products/' + pid + '/items?limit=10', tok, 4000);
+          const arr = (its.json && Array.isArray(its.json.results)) ? its.json.results : [];
+          paso.producto_items = {
+            status: its.status,
+            cantidad: arr.length,
+            con_precio: arr.filter(x => x && typeof x.price === 'number' && x.price > 0).length,
+            claves: arr[0] ? Object.keys(arr[0]).slice(0, 14) : []
+          };
+        }
+
+        const dom = await fetchJson('https://api.mercadolibre.com/sites/MLA/domain_discovery/search?limit=3&q=' + q, tok, 4000);
+        const catId = (dom.json && dom.json[0] && dom.json[0].category_id) || null;
+        paso.domain_discovery = { status: dom.status, category_id: catId };
+        if (catId) {
+          const hl = await fetchJson('https://api.mercadolibre.com/highlights/MLA/category/' + catId, tok, 4000);
+          const cont = (hl.json && Array.isArray(hl.json.content)) ? hl.json.content : [];
+          paso.highlights = { status: hl.status, cantidad: cont.length };
+          const ids = cont.filter(c => c && c.id).map(c => c.id).slice(0, 20);
+          if (ids.length) {
+            const it = await fetchJson('https://api.mercadolibre.com/items?ids=' + ids.join(',') + '&attributes=id,title,price,sold_quantity,seller_id,shipping', tok, 5000);
+            const filas = Array.isArray(it.json) ? it.json : [];
+            const cuerpos = filas.map(f => (f && (f.body || f))).filter(Boolean);
+            paso.items_por_ids = {
+              status: it.status,
+              devueltos: cuerpos.length,
+              con_precio: cuerpos.filter(b => typeof b.price === 'number' && b.price > 0).length,
+              muestra: cuerpos.slice(0, 3).map(b => ({ titulo: String(b.title || '').slice(0, 50), precio: b.price }))
+            };
+          }
+        }
+
+        const final = await safeMeliSearch(termino);
+        paso.resultado_final = final
+          ? { fuente: final.fuente, resultados: (final.results || []).length, total: final.total }
+          : 'no-disponible';
+      } catch (e) {
+        paso.error = String((e && e.message) || e).slice(0, 200);
+      }
+      return res.status(200).json({ termino, paso });
     }
 
     // ?probe=termino hace una consulta real y reporta a que endpoints de
@@ -185,14 +250,20 @@ async function stepCompetencia(product) {
     const max = prices[prices.length-1] || 0;
     const avg = prices.length ? Math.round(prices.reduce((a,b)=>a+b,0)/prices.length) : 0;
     const sellers = new Set(meli.results.map(x => x.seller && x.seller.id).filter(Boolean));
-    const total = meli.total || meli.results.length;
-    let saturacion = 'moderado';
-    if (total < 200) saturacion = 'libre';
-    else if (total > 10000) saturacion = 'muy saturado';
-    else if (total > 2000) saturacion = 'saturado';
+    // Solo hay total de publicaciones por algunas vias. Si no lo hay, la
+    // saturacion queda en null: no se deduce de una muestra de 40 items.
+    const total = (typeof meli.total === 'number' && meli.total > 0) ? meli.total : null;
+    let saturacion = null;
+    if (total != null) {
+      saturacion = 'moderado';
+      if (total < 200) saturacion = 'libre';
+      else if (total > 10000) saturacion = 'muy saturado';
+      else if (total > 2000) saturacion = 'saturado';
+    }
     const conEnvioGratis = meli.results.filter(x => x.shipping && x.shipping.free_shipping).length;
     const competitors = meli.results.slice(0,5).map((x,i)=>({rank:i+1, name:(x.seller && x.seller.nickname) || ('Vendedor '+(i+1)), price:x.price||0, soldQty:x.sold_quantity||0, reputation:(x.seller && x.seller.seller_reputation && x.seller.seller_reputation.level_id) || 'N/A', repClass:'comp-rep-ok', freeShipping: !!(x.shipping && x.shipping.free_shipping)}));
-    return { fuente: meli.fuente || 'mercadolibre-search', sellersEstimados: sellers.size || meli.results.length, precioMinARS:min, precioMaxARS:max, precioPromedioARS:avg, totalResults:total, categoryName:meli.categoryName||'', saturacion, competenciaScore: Math.min(100, Math.round(total/100)), competitors, envioGratisCount: conEnvioGratis, envioGratisTotal: meli.results.length, envioGratisPct: meli.results.length ? Math.round((conEnvioGratis/meli.results.length)*100) : 0 };
+    return { fuente: meli.fuente || 'mercadolibre-search', sellersEstimados: sellers.size || meli.results.length, precioMinARS:min, precioMaxARS:max, precioPromedioARS:avg, totalResults:total, categoryName:meli.categoryName||'', saturacion, competenciaScore: total != null ? Math.min(100, Math.round(total/100)) : null, competitors, envioGratisCount: conEnvioGratis, envioGratisTotal: meli.results.length, envioGratisPct: meli.results.length ? Math.round((conEnvioGratis/meli.results.length)*100) : 0,
+      aviso: total == null ? 'MercadoLibre no expone el total de publicaciones por esta via: el precio y los competidores son reales, la saturacion no se puede calcular.' : null };
   }
   // IMPORTANTE: si no hay datos reales de MeLi (API 403 o scraping fallido) NO inventamos numeros via IA.
   return { fuente: 'no-disponible', sellersEstimados: null, precioMinARS: null, precioMaxARS: null, precioPromedioARS: null, totalResults: null, categoryName: '', saturacion: null, competenciaScore: null, competitors: [], aviso: 'Datos de Mercado Libre no disponibles ahora (la API publica requiere autenticacion). Mostramos solo lo verificable.' };
@@ -298,7 +369,17 @@ async function safeMeliSearch(product) {
     } catch (_) {}
   }
 
-  // 3) API publica anonima (suele dar 403 ahora, pero por si vuelve)
+  // 3) Destacados de la categoria + /items?ids=: la via que queda cuando el
+  //    catalogo no devuelve precios. Se filtra por titulo para no mezclar
+  //    productos de la misma categoria.
+  if (tok) {
+    try {
+      const hl = await highlightsSearch(product, tok, { budgetMs: 6000 });
+      if (hl && hl.results.length) return hl;
+    } catch (_) {}
+  }
+
+  // 4) API publica anonima (suele dar 403 ahora, pero por si vuelve)
   try {
     const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; ProductFinderBot/1.0)" } });
     if (r.ok) {
@@ -309,7 +390,7 @@ async function safeMeliSearch(product) {
     }
   } catch (_) {}
 
-  // 4) Ultimo recurso: HTML publico (desde Vercel MeLi suele bloquearlo)
+  // 5) Ultimo recurso: HTML publico (desde Vercel MeLi suele bloquearlo)
   try { return await scrapeMeliSearchHtml(product); } catch (_) { return null; }
 }
 
