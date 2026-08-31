@@ -103,7 +103,11 @@ async function correrApify(product, opts) {
   const token = process.env.APIFY_TOKEN;
   if (!token) return { error: 'APIFY_TOKEN no configurado' };
   const actor = (process.env.APIFY_ACTOR || 'devcake~mercadolibre-scraper').replace('/', '~');
-  const maxItems = opts.maxItems || 20;
+  // El actor rechaza menos de 48 ("Field input.maxItems must be >= 48"), asi
+  // que ese es el piso. Cada corrida cuesta lo que cueste ese lote entero:
+  // pedir menos no sale mas barato, por eso conviene el cache de arriba.
+  const minimo = parseInt(process.env.APIFY_MIN_ITEMS || '48', 10);
+  const maxItems = Math.max(minimo, opts.maxItems || 0);
 
   // El input cambia de actor en actor. APIFY_INPUT_JSON permite adaptarlo sin
   // tocar codigo: {{q}} se reemplaza por el termino y {{max}} por el limite.

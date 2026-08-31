@@ -595,9 +595,76 @@ export async function hidratarItems(ids, token, deadline) {
 // ------------------------------------------------------------
 const _viaEstado = { preferida: null, fallos: {} };
 
+// ------------------------------------------------------------
+// Cache de busquedas
+// Cada busqueda que termina en el proveedor externo cuesta plata, y el
+// recomendador repite los mismos 12 terminos de un nicho en cada corrida. Con
+// el cache, la segunda corrida del dia no gasta nada. Si la tabla no existe,
+// todo sigue funcionando sin cache.
+// ------------------------------------------------------------
+function claveDeBusqueda(product) {
+  return String(product || '').toLowerCase().normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function horasDeCache() {
+  const h = parseFloat(process.env.BUSQUEDA_CACHE_HORAS || '12');
+  return isFinite(h) && h >= 0 ? h : 12;
+}
+
+async function leerCache(product) {
+  const horas = horasDeCache();
+  if (!horas) return null;
+  try {
+    const desde = new Date(Date.now() - horas * 3600 * 1000).toISOString();
+    const filas = await supaRows('/rest/v1/busquedas_cache?termino=eq.' +
+      encodeURIComponent(claveDeBusqueda(product)) +
+      '&created_at=gte.' + encodeURIComponent(desde) + '&select=*&limit=1');
+    const f = filas[0];
+    if (!f || !Array.isArray(f.resultados) || !f.resultados.length) return null;
+    return {
+      fuente: f.fuente || 'cache',
+      total: f.total != null ? f.total : null,
+      categoryName: f.categoria || '',
+      results: f.resultados,
+      desdeCache: true,
+      guardadoEn: f.created_at
+    };
+  } catch (_) { return null; }
+}
+
+async function guardarCache(product, r) {
+  if (!horasDeCache() || !r || !r.results || !r.results.length) return;
+  try {
+    const { url, key, ok } = supa();
+    if (!ok) return;
+    await fetch(url + '/rest/v1/busquedas_cache?on_conflict=termino', {
+      method: 'POST',
+      headers: {
+        apikey: key, Authorization: 'Bearer ' + key,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates,return=minimal'
+      },
+      body: JSON.stringify({
+        termino: claveDeBusqueda(product),
+        fuente: r.fuente || null,
+        total: typeof r.total === 'number' ? r.total : null,
+        categoria: r.categoryName || null,
+        resultados: r.results,
+        created_at: new Date().toISOString()
+      })
+    });
+  } catch (_) { /* el cache es una optimizacion, no puede romper la busqueda */ }
+}
+
 export async function buscarPublicaciones(product, token, opts) {
   if (!token || !product) return null;
   const o = opts || {};
+
+  if (!o.sinCache) {
+    const guardado = await leerCache(product);
+    if (guardado) return guardado;
+  }
   const vias = {
     catalogo: () => catalogSearch(product, token, { maxProductos: o.maxProductos || 6, budgetMs: o.budgetMs || 5000 }),
     destacados: () => highlightsSearch(product, token, { budgetMs: o.budgetMs || 5000 }),
@@ -627,6 +694,7 @@ export async function buscarPublicaciones(product, token, opts) {
       const r = await vias[nombre]();
       if (r && r.results && r.results.length) {
         _viaEstado.preferida = nombre;
+        await guardarCache(product, r);
         return r;
       }
       _viaEstado.fallos[nombre] = (_viaEstado.fallos[nombre] || 0) + 1;
