@@ -238,6 +238,8 @@
         href: "/meli-connect.html", desc: "Vinculá tu MercadoLibre" },
       { key: "dashboard", label: "Dashboard de ventas", icon: "i-chart",
         href: "/dashboard.html", desc: "Órdenes, comisiones y ganancia neta" },
+      { key: "radar", label: "Radar de Oportunidad", icon: "i-target",
+        href: "/radar.html", desc: "Qué se está moviendo antes de que llegue" },
       { key: "analizador", label: "Analizador de publicaciones", icon: "i-search",
         href: "/analizador.html", desc: "Qué mejorar en tu publicación" },
       { key: "envios", label: "Flex vs Full", icon: "i-truck",

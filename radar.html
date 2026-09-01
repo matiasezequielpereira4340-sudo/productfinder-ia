@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Radar de Oportunidad - ProductFinder IA</title>
+<meta name="description" content="Productos que están creciendo en Brasil y todavía no llegaron a Argentina, cruzados con cuánta competencia tienen acá.">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="https://productfinder-ia.vercel.app/radar.html">
+<link rel="icon" href="assets/brand/favicon.ico">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Chivo:wght@300;400;500;600;700;900&family=Chivo+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="theme.css?v=20260901a">
+<style>
+  .rd-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:18px 0 6px}
+  .rd-select{background:var(--mc-surface);border:1px solid var(--mc-line);color:var(--mc-ink);
+    border-radius:10px;padding:10px 12px;font:inherit;font-size:14px;min-width:230px}
+  .rd-legend{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 22px;font-size:13px;color:var(--mc-ink-3)}
+  .rd-tag{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;
+    font-size:11.5px;font-weight:700;letter-spacing:.02em;white-space:nowrap}
+  .rd-tag.nuevo{background:rgba(34,197,94,.14);color:#4ade80;border:1px solid rgba(34,197,94,.35)}
+  .rd-tag.ambos{background:rgba(255,230,0,.14);color:var(--mc-y);border:1px solid rgba(255,230,0,.35)}
+  .rd-tag.ar{background:rgba(255,255,255,.06);color:var(--mc-ink-2);border:1px solid var(--mc-line-2)}
+  .rd-tag.br{background:rgba(59,130,246,.14);color:#93c5fd;border:1px solid rgba(59,130,246,.35)}
+  .rd-list{display:grid;gap:12px;margin-top:6px}
+  .rd-card{background:var(--mc-surface);border:1px solid var(--mc-line);border-radius:14px;padding:16px 18px}
+  .rd-card.destacada{border-color:var(--mc-line-hi)}
+  .rd-head{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+  .rd-kw{font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:1.12rem;font-weight:700;
+    color:var(--mc-ink);line-height:1.25;flex:1;min-width:190px}
+  .rd-rubro{font-size:12px;color:var(--mc-ink-4);margin-top:3px;font-weight:400}
+  .rd-senal{margin-top:9px;font-size:13.5px;color:var(--mc-ink-2);line-height:1.5}
+  .rd-de{font-size:12px;color:var(--mc-ink-4);margin-top:5px;font-style:italic}
+  .rd-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:13px}
+  .rd-btn{background:transparent;border:1px solid var(--mc-line-2);color:var(--mc-ink-2);
+    border-radius:9px;padding:7px 13px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+  .rd-btn:hover{border-color:var(--mc-y);color:var(--mc-y)}
+  .rd-btn[disabled]{opacity:.55;cursor:default}
+  .rd-sat{font-size:13px;line-height:1.6;margin-top:11px;padding-top:11px;border-top:1px solid var(--mc-line)}
+  .rd-nums{display:flex;gap:16px;flex-wrap:wrap;margin-top:7px;font-size:12.5px;color:var(--mc-ink-3)}
+  .rd-nums b{color:var(--mc-ink);font-weight:600}
+  .rd-score{font-family:'Chivo Mono',monospace;font-size:1.5rem;font-weight:600;line-height:1;text-align:right}
+  .rd-score small{display:block;font-size:10.5px;font-weight:400;color:var(--mc-ink-4);
+    margin-top:4px;letter-spacing:.04em;text-transform:uppercase;font-family:'Chivo',sans-serif}
+  .rd-nota{background:var(--mc-surface-2);border:1px solid var(--mc-line);border-radius:12px;
+    padding:14px 16px;font-size:13.5px;color:var(--mc-ink-2);line-height:1.6;margin:20px 0}
+  .rd-nota b{color:var(--mc-ink)}
+</style>
+</head>
+<body>
+<div data-mc-nav="radar"></div>
+
+<div class="wrap">
+  <div class="hero">
+    <h1>Radar de <span>Oportunidad</span></h1>
+    <p>Lo dif&iacute;cil no es analizar un producto: es que se te ocurra cu&aacute;l. Ac&aacute; salen los que est&aacute;n creciendo en las b&uacute;squedas de MercadoLibre Brasil y todav&iacute;a no aparecen en las de Argentina.</p>
+  </div>
+
+  <div class="rd-toolbar">
+    <select class="rd-select" id="rubro"><option value="">Todos los rubros</option></select>
+    <button class="btn btn-yellow" id="go">Buscar oportunidades</button>
+  </div>
+  <div class="hint">El descubrimiento es gratis: sale de las tendencias que publica MercadoLibre. Medir la competencia de un producto s&iacute; consume cr&eacute;dito, por eso se hace de a uno.</div>
+
+  <div class="loading" id="loading"><div class="spin"></div> Leyendo las tendencias de Argentina y Brasil...</div>
+  <div class="error-box" id="error"></div>
+
+  <div class="rd-legend" id="legend" style="display:none">
+    <span><span class="rd-tag nuevo">No lleg&oacute;</span> crece en Brasil, no figura ac&aacute;</span>
+    <span><span class="rd-tag ambos">En los dos</span> demanda confirmada</span>
+    <span><span class="rd-tag ar">Argentina</span> ya est&aacute; creciendo ac&aacute;</span>
+  </div>
+
+  <div class="rd-list" id="lista"></div>
+
+  <div class="rd-nota" id="nota" style="display:none">
+    <b>C&oacute;mo leer esto.</b> El puntaje de demanda sale de la posici&oacute;n del producto en las listas
+    de crecimiento de MercadoLibre: cuanto m&aacute;s arriba, m&aacute;s fuerte la se&ntilde;al. El puntaje de
+    oportunidad aparece reci&eacute;n cuando med&iacute;s la competencia, porque hasta ese momento no se sabe
+    cu&aacute;nta oferta hay en Argentina. Un producto que explota afuera pero tiene 8.000 publicaciones
+    ac&aacute; no es una oportunidad.
+  </div>
+</div>
+
+<script>
+(function(){
+  var lista = document.getElementById('lista');
+  var loading = document.getElementById('loading');
+  var errorBox = document.getElementById('error');
+  var selRubro = document.getElementById('rubro');
+  var candidatos = [];
+
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function num(n){ return typeof n === 'number' ? n.toLocaleString('es-AR') : '--'; }
+
+  function tag(origen){
+    if (origen === 'BR-nuevo') return '<span class="rd-tag nuevo">No lleg&oacute; a Argentina</span>';
+    if (origen === 'ambos')    return '<span class="rd-tag ambos">Crece en los dos</span>';
+    if (origen === 'BR')       return '<span class="rd-tag br">Brasil</span>';
+    return '<span class="rd-tag ar">Argentina</span>';
+  }
+
+  function colorScore(s){ return s >= 40 ? '#4ade80' : s >= 15 ? '#FFE600' : s >= 0 ? '#f59e0b' : '#ef4444'; }
+
+  function tarjeta(c, i){
+    return '<div class="rd-card' + (c.origen === 'BR-nuevo' ? ' destacada' : '') + '" id="c' + i + '">' +
+      '<div class="rd-head">' +
+        '<div class="rd-kw">' + esc(c.keyword) +
+          '<div class="rd-rubro">' + esc(c.categoriaNombre) + '</div></div>' +
+        '<div>' + tag(c.origen) + '</div>' +
+        '<div class="rd-score" style="color:' + colorScore(c.scoreDemanda) + '">' + c.scoreDemanda +
+          '<small>demanda</small></div>' +
+      '</div>' +
+      '<div class="rd-senal">' + esc(c.senal) + '</div>' +
+      (c.traducidoDe ? '<div class="rd-de">En Brasil lo buscan como &ldquo;' + esc(c.traducidoDe) + '&rdquo;</div>' : '') +
+      '<div class="rd-foot">' +
+        '<button class="rd-btn" onclick="medir(' + i + ')">Ver cu&aacute;nta competencia tiene ac&aacute;</button>' +
+        (c.posicionBR ? '<span style="font-size:12px;color:var(--mc-ink-4)">Puesto ' + c.posicionBR + ' en Brasil</span>' : '') +
+        (c.posicionAR ? '<span style="font-size:12px;color:var(--mc-ink-4)">Puesto ' + c.posicionAR + ' en Argentina</span>' : '') +
+      '</div>' +
+      '<div id="sat' + i + '"></div></div>';
+  }
+
+  window.medir = function(i){
+    var c = candidatos[i];
+    var caja = document.getElementById('sat' + i);
+    var btn = document.querySelector('#c' + i + ' .rd-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Midiendo...'; }
+    caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">Consultando MercadoLibre Argentina...</div>';
+
+    fetch('/api/market?radar=1&saturacion=' + encodeURIComponent(c.keyword) + '&demanda=' + c.scoreDemanda)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) throw new Error(d.error || 'No pude medir la competencia');
+
+        if (d.estado === 'preparando') {
+          caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">' + esc(d.aviso) +
+            ' Reviso solo en 20 segundos.</div>';
+          setTimeout(function(){ if (btn) { btn.disabled = false; } window.medir(i); }, 20000);
+          return;
+        }
+        if (d.estado === 'sin-datos') {
+          caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">' + esc(d.aviso) + '</div>';
+          if (btn) { btn.disabled = false; btn.textContent = 'Reintentar'; }
+          return;
+        }
+
+        var m = d.mla;
+        caja.innerHTML = '<div class="rd-sat">' +
+          '<span style="color:' + colorScore(d.score) + ';font-weight:700;font-size:15px">' +
+            'Oportunidad ' + d.score + '/100</span> &middot; ' + esc(d.motivo) +
+          '<div class="rd-nums">' +
+            '<span>Publicaciones: <b>' + num(m.listings) + (m.totalReal ? '' : ' (muestra)') + '</b></span>' +
+            '<span>Vendedores: <b>' + num(m.vendedores) + '</b></span>' +
+            '<span>Precio t&iacute;pico: <b>$' + num(m.precioMediana) + '</b></span>' +
+            '<span>Rango: <b>$' + num(m.precioMin) + ' - $' + num(m.precioMax) + '</b></span>' +
+          '</div></div>';
+        if (btn) { btn.textContent = 'Medido'; }
+      })
+      .catch(function(e){
+        caja.innerHTML = '<div class="rd-sat" style="color:#ef4444">' + esc(e.message) + '</div>';
+        if (btn) { btn.disabled = false; btn.textContent = 'Reintentar'; }
+      });
+  };
+
+  function buscar(){
+    loading.style.display = 'block';
+    errorBox.style.display = 'none';
+    lista.innerHTML = '';
+    document.getElementById('legend').style.display = 'none';
+    document.getElementById('nota').style.display = 'none';
+
+    var url = '/api/market?radar=1&rubros=8';
+    if (selRubro.value) url += '&categoria=' + encodeURIComponent(selRubro.value);
+
+    fetch(url).then(function(r){ return r.json(); }).then(function(d){
+      loading.style.display = 'none';
+      if (!d.ok) throw new Error(d.error || 'No pude leer las tendencias');
+      candidatos = d.candidatos || [];
+      if (!candidatos.length) {
+        errorBox.textContent = 'MercadoLibre no devolvió tendencias para ese rubro en este momento.';
+        errorBox.style.display = 'block';
+        return;
+      }
+      if (!selRubro.options.length || selRubro.options.length === 1) {
+        (d.rubros || []).forEach(function(r){
+          var c = candidatos.find(function(x){ return x.categoriaNombre === r.ar; });
+          if (!c) return;
+          var o = document.createElement('option');
+          o.value = c.categoria; o.textContent = r.ar;
+          selRubro.appendChild(o);
+        });
+      }
+      lista.innerHTML = candidatos.map(tarjeta).join('');
+      document.getElementById('legend').style.display = 'flex';
+      document.getElementById('nota').style.display = 'block';
+    }).catch(function(e){
+      loading.style.display = 'none';
+      errorBox.textContent = e.message;
+      errorBox.style.display = 'block';
+    });
+  }
+
+  document.getElementById('go').addEventListener('click', buscar);
+  buscar();
+})();
+</script>
+<script defer src="mc-ui.js?v=20260901a"></script>
+</body>
+</html>
