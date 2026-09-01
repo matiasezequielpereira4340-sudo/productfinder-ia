@@ -287,7 +287,9 @@ export default async function handler(req, res) {
     // si el actor informa el total de publicaciones. Leer datasets es gratis.
     if (req.query && req.query.corrida) {
       const bus = await import('./_buscador.js');
-      try { return res.status(200).json(await bus.inspeccionarUltimaCorrida()); }
+      const filtro = typeof req.query.corrida === 'string' && req.query.corrida.length > 2
+        ? req.query.corrida : null;
+      try { return res.status(200).json(await bus.inspeccionarUltimaCorrida(filtro)); }
       catch (e) { return res.status(200).json({ error: String((e && e.message) || e).slice(0, 200) }); }
     }
 

@@ -577,12 +577,31 @@ function precioDeActor(a) {
 // que YA se pago. Leer un dataset no cuesta nada, asi que esto es gratis.
 // Sirve para saber si el actor informa el total de publicaciones del termino,
 // que es el dato que falta para poder decir si un producto esta saturado.
-export async function inspeccionarUltimaCorrida() {
-  const r = await apifyGet('/actor-runs?limit=5&desc=true', 12000);
+export async function inspeccionarUltimaCorrida(filtroActor) {
+  const r = await apifyGet('/actor-runs?limit=10&desc=true', 12000);
   if (!r.ok) return { error: 'Apify ' + r.status + ': ' + (r.detalle || '') };
   const corridas = (r.json && r.json.data && r.json.data.items) || [];
-  const ok = corridas.find(c => c.status === 'SUCCEEDED' && c.defaultDatasetId);
-  if (!ok) return { error: 'no hay corridas terminadas para inspeccionar', vistas: corridas.length };
+
+  // Cuando hay varias fuentes corriendo, "la ultima" no alcanza: hay que poder
+  // pedir la de un actor puntual. Se filtra por el id interno del actor, que
+  // es lo unico que trae el listado de corridas.
+  const filtro = String(filtroActor || '').trim();
+  const candidatas = filtro
+    ? corridas.filter(c => String(c.actId || '').includes(filtro))
+    : corridas;
+
+  const ok = candidatas.find(c => c.status === 'SUCCEEDED' && c.defaultDatasetId);
+  if (!ok) {
+    // Si no hay ninguna exitosa, igual sirve saber que paso con las que hubo.
+    return {
+      error: 'no hay corridas terminadas con exito para inspeccionar',
+      filtro: filtro || null,
+      ultimas: corridas.slice(0, 10).map(c => ({
+        actor: c.actId, estado: c.status, arrancada: c.startedAt,
+        items: (c.stats && c.stats.outputItemCount) != null ? c.stats.outputItemCount : null
+      }))
+    };
+  }
 
   const ds = await apifyGet('/datasets/' + encodeURIComponent(ok.defaultDatasetId) +
     '/items?limit=2&format=json', 12000);
@@ -592,6 +611,11 @@ export async function inspeccionarUltimaCorrida() {
   const meta = await apifyGet('/datasets/' + encodeURIComponent(ok.defaultDatasetId), 10000);
 
   return {
+    // El listado de todas ayuda a ver cual es cual cuando hay varias fuentes.
+    ultimas: corridas.slice(0, 10).map(c => ({
+      actor: c.actId, estado: c.status,
+      items: (c.stats && c.stats.outputItemCount) != null ? c.stats.outputItemCount : null
+    })),
     corrida: { id: ok.id, actor: ok.actId, terminada: ok.finishedAt, items: (meta.ok && meta.json && meta.json.data && meta.json.data.itemCount) || null },
     campos: filas[0] ? Object.keys(filas[0]) : [],
     // Cualquier campo que suene a total de resultados es lo que buscamos.
