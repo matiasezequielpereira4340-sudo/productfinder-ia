@@ -283,8 +283,18 @@
             }).join('') + '</div>';
         }
 
+        // De cuando es la medicion. Se guarda una semana porque cada consulta
+        // nueva cuesta ~US$0,24, asi que no se puede dar por recien hecha.
+        var cuando = '';
+        if (m.medidoEn) {
+          var dias = Math.floor((Date.now() - new Date(m.medidoEn).getTime()) / 86400000);
+          cuando = '<div class="rd-costo">Medido ' +
+            (dias <= 0 ? 'hoy' : dias === 1 ? 'ayer' : 'hace ' + dias + ' d&iacute;as') +
+            '. Se guarda una semana para no volver a pagarlo.</div>';
+        }
+
         caja.innerHTML = '<div class="rd-sat">' + cabeza + esc(d.motivo) +
-          '<div class="rd-nums">' + nums + '</div>' + cat + lideres + '</div>';
+          '<div class="rd-nums">' + nums + '</div>' + cat + lideres + cuando + '</div>';
         if (btn) { btn.textContent = 'Medido'; }
       })
       .catch(function(e){
