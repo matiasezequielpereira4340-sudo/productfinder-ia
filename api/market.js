@@ -87,6 +87,59 @@ export default async function handler(req, res) {
       }
     }
 
+    // ?tendencias=1 mide de que sirve el recurso /trends de MercadoLibre para
+    // descubrir productos, en vez de solo validar los que ya se te ocurrieron.
+    // La documentacion dice que los 50 elementos vienen ordenados: los primeros
+    // 10 son las busquedas con MAYOR CRECIMIENTO, los 20 siguientes las mas
+    // buscadas y los ultimos 20 las mas populares de la semana. Si eso se
+    // confirma, el crecimiento de demanda en Argentina sale gratis y por
+    // categoria, y solo hay que pagar la saturacion.
+    if (req.query && req.query.tendencias) {
+      const tok = await getMeliAccessToken();
+      if (!tok) return res.status(200).json({ error: 'sin token de MercadoLibre' });
+      const cat = typeof req.query.tendencias === 'string' && req.query.tendencias.length > 3
+        ? req.query.tendencias : null;
+
+      const pedir = async (ruta) => {
+        const r = await fetchJson(MELI_API + ruta, tok, 6000);
+        const arr = Array.isArray(r.json) ? r.json : [];
+        return {
+          ruta,
+          status: r.status,
+          cantidad: arr.length,
+          // Si el orden documentado es cierto, estos 10 son los que crecen.
+          crecimiento_top10: arr.slice(0, 10).map(x => x && x.keyword).filter(Boolean),
+          mas_buscadas_muestra: arr.slice(10, 15).map(x => x && x.keyword).filter(Boolean),
+          claves: arr[0] ? Object.keys(arr[0]) : []
+        };
+      };
+
+      const salida = {};
+      // Categorias de primer nivel: son el esqueleto del barrido por rubro.
+      const cats = await fetchJson(MELI_API + '/sites/MLA/categories', tok, 6000);
+      salida.categorias_MLA = {
+        status: cats.status,
+        cantidad: Array.isArray(cats.json) ? cats.json.length : 0,
+        muestra: (Array.isArray(cats.json) ? cats.json : []).slice(0, 6).map(c => c.id + ' ' + c.name)
+      };
+
+      const catAR = cat || (Array.isArray(cats.json) && cats.json[0] ? cats.json[0].id : null);
+      const rutas = ['/trends/MLA', '/trends/MLB'];
+      if (catAR) rutas.push('/trends/MLA/' + catAR);
+      // Brasil por categoria: si responde, se puede comparar rubro contra rubro
+      // y encontrar lo que alla crece y aca todavia no aparece.
+      const catsBR = await fetchJson(MELI_API + '/sites/MLB/categories', tok, 6000);
+      salida.categorias_MLB = {
+        status: catsBR.status,
+        cantidad: Array.isArray(catsBR.json) ? catsBR.json.length : 0
+      };
+      if (Array.isArray(catsBR.json) && catsBR.json[0]) rutas.push('/trends/MLB/' + catsBR.json[0].id);
+
+      salida.trends = [];
+      for (const ruta of rutas) salida.trends.push(await pedir(ruta));
+      return res.status(200).json(salida);
+    }
+
     // ?actors=1 lista los actors de Apify que sirven para el Radar de
     // Oportunidad, con su precio real. Es read-only: no corre ninguno, asi que
     // no gasta credito. Elegir el actor mirando esto y no el marketplace evita
