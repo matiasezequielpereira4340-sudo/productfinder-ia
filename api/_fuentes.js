@@ -279,9 +279,31 @@ export async function seTapaConLaApi(termino, token) {
     .filter(x => /^MLA\d{9,11}$/.test(String(x))).slice(0, 8);
   if (!ids.length) return { error: 'la corrida barata no dejo ids usables' };
 
-  const { hidratarItems } = await import('./_meli.js');
+  const { hidratarItems, fetchJson, MELI_API } = await import('./_meli.js');
   const items = await hidratarItems(ids, token, Date.now() + 8000);
-  if (!items.length) return { error: 'la API oficial no devolvio ninguno de esos items', ids_pedidos: ids.length };
+
+  // Si no vino nada, hay que ver POR QUE. hidratarItems descarta lo que no
+  // tenga titulo y precio, asi que "cero items" puede ser un 403, un id que no
+  // existe, o una fila que si vino pero sin esos campos. Se consulta en crudo y
+  // se reporta lo que dijo MercadoLibre, en vez de suponerlo.
+  if (!items.length) {
+    const crudo = await fetchJson(MELI_API + '/items?ids=' + ids.slice(0, 3).join(',') +
+      '&attributes=id,title,price,sold_quantity,available_quantity,seller_id,status', token, 6000);
+    const filas = Array.isArray(crudo.json) ? crudo.json : [];
+    return {
+      error: 'la API oficial no devolvio ninguno de esos items',
+      ids_pedidos: ids.length,
+      ids_muestra: ids.slice(0, 3),
+      respuesta_status: crudo.status,
+      // Que contesto de verdad para cada id: el codigo por item y sus campos.
+      crudo: filas.slice(0, 3).map(f => ({
+        code: f && f.code,
+        campos: (f && f.body) ? Object.keys(f.body) : null,
+        body: (f && f.body) ? JSON.parse(JSON.stringify(f.body).slice(0, 300)) : (f ? String(JSON.stringify(f)).slice(0, 200) : null)
+      })),
+      sin_filas: filas.length ? null : String(JSON.stringify(crudo.json || {})).slice(0, 300)
+    };
+  }
 
   // Que campos trae la API oficial, contando solo los que vienen con valor.
   const conValor = c => items.filter(i => i && i[c] !== null && i[c] !== undefined && i[c] !== '' && i[c] !== 0).length;
