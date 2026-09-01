@@ -87,6 +87,55 @@ export default async function handler(req, res) {
       }
     }
 
+    // Radar de Oportunidad.
+    //   ?radar=1                 -> barrido de rubros, gratis
+    //   ?radar=1&categoria=MLA5725
+    //   ?radar=1&saturacion=<keyword>  -> mide la saturacion de un candidato
+    //
+    // El descubrimiento no cuesta nada: sale de /trends de MercadoLibre. Lo
+    // unico que se paga es la saturacion, y solo del candidato que se pida.
+    if (req.query && req.query.radar) {
+      const tok = await getMeliAccessToken();
+      if (!tok) return res.status(200).json({ ok: false, error: 'No pude autenticarme contra MercadoLibre.' });
+      const radar = await import('./_radar.js');
+
+      // Medir la saturacion de un candidato puntual.
+      if (typeof req.query.saturacion === 'string' && req.query.saturacion.length > 1) {
+        const kw = req.query.saturacion.slice(0, 60);
+        const mla = await radar.saturacionMLA(kw, tok);
+        if (!mla) {
+          return res.status(200).json({ ok: true, keyword: kw, estado: 'sin-datos',
+            aviso: 'No pude medir la saturación de este producto en MercadoLibre Argentina.' });
+        }
+        if (mla.pendiente) {
+          return res.status(200).json({ ok: true, keyword: kw, estado: 'preparando',
+            aviso: 'Estoy midiendo cuánta competencia tiene en Argentina. Tarda dos o tres minutos la primera vez.' });
+        }
+        const demandaPrevia = parseInt(req.query.demanda, 10);
+        const score = radar.opportunityScore(
+          { scoreDemanda: isFinite(demandaPrevia) ? demandaPrevia : 50 }, mla);
+        return res.status(200).json({ ok: true, keyword: kw, estado: 'listo', mla, ...score });
+      }
+
+      try {
+        const r = await radar.descubrir(tok, {
+          categoria: typeof req.query.categoria === 'string' ? req.query.categoria : null,
+          maxCategorias: Math.min(parseInt(req.query.rubros, 10) || 6, 12)
+        });
+        if (r.error) return res.status(200).json({ ok: false, error: r.error });
+        return res.status(200).json({
+          ok: true,
+          consultadoEn: new Date().toISOString(),
+          rubros: r.rubros,
+          traducidos: r.traducidos,
+          total: r.candidatos.length,
+          candidatos: r.candidatos.slice(0, 60)
+        });
+      } catch (e) {
+        return res.status(200).json({ ok: false, error: String((e && e.message) || e).slice(0, 200) });
+      }
+    }
+
     // ?tendencias=1 mide de que sirve el recurso /trends de MercadoLibre para
     // descubrir productos, en vez de solo validar los que ya se te ocurrieron.
     // La documentacion dice que los 50 elementos vienen ordenados: los primeros
