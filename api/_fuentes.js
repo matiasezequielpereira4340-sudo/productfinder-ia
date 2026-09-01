@@ -170,10 +170,28 @@ export async function tiktokShopBR(consulta, opts) {
     fuente: 'tiktok-shop-br',
     actor: ACTOR_TIKTOK(),
     limite: n,
-    // Los actores no comparten nombres de campo: se mandan los alias y el que
-    // sobra lo ignora el actor. Mismo criterio que con el de MercadoLibre.
-    input: { keyword: q, search: q, query: q, keywords: [q],
-      region: 'BR', country: 'BR', maxItems: n, limit: n },
+    // MEDIDO 2026-09-01: mandar alias no sirve con este actor. Se le mandaron
+    // keyword/search/query/keywords y ninguno era el nombre real, asi que la
+    // corrida termino en 11 segundos con el dataset vacio. El esquema dice que
+    // los campos son searchKeywords y maxProducts.
+    //
+    // Y el pais NO es un campo: sale del proxy, que viene en "US". Sin cambiar
+    // eso se scrapea TikTok Shop Estados Unidos, no Brasil, y el dato no sirve
+    // para nada de lo que buscamos.
+    //
+    // sortBySoldCount existe y seria justo lo que queremos, pero el esquema no
+    // publica que valores acepta y un valor invalido tumba la corrida. Se deja
+    // en su default y se ordena por ventas del lado nuestro, que es gratis.
+    input: {
+      searchKeywords: [q],
+      maxProducts: n,
+      includeReviews: false,
+      proxyConfiguration: {
+        useApifyProxy: true,
+        apifyProxyGroups: ['RESIDENTIAL'],
+        apifyProxyCountryCode: 'BR'
+      }
+    },
     normalizar: normalizarTikTok
   });
 }

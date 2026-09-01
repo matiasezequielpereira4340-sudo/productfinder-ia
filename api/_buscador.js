@@ -656,6 +656,9 @@ export async function esquemaDeActor(id) {
       campo: k,
       tipo: p.type || '?',
       por_defecto: p.default !== undefined ? p.default : (p.prefill !== undefined ? p.prefill : null),
+      // Los valores validos, cuando el campo es de opciones. Sin esto no se
+      // sabe que se le puede mandar, y un valor inventado tumba la corrida.
+      opciones: Array.isArray(p.enum) ? p.enum.slice(0, 8) : null,
       titulo: String(p.title || '').slice(0, 60)
     };
   });
