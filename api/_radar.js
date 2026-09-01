@@ -16,7 +16,7 @@
 // Lo que cuesta plata (la saturacion en MLA via el actor de Apify) se gasta
 // solo en los finalistas, nunca en el barrido.
 
-import { MELI_API, fetchJson, buscarPublicaciones } from './_meli.js';
+import { MELI_API, fetchJson, buscarPublicaciones, anthropicHeaders } from './_meli.js';
 
 // ------------------------------------------------------------
 // Tendencias
@@ -187,7 +187,7 @@ async function clasificarLote(terminos) {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       signal: ctrl.signal,
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      headers: anthropicHeaders(),
       body: JSON.stringify({
         model: 'claude-haiku-4-5',
         // 25 terminos con dos campos cada uno entran holgados. La version

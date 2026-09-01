@@ -60,7 +60,8 @@ Necesitás un backend que sirva en el mismo dominio o configurá los endpoints.
 | `MELI_DEMO_USER_ID` | Cuenta ya conectada que se usa para las búsquedas públicas del hero. `off` la apaga | No |
 | `SUPABASE_SERVICE_KEY` | Service key de Supabase: sin esto no se puede guardar ni leer ninguna conexión | Sí |
 | `SUPABASE_URL` | URL del proyecto de Supabase (default: el del proyecto) | No |
-| `ANTHROPIC_API_KEY` | Análisis con IA del analizador | Sí, para el analizador |
+| `ANTHROPIC_API_KEY` | Análisis con IA del analizador y del Radar | Sí, para el analizador |
+| `ANTHROPIC_WORKSPACE_ID` | ID del workspace de Anthropic. **Obligatorio si la API key está vinculada a una identidad**: sin esto, todas las llamadas a Claude devuelven `400 anthropic-workspace-id is required`. Se saca de la consola de Anthropic → Settings → Workspaces | Depende de la key |
 | `APP_ORIGIN` | Dominio público de la app, si hace falta fijarlo | No |
 | `PORT` | Puerto del servidor local (default: 3000) | No |
 
