@@ -1,3 +1,4 @@
+import { anthropicHeaders } from './_meli.js';
 // ProductFinder IA - Chat endpoint
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
@@ -15,11 +16,7 @@ export default async function handler(req, res) {
   try {
     const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
+      headers: anthropicHeaders(),
       body: JSON.stringify({
         model: 'claude-haiku-4-5',
         max_tokens: 512,

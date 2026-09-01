@@ -7,7 +7,7 @@
 // datos como estimados y nunca inventa precios reales.
 // ============================================================
 
-import { resolveUserId, buscarPublicaciones } from './_meli.js';
+import { resolveUserId, buscarPublicaciones, anthropicHeaders } from './_meli.js';
 
 const USD_ARS_FALLBACK = 1510;
 const SUPA_URL = process.env.SUPABASE_URL || 'https://qglieqpcmmffgxijbysb.supabase.co';
@@ -515,11 +515,7 @@ export default async function handler(req, res) {
     try {
       const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01'
-        },
+        headers: anthropicHeaders(),
         body: JSON.stringify({
           model: 'claude-haiku-4-5',
           max_tokens: 512,

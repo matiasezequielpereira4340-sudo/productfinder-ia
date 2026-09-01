@@ -48,6 +48,23 @@ export function cors(res, methods) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
+// Cabeceras para la API de Anthropic.
+// Medido en produccion: con la key de la cuenta, los tres modelos devuelven el
+// mismo 400 -- "anthropic-workspace-id is required when authenticating with an
+// identity-linked API key". No es el modelo ni el request: la key esta
+// vinculada a una identidad y exige que se diga en que workspace actua.
+// El id se saca de la consola de Anthropic y se carga en ANTHROPIC_WORKSPACE_ID.
+export function anthropicHeaders() {
+  const h = {
+    'Content-Type': 'application/json',
+    'x-api-key': process.env.ANTHROPIC_API_KEY || '',
+    'anthropic-version': '2023-06-01'
+  };
+  const ws = process.env.ANTHROPIC_WORKSPACE_ID;
+  if (ws) h['anthropic-workspace-id'] = String(ws).trim();
+  return h;
+}
+
 // ------------------------------------------------------------
 // Supabase (REST con service key)
 // ------------------------------------------------------------

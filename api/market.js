@@ -3,7 +3,7 @@
 // Datos de MercadoLibre (catalogo con token de usuario) + Anthropic para el
 // armado del informe.
 
-import { buscarPublicaciones, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
+import { anthropicHeaders, buscarPublicaciones, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
@@ -198,16 +198,17 @@ export default async function handler(req, res) {
     // que usan el analizador y el radar, y muestra el mensaje de error tal cual
     // lo devuelve Anthropic.
     if (req.query && req.query.ia) {
-      const salida = { anthropic_key: !!process.env.ANTHROPIC_API_KEY };
+      const salida = {
+        anthropic_key: !!process.env.ANTHROPIC_API_KEY,
+        // Si esto es false y los modelos dan 400 pidiendo el workspace, ese es
+        // el problema: falta cargar la variable en Vercel.
+        anthropic_workspace_id: !!process.env.ANTHROPIC_WORKSPACE_ID
+      };
       for (const modelo of ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5']) {
         try {
           const r = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-api-key': process.env.ANTHROPIC_API_KEY || '',
-              'anthropic-version': '2023-06-01'
-            },
+            headers: anthropicHeaders(),
             body: JSON.stringify({
               model: modelo,
               max_tokens: 64,
@@ -560,7 +561,7 @@ async function askClaudeJson(prompt) {
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY no configurada');
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    headers: anthropicHeaders(),
     body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] })
   });
   const j = await r.json();
