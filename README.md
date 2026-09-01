@@ -67,6 +67,12 @@ Necesitás un backend que sirva en el mismo dominio o configurá los endpoints.
 Antes de conectar la primera cuenta hay que correr `supabase/meli_tokens_migration.sql`
 en el SQL Editor de Supabase.
 
+Para que el margen del dashboard sea real hace falta además
+`supabase/costos_migration.sql`: sin el costo de compra cargado, la app sólo
+puede descontar la comisión de MercadoLibre y el envío, y muestra casi todo el
+precio de venta como ganancia. Los costos se cargan desde la pestaña **Stock**
+del dashboard, producto por producto.
+
 ### Fuente externa de búsquedas (opcional, es la única paga)
 
 MercadoLibre cerró sus tres endpoints de búsqueda a terceros y además bloquea

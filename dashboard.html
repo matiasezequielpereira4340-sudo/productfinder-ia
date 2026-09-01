@@ -54,6 +54,10 @@
     .period-bar{display:flex;align-items:center;gap:8px;margin-bottom:28px;flex-wrap:wrap}
     .period-bar label{font-size:13px;color:#888}
     .period-btn{padding:7px 16px;border-radius:8px;border:1px solid #2a2a2a;background:#1a1a1a;color:#aaa;font-size:13px;cursor:pointer;transition:all .15s}
+    .costo-input{width:92px;background:#111;border:1px solid #2a2a2a;color:#eee;border-radius:6px;padding:5px 7px;font-size:13px}
+    .costo-input:focus{outline:none;border-color:#FFE600}
+    .costo-input.guardando{border-color:#eab308}
+    .costo-input.guardado{border-color:#22c55e}
     .period-btn.active,.period-btn:hover{border-color:#FFE600;color:#FFE600;background:#1a1a1a}
       .refresh-btn{margin-left:auto;background:#1a1a1a;border:1px solid #2a2a2a;color:#aaa;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px}
     .refresh-btn:hover{border-color:#FFE600;color:#FFE600}
@@ -267,6 +271,14 @@
 
         <!-- TAB STOCK -->
         <div class="tab-content" id="tab-stock">
+          <div class="alert-bar info" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span>Carg&aacute; el costo de compra de cada producto: es lo &uacute;nico que falta para que el margen sea real.</span>
+            <span style="margin-left:auto">D&oacute;lar usado:
+              <input id="tcInput" type="number" step="1" min="1" style="width:110px;background:#111;border:1px solid #2a2a2a;color:#eee;border-radius:6px;padding:5px 8px">
+              <button class="period-btn" onclick="guardarTipoCambio()">Guardar</button>
+            </span>
+            <span id="tcFuente" style="color:#888;font-size:12px"></span>
+          </div>
           <div class="table-wrap">
             <table>
               <thead>
@@ -276,12 +288,15 @@
                   <th>Stock Propio</th>
                   <th>Stock Full</th>
                   <th>Total</th>
+                  <th>Costo USD</th>
+                  <th>Embalaje $</th>
+                  <th>Margen real</th>
                   <th>Estado</th>
                   <th>Link</th>
                 </tr>
               </thead>
               <tbody id="tablaStock">
-                <tr><td colspan="7" class="empty">Cargando...</td></tr>
+                <tr><td colspan="10" class="empty">Cargando...</td></tr>
               </tbody>
             </table>
           </div>
@@ -297,6 +312,8 @@
   let diasActual = 30;
   let datosVentas = null;
   let datosStock = null;
+  let costosPorItem = {};
+  let tipoCambio = 1500;
 
   document.getElementById('userLabel').textContent = userId || 'Sin usuario';
 
@@ -462,11 +479,94 @@
   // -----------------------------------------------
   // Cargar stock
   // -----------------------------------------------
+  // -----------------------------------------------
+  // Costos propios: es lo que hace que el margen sea real
+  // -----------------------------------------------
+  async function cargarCostos() {
+    try {
+      const res = await fetch(`/api/costos?user_id=${encodeURIComponent(userId)}`);
+      const data = await res.json();
+      if (!res.ok || !data.success) return;
+      costosPorItem = {};
+      (data.costos || []).forEach(c => { costosPorItem[c.meli_item_id] = c; });
+      tipoCambio = data.tipo_cambio_usd || tipoCambio;
+      const inp = document.getElementById('tcInput');
+      if (inp) inp.value = Math.round(tipoCambio);
+      const fu = document.getElementById('tcFuente');
+      if (fu) fu.textContent = data.tipo_cambio_fuente ? '(' + data.tipo_cambio_fuente + ')' : '';
+    } catch (e) {
+      console.warn('No pude traer los costos:', e.message);
+    }
+  }
+
+  async function guardarCosto(input, itemId) {
+    const campo = input.dataset.campo;
+    const valor = input.value === '' ? null : parseFloat(input.value);
+    if (valor !== null && (isNaN(valor) || valor < 0)) { input.value = ''; return; }
+
+    const previo = costosPorItem[itemId] || {};
+    const fila = datosStock && datosStock.productos
+      ? datosStock.productos.find(p => p.item_id === itemId) : null;
+
+    input.className = 'costo-input guardando';
+    try {
+      const res = await fetch('/api/costos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId,
+          meli_item_id: itemId,
+          titulo: fila ? fila.titulo : null,
+          costo_usd: campo === 'costo_usd' ? valor : (previo.costo_usd != null ? previo.costo_usd : null),
+          costo_embalaje_ars: campo === 'costo_embalaje_ars' ? valor : (previo.costo_embalaje_ars != null ? previo.costo_embalaje_ars : null)
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'No se pudo guardar');
+
+      const actualizado = Object.assign({}, previo, { meli_item_id: itemId });
+      actualizado[campo] = valor;
+      costosPorItem[itemId] = actualizado;
+
+      input.className = 'costo-input guardado';
+      const celda = document.getElementById('margen-' + itemId);
+      if (celda && fila) celda.innerHTML = margenRealHtml(fila);
+      setTimeout(() => { input.className = 'costo-input'; }, 1200);
+    } catch (e) {
+      input.className = 'costo-input';
+      alert('No pude guardar el costo: ' + e.message);
+    }
+  }
+
+  async function guardarTipoCambio() {
+    const inp = document.getElementById('tcInput');
+    const valor = parseFloat(inp && inp.value);
+    if (!(valor > 0)) { alert('Pone un valor mayor a cero'); return; }
+    try {
+      const res = await fetch('/api/costos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, tipo_cambio_usd: valor })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'No se pudo guardar');
+      tipoCambio = valor;
+      const fu = document.getElementById('tcFuente');
+      if (fu) fu.textContent = '(propio)';
+      if (datosStock) renderTablaStock(datosStock.productos);
+      cargarVentas();
+    } catch (e) {
+      alert('No pude guardar el tipo de cambio: ' + e.message);
+    }
+  }
+
+
   async function cargarStock() {
     const res = await fetch(`/api/meli-stock?user_id=${encodeURIComponent(userId)}`);
     const data = await res.json();
     if (!res.ok || !data.success) return;
     datosStock = data;
+    await cargarCostos();
     renderTablaStock(data.productos);
 }
 
@@ -474,42 +574,68 @@
   // Render tabla stock
   // -----------------------------------------------
   function renderTablaStock(productos) {
-    const tbody = document.getElementById('tablaStock');
-    if (!productos || !productos.length) {
-      tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-icon"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg></div>Sin productos activos</div></td></tr>`;
-      return;
-}
-    tbody.innerHTML = productos.map(p => {
-      let estadoBadge;
-      if (p.alerta_sin_stock) estadoBadge = `<span class="badge badge-red">Sin stock</span>`;
-      else if (p.alerta_stock_bajo) estadoBadge = `<span class="badge badge-yellow">Stock bajo</span>`;
-      else estadoBadge = `<span class="badge badge-green">OK</span>`;
+      const tbody = document.getElementById('tablaStock');
+      if (!productos || !productos.length) {
+        tbody.innerHTML = `<tr><td colspan="10"><div class="empty"><div class="empty-icon"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg></div>Sin productos activos</div></td></tr>`;
+        return;
+      }
+      tbody.innerHTML = productos.map(p => {
+        let estadoBadge;
+        if (p.alerta_sin_stock) estadoBadge = `<span class="badge badge-red">Sin stock</span>`;
+        else if (p.alerta_stock_bajo) estadoBadge = `<span class="badge badge-yellow">Stock bajo</span>`;
+        else estadoBadge = `<span class="badge badge-green">OK</span>`;
 
-      const stockPropioEl = p.stock_propio > 0
-        ? `<span class="stock-badge-propio">${p.stock_propio}</span>`
-        : `<span class="stock-zero">0</span>`;
+        const stockPropioEl = p.stock_propio > 0
+          ? `<span class="stock-badge-propio">${p.stock_propio}</span>`
+          : `<span class="stock-zero">0</span>`;
+        const stockFullEl = p.stock_full > 0
+          ? `<span class="stock-badge-full">Full: ${p.stock_full}</span>`
+          : `<span style="color:#333">&mdash;</span>`;
+        const totalEl = p.stock_total === 0
+          ? `<span class="stock-zero">0</span>`
+          : p.stock_total <= 3
+            ? `<span class="stock-low">${p.stock_total}</span>`
+            : `<span style="color:#ccc">${p.stock_total}</span>`;
 
-      const stockFullEl = p.stock_full > 0
-        ? `<span class="stock-badge-full">Full: ${p.stock_full}</span>`
-        : `<span style="color:#333">—</span>`;
+        const c = costosPorItem[p.item_id] || {};
+        const inputCosto = `<input type="number" step="0.01" min="0" value="${c.costo_usd != null ? c.costo_usd : ''}" placeholder="&mdash;" data-item="${p.item_id}" data-campo="costo_usd" onchange="guardarCosto(this,'${p.item_id}')" class="costo-input">`;
+        const inputEmb = `<input type="number" step="1" min="0" value="${c.costo_embalaje_ars != null ? c.costo_embalaje_ars : ''}" placeholder="&mdash;" data-item="${p.item_id}" data-campo="costo_embalaje_ars" onchange="guardarCosto(this,'${p.item_id}')" class="costo-input">`;
 
-      const totalEl = p.stock_total === 0
-        ? `<span class="stock-zero">0</span>`
-        : p.stock_total <= 3
-          ? `<span class="stock-low">${p.stock_total}</span>`
-          : `<span style="color:#ccc">${p.stock_total}</span>`;
+        return `<tr>
+          <td class="prod-title" title="${p.titulo}">${p.titulo}</td>
+          <td>${ars(p.precio)}</td>
+          <td>${stockPropioEl}</td>
+          <td>${stockFullEl}</td>
+          <td>${totalEl}</td>
+          <td>${inputCosto}</td>
+          <td>${inputEmb}</td>
+          <td id="margen-${p.item_id}">${margenRealHtml(p)}</td>
+          <td>${estadoBadge}</td>
+          <td><a href="${p.url_meli}" target="_blank" rel="noopener" class="link-meli">Ver</a></td>
+        </tr>`;
+      }).join('');
+    }
 
-      return `<tr>
-        <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis" title="${p.titulo}">${p.titulo}</td>
-        <td>${ars(p.precio)}</td>
-        <td>${stockPropioEl}</td>
-        <td>${stockFullEl}</td>
-        <td>${totalEl}</td>
-        <td>${estadoBadge}</td>
-        <td>${p.url_meli ? `<a href="${p.url_meli}" target="_blank" style="color:#60a5fa;font-size:12px">Ver →</a>` : '—'}</td>
-      </tr>`;
-}).join('');
-}
+    // Margen real de un producto: precio de venta menos comision de MeLi, menos
+    // el costo de compra y el embalaje. Sin costo cargado no se muestra un
+    // numero: se dice que falta, que es la verdad.
+    function margenRealHtml(p) {
+      const c = costosPorItem[p.item_id];
+      const costoUsd = c && c.costo_usd != null ? parseFloat(c.costo_usd) : null;
+      if (costoUsd == null) {
+        return '<span style="color:#f59e0b;font-size:12px">Falta el costo</span>';
+      }
+      const embalaje = c && c.costo_embalaje_ars != null ? parseFloat(c.costo_embalaje_ars) : 0;
+      const costoTotal = costoUsd * tipoCambio + embalaje;
+      // Comision aproximada de MeLi para publicacion clasica, mas el cargo fijo
+      // por operacion cuando el precio lo supera.
+      const comision = p.precio * 0.1325 + (p.precio >= 6900 ? 499 : 0);
+      const neto = p.precio - comision - costoTotal;
+      const pct = p.precio > 0 ? Math.round((neto / p.precio) * 100) : 0;
+      const color = pct >= 40 ? '#22c55e' : pct >= 20 ? '#eab308' : '#ef4444';
+      return `<span style="color:${color};font-weight:600">${pct}%</span>` +
+             `<div style="color:#777;font-size:11px">${ars(Math.round(neto))} por unidad</div>`;
+    }
 
   // -----------------------------------------------
   // Error de conexion MeLi
