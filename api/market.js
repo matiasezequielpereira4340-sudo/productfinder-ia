@@ -194,6 +194,37 @@ export default async function handler(req, res) {
       return res.status(200).json(salida);
     }
 
+    // ?ia=1 prueba la llamada a Anthropic con el mismo modelo y la misma key
+    // que usan el analizador y el radar, y muestra el mensaje de error tal cual
+    // lo devuelve Anthropic.
+    if (req.query && req.query.ia) {
+      const salida = { anthropic_key: !!process.env.ANTHROPIC_API_KEY };
+      for (const modelo of ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5']) {
+        try {
+          const r = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': process.env.ANTHROPIC_API_KEY || '',
+              'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+              model: modelo,
+              max_tokens: 64,
+              messages: [{ role: 'user', content: 'Responde solo: ok' }]
+            })
+          });
+          const j = await r.json().catch(() => ({}));
+          salida[modelo] = r.ok
+            ? 'ok'
+            : (r.status + ': ' + String((j.error && j.error.message) || '').slice(0, 160));
+        } catch (e) {
+          salida[modelo] = 'excepcion: ' + String((e && e.message) || e).slice(0, 100);
+        }
+      }
+      return res.status(200).json(salida);
+    }
+
     // ?actors=1 lista los actors de Apify que sirven para el Radar de
     // Oportunidad, con su precio real. Es read-only: no corre ninguno, asi que
     // no gasta credito. Elegir el actor mirando esto y no el marketplace evita
@@ -533,7 +564,12 @@ async function askClaudeJson(prompt) {
     body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] })
   });
   const j = await r.json();
-  if (!r.ok) throw new Error('Anthropic ' + r.status + ': ' + JSON.stringify(j));
+  // Mismo problema que en el radar: sin el mensaje de Anthropic, un 400 no dice
+  // nada. Este es el analizador, que usa el mismo modelo y la misma key.
+  if (!r.ok) {
+    const msg = (j && j.error && j.error.message) || JSON.stringify(j);
+    throw new Error('Anthropic ' + r.status + ': ' + String(msg).slice(0, 250));
+  }
   const texto = (j.content && j.content[0] && j.content[0].text) || '';
   let cleaned = texto.trim();
   cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/, '').trim();
