@@ -3,8 +3,12 @@
 //
 // Por que existen: el Radar sale hoy de /trends de MeLi, que dice que se busca
 // mas dentro de MercadoLibre. Eso deja afuera lo que se esta vendiendo en otro
-// lado y todavia no llego. TikTok Shop Brasil muestra que se vende hoy alla,
-// con unidades; Google Trends dice si un termino crece fuera de MeLi.
+// lado y todavia no llego. TikTok Shop muestra que se vende hoy, con unidades
+// reales; Google Trends dice si un termino crece fuera de MeLi.
+//
+// Aclaracion medida: la idea era TikTok Shop BRASIL, pero el unico actor
+// barato que anda devuelve la tienda de Estados Unidos y no acepta cambiarlo.
+// El pais se deduce de las urls y se informa; no se rotula de memoria.
 //
 // Las dos cuestan plata, asi que NADA se corre solo. Cada consulta la dispara
 // el usuario apretando un boton que dice lo que va a gastar, y el resultado se
@@ -13,11 +17,11 @@
 // en cada visita, se lo comen en un dia.
 //
 // Actores y precios medidos contra la API de Apify el 2026-09-01:
-//   devcake~tiktok-shop-data-scraper   arranque $0.00005 + $0.002 por result
-//   vnx0~google-trends-scraper         $0.0012 por result, sin costo de arranque
-// Se eligieron por ser los mas baratos CON precio publicado en su modelo por
-// evento; varios de los mas usados no publican el precio por resultado, y con
-// el credito contado no se corre a ciegas. Se pueden cambiar por env sin tocar
+//   devcake~tiktok-shop-data-scraper    arranque $0.00005 + $0.002 por result
+//   khadinakbar~google-trends-scraper   arranque $0.00005 + $0.005 por result
+// El primer criterio fue el precio publicado, y salio mal: el actor de Trends
+// mas barato (vnx0, $0.0012) resulto ser de "tendencias del dia" y contestaba
+// cualquier cosa. Barato y equivocado no sirve. Se cambian por env sin tocar
 // codigo, por si suben de precio o dejan de andar.
 
 import { supa } from './_meli.js';
@@ -140,24 +144,36 @@ export async function corridaCacheada(cfg) {
 }
 
 // ------------------------------------------------------------
-// TikTok Shop Brasil
+// TikTok Shop
 // ------------------------------------------------------------
-// Que se vende hoy en Brasil, con unidades. Es la fuente que mas se parece a
-// "producto ganador": no es interes de busqueda, es venta.
+// Que se vende hoy, con unidades. Es la fuente que mas se parece a "producto
+// ganador": no es interes de busqueda, es venta. Ojo con el pais: ver arriba.
+// MEDIDO 2026-09-01: este actor devuelve SIEMPRE TikTok Shop Estados Unidos.
+// Se le paso apifyProxyCountryCode 'BR' y aun asi las 30 urls salieron con
+// /us/ y los precios en USD. No tiene campo de region: es de EE.UU. y punto.
+// Por eso el pais se DEDUCE de los datos y no se da por sentado: rotular
+// datos reales con el pais equivocado es peor que no tenerlos.
+function paisDeUrl(u) {
+  const m = String(u || '').match(/shop\.tiktok\.com\/([a-z]{2})\//i);
+  return m ? m[1].toUpperCase() : null;
+}
+
 export function normalizarTikTok(f) {
   if (!f || typeof f !== 'object') return null;
   const titulo = f.title || f.product_name || f.name || f.productName || '';
   if (!titulo) return null;
+  const url = f.url || f.product_url || f.link || null;
   const vendidos = aVendidos(f.sold_count != null ? f.sold_count
     : (f.sales != null ? f.sales : (f.sold_quantity != null ? f.sold_quantity : f.sold_text)));
   return {
     titulo: String(titulo).slice(0, 140),
     vendidos,
     precio: aNumero(f.price != null ? f.price : (f.sale_price != null ? f.sale_price : f.min_price)),
-    moneda: f.currency || 'BRL',
+    moneda: f.currency || null,
     tienda: (f.shop_name || f.seller_name || (f.shop && f.shop.name) || null),
     puntaje: typeof f.rating === 'number' ? f.rating : null,
-    url: f.url || f.product_url || f.link || null
+    pais: paisDeUrl(url),
+    url
   };
 }
 
@@ -165,9 +181,9 @@ export async function tiktokShopBR(consulta, opts) {
   const q = String(consulta || '').trim().slice(0, 60);
   if (!q) return { error: 'falta el termino' };
   const n = Math.min(Math.max(parseInt((opts && opts.items) || 30, 10), 10), 50);
-  return await corridaCacheada({
-    clave: 'tiktok-br::' + q.toLowerCase(),
-    fuente: 'tiktok-shop-br',
+  const r = await corridaCacheada({
+    clave: 'tiktok::' + q.toLowerCase(),
+    fuente: 'tiktok-shop',
     actor: ACTOR_TIKTOK(),
     limite: n,
     // MEDIDO 2026-09-01: mandar alias no sirve con este actor. Se le mandaron
@@ -193,6 +209,19 @@ export async function tiktokShopBR(consulta, opts) {
       }
     },
     normalizar: normalizarTikTok
+  });
+  if (r.error || r.pendiente || r.vacia) return r;
+
+  // De que tienda salio esto en realidad. Se cuenta, no se supone.
+  const paises = {};
+  for (const p of r.items) if (p.pais) paises[p.pais] = (paises[p.pais] || 0) + 1;
+  const dominante = Object.entries(paises).sort((a, b) => b[1] - a[1])[0];
+  const monedas = [...new Set(r.items.map(p => p.moneda).filter(Boolean))];
+
+  return Object.assign({}, r, {
+    pais: dominante ? dominante[0] : null,
+    monedas,
+    reparto_paises: paises
   });
 }
 

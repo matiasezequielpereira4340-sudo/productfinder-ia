@@ -160,7 +160,8 @@
     <br><br>
     <b>Qu&eacute; cuesta y qu&eacute; no.</b> Descubrir candidatos es <b>gratis</b>: sale de las tendencias que
     publica MercadoLibre. Los botones punteados consultan fuentes de afuera y <b>s&iacute; gastan cr&eacute;dito</b>:
-    <b>TikTok Shop Brasil</b> (~US$0,06) muestra qu&eacute; se est&aacute; vendiendo hoy all&aacute;, con unidades;
+    <b>TikTok Shop</b> (~US$0,06) muestra qu&eacute; se est&aacute; vendiendo hoy, con unidades reales; el actor
+    disponible devuelve la tienda de <b>Estados Unidos</b>, y la respuesta dice de qu&eacute; pa&iacute;s es;
     <b>Google Trends</b> (~US$0,05) dice si el t&eacute;rmino crece fuera de MercadoLibre. Ninguna corre sola:
     hay que apretarlas. Lo consultado queda guardado 3 d&iacute;as, as&iacute; que repetir la misma consulta no
     vuelve a cobrar.
@@ -207,7 +208,7 @@
       '<div class="rd-foot">' +
         '<button class="rd-btn" onclick="medir(' + i + ')">Ver cu&aacute;nta competencia tiene ac&aacute;</button>' +
         '<button class="rd-btn rd-btn-pago" onclick="verTikTok(' + i + ')" ' +
-          'title="Corre una consulta paga a TikTok Shop Brasil">Se vende en TikTok Brasil? <i>~US$0,06</i></button>' +
+          'title="Corre una consulta paga a TikTok Shop">Se vende en TikTok Shop? <i>~US$0,06</i></button>' +
         '<button class="rd-btn rd-btn-pago" onclick="verTrends(' + i + ')" ' +
           'title="Corre una consulta paga a Google Trends">Crece fuera de MercadoLibre? <i>~US$0,05</i></button>' +
         (c.posicionBR ? '<span style="font-size:12px;color:var(--mc-ink-4)">Puesto ' + c.posicionBR + ' en Brasil</span>' : '') +
@@ -339,23 +340,23 @@
   }
 
   window.verTikTok = function(i){
-    // TikTok Shop Brasil esta en portugues. Mandarle el termino traducido al
-    // español no encuentra nada, y el vacio se lee como "no se vende alla"
-    // cuando en realidad no se busco bien. El original en portugues ya lo
-    // tenemos guardado de cuando se tradujo el candidato.
-    var c = candidatos[i];
-    consultarFuente(i, 'tiktok', 'TikTok Shop Brasil', function(d){
+    // MEDIDO: el actor devuelve la tienda de Estados Unidos, en ingles, aunque
+    // se le pida Brasil. Asi que se consulta con el termino en español, que es
+    // lo que tenemos, y el pais real lo informa la respuesta: no se rotula.
+    // Si algun dia entra un actor de Brasil, aca va el termino en portugues.
+    consultarFuente(i, 'tiktok', 'TikTok Shop', function(d){
       var p = d.productos || [];
       if (!p.length) return '<div class="rd-nums">Sin productos para ese t&eacute;rmino.</div>';
+      var moneda = (d.monedas && d.monedas.length === 1) ? d.monedas[0] : '';
       // Ordenado por unidades: lo que interesa es que se vende, no que existe.
       p.sort(function(a,b){ return (b.vendidos||0) - (a.vendidos||0); });
       return '<div class="rd-lideres">' + p.slice(0,6).map(function(x){
         return '<div class="rd-lider"><span>' + esc(x.titulo.slice(0,60)) +
           (x.tienda ? ' <i>' + esc(x.tienda) + '</i>' : '') + '</span><span>' +
           (x.vendidos ? num(x.vendidos) + ' vendidos' : 'sin dato de ventas') +
-          (x.precio ? ' &middot; R$' + num(x.precio) : '') + '</span></div>';
+          (x.precio ? ' &middot; ' + (x.moneda || moneda || '') + ' ' + num(x.precio) : '') + '</span></div>';
       }).join('') + '</div>';
-    }, c.traducidoDe || c.keyword);
+    });
   };
 
   window.verTrends = function(i){

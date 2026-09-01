@@ -108,11 +108,15 @@ export default async function handler(req, res) {
         const r = await fu.tiktokShopBR(kw, { items: 30 });
         if (r.error) return res.status(200).json({ ok: false, keyword: kw, error: r.error });
         if (r.pendiente) return res.status(200).json({ ok: true, keyword: kw, estado: 'preparando',
-          aviso: 'Estoy mirando qué se está vendiendo en TikTok Shop Brasil. Tarda dos o tres minutos.' });
+          aviso: 'Estoy mirando qué se está vendiendo en TikTok Shop. Tarda dos o tres minutos.' });
         if (r.vacia) return res.status(200).json({ ok: true, keyword: kw, estado: 'sin-datos',
-          aviso: 'TikTok Shop Brasil no devolvió productos para ese término.' });
+          aviso: 'TikTok Shop no devolvió productos para ese término.' });
+        // El pais sale de las urls que trajo, no de lo que se pidio: el actor
+        // devuelve la tienda de Estados Unidos aunque se le pida otra.
+        const nombrePais = { US: 'Estados Unidos', BR: 'Brasil', MX: 'México', ES: 'España' };
         return res.status(200).json({ ok: true, keyword: kw, estado: 'listo',
-          fuente: 'TikTok Shop Brasil', desdeCache: !!r.desdeCache,
+          fuente: 'TikTok Shop ' + (r.pais ? (nombrePais[r.pais] || r.pais) : '(país no identificado)'),
+          pais: r.pais || null, monedas: r.monedas || [], desdeCache: !!r.desdeCache,
           costo_usd: fu.costoEstimado('tiktok', 30), productos: r.items });
       }
 
