@@ -306,19 +306,21 @@
   // Las dos fuentes de abajo CUESTAN PLATA. Por eso no corren solas: hay que
   // apretar el boton, que dice cuanto sale antes de gastarlo. La respuesta trae
   // el costo real y si salio del cache, para que no haya sorpresas al fin de mes.
-  function consultarFuente(i, ruta, titulo, pintar){
+  function consultarFuente(i, ruta, titulo, pintar, termino){
     var c = candidatos[i];
+    var kw = termino || c.keyword;
     var caja = document.getElementById('fu' + i);
-    caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">Consultando ' + esc(titulo) + '...</div>';
+    caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">Consultando ' + esc(titulo) +
+      ' por &ldquo;' + esc(kw) + '&rdquo;...</div>';
 
-    fetch('/api/market?radar=1&' + ruta + '=' + encodeURIComponent(c.keyword))
+    fetch('/api/market?radar=1&' + ruta + '=' + encodeURIComponent(kw))
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (!d.ok) throw new Error(d.error || 'No pude consultar ' + titulo);
         if (d.estado === 'preparando') {
           caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">' + esc(d.aviso) +
             ' Reviso solo en 20 segundos.</div>';
-          setTimeout(function(){ consultarFuente(i, ruta, titulo, pintar); }, 20000);
+          setTimeout(function(){ consultarFuente(i, ruta, titulo, pintar, kw); }, 20000);
           return;
         }
         if (d.estado === 'sin-datos') {
@@ -337,6 +339,11 @@
   }
 
   window.verTikTok = function(i){
+    // TikTok Shop Brasil esta en portugues. Mandarle el termino traducido al
+    // español no encuentra nada, y el vacio se lee como "no se vende alla"
+    // cuando en realidad no se busco bien. El original en portugues ya lo
+    // tenemos guardado de cuando se tradujo el candidato.
+    var c = candidatos[i];
     consultarFuente(i, 'tiktok', 'TikTok Shop Brasil', function(d){
       var p = d.productos || [];
       if (!p.length) return '<div class="rd-nums">Sin productos para ese t&eacute;rmino.</div>';
@@ -348,7 +355,7 @@
           (x.vendidos ? num(x.vendidos) + ' vendidos' : 'sin dato de ventas') +
           (x.precio ? ' &middot; R$' + num(x.precio) : '') + '</span></div>';
       }).join('') + '</div>';
-    });
+    }, c.traducidoDe || c.keyword);
   };
 
   window.verTrends = function(i){
