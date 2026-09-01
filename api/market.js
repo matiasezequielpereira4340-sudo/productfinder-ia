@@ -270,6 +270,16 @@ export default async function handler(req, res) {
       catch (e) { return res.status(200).json({ error: String((e && e.message) || e).slice(0, 200) }); }
     }
 
+    // ?esquema=<actor> muestra que campos acepta. Sirve para saber que apagar
+    // para no pagar el enriquecimiento. Es lectura: no corre nada.
+    if (req.query && req.query.esquema) {
+      const bus = await import('./_buscador.js');
+      const id = typeof req.query.esquema === 'string' && req.query.esquema.length > 3
+        ? req.query.esquema : (process.env.APIFY_ACTOR || 'devcake~mercadolibre-scraper');
+      try { return res.status(200).json(await bus.esquemaDeActor(id)); }
+      catch (e) { return res.status(200).json({ error: String((e && e.message) || e).slice(0, 200) }); }
+    }
+
     if (req.query && req.query.actors) {
       const bus = await import('./_buscador.js');
       const consultas = typeof req.query.actors === 'string' && req.query.actors.length > 2
