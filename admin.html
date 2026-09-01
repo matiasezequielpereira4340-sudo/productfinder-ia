@@ -88,60 +88,7 @@
     .empty{text-align:center;padding:40px;color:#444;font-size:14px}
   </style>
 
-  <style id="mc-nav-css">
-  .mc-nav{position:sticky;top:0;z-index:1000;display:flex;align-items:center;gap:20px;background:linear-gradient(180deg,#141414 0%,#0d0d0d 100%);border-bottom:2px solid #FFE600;padding:0 20px;height:60px;box-shadow:0 4px 18px rgba(0,0,0,.45);}
-  .mc-brand{display:flex;align-items:center;gap:9px;color:#FFE600;font-weight:800;font-size:18px;text-decoration:none;white-space:nowrap;letter-spacing:.2px;}
-  .mc-brand-ico{display:inline-flex;width:30px;height:30px;align-items:center;justify-content:center;background:#FFE600;color:#111;border-radius:8px;font-size:16px;}
-  .mc-menu{display:flex;align-items:center;gap:4px;flex:1;}
-  .mc-item{position:relative;}
-  .mc-link{display:flex;align-items:center;gap:6px;color:#d6d6d6;text-decoration:none;font-size:14.5px;font-weight:600;padding:9px 14px;border-radius:9px;white-space:nowrap;transition:.15s;cursor:pointer;border:0;background:none;font-family:inherit;}
-  .mc-link:hover{background:#242424;color:#fff;}
-  .mc-link.active{background:#FFE600;color:#111;}
-  .mc-caret{font-size:10px;opacity:.7;transition:transform .15s;}
-  .mc-item:hover .mc-caret{transform:rotate(180deg);}
-  .mc-drop{position:absolute;top:calc(100% + 8px);left:0;min-width:252px;background:#1a1a1a;border:1px solid #2e2e2e;border-radius:12px;padding:7px;box-shadow:0 12px 30px rgba(0,0,0,.55);opacity:0;visibility:hidden;transform:translateY(-6px);transition:.16s;}
-  .mc-item:hover .mc-drop{opacity:1;visibility:visible;transform:translateY(0);}
-  .mc-drop a{display:flex;align-items:flex-start;gap:10px;padding:9px 11px;border-radius:8px;color:#e6e6e6;text-decoration:none;transition:.13s;}
-  .mc-drop a:hover{background:#2a2a2a;}
-  .mc-drop a.active{background:rgba(255,230,0,.14);}
-  .mc-di{font-size:18px;line-height:1.1;width:22px;text-align:center;}
-  .mc-dt{display:flex;flex-direction:column;}
-  .mc-dt b{font-size:13.5px;color:#fff;font-weight:700;}
-  .mc-dt span{font-size:11.5px;color:#9a9a9a;margin-top:1px;}
-  .mc-sechead{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:#FFE600;padding:6px 11px 3px;font-weight:800;}
-  .mc-right{display:flex;align-items:center;gap:12px;}
-  .mc-cta{display:flex;align-items:center;gap:7px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff!important;font-weight:800;font-size:13.5px;padding:9px 15px;border-radius:9px;text-decoration:none;white-space:nowrap;box-shadow:0 3px 12px rgba(37,211,102,.4);position:relative;transition:.15s;}
-  .mc-cta:hover{transform:translateY(-1px);box-shadow:0 5px 18px rgba(37,211,102,.55);}
-  .mc-cta .mc-pulse{position:absolute;top:-3px;right:-3px;width:11px;height:11px;background:#FFE600;border-radius:50%;animation:mcpulse 1.8s infinite;}
-  @keyframes mcpulse{0%{box-shadow:0 0 0 0 rgba(255,230,0,.7)}70%{box-shadow:0 0 0 9px rgba(255,230,0,0)}100%{box-shadow:0 0 0 0 rgba(255,230,0,0)}}
-  .mc-user{display:flex;align-items:center;gap:8px;color:#cfcfcf;font-size:13px;}
-  .mc-avatar{width:30px;height:30px;border-radius:50%;background:#FFE600;color:#111;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;}
-  .mc-logout{background:#242424;border:1px solid #383838;color:#eaeaea;font-size:13px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;transition:.13s;}
-  .mc-logout:hover{background:#3a1414;border-color:#a33;color:#ff9a9a;}
-  .mc-toggle{display:none;background:none;border:0;color:#FFE600;font-size:26px;cursor:pointer;}
-  @media(max-width:960px){
-   .mc-menu{position:fixed;top:60px;left:0;right:0;bottom:0;flex-direction:column;align-items:stretch;background:#0d0d0d;padding:12px;gap:2px;overflow-y:auto;display:none;z-index:1001;}
-   .mc-menu.show{display:flex;}
-   .mc-drop{position:static;opacity:1;visibility:visible;transform:none;box-shadow:none;border:0;background:#151515;margin:2px 0 6px;}
-   .mc-caret{display:none;}.mc-toggle{display:block;}.mc-user .mc-uname{display:none;}.mc-cta span:not(.mc-pulse){display:none;}
-  }
-  .mc-balloon{position:fixed;right:22px;bottom:22px;z-index:1200;width:312px;background:linear-gradient(160deg,#1f1f1f,#141414);border:1px solid #FFE600;border-radius:18px;padding:18px 18px 16px;box-shadow:0 18px 50px rgba(0,0,0,.6);transform:translateY(160%);opacity:0;transition:transform .5s cubic-bezier(.16,1,.3,1),opacity .4s;}
-  .mc-balloon.show{transform:translateY(0);opacity:1;animation:mcfloat 4s ease-in-out infinite 1.2s;}
-  @keyframes mcfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
-  .mc-balloon::after{content:"";position:absolute;bottom:-9px;right:38px;width:18px;height:18px;background:linear-gradient(160deg,#1f1f1f,#141414);border-right:1px solid #FFE600;border-bottom:1px solid #FFE600;transform:rotate(45deg);}
-  .mc-bl-close{position:absolute;top:10px;right:12px;background:none;border:0;color:#888;font-size:19px;cursor:pointer;line-height:1;}
-  .mc-bl-close:hover{color:#fff;}
-  .mc-bl-badge{display:inline-block;background:#FFE600;color:#111;font-size:10.5px;font-weight:800;letter-spacing:.5px;padding:3px 9px;border-radius:20px;text-transform:uppercase;margin-bottom:9px;}
-  .mc-bl-title{color:#fff;font-size:16.5px;font-weight:800;line-height:1.25;margin:0 0 6px;}
-  .mc-bl-title b{color:#FFE600;}
-  .mc-bl-text{color:#b9b9b9;font-size:12.8px;line-height:1.5;margin:0 0 13px;}
-  .mc-bl-btn{display:flex;align-items:center;justify-content:center;gap:7px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-weight:800;font-size:13.5px;padding:11px;border-radius:10px;text-decoration:none;transition:.15s;}
-  .mc-bl-btn:hover{filter:brightness(1.08);transform:translateY(-1px);}
-  .mc-bltab{position:fixed;right:22px;bottom:22px;z-index:1190;display:none;align-items:center;gap:8px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-weight:800;font-size:13px;padding:12px 17px;border-radius:30px;box-shadow:0 8px 24px rgba(0,0,0,.45);cursor:pointer;border:0;animation:mcpop .4s;}
-  .mc-bltab:hover{filter:brightness(1.08);}
-  @keyframes mcpop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
-  @media(max-width:520px){.mc-balloon{right:12px;left:12px;width:auto;}}
-  </style>
+  <link rel="stylesheet" href="mc-nav.css?v=20260901b">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Chivo:wght@300;400;500;600;700;900&family=Chivo+Mono:wght@400;500;600&display=swap">
