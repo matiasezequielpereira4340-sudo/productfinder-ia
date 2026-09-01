@@ -196,7 +196,14 @@ async function clasificarLote(terminos) {
         messages: [{ role: 'user', content: prompt }]
       })
     });
-    if (!r.ok) throw new Error('Anthropic HTTP ' + r.status);
+    // El cuerpo de la respuesta es donde Anthropic explica el 400. Tirarlo
+    // dejaba un "HTTP 400" pelado que no dice nada y obliga a adivinar.
+    if (!r.ok) {
+      const detalle = await r.text().catch(() => '');
+      let msg = '';
+      try { const e = JSON.parse(detalle); msg = (e.error && e.error.message) || ''; } catch (_) { msg = detalle; }
+      throw new Error('Anthropic HTTP ' + r.status + ': ' + String(msg).slice(0, 200));
+    }
     const j = await r.json();
     let texto = ((j.content && j.content[0] && j.content[0].text) || '').trim();
     if (j.stop_reason === 'max_tokens') throw new Error('respuesta truncada');
