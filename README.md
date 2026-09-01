@@ -73,6 +73,13 @@ puede descontar la comisión de MercadoLibre y el envío, y muestra casi todo el
 precio de venta como ganancia. Los costos se cargan desde la pestaña **Stock**
 del dashboard, producto por producto.
 
+> Los costos viven dentro de `/api/meli-stock` y no en su propio endpoint: el
+> plan de Vercel permite **12 funciones** y el proyecto ya las tiene todas. Un
+> archivo nuevo en `/api` hace fallar el deploy entero con `NOT_FOUND` en todas
+> las rutas nuevas. Si hace falta agregar un endpoint, hay que fusionarlo con
+> uno existente o subir de plan. Los archivos que empiezan con `_` no cuentan:
+> por eso los helpers compartidos viven en `api/_meli.js` y `api/_buscador.js`.
+
 ### Fuente externa de búsquedas (opcional, es la única paga)
 
 MercadoLibre cerró sus tres endpoints de búsqueda a terceros y además bloquea

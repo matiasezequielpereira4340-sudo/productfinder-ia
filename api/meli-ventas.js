@@ -6,8 +6,7 @@
 // Ganancia neta = precio_venta - comision_meli - costo_envio - costo_producto - embalaje
 
 import { getValidToken } from './meli-refresh.js';
-import { resolveUserId } from './_meli.js';
-import { tipoDeCambio } from './costos.js';
+import { resolveUserId, tipoDeCambio } from './_meli.js';
 
 const SUPABASE_URL = 'https://qglieqpcmmffgxijbysb.supabase.co';
 const MELI_API = 'https://api.mercadolibre.com';

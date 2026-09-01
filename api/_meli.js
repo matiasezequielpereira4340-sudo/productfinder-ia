@@ -239,6 +239,27 @@ export async function getUserToken(userId) {
   }
 }
 
+// El dolar del dia, para no calcular margenes con una cotizacion vieja. Si el
+// vendedor cargo su propio tipo de cambio, ese manda. Vive aca y no en un
+// endpoint porque lo usan las ventas y el stock, y en Vercel cada archivo de
+// /api que no empieza con "_" cuenta contra el limite de funciones del plan.
+export async function tipoDeCambio(userId) {
+  try {
+    const filas = await supaRows('/rest/v1/clientes?user_id=eq.' +
+      encodeURIComponent(userId) + '&select=tipo_cambio_usd&limit=1');
+    const propio = filas[0] && parseFloat(filas[0].tipo_cambio_usd);
+    if (propio && propio > 0) return { valor: propio, fuente: 'propio' };
+  } catch (_) {}
+  try {
+    const r = await fetch('https://dolarapi.com/v1/dolares/tarjeta');
+    if (r.ok) {
+      const j = await r.json();
+      if (j && j.venta > 0) return { valor: j.venta, fuente: 'dolar tarjeta del dia' };
+    }
+  } catch (_) {}
+  return { valor: parseFloat(process.env.USD_ARS) || 1500, fuente: 'valor por defecto' };
+}
+
 // ------------------------------------------------------------
 // Busqueda de mercado
 // ------------------------------------------------------------
