@@ -154,29 +154,81 @@ export function emparejarCategorias(catsA, catsB) {
 // producto y comparados como texto no coinciden nunca. Se traduce todo el lote
 // en una sola llamada.
 // ------------------------------------------------------------
-export async function traducirKeywords(keywords) {
-  const limpios = [...new Set((keywords || []).filter(Boolean))];
-  if (!limpios.length) return {};
+// Una sola llamada resuelve dos cosas. La traduccion, porque sin ella "farol de
+// milha" y "faro auxiliar" nunca coinciden y el cruce no detecta nada. Y si el
+// termino sirve para importar de China, porque la mitad de lo que crece en
+// MercadoLibre son commodities y marcas: "leche", "carne", "royal canin",
+// "nutrique". Un importador no puede hacer nada con eso.
+//
+// Va en lotes: la primera version mandaba 40 terminos con max_tokens 2000, la
+// respuesta se truncaba, el JSON no parseaba y el catch devolvia {} sin decir
+// nada. Por eso el primer barrido en produccion salio con traducidos: 0.
+const LOTE = 25;
+
+async function clasificarLote(terminos) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return {};
-  const prompt = 'Traduci al español rioplatense estos terminos de busqueda de productos de ' +
-    'MercadoLibre Brasil. Son nombres de productos que la gente busca para comprar. ' +
-    'Usa el nombre con el que se lo busca en Argentina, no la traduccion literal. ' +
-    'Responde SOLO un JSON {"termino en portugues": "termino en español"} sin markdown.\n' +
-    JSON.stringify(limpios);
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY no configurada');
+  const prompt =
+    'Sos analista de importaciones China->Argentina. Te paso terminos de busqueda ' +
+    'de MercadoLibre (algunos en portugues de Brasil, otros en español).\n' +
+    'Para cada uno devolve:\n' +
+    '- "es": el termino en español rioplatense, con el nombre con el que se lo busca ' +
+    'en Argentina (no la traduccion literal). Si ya esta en español, repetilo igual.\n' +
+    '- "imp": true si es un producto fisico que un importador chico podria traer de ' +
+    'China y revender; false si es un alimento fresco o commodity (leche, carne, cafe), ' +
+    'una marca registrada (royal canin, nutrique), un servicio, un vehiculo completo, ' +
+    'un inmueble, o algo demasiado pesado o voluminoso para importar en poco volumen.\n' +
+    'Responde SOLO un JSON {"termino original": {"es": "...", "imp": true}} sin markdown.\n' +
+    JSON.stringify(terminos);
+
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 25000);
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
+      signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        // 25 terminos con dos campos cada uno entran holgados. La version
+        // anterior se quedaba corta y la respuesta llegaba cortada al medio.
+        max_tokens: 4000,
+        messages: [{ role: 'user', content: prompt }]
+      })
     });
-    if (!r.ok) return {};
+    if (!r.ok) throw new Error('Anthropic HTTP ' + r.status);
     const j = await r.json();
     let texto = ((j.content && j.content[0] && j.content[0].text) || '').trim();
+    if (j.stop_reason === 'max_tokens') throw new Error('respuesta truncada');
     texto = texto.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/, '').trim();
     const m = texto.match(/\{[\s\S]*\}/);
-    return m ? JSON.parse(m[0]) : {};
-  } catch (_) { return {}; }
+    if (!m) throw new Error('no devolvio JSON');
+    return JSON.parse(m[0]);
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+export async function clasificarKeywords(keywords) {
+  const limpios = [...new Set((keywords || []).filter(Boolean))];
+  if (!limpios.length) return { mapa: {}, error: null };
+  const lotes = [];
+  for (let i = 0; i < limpios.length; i += LOTE) lotes.push(limpios.slice(i, i + LOTE));
+
+  const resultados = await Promise.all(lotes.map(async (lote) => {
+    try { return { ok: true, mapa: await clasificarLote(lote) }; }
+    catch (e) { return { ok: false, error: String((e && e.message) || e).slice(0, 120) }; }
+  }));
+
+  const mapa = {};
+  const errores = [];
+  for (const r of resultados) {
+    if (r.ok) Object.assign(mapa, r.mapa);
+    else errores.push(r.error);
+  }
+  // El error se devuelve para que se vea en la respuesta del endpoint, en vez
+  // de quedar como un "traducidos: 0" sin explicacion.
+  return { mapa, error: errores.length ? errores[0] + (errores.length > 1 ? ' (x' + errores.length + ')' : '') : null };
 }
 
 // ------------------------------------------------------------
@@ -219,10 +271,21 @@ export async function descubrir(token, opts) {
     return { par, ar, br };
   }));
 
-  // Una sola traduccion para todos los rubros.
-  const aTraducir = [];
-  porRubro.forEach(r => aTraducir.push(...r.br.crecimiento));
-  const traducciones = await traducirKeywords(aTraducir);
+  // Una sola clasificacion para todos los rubros: traduce los brasileños y
+  // marca cuales sirven para importar, de los dos paises.
+  const aClasificar = [];
+  porRubro.forEach(r => {
+    aClasificar.push(...r.br.crecimiento);
+    aClasificar.push(...r.ar.crecimiento);
+  });
+  const clasif = await clasificarKeywords(aClasificar);
+  const info = clasif.mapa;
+  const traducciones = {};
+  Object.keys(info).forEach(k => { if (info[k] && info[k].es) traducciones[k] = info[k].es; });
+
+  // Si no viene clasificado, no se descarta: no saber no es lo mismo que saber
+  // que no sirve.
+  const importable = (kw) => !(info[kw] && info[kw].imp === false);
 
   const candidatos = [];
   for (const { par, ar, br } of porRubro) {
@@ -230,8 +293,9 @@ export async function descubrir(token, opts) {
 
     // Lo que crece en Argentina: demanda local ya despertando.
     ar.crecimiento.forEach((kw, i) => {
+      if (!importable(kw)) return;
       candidatos.push({
-        keyword: kw,
+        keyword: info[kw] && info[kw].es ? info[kw].es : kw,
         origen: 'AR',
         categoria: par.ar.id,
         categoriaNombre: par.ar.name,
@@ -244,6 +308,7 @@ export async function descubrir(token, opts) {
 
     // Lo que crece en Brasil. Lo valioso es lo que todavia no aparece aca.
     br.crecimiento.forEach((kw, i) => {
+      if (!importable(kw)) return;
       const es = traducciones[kw] || null;
       const llego = es ? yaEstaEnArgentina(es, listasAR) : null;
       const tambienAR = es ? ar.crecimiento.findIndex(k => normalizar(k) === normalizar(es)) : -1;
@@ -283,10 +348,14 @@ export async function descubrir(token, opts) {
 
   const lista = [...porClave.values()].map(c => ({ ...c, scoreDemanda: scoreDemanda(c) }));
   lista.sort((a, b) => b.scoreDemanda - a.scoreDemanda);
+  const descartados = aClasificar.filter(k => info[k] && info[k].imp === false);
   return {
     candidatos: lista,
     rubros: pares.map(p => ({ ar: p.ar.name, br: p.br ? p.br.name : null, parecido: p.parecido })),
-    traducidos: Object.keys(traducciones).length
+    clasificados: Object.keys(info).length,
+    descartadosNoImportables: descartados.length,
+    ejemploDescartado: descartados.slice(0, 5),
+    errorClasificacion: clasif.error
   };
 }
 

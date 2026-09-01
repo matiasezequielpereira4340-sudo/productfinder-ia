@@ -127,7 +127,12 @@ export default async function handler(req, res) {
           ok: true,
           consultadoEn: new Date().toISOString(),
           rubros: r.rubros,
-          traducidos: r.traducidos,
+          clasificados: r.clasificados,
+          descartados_no_importables: r.descartadosNoImportables,
+          ejemplo_descartado: r.ejemploDescartado,
+          // Si la clasificacion fallo se dice, en vez de devolver una lista sin
+          // traducir y sin filtrar como si estuviera todo bien.
+          error_clasificacion: r.errorClasificacion || undefined,
           total: r.candidatos.length,
           candidatos: r.candidatos.slice(0, 60)
         });
