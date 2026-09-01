@@ -598,7 +598,9 @@ export function idsPorPatron(html) {
 
 // /items?ids= acepta de a 20 y devuelve [{code, body}].
 export async function hidratarItems(ids, token, deadline) {
-  const atributos = 'id,title,price,sold_quantity,seller_id,shipping,category_id,status';
+  // available_quantity no se pedia, con lo cual el stock llegaba siempre vacio
+  // aunque la API lo tenga. Es gratis pedirlo: viaja en la misma consulta.
+  const atributos = 'id,title,price,sold_quantity,available_quantity,seller_id,shipping,category_id,status';
   const lotes = [];
   for (let i = 0; i < ids.length; i += 20) lotes.push(ids.slice(i, i + 20));
   const respuestas = await Promise.all(lotes.map(l => {

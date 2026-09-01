@@ -144,6 +144,14 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, estado: 'listo', ...r });
       }
 
+      // Si la API oficial (gratis) tapa lo que pierde la corrida barata.
+      // No gasta credito: lee el dataset ya pagado y consulta MercadoLibre.
+      if (typeof req.query.tapa === 'string' && req.query.tapa.length > 1) {
+        const fu = await import('./_fuentes.js');
+        const r = await fu.seTapaConLaApi(req.query.tapa.slice(0, 60), tok);
+        return res.status(200).json({ ok: !r.error, ...r });
+      }
+
       // Medir la saturacion de un candidato puntual.
       if (typeof req.query.saturacion === 'string' && req.query.saturacion.length > 1) {
         const kw = req.query.saturacion.slice(0, 60);

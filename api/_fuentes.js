@@ -260,3 +260,53 @@ export async function pruebaSinEnriquecer(termino) {
       : 'SE PUEDE APAGAR: llegan todos los campos que usa la app, a un quinto del precio'
   };
 }
+
+// Se puede tapar el agujero con la API oficial?
+// La corrida barata pierde ventas, reputacion y stock, pero conserva el ml_id.
+// La API de MercadoLibre devuelve el item completo por id y es gratis, asi que
+// si de ahi salen las ventas, el atajo cierra: corrida barata para los IDs mas
+// hidratacion gratis para lo que falta. Esta comprobacion no gasta nada: lee
+// el dataset que ya se pago y consulta la API oficial.
+export async function seTapaConLaApi(termino, token) {
+  const q = String(termino || '').trim().slice(0, 60);
+  if (!q) return { error: 'falta el termino' };
+
+  const fila = await filaCache('sin-detalle::' + q.toLowerCase());
+  const crudas = (fila && Array.isArray(fila.resultados)) ? fila.resultados : [];
+  if (!crudas.length) return { error: 'no hay una corrida barata guardada para ese termino' };
+
+  const ids = crudas.map(f => f && (f.ml_id || f.item_id))
+    .filter(x => /^MLA\d{9,11}$/.test(String(x))).slice(0, 8);
+  if (!ids.length) return { error: 'la corrida barata no dejo ids usables' };
+
+  const { hidratarItems } = await import('./_meli.js');
+  const items = await hidratarItems(ids, token, Date.now() + 8000);
+  if (!items.length) return { error: 'la API oficial no devolvio ninguno de esos items', ids_pedidos: ids.length };
+
+  // Que campos trae la API oficial, contando solo los que vienen con valor.
+  const conValor = c => items.filter(i => i && i[c] !== null && i[c] !== undefined && i[c] !== '' && i[c] !== 0).length;
+  const cobertura = {
+    sold_quantity: conValor('sold_quantity'),
+    available_quantity: conValor('available_quantity'),
+    price: conValor('price'),
+    seller_id: conValor('seller_id')
+  };
+
+  const faltaba = ['sold_quantity', 'available_quantity'];
+  const tapados = faltaba.filter(c => cobertura[c] > 0);
+  const sigueFaltando = faltaba.filter(c => cobertura[c] === 0);
+
+  return {
+    ids_pedidos: ids.length,
+    items_devueltos: items.length,
+    cobertura,
+    tapa: tapados,
+    sigue_faltando: sigueFaltando,
+    // La reputacion no viene en el item: sale de /users/{id}, otra consulta
+    // gratis. Se avisa en vez de darlo por hecho.
+    nota_reputacion: 'vendor_reputation no viene en el item; sale de /users/{seller_id}, que tambien es gratis',
+    veredicto: sigueFaltando.length
+      ? 'La API oficial no tapa: sigue faltando ' + sigueFaltando.join(', ')
+      : 'La API oficial tapa el agujero: corrida barata + hidratacion gratis da lo mismo a un quinto del precio'
+  };
+}
