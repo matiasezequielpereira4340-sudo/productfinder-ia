@@ -541,6 +541,18 @@ function precioDeActor(a) {
     return usd != null ? ('alquiler de $' + usd + '/mes') : 'alquiler mensual';
   }
   if (modelo === 'FREE') return 'gratis (pagas solo el computo)';
+  // Con PAY_PER_EVENT el modelo solo no dice nada: el precio esta en cada
+  // evento que el actor cobra. Sin esto, "PAY_PER_EVENT" y "gratis" se leen
+  // igual, y con el credito contado eso importa.
+  if (modelo === 'PAY_PER_EVENT') {
+    const ev = (p.pricingPerEvent && p.pricingPerEvent.actorChargeEvents) || {};
+    const partes = Object.keys(ev).slice(0, 4).map(k => {
+      const e = ev[k] || {};
+      const usd = e.eventPriceUsd;
+      return (e.eventTitle || k) + ': ' + (usd != null ? '$' + usd : 'sin precio');
+    });
+    return partes.length ? ('por evento -> ' + partes.join(' | ')) : 'por evento (sin detalle)';
+  }
   return modelo;
 }
 
