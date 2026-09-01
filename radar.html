@@ -9,20 +9,50 @@
 <link rel="canonical" href="https://productfinder-ia.vercel.app/radar.html">
 <link rel="icon" href="assets/brand/favicon.ico">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Chivo:wght@300;400;500;600;700;900&family=Chivo+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="mc-nav.css?v=20260901b">
 <link rel="stylesheet" href="theme.css?v=20260901a">
 <style>
+  /* Envoltura de pagina. Faltaba por completo: sin esto el contenido salia
+     a lo ancho de la pantalla y el titulo con el tamano por defecto. */
+  .wrap{max-width:1000px;margin:0 auto;padding:28px 20px 72px}
+  .hero{text-align:center;margin:14px 0 26px}
+  .hero h1{font-family:var(--mc-display);font-size:clamp(1.7rem,4vw,2.15rem);font-weight:800;
+    letter-spacing:-.02em;line-height:1.12;color:var(--mc-ink);text-wrap:balance}
+  .hero h1 span{color:var(--mc-y)}
+  .hero p{color:var(--mc-ink-2);margin:10px auto 0;font-size:15px;max-width:660px;line-height:1.55;text-wrap:pretty}
+
+  .btn{border:none;border-radius:var(--mc-r);padding:13px 24px;font:inherit;font-size:14.5px;
+    font-weight:700;cursor:pointer;transition:opacity .15s var(--mc-ease)}
+  .btn-yellow{background:var(--mc-y);color:var(--mc-y-ink);box-shadow:var(--mc-sh-y)}
+  .btn-yellow:hover{opacity:.9}
+  .btn-yellow:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+
+  .hint{font-size:12.5px;color:var(--mc-ink-4);margin-top:9px;line-height:1.5}
+
+  .loading{display:none;text-align:center;padding:44px 20px;color:var(--mc-y);font-size:14px}
+  .spin{width:34px;height:34px;border:3px solid var(--mc-line-2);border-top-color:var(--mc-y);
+    border-radius:50%;margin:0 auto 14px;animation:rd-sp .9s linear infinite}
+  @keyframes rd-sp{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){ .spin{animation-duration:3s} }
+
+  .error-box{display:none;background:var(--mc-bad-wash);border:1px solid var(--mc-bad);
+    color:var(--mc-bad);border-radius:var(--mc-r);padding:13px 16px;margin-top:18px;font-size:14px}
+
   .rd-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:18px 0 6px}
   .rd-select{background:var(--mc-surface);border:1px solid var(--mc-line);color:var(--mc-ink);
-    border-radius:10px;padding:10px 12px;font:inherit;font-size:14px;min-width:230px}
+    border-radius:var(--mc-r);padding:12px 13px;font:inherit;font-size:14px;min-width:230px}
+  .rd-select:focus-visible{outline:2px solid var(--mc-y);outline-offset:2px}
   .rd-legend{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 22px;font-size:13px;color:var(--mc-ink-3)}
   .rd-tag{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;
     font-size:11.5px;font-weight:700;letter-spacing:.02em;white-space:nowrap}
-  .rd-tag.nuevo{background:rgba(34,197,94,.14);color:#4ade80;border:1px solid rgba(34,197,94,.35)}
-  .rd-tag.ambos{background:rgba(255,230,0,.14);color:var(--mc-y);border:1px solid rgba(255,230,0,.35)}
+  .rd-tag.nuevo{background:var(--mc-ok-wash);color:var(--mc-ok);border:1px solid rgba(52,211,153,.32)}
+  .rd-tag.ambos{background:var(--mc-y-wash);color:var(--mc-y);border:1px solid rgba(255,230,0,.32)}
   .rd-tag.ar{background:rgba(255,255,255,.06);color:var(--mc-ink-2);border:1px solid var(--mc-line-2)}
-  .rd-tag.br{background:rgba(59,130,246,.14);color:#93c5fd;border:1px solid rgba(59,130,246,.35)}
+  .rd-tag.br{background:var(--mc-warn-wash);color:var(--mc-warn);border:1px solid rgba(255,138,61,.32)}
   .rd-list{display:grid;gap:12px;margin-top:6px}
-  .rd-card{background:var(--mc-surface);border:1px solid var(--mc-line);border-radius:14px;padding:16px 18px}
+  .rd-card{background:var(--mc-surface);border:1px solid var(--mc-line);border-radius:var(--mc-r-lg);
+    padding:17px 19px;transition:border-color .15s var(--mc-ease)}
+  .rd-card:hover{border-color:var(--mc-line-2)}
   .rd-card.destacada{border-color:var(--mc-line-hi)}
   .rd-head{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
   .rd-kw{font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:1.12rem;font-weight:700;
@@ -32,7 +62,8 @@
   .rd-de{font-size:12px;color:var(--mc-ink-4);margin-top:5px;font-style:italic}
   .rd-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:13px}
   .rd-btn{background:transparent;border:1px solid var(--mc-line-2);color:var(--mc-ink-2);
-    border-radius:9px;padding:7px 13px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+    border-radius:var(--mc-r-sm);padding:8px 14px;font:inherit;font-size:13px;cursor:pointer;
+    transition:border-color .15s var(--mc-ease),color .15s var(--mc-ease)}
   .rd-btn:hover{border-color:var(--mc-y);color:var(--mc-y)}
   .rd-btn[disabled]{opacity:.55;cursor:default}
   .rd-sat{font-size:13px;line-height:1.6;margin-top:11px;padding-top:11px;border-top:1px solid var(--mc-line)}
@@ -47,13 +78,42 @@
   .rd-score{font-family:'Chivo Mono',monospace;font-size:1.5rem;font-weight:600;line-height:1;text-align:right}
   .rd-score small{display:block;font-size:10.5px;font-weight:400;color:var(--mc-ink-4);
     margin-top:4px;letter-spacing:.04em;text-transform:uppercase;font-family:'Chivo',sans-serif}
-  .rd-nota{background:var(--mc-surface-2);border:1px solid var(--mc-line);border-radius:12px;
+  .rd-nota{background:var(--mc-surface-2);border:1px solid var(--mc-line);border-radius:var(--mc-r-lg);
     padding:14px 16px;font-size:13.5px;color:var(--mc-ink-2);line-height:1.6;margin:20px 0}
   .rd-nota b{color:var(--mc-ink)}
+
+  /* En celular: el select ocupaba media pantalla, los numeros se apretaban en
+     una fila y el globo de WhatsApp se salia por el costado. */
+  @media (max-width:640px){
+    .wrap{padding:20px 15px 60px}
+    .rd-toolbar{gap:8px}
+    .rd-select,.rd-toolbar .btn{width:100%;min-width:0}
+    .rd-card{padding:15px 15px}
+    /* El titulo se partia en tres lineas porque compartia fila con la etiqueta
+       y el puntaje. En celular se queda con la fila entera y los otros dos
+       bajan a la siguiente, uno al lado del otro. */
+    .rd-head{gap:8px;align-items:center}
+    .rd-kw{flex:1 0 100%;min-width:0;font-size:1.06rem}
+    .rd-score{text-align:left;display:flex;align-items:baseline;gap:6px;font-size:1.3rem}
+    .rd-score small{display:inline;margin-top:0}
+    .rd-nums{display:grid;grid-template-columns:1fr;gap:4px}
+    .rd-lider{flex-direction:column;gap:0}
+    .rd-lider span:last-child{color:var(--mc-ink-4)}
+  }
+  @media (max-width:520px){ .mc-balloon{right:12px;left:12px;width:auto} }
 </style>
 </head>
 <body>
 <div data-mc-nav="radar"></div>
+
+  <div class="mc-balloon" id="mcBalloon">
+    <button class="mc-bl-close" id="mcBlClose" aria-label="Cerrar">&times;</button>
+    <span class="mc-bl-badge"><svg class="ic" aria-hidden="true"><use href="#i-fire"></use></svg> Asesor&iacute;a 1 a 1</span>
+    <p class="mc-bl-title">&iquest;Vas a importar y no quer&eacute;s <b>perder plata</b>?</p>
+    <p class="mc-bl-text">Te ayudo a elegir el producto, calcular costos reales y despachar sin sorpresas. Primera consulta sin cargo.</p>
+    <a class="mc-bl-btn" href="https://wa.me/541160374306?text=Hola!%20Quiero%20asesor%C3%ADa%20para%20importar" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Hablar por WhatsApp</a>
+  </div>
+  <button class="mc-bltab" id="mcBlTab"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Asesor&iacute;a gratis</button>
 
 <div class="wrap">
   <div class="hero">
@@ -79,11 +139,15 @@
   <div class="rd-list" id="lista"></div>
 
   <div class="rd-nota" id="nota" style="display:none">
-    <b>C&oacute;mo leer esto.</b> El puntaje de demanda sale de la posici&oacute;n del producto en las listas
-    de crecimiento de MercadoLibre: cuanto m&aacute;s arriba, m&aacute;s fuerte la se&ntilde;al. El puntaje de
-    oportunidad aparece reci&eacute;n cuando med&iacute;s la competencia, porque hasta ese momento no se sabe
-    cu&aacute;nta oferta hay en Argentina. Un producto que explota afuera pero tiene 8.000 publicaciones
-    ac&aacute; no es una oportunidad.
+    <b>C&oacute;mo leer esto.</b> El puntaje de <b>demanda</b> sale de la posici&oacute;n del producto en
+    las listas de crecimiento de MercadoLibre: cuanto m&aacute;s arriba, m&aacute;s fuerte la se&ntilde;al.
+    El de <b>oportunidad</b> aparece reci&eacute;n cuando med&iacute;s la competencia.
+    <br><br>
+    Una aclaraci&oacute;n importante: MercadoLibre <b>no publica cu&aacute;ntas publicaciones hay</b> para un
+    t&eacute;rmino, y no te lo vamos a inventar. Lo que s&iacute; se puede medir es <b>c&oacute;mo est&aacute;
+    repartida la venta</b> entre los que ya est&aacute;n. Si tres vendedores se llevan el 90%, el rubro est&aacute;
+    tomado aunque haya pocas publicaciones; si la venta est&aacute; repartida, hay lugar aunque haya muchas.
+    Los n&uacute;meros que ves salen de las publicaciones que efectivamente se miraron, no del mercado entero.
   </div>
 </div>
 
@@ -106,7 +170,12 @@
     return '<span class="rd-tag ar">Argentina</span>';
   }
 
-  function colorScore(s){ return s >= 40 ? '#4ade80' : s >= 15 ? '#FFE600' : s >= 0 ? '#f59e0b' : '#ef4444'; }
+  // Los colores salen del tema, no de hexadecimales sueltos: si cambia la
+  // paleta cambia aca tambien.
+  function colorScore(s){
+    var v = s >= 40 ? '--mc-ok' : s >= 15 ? '--mc-y' : s >= 0 ? '--mc-warn' : '--mc-bad';
+    return 'var(' + v + ')';
+  }
 
   function tarjeta(c, i){
     return '<div class="rd-card' + (c.origen === 'BR-nuevo' ? ' destacada' : '') + '" id="c' + i + '">' +
@@ -156,7 +225,7 @@
         // publicaciones: MercadoLibre no publica ese total. Cuando ni siquiera
         // hay ventas informadas no se muestra puntaje.
         var cabeza = d.score == null
-          ? '<span style="color:#f59e0b;font-weight:700;font-size:15px">Sin datos para puntuar</span> &middot; '
+          ? '<span style="color:var(--mc-warn);font-weight:700;font-size:15px">Sin datos para puntuar</span> &middot; '
           : '<span style="color:' + colorScore(d.score) + ';font-weight:700;font-size:15px">Oportunidad ' + d.score + '/100</span> &middot; ';
 
         var nums = '<span>Publicaciones vistas: <b>' + num(m.muestra) + '</b> (muestra, no el total)</span>' +
@@ -188,7 +257,7 @@
         if (btn) { btn.textContent = 'Medido'; }
       })
       .catch(function(e){
-        caja.innerHTML = '<div class="rd-sat" style="color:#ef4444">' + esc(e.message) + '</div>';
+        caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-bad)">' + esc(e.message) + '</div>';
         if (btn) { btn.disabled = false; btn.textContent = 'Reintentar'; }
       });
   };
@@ -235,6 +304,17 @@
   buscar();
 })();
 </script>
+<script>
+  (function(){
+    var bal=document.getElementById('mcBalloon'), tab=document.getElementById('mcBlTab'), cb=document.getElementById('mcBlClose'), dm=false;
+    try{ dm = localStorage.getItem('mc_promo_closed')==='1'; }catch(e){}
+    function op(){ if(tab) tab.style.display='none'; if(bal){ bal.style.display='block'; setTimeout(function(){ bal.classList.add('show'); },30);} }
+    function cl(){ if(bal) bal.classList.remove('show'); setTimeout(function(){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; },400); try{ localStorage.setItem('mc_promo_closed','1'); }catch(e){} }
+    if(cb) cb.addEventListener('click', cl);
+    if(tab) tab.addEventListener('click', function(){ try{ localStorage.removeItem('mc_promo_closed'); }catch(e){} op(); });
+    if(dm){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; } else { setTimeout(op, 1400); }
+  })();
+  </script>
 <script defer src="mc-ui.js?v=20260901a"></script>
 </body>
 </html>
