@@ -484,7 +484,7 @@
   // -----------------------------------------------
   async function cargarCostos() {
     try {
-      const res = await fetch(`/api/costos?user_id=${encodeURIComponent(userId)}`);
+      const res = await fetch(`/api/meli-stock?user_id=${encodeURIComponent(userId)}&recurso=costos`);
       const data = await res.json();
       if (!res.ok || !data.success) return;
       costosPorItem = {};
@@ -510,7 +510,7 @@
 
     input.className = 'costo-input guardando';
     try {
-      const res = await fetch('/api/costos', {
+      const res = await fetch('/api/meli-stock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -543,7 +543,7 @@
     const valor = parseFloat(inp && inp.value);
     if (!(valor > 0)) { alert('Pone un valor mayor a cero'); return; }
     try {
-      const res = await fetch('/api/costos', {
+      const res = await fetch('/api/meli-stock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, tipo_cambio_usd: valor })
