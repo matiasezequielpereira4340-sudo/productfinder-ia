@@ -591,6 +591,51 @@ export async function inspeccionarUltimaCorrida() {
   };
 }
 
+// El esquema de entrada de un actor: que campos acepta y cuales prenden cosas
+// que se cobran aparte. El actor de MercadoLibre cobra "Details" como evento
+// propio ($0.004 por item, contra $0.001 del resultado pelado), asi que apagar
+// el enriquecimiento abarata la busqueda cinco veces. Esto se lee del build
+// publicado: es gratis y no corre nada.
+export async function esquemaDeActor(id) {
+  const actor = String(id || '').replace('/', '~');
+  if (!/^[\w.-]+~[\w.-]+$/.test(actor)) return { error: 'id de actor invalido' };
+
+  const a = await apifyGet('/acts/' + encodeURIComponent(actor), 12000);
+  if (!a.ok) return { error: 'Apify ' + a.status + ': ' + (a.detalle || '') };
+  const d = (a.json && a.json.data) || {};
+  const buildId = d.taggedBuilds && d.taggedBuilds.latest && d.taggedBuilds.latest.buildId;
+  if (!buildId) return { error: 'el actor no publica un build', actor };
+
+  const b = await apifyGet('/actor-builds/' + encodeURIComponent(buildId), 12000);
+  if (!b.ok) return { error: 'Apify build ' + b.status + ': ' + (b.detalle || '') };
+  let esquema = (b.json && b.json.data && b.json.data.inputSchema) || null;
+  if (typeof esquema === 'string') { try { esquema = JSON.parse(esquema); } catch (_) { esquema = null; } }
+  if (!esquema || !esquema.properties) return { error: 'el build no trae esquema de entrada', actor };
+
+  const props = esquema.properties;
+  const campos = Object.keys(props).map(k => {
+    const p = props[k] || {};
+    return {
+      campo: k,
+      tipo: p.type || '?',
+      por_defecto: p.default !== undefined ? p.default : (p.prefill !== undefined ? p.prefill : null),
+      titulo: String(p.title || '').slice(0, 60)
+    };
+  });
+
+  // Los que suenan a "traeme tambien el detalle", que es lo que se cobra aparte.
+  const sospechosos = campos.filter(c =>
+    /detail|enrich|full|extend|deep|description|review|extra|complete/i.test(c.campo + ' ' + c.titulo));
+
+  return {
+    actor,
+    requeridos: Array.isArray(esquema.required) ? esquema.required : [],
+    total_campos: campos.length,
+    encienden_el_detalle: sospechosos,
+    campos
+  };
+}
+
 export async function buscarActors(consulta, limite) {
   const r = await apifyGet('/store?limit=' + (limite || 8) + '&search=' + encodeURIComponent(consulta), 15000);
   if (!r.ok) return { error: 'Apify ' + r.status + ': ' + (r.detalle || ''), consulta };
