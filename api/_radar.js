@@ -325,6 +325,63 @@ export async function clasificarKeywords(keywords) {
   };
 }
 
+// Un producto de TikTok se llama "Magcubic HY300Pro Projector 290ANSI Android
+// 14 Dual WiFi6 8K 4K Decode Auto Keystone". Con eso no se puede preguntar
+// nada en MercadoLibre Argentina: hay que reducirlo al producto generico, en
+// español, como se lo busca aca ("mini proyector"). Se cachea igual que las
+// traducciones, porque el mismo titulo se repite entre consultas.
+export async function nombrarProductos(titulos) {
+  const limpios = [...new Set((titulos || []).filter(Boolean).map(t => String(t).slice(0, 140)))];
+  if (!limpios.length) return {};
+
+  const guardadas = await clasificacionesGuardadas(limpios);
+  const mapa = {};
+  Object.keys(guardadas).forEach(k => { if (guardadas[k].es) mapa[k] = guardadas[k].es; });
+  const faltan = limpios.filter(k => !mapa[k]);
+  if (!faltan.length) return mapa;
+
+  const lotes = [];
+  for (let i = 0; i < faltan.length; i += LOTE) lotes.push(faltan.slice(i, i + LOTE));
+
+  const resultados = await Promise.all(lotes.map(async (lote) => {
+    try {
+      const prompt =
+        'Te paso titulos de productos de TikTok Shop, en ingles y llenos de ' +
+        'especificaciones y marcas.\n' +
+        'Para cada uno devolve el PRODUCTO GENERICO en español rioplatense, con el ' +
+        'nombre con el que se lo buscaria en MercadoLibre Argentina: 2 a 4 palabras, ' +
+        'sin marca, sin modelo, sin numeros de especificacion.\n' +
+        'Ejemplo: "Magcubic HY300Pro Projector 290ANSI Android 14 Dual WiFi6" -> "mini proyector".\n' +
+        'Responde SOLO un JSON {"titulo original": "termino corto"} sin markdown.\n' +
+        JSON.stringify(lote);
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 25000);
+      try {
+        const r = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST', signal: ctrl.signal, headers: anthropicHeaders(),
+          body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 2000,
+            messages: [{ role: 'user', content: prompt }] })
+        });
+        const texto = await r.text();
+        if (!r.ok) throw new Error('Anthropic HTTP ' + r.status + ': ' + texto.slice(0, 150));
+        const j = JSON.parse(texto);
+        const salida = ((j.content || [])[0] || {}).text || '{}';
+        return JSON.parse(salida.replace(/^```(json)?|```$/g, '').trim());
+      } finally { clearTimeout(t); }
+    } catch (_) { return {}; }
+  }));
+
+  const nuevos = {};
+  for (const r of resultados) Object.assign(nuevos, r);
+  // Se guardan como "no importable" a proposito: son titulos, no keywords de
+  // busqueda, y no deben aparecer como candidatos por su cuenta.
+  const paraGuardar = {};
+  Object.keys(nuevos).forEach(k => { paraGuardar[k] = { es: nuevos[k], imp: false, motivo: 'titulo de tiktok' }; });
+  await guardarClasificaciones(paraGuardar);
+
+  return Object.assign(mapa, nuevos);
+}
+
 // ------------------------------------------------------------
 // Descubrimiento
 // ------------------------------------------------------------
