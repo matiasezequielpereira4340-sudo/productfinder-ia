@@ -87,6 +87,30 @@ export default async function handler(req, res) {
       }
     }
 
+    // ?actors=1 lista los actors de Apify que sirven para el Radar de
+    // Oportunidad, con su precio real. Es read-only: no corre ninguno, asi que
+    // no gasta credito. Elegir el actor mirando esto y no el marketplace evita
+    // descubrir el precio (o que no existe) recien cuando falla en produccion.
+    if (req.query && req.query.actors) {
+      const bus = await import('./_buscador.js');
+      const consultas = typeof req.query.actors === 'string' && req.query.actors.length > 2
+        ? [req.query.actors]
+        : ['google trends', 'tiktok shop', 'mercadolibre'];
+      try {
+        const [cuenta, ...resultados] = await Promise.all([
+          bus.estadoCuentaApify(),
+          ...consultas.map(c => bus.buscarActors(c, 8))
+        ]);
+        return res.status(200).json({
+          cuenta,
+          actor_en_uso: process.env.APIFY_ACTOR || 'devcake~mercadolibre-scraper',
+          busquedas: resultados
+        });
+      } catch (e) {
+        return res.status(200).json({ error: String((e && e.message) || e).slice(0, 200) });
+      }
+    }
+
     // ?proveedor=termino corre el proveedor externo y mide cuanto tarda.
     // Va aparte de ?catalogo= porque una corrida de Apify puede llevar
     // decenas de segundos y arrastraba a todo el diagnostico al timeout.

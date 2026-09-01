@@ -419,3 +419,90 @@ export async function buscarConProveedor(product, meliToken, opts) {
     results: elegidos
   };
 }
+
+// ------------------------------------------------------------
+// Diagnostico de la cuenta de Apify
+// Read-only: solo consulta, no corre ningun actor y por lo tanto no gasta un
+// centavo. Sirve para saber que actors hay disponibles de verdad y cuanto
+// cobra cada uno, en vez de elegirlos de memoria desde el marketplace.
+// ------------------------------------------------------------
+async function apifyGet(ruta, timeoutMs) {
+  const token = process.env.APIFY_TOKEN;
+  if (!token) throw new Error('APIFY_TOKEN no configurado');
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs || 12000);
+  try {
+    const sep = ruta.includes('?') ? '&' : '?';
+    const r = await fetch('https://api.apify.com/v2' + ruta + sep + 'token=' + encodeURIComponent(token),
+      { signal: ctrl.signal });
+    const texto = await r.text();
+    if (!r.ok) return { ok: false, status: r.status, detalle: texto.slice(0, 200) };
+    try { return { ok: true, status: r.status, json: JSON.parse(texto) }; }
+    catch (_) { return { ok: false, status: r.status, detalle: 'respuesta no JSON' }; }
+  } catch (e) {
+    return { ok: false, status: 0, detalle: String((e && e.message) || e).slice(0, 150) };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Lo que cobra un actor, que es lo que decide si entra en el presupuesto.
+function precioDeActor(a) {
+  const p = (a && (a.currentPricingInfo || (Array.isArray(a.pricingInfos) ? a.pricingInfos[0] : null))) || null;
+  if (!p) return 'sin precio publicado';
+  const modelo = p.pricingModel || 'desconocido';
+  if (modelo === 'PRICE_PER_DATASET_ITEM') {
+    const usd = p.pricePerUnitUsd != null ? p.pricePerUnitUsd : (p.unitPriceUsd != null ? p.unitPriceUsd : null);
+    return usd != null ? ('$' + (usd * 1000).toFixed(2) + ' por 1000 resultados') : 'por resultado';
+  }
+  if (modelo === 'FLAT_PRICE_PER_MONTH') {
+    const usd = p.pricePerUnitUsd != null ? p.pricePerUnitUsd : null;
+    return usd != null ? ('alquiler de $' + usd + '/mes') : 'alquiler mensual';
+  }
+  if (modelo === 'FREE') return 'gratis (pagas solo el computo)';
+  return modelo;
+}
+
+export async function buscarActors(consulta, limite) {
+  const r = await apifyGet('/store?limit=' + (limite || 8) + '&search=' + encodeURIComponent(consulta), 15000);
+  if (!r.ok) return { error: 'Apify ' + r.status + ': ' + (r.detalle || ''), consulta };
+  const items = (r.json && r.json.data && Array.isArray(r.json.data.items)) ? r.json.data.items : [];
+  return {
+    consulta,
+    encontrados: items.length,
+    actors: items.map(a => ({
+      // Este es el id que se pone en APIFY_ACTOR.
+      id: (a.username || '') + '~' + (a.name || ''),
+      titulo: String(a.title || '').slice(0, 70),
+      precio: precioDeActor(a),
+      corridas_totales: (a.stats && a.stats.totalRuns) || null,
+      exito_pct: (a.stats && a.stats.publicActorRunStats30Days && a.stats.publicActorRunStats30Days.SUCCEEDED != null)
+        ? a.stats.publicActorRunStats30Days.SUCCEEDED : null
+    }))
+  };
+}
+
+// Cuanto credito queda: define cuantas keywords puede mirar el radar.
+export async function estadoCuentaApify() {
+  const [usuario, limites] = await Promise.all([
+    apifyGet('/users/me', 10000),
+    apifyGet('/users/me/limits', 10000)
+  ]);
+  const salida = {};
+  if (usuario.ok && usuario.json && usuario.json.data) {
+    const d = usuario.json.data;
+    salida.plan = (d.plan && (d.plan.id || d.plan.description)) || null;
+    salida.usuario = d.username || null;   // el nombre de la cuenta, no el token
+  } else {
+    salida.error_usuario = 'Apify ' + usuario.status + ': ' + (usuario.detalle || '');
+  }
+  if (limites.ok && limites.json && limites.json.data) {
+    const d = limites.json.data;
+    salida.uso_mensual_usd = d.current && d.current.monthlyUsageUsd != null ? d.current.monthlyUsageUsd : null;
+    salida.tope_mensual_usd = d.limits && d.limits.maxMonthlyUsageUsd != null ? d.limits.maxMonthlyUsageUsd : null;
+    if (salida.uso_mensual_usd != null && salida.tope_mensual_usd != null) {
+      salida.credito_restante_usd = Math.round((salida.tope_mensual_usd - salida.uso_mensual_usd) * 100) / 100;
+    }
+  }
+  return salida;
+}
