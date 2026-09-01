@@ -146,11 +146,14 @@
         }
 
         var m = d.mla;
-        caja.innerHTML = '<div class="rd-sat">' +
-          '<span style="color:' + colorScore(d.score) + ';font-weight:700;font-size:15px">' +
-            'Oportunidad ' + d.score + '/100</span> &middot; ' + esc(d.motivo) +
+        // Sin total real no se muestra un puntaje: se dice que no se puede medir
+        // la saturacion y se muestran los datos que si son reales.
+        var cabeza = d.score == null
+          ? '<span style="color:#f59e0b;font-weight:700;font-size:15px">Saturaci&oacute;n sin medir</span> &middot; '
+          : '<span style="color:' + colorScore(d.score) + ';font-weight:700;font-size:15px">Oportunidad ' + d.score + '/100</span> &middot; ';
+        caja.innerHTML = '<div class="rd-sat">' + cabeza + esc(d.motivo) +
           '<div class="rd-nums">' +
-            '<span>Publicaciones: <b>' + num(m.listings) + (m.totalReal ? '' : ' (muestra)') + '</b></span>' +
+            '<span>' + (m.totalReal ? 'Publicaciones: <b>' + num(m.listings) + '</b>' : 'Publicaciones vistas: <b>' + num(m.muestra) + '</b> (muestra, no el total)') + '</span>' +
             '<span>Vendedores: <b>' + num(m.vendedores) + '</b></span>' +
             '<span>Precio t&iacute;pico: <b>$' + num(m.precioMediana) + '</b></span>' +
             '<span>Rango: <b>$' + num(m.precioMin) + ' - $' + num(m.precioMax) + '</b></span>' +

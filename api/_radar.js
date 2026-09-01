@@ -387,7 +387,26 @@ export function scoreDemanda(c) {
 // afuera explote.
 export function opportunityScore(c, mla) {
   const demanda = c.scoreDemanda != null ? c.scoreDemanda : scoreDemanda(c);
-  if (!mla || !mla.listings) return { score: null, motivo: 'Falta medir la saturación en Argentina.' };
+  if (!mla || !mla.listings) return { score: null, motivo: 'Falta medir la competencia en Argentina.' };
+
+  // Sin total real no se puede hablar de saturacion. El scraper devuelve una
+  // muestra (pedimos 48 y trae lo que encuentra), y confundirla con el total
+  // hacia decir "solo 39 publicaciones: el mercado esta casi vacio" cuando en
+  // realidad no sabemos cuantas hay. Es justo el numero inventado que la app
+  // promete no dar.
+  if (!mla.totalReal) {
+    const precios = mla.precioMediana
+      ? ' Precio típico $' + Math.round(mla.precioMediana).toLocaleString('es-AR') + '.'
+      : '';
+    return {
+      score: null,
+      saturacion: null,
+      pelea: null,
+      motivo: 'MercadoLibre no expone cuántas publicaciones hay para este término, así que no puedo decir si está saturado. Lo que sí es real: ' +
+        mla.muestra + ' publicaciones vistas, ' + mla.vendedores + ' vendedores distintos.' + precios,
+      soloMuestra: true
+    };
+  }
 
   const listings = mla.listings;
   // Saturacion: 0 publicaciones no penaliza, 5000 o mas penaliza al maximo.
@@ -405,7 +424,7 @@ export function opportunityScore(c, mla) {
   else if (listings < 6000) motivo = listings + ' publicaciones: el rubro ya está trabajado.';
   else motivo = listings + ' publicaciones: saturado, no importa cuánto crezca afuera.';
 
-  return { score, saturacion, pelea, motivo };
+  return { score, saturacion, pelea, motivo, soloMuestra: false };
 }
 
 // Saturacion real en MLA. Reusa el mismo pipeline que el analizador: mismo
