@@ -215,6 +215,11 @@ function inputDeActor(product, maxItems) {
       .replace(/\{\{max\}\}/g, String(maxItems)));
   }
   return {
+    // enrichDetailPage viene prendido de fabrica y se cobra aparte: $0.004 por
+    // item contra $0.001 del resultado pelado. Apagarlo abarata la busqueda
+    // cinco veces, pero no se sabe que campos se pierden hasta medirlo, asi
+    // que por ahora queda como estaba y se cambia por env.
+    enrichDetailPage: enriquecer(),
     queries: [product],
     search: product,
     query: product,
@@ -223,6 +228,14 @@ function inputDeActor(product, maxItems) {
     country: 'AR',
     site: 'MLA'
   };
+}
+
+// APIFY_ENRIQUECER=0 apaga la pagina de detalle. Default: prendido, que es lo
+// que hace hoy, para no cambiar el comportamiento sin haberlo medido.
+export function enriquecer() {
+  const v = String(process.env.APIFY_ENRIQUECER || '').trim().toLowerCase();
+  if (v === '0' || v === 'false' || v === 'no') return false;
+  return true;
 }
 
 function actorId() {

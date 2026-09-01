@@ -204,3 +204,59 @@ export async function googleTrends(keyword, opts) {
     normalizar: normalizarTrend
   });
 }
+
+// ------------------------------------------------------------
+// Prueba: la misma busqueda de MercadoLibre pero SIN la pagina de detalle
+// ------------------------------------------------------------
+// enrichDetailPage viene prendido y se cobra aparte ($0.004 por item contra
+// $0.001 del resultado pelado): apagarlo abarata la busqueda cinco veces. Lo
+// que no se sabe es que campos se pierden. medirCompetencia necesita
+// sold_quantity_text, vendor_reputation, official_store y category_id; si
+// alguno sale de la pagina de detalle, apagarlo rompe la medicion.
+//
+// Esto corre UNA busqueda con el detalle apagado y reporta que campos vinieron
+// y cuales de los que precisamos faltan. Corre por su propia clave de cache,
+// asi que no toca lo que ve el usuario, y cuesta ~$0.048: menos que una
+// busqueda normal, porque justamente no paga el detalle.
+const CAMPOS_QUE_PRECISAMOS = [
+  'price', 'seller', 'sold_quantity_text', 'vendor_reputation',
+  'official_store', 'category_id', 'ml_id', 'available_quantity'
+];
+
+export async function pruebaSinEnriquecer(termino) {
+  const q = String(termino || '').trim().slice(0, 60);
+  if (!q) return { error: 'falta el termino' };
+  const actor = (process.env.APIFY_ACTOR || 'devcake~mercadolibre-scraper').replace('/', '~');
+
+  const r = await corridaCacheada({
+    clave: 'sin-detalle::' + q.toLowerCase(),
+    fuente: 'prueba-sin-detalle',
+    actor,
+    limite: 48,
+    input: { queries: [q], country: 'AR', maxItems: 48, enrichDetailPage: false },
+    // Se guarda la fila cruda tal cual, recortada: la gracia es ver que campos
+    // llegan, no armar un resultado.
+    normalizar: f => (f && typeof f === 'object') ? f : null
+  });
+  if (r.error || r.pendiente || r.vacia) return r;
+
+  const filas = r.items || [];
+  const presentes = new Set();
+  for (const f of filas) for (const k of Object.keys(f)) {
+    if (f[k] !== null && f[k] !== undefined && f[k] !== '') presentes.add(k);
+  }
+  const faltan = CAMPOS_QUE_PRECISAMOS.filter(c => !presentes.has(c));
+
+  return {
+    items: filas.length,
+    desdeCache: !!r.desdeCache,
+    costo_usd: 0.00005 + filas.length * 0.001,
+    campos: [...presentes].sort(),
+    precisamos: CAMPOS_QUE_PRECISAMOS,
+    faltan,
+    // El veredicto en una linea, que es lo que importa.
+    veredicto: faltan.length
+      ? 'NO se puede apagar: sin la pagina de detalle faltan ' + faltan.join(', ')
+      : 'SE PUEDE APAGAR: llegan todos los campos que usa la app, a un quinto del precio'
+  };
+}

@@ -131,6 +131,19 @@ export default async function handler(req, res) {
           costo_usd: fu.costoEstimado('trends', (r.items || []).length), relacionadas: r.items });
       }
 
+      // Una busqueda con la pagina de detalle apagada, para saber si se puede
+      // dejar de pagarla. Cuesta ~$0.048, menos que una busqueda normal.
+      if (typeof req.query.barato === 'string' && req.query.barato.length > 1) {
+        const fu = await import('./_fuentes.js');
+        const r = await fu.pruebaSinEnriquecer(req.query.barato.slice(0, 60));
+        if (r.error) return res.status(200).json({ ok: false, error: r.error });
+        if (r.pendiente) return res.status(200).json({ ok: true, estado: 'preparando',
+          aviso: 'Corriendo la busqueda sin pagina de detalle. Tarda dos o tres minutos.' });
+        if (r.vacia) return res.status(200).json({ ok: true, estado: 'sin-datos',
+          aviso: 'La corrida termino sin resultados.' });
+        return res.status(200).json({ ok: true, estado: 'listo', ...r });
+      }
+
       // Medir la saturacion de un candidato puntual.
       if (typeof req.query.saturacion === 'string' && req.query.saturacion.length > 1) {
         const kw = req.query.saturacion.slice(0, 60);
