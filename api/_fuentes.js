@@ -41,10 +41,17 @@ const ACTOR_TRENDS = () => (process.env.APIFY_ACTOR_TRENDS || 'khadinakbar~googl
 
 // Cuanto sale cada consulta, con los precios de arriba. Se muestra en el boton
 // antes de gastar: que el numero lo vea quien paga, no que aparezca despues.
+// Tope de resultados de Google Trends. El actor viene con 500 de fabrica y
+// cobra $0.005 cada uno: dejarlo asi es $2,50 por consulta. Con 20 alcanza
+// para ver que busca la gente alrededor del termino.
+export const TOPE_TRENDS = parseInt(process.env.TRENDS_MAX_RESULTS || '20', 10) || 20;
+
 export function costoEstimado(fuente, items) {
   const n = items || 30;
   if (fuente === 'tiktok') return 0.00005 + n * 0.002;
-  if (fuente === 'trends') return 0.00005 + n * 0.005;
+  // El de trends se calcula sobre el TOPE, no sobre lo que volvio: es lo que
+  // se arriesga al apretar el boton, que es lo que hay que mostrar antes.
+  if (fuente === 'trends') return 0.00005 + TOPE_TRENDS * 0.005;
   return null;
 }
 
@@ -91,8 +98,35 @@ function horasCache() {
   return isFinite(h) && h >= 0 ? h : 72;
 }
 
+// El actor entra en la clave. Sin eso, cambiar de actor seguia sirviendo lo
+// guardado por el anterior: cuando se reemplazo el de Google Trends porque
+// contestaba tendencias del dia, el cache seguia devolviendo "javier milei"
+// para consultas de producto. Dos fuentes distintas no comparten cajon.
+function claveConActor(clave, actor) {
+  return clave + '@' + String(actor || '').split('~').pop().slice(0, 24);
+}
+
+// Por que fallo una corrida. Apify lo deja en statusMessage y en el log.
+// Leerlo no cuesta nada y evita la siguiente corrida a ciegas, que si cuesta.
+async function motivoDeFalla(runId) {
+  try {
+    const token = process.env.APIFY_TOKEN;
+    if (!token || !runId) return null;
+    const r = await fetch('https://api.apify.com/v2/actor-runs/' +
+      encodeURIComponent(runId) + '?token=' + encodeURIComponent(token));
+    if (!r.ok) return null;
+    const j = await r.json();
+    const d = (j && j.data) || {};
+    const partes = [];
+    if (d.statusMessage) partes.push(String(d.statusMessage).slice(0, 200));
+    if (d.exitCode != null) partes.push('exitCode ' + d.exitCode);
+    return partes.length ? partes.join(' | ') : null;
+  } catch (_) { return null; }
+}
+
 export async function corridaCacheada(cfg) {
-  const { clave, actor, input, normalizar, limite } = cfg;
+  const { actor, input, normalizar, limite } = cfg;
+  const clave = claveConActor(cfg.clave, actor);
   const horas = horasCache();
 
   const fila = await filaCache(clave);
@@ -125,7 +159,11 @@ export async function corridaCacheada(cfg) {
         await guardarFila(clave, { fuente: cfg.fuente, resultados: [], run_id: null, run_estado: 'VACIA' });
         return { items: [], vacia: true };
       }
-      return { error: 'La consulta anterior termino en ' + est.estado };
+      // "FAILED" a secas no alcanza para arreglar nada: hay que ver que dijo
+      // Apify. El motivo esta en la corrida, y leerlo es gratis.
+      const motivo = await motivoDeFalla(fila.run_id);
+      return { error: 'La consulta anterior termino en ' + est.estado +
+        (motivo ? ': ' + motivo : ''), estado_corrida: est.estado };
     }
   }
 
@@ -255,8 +293,22 @@ export async function googleTrends(keyword, opts) {
     fuente: 'google-trends',
     actor: ACTOR_TRENDS(),
     limite: 40,
-    input: { searchTerms: [q], keywords: [q], query: q, geo,
-      timeRange: 'today 12-m', isPublic: false },
+    // MEDIDO 2026-09-01 contra el esquema, DESPUES de que una corrida fallara
+    // por mandar timeRange en vez de timeframe.
+    //
+    // OJO CON maxResults: viene en 500 por defecto. A $0.005 el resultado, una
+    // consulta con el default sale $2,50, o sea todo el credito del mes en un
+    // solo click. Se acota a mano y el tope viaja en el costo estimado.
+    //
+    // dataTypes trae interest_over_time y related_queries. Solo interesa el
+    // segundo: la serie de tiempo son decenas de filas que se cobran igual.
+    input: {
+      keywords: [q],
+      geo,
+      timeframe: 'today 12-m',
+      dataTypes: ['related_queries'],
+      maxResults: TOPE_TRENDS
+    },
     normalizar: normalizarTrend
   });
 }
