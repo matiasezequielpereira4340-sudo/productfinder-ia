@@ -597,6 +597,14 @@ export function idsPorPatron(html) {
 }
 
 // /items?ids= acepta de a 20 y devuelve [{code, body}].
+// MEDIDO 2026-09-01: /items?ids= devuelve 403 access_denied item por item
+// ("Access to the requested resource is forbidden") para publicaciones de OTROS
+// vendedores. Solo funciona con las propias. Antes esta era la via barata: el
+// scraper daba los ids y la API oficial ponia precio, ventas y vendedor gratis.
+// Ya no. Por eso hay que pagarle el enriquecimiento al scraper y por eso cada
+// medicion de competencia sale ~$0.24 en vez de ~$0.048.
+// No borrar las llamadas de abajo: con los items propios (stock, dashboard)
+// siguen andando.
 export async function hidratarItems(ids, token, deadline) {
   // available_quantity no se pedia, con lo cual el stock llegaba siempre vacio
   // aunque la API lo tenga. Es gratis pedirlo: viaja en la misma consulta.
@@ -647,9 +655,15 @@ function claveDeBusqueda(product) {
     .replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
 }
 
+// Cada busqueda que NO sale del cache cuesta ~$0.24 (el scraper cobra el
+// enriquecimiento aparte y la API oficial ya no lo suple: da 403 en items
+// ajenos). Con 12 horas, volver a mirar el mismo producto al dia siguiente se
+// pagaba de nuevo. Una semana es razonable: como esta repartida la venta de un
+// rubro no cambia de un dia para el otro, y la fecha de la medicion se muestra
+// para que se sepa de cuando es.
 function horasDeCache() {
-  const h = parseFloat(process.env.BUSQUEDA_CACHE_HORAS || '12');
-  return isFinite(h) && h >= 0 ? h : 12;
+  const h = parseFloat(process.env.BUSQUEDA_CACHE_HORAS || '168');
+  return isFinite(h) && h >= 0 ? h : 168;
 }
 
 // Expuesta para el diagnostico: deja ver la corrida pendiente sin arrancar una.

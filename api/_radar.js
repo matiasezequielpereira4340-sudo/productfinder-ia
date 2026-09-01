@@ -510,6 +510,10 @@ export async function saturacionMLA(keyword, token) {
     vendedores: vendedores.size,
     competencia: r.competencia || null,
     categoria: cat,
+    // De cuando es la medicion. Se cachea una semana porque cada consulta
+    // nueva cuesta plata, asi que hay que decir que no es de recien.
+    desdeCache: !!r.desdeCache,
+    medidoEn: r.guardadoEn || null,
     precioMin: precios[0] || null,
     precioMediana: precios.length ? precios[Math.floor(precios.length / 2)] : null,
     precioMax: precios[precios.length - 1] || null
