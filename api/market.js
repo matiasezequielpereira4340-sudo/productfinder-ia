@@ -230,6 +230,14 @@ export default async function handler(req, res) {
     // Oportunidad, con su precio real. Es read-only: no corre ninguno, asi que
     // no gasta credito. Elegir el actor mirando esto y no el marketplace evita
     // descubrir el precio (o que no existe) recien cuando falla en produccion.
+    // ?corrida=1 mira los datos crudos de la ultima corrida pagada, para saber
+    // si el actor informa el total de publicaciones. Leer datasets es gratis.
+    if (req.query && req.query.corrida) {
+      const bus = await import('./_buscador.js');
+      try { return res.status(200).json(await bus.inspeccionarUltimaCorrida()); }
+      catch (e) { return res.status(200).json({ error: String((e && e.message) || e).slice(0, 200) }); }
+    }
+
     if (req.query && req.query.actors) {
       const bus = await import('./_buscador.js');
       const consultas = typeof req.query.actors === 'string' && req.query.actors.length > 2

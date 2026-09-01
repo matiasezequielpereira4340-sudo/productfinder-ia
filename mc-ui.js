@@ -226,6 +226,8 @@
     { key: "inicio", label: "Inicio", icon: "i-home", href: "/index.html#menu",
       desc: "Volver a la portada" },
     { key: "importacion", label: "Importación", icon: "i-box", seccion: "Encontrá y planificá", hijos: [
+      { key: "radar", label: "Radar de Oportunidad", icon: "i-fire",
+        href: "/radar.html", desc: "Qué crece en Brasil y todavía no llegó acá" },
       { key: "market", label: "Buscador de oportunidades", icon: "i-target",
         href: "/index.html#market", desc: "Qué conviene importar según tu perfil" },
       { key: "productfinder", label: "Recomendador por perfil", icon: "i-brain",
@@ -238,8 +240,6 @@
         href: "/meli-connect.html", desc: "Vinculá tu MercadoLibre" },
       { key: "dashboard", label: "Dashboard de ventas", icon: "i-chart",
         href: "/dashboard.html", desc: "Órdenes, comisiones y ganancia neta" },
-      { key: "radar", label: "Radar de Oportunidad", icon: "i-target",
-        href: "/radar.html", desc: "Qué se está moviendo antes de que llegue" },
       { key: "analizador", label: "Analizador de publicaciones", icon: "i-search",
         href: "/analizador.html", desc: "Qué mejorar en tu publicación" },
       { key: "envios", label: "Flex vs Full", icon: "i-truck",
