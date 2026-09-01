@@ -24,14 +24,23 @@ import { supa } from './_meli.js';
 import { arrancarCorrida, estadoCorrida, itemsDeCorrida, aNumero, aVendidos } from './_buscador.js';
 
 const ACTOR_TIKTOK = () => (process.env.APIFY_ACTOR_TIKTOK || 'devcake~tiktok-shop-data-scraper').replace('/', '~');
-const ACTOR_TRENDS = () => (process.env.APIFY_ACTOR_TRENDS || 'vnx0~google-trends-scraper').replace('/', '~');
+// MEDIDO 2026-09-01: vnx0~google-trends-scraper IGNORA el termino. Su titulo
+// completo es "Google Trends Daily Scraper - Real-Time Trending Keywords API":
+// devuelve lo que es tendencia hoy en el pais, no las busquedas relacionadas de
+// un producto. Consultado "mini proyector" en AR contesto "lo celso", "javier
+// milei", "clima mar del plata". Se eligio mirando el precio y no lo que hace.
+// khadinakbar~google-trends-scraper si es de busquedas relacionadas: se llama
+// "Interest, Regions & Queries". Sale $0.005 por resultado mas $0.00005 de
+// arranque, unos $0.05 la consulta, contra los $0.012 del anterior. Mas caro,
+// pero el anterior costaba menos porque contestaba otra cosa.
+const ACTOR_TRENDS = () => (process.env.APIFY_ACTOR_TRENDS || 'khadinakbar~google-trends-scraper').replace('/', '~');
 
 // Cuanto sale cada consulta, con los precios de arriba. Se muestra en el boton
 // antes de gastar: que el numero lo vea quien paga, no que aparezca despues.
 export function costoEstimado(fuente, items) {
   const n = items || 30;
   if (fuente === 'tiktok') return 0.00005 + n * 0.002;
-  if (fuente === 'trends') return n * 0.0012;
+  if (fuente === 'trends') return 0.00005 + n * 0.005;
   return null;
 }
 
