@@ -99,6 +99,38 @@ export default async function handler(req, res) {
       if (!tok) return res.status(200).json({ ok: false, error: 'No pude autenticarme contra MercadoLibre.' });
       const radar = await import('./_radar.js');
 
+      // Fuentes que no son MercadoLibre. Cuestan plata, asi que solo corren
+      // cuando el usuario las pide explicitamente para un termino, nunca al
+      // abrir la pagina. El costo estimado viaja en la respuesta.
+      if (typeof req.query.tiktok === 'string' && req.query.tiktok.length > 1) {
+        const fu = await import('./_fuentes.js');
+        const kw = req.query.tiktok.slice(0, 60);
+        const r = await fu.tiktokShopBR(kw, { items: 30 });
+        if (r.error) return res.status(200).json({ ok: false, keyword: kw, error: r.error });
+        if (r.pendiente) return res.status(200).json({ ok: true, keyword: kw, estado: 'preparando',
+          aviso: 'Estoy mirando qué se está vendiendo en TikTok Shop Brasil. Tarda dos o tres minutos.' });
+        if (r.vacia) return res.status(200).json({ ok: true, keyword: kw, estado: 'sin-datos',
+          aviso: 'TikTok Shop Brasil no devolvió productos para ese término.' });
+        return res.status(200).json({ ok: true, keyword: kw, estado: 'listo',
+          fuente: 'TikTok Shop Brasil', desdeCache: !!r.desdeCache,
+          costo_usd: fu.costoEstimado('tiktok', 30), productos: r.items });
+      }
+
+      if (typeof req.query.gtrends === 'string' && req.query.gtrends.length > 1) {
+        const fu = await import('./_fuentes.js');
+        const kw = req.query.gtrends.slice(0, 60);
+        const geo = typeof req.query.geo === 'string' ? req.query.geo : 'AR';
+        const r = await fu.googleTrends(kw, { geo });
+        if (r.error) return res.status(200).json({ ok: false, keyword: kw, error: r.error });
+        if (r.pendiente) return res.status(200).json({ ok: true, keyword: kw, estado: 'preparando',
+          aviso: 'Estoy consultando Google Trends. Tarda uno o dos minutos.' });
+        if (r.vacia) return res.status(200).json({ ok: true, keyword: kw, estado: 'sin-datos',
+          aviso: 'Google Trends no devolvió datos para ese término.' });
+        return res.status(200).json({ ok: true, keyword: kw, estado: 'listo',
+          fuente: 'Google Trends', geo, desdeCache: !!r.desdeCache,
+          costo_usd: fu.costoEstimado('trends', (r.items || []).length), relacionadas: r.items });
+      }
+
       // Medir la saturacion de un candidato puntual.
       if (typeof req.query.saturacion === 'string' && req.query.saturacion.length > 1) {
         const kw = req.query.saturacion.slice(0, 60);

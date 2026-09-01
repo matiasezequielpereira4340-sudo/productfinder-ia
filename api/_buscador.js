@@ -239,8 +239,12 @@ export async function arrancarCorrida(product, opts) {
   const token = process.env.APIFY_TOKEN;
   if (!token) throw new Error('APIFY_TOKEN no configurado');
   const o = opts || {};
-  const input = inputDeActor(product, minimoItems(o.maxItems));
-  const url = 'https://api.apify.com/v2/acts/' + encodeURIComponent(actorId()) +
+  // Por defecto arranca el actor de MercadoLibre con su input. Otras fuentes
+  // (TikTok Shop, Google Trends) pasan su propio actor e input: la corrida, el
+  // sondeo y la lectura del dataset son iguales para todos.
+  const actor = o.actor || actorId();
+  const input = o.input || inputDeActor(product, minimoItems(o.maxItems));
+  const url = 'https://api.apify.com/v2/acts/' + encodeURIComponent(actor) +
     '/runs?token=' + encodeURIComponent(token);
 
   const ctrl = new AbortController();
