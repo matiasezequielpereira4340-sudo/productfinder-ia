@@ -69,6 +69,10 @@
   .rd-sat{font-size:13px;line-height:1.6;margin-top:11px;padding-top:11px;border-top:1px solid var(--mc-line)}
   .rd-nums{display:flex;gap:16px;flex-wrap:wrap;margin-top:7px;font-size:12.5px;color:var(--mc-ink-3)}
   .rd-nums b{color:var(--mc-ink);font-weight:600}
+  .rd-cat{margin-top:9px;padding:8px 11px;background:var(--mc-surface-2);border-radius:var(--mc-r-sm);
+    font-size:12.5px;color:var(--mc-ink-3)}
+  .rd-cat b{color:var(--mc-ink)}
+  .rd-cat i{display:block;font-style:normal;font-size:11.5px;color:var(--mc-ink-4);margin-top:3px}
   .rd-lideres{margin-top:10px;padding-top:9px;border-top:1px solid var(--mc-line)}
   .rd-lideres>b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;
     color:var(--mc-ink-4);margin-bottom:5px}
@@ -240,6 +244,17 @@
         }
         if (cp && cp.tiendas_oficiales) nums += '<span>Tiendas oficiales: <b>' + cp.tiendas_oficiales + '</b></span>';
 
+        // Tamano del rubro. Es un numero real de MercadoLibre, pero mide la
+        // categoria entera y no este producto: va aparte y aclarado, para que
+        // nadie lo lea como "hay tantas publicaciones de esto".
+        var cat = '';
+        if (m.categoria) {
+          cat = '<div class="rd-cat"><b>' + esc(m.categoria.nombre) + '</b> &middot; ' +
+            num(m.categoria.total) + ' publicaciones en todo el rubro' +
+            '<i>Es el tama&ntilde;o de la categor&iacute;a entera, no de este producto. ' +
+            esc(m.categoria.camino) + '</i></div>';
+        }
+
         var lideres = '';
         if (cp && cp.lideres && cp.lideres.length) {
           lideres = '<div class="rd-lideres"><b>Contra qui&eacute;n compet&iacute;s</b>' +
@@ -253,7 +268,7 @@
         }
 
         caja.innerHTML = '<div class="rd-sat">' + cabeza + esc(d.motivo) +
-          '<div class="rd-nums">' + nums + '</div>' + lideres + '</div>';
+          '<div class="rd-nums">' + nums + '</div>' + cat + lideres + '</div>';
         if (btn) { btn.textContent = 'Medido'; }
       })
       .catch(function(e){
