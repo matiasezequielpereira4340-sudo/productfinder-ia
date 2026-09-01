@@ -363,9 +363,13 @@
     consultarFuente(i, 'gtrends', 'Google Trends', function(d){
       var t = d.relacionadas || [];
       if (!t.length) return '<div class="rd-nums">Sin b&uacute;squedas relacionadas.</div>';
+      // Lo que viene subiendo va primero: ahi esta la oportunidad, no en lo
+      // que ya se busca mucho.
+      t.sort(function(a,b){ return (b.subiendo?1:0)-(a.subiendo?1:0) || (b.crecimiento||0)-(a.crecimiento||0); });
       return '<div class="rd-lideres">' + t.slice(0,8).map(function(x){
-        return '<div class="rd-lider"><span>' + esc(x.termino) + '</span><span>' +
-          (x.explota ? 'explotando' : (x.crecimiento != null ? '+' + num(x.crecimiento) + '%' : 'sin dato')) +
+        return '<div class="rd-lider"><span>' + esc(x.termino) +
+          (x.subiendo ? ' <i>subiendo</i>' : '') + '</span><span>' +
+          (x.explota ? 'explotando' : (x.crecimiento != null ? num(x.crecimiento) : 'sin dato')) +
           '</span></div>';
       }).join('') + '</div>';
     });

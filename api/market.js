@@ -188,6 +188,8 @@ export default async function handler(req, res) {
           ok: true,
           consultadoEn: new Date().toISOString(),
           rubros: r.rubros,
+          sin_clasificar: r.sin_clasificar,
+          marcas_filtradas: r.marcas_filtradas,
           rubros_barridos: r.rubros_barridos,
           rubros_pedidos: r.rubros_pedidos,
           rubros_disponibles: r.rubros_disponibles,

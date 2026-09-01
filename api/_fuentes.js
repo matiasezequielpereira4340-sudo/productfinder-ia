@@ -268,18 +268,31 @@ export async function tiktokShopBR(consulta, opts) {
 // ------------------------------------------------------------
 // Dice si un termino crece FUERA de MercadoLibre. Sirve para separar lo que
 // sube de verdad de lo que solo se movio dentro de MeLi.
+// MEDIDO 2026-09-01 sobre el dataset: la fila trae keyword (el termino que se
+// pregunto) y related_query (lo que la gente busca alrededor). Yo leia keyword,
+// asi que las 7 filas salian con el mismo texto y distinto numero: parecia un
+// dato y era el eco de la pregunta. El bueno es related_query.
 export function normalizarTrend(f) {
   if (!f || typeof f !== 'object') return null;
-  const termino = f.query || f.keyword || f.term || f.title || f.topic || '';
+  const semilla = String(f.keyword || f.query || '').trim();
+  const termino = String(f.related_query || f.relatedQuery || f.query || f.term || f.title || f.topic || '').trim();
   if (!termino) return null;
+  // Repetir la semilla no aporta nada: es la pregunta, no la respuesta.
+  if (semilla && termino.toLowerCase() === semilla.toLowerCase()) return null;
+
   // Google marca lo que explota como "Breakout" en vez de un porcentaje.
+  const formateado = String(f.formatted_value != null ? f.formatted_value : (f.formattedValue || ''));
   const bruto = f.value != null ? f.value : (f.growth != null ? f.growth : f.increase);
-  const explota = /breakout/i.test(String(bruto || '')) || /breakout/i.test(String(f.formattedValue || ''));
+  const explota = /breakout/i.test(formateado) || /breakout/i.test(String(bruto || ''));
   const num = explota ? null : aNumero(bruto);
+
   return {
-    termino: String(termino).slice(0, 80),
+    termino: termino.slice(0, 80),
+    semilla: semilla || null,
     crecimiento: num,
     explota,
+    // "rising" es lo que viene subiendo; lo demas es lo que ya se busca mucho.
+    subiendo: !!(f.is_rising || f.isRising),
     tipo: f.type || f.rankingType || null
   };
 }

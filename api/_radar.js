@@ -165,6 +165,35 @@ export function emparejarCategorias(catsA, catsB) {
 // nada. Por eso el primer barrido en produccion salio con traducidos: 0.
 const LOTE = 25;
 
+// El prompt ya pedia descartar marcas y aun asi pasaron apple, Insta360, osmo
+// y camara DJI: los ejemplos eran todos de alimento para mascotas y el modelo
+// no generalizo a electronica. Un modelo no es un filtro confiable para algo
+// binario y conocido de antemano, asi que las marcas que se repiten se filtran
+// en codigo. La lista se puede ampliar sin tocar nada mas.
+const MARCAS = [
+  'apple', 'iphone', 'ipad', 'samsung', 'xiaomi', 'motorola', 'huawei', 'lg',
+  'sony', 'jbl', 'bose', 'dji', 'osmo', 'insta360', 'gopro', 'nintendo',
+  'playstation', 'xbox', 'lenovo', 'hp', 'dell', 'asus', 'acer', 'philips',
+  'bosch', 'makita', 'dewalt', 'stanley', 'black+decker', 'nike', 'adidas',
+  'royal canin', 'nutrique', 'militec', 'roundup', 'randap', 'tramontina',
+  'stray kids', 'katseye', 'bts', 'blackpink'
+];
+
+// "camara DJI" y "photocard Stray Kids" son marcas aunque tengan otra palabra
+// al lado. Se compara por palabra completa para no comer terminos legitimos:
+// "lg" no debe matchear "lg" dentro de "algo".
+export function esMarca(kw) {
+  const t = normalizar(kw);
+  if (!t) return false;
+  for (const m of MARCAS) {
+    const mm = normalizar(m);
+    if (t === mm) return true;
+    const re = new RegExp('(^|\\s)' + mm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|\\s)');
+    if (re.test(t)) return true;
+  }
+  return false;
+}
+
 async function clasificarLote(terminos) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY no configurada');
@@ -176,7 +205,9 @@ async function clasificarLote(terminos) {
     'en Argentina (no la traduccion literal). Si ya esta en español, repetilo igual.\n' +
     '- "imp": true si es un producto fisico que un importador chico podria traer de ' +
     'China y revender; false si es un alimento fresco o commodity (leche, carne, cafe), ' +
-    'una marca registrada (royal canin, nutrique), un servicio, un vehiculo completo, ' +
+    'una MARCA o un modelo de una marca (apple, iphone, dji, osmo, insta360, gopro, ' +
+    'xiaomi, royal canin, nutrique, militec, tramontina) o mercaderia de un artista ' +
+    '(photocard stray kids), un servicio, un vehiculo completo, ' +
     'un inmueble, o algo demasiado pesado o voluminoso para importar en poco volumen.\n' +
     'Responde SOLO un JSON {"termino original": {"es": "...", "imp": true}} sin markdown.\n' +
     JSON.stringify(terminos);
@@ -368,7 +399,13 @@ export async function descubrir(token, opts) {
 
   // Si no viene clasificado, no se descarta: no saber no es lo mismo que saber
   // que no sirve.
-  const importable = (kw) => !(info[kw] && info[kw].imp === false);
+  // Antes, una keyword sin clasificar contaba como importable. Cuando Anthropic
+  // devolvia 503 en un lote, esas pasaban sin traducir y aparecian en portugues
+  // como si estuvieran vetadas. No saber no es lo mismo que estar bien: se
+  // descartan y se informa cuantas, para que el hueco se vea.
+  const importable = (kw) => !!info[kw] && info[kw].imp !== false && !esMarca(info[kw].es || kw);
+  const sinClasificar = aClasificar.filter(k => !info[k]).length;
+  const marcasFiltradas = aClasificar.filter(k => info[k] && esMarca(info[k].es || k)).length;
 
   const candidatos = [];
   for (const { par, ar, br } of porRubro) {
@@ -437,6 +474,8 @@ export async function descubrir(token, opts) {
     rubros: porRubro.map(r => ({ ar: r.par.ar.name, br: r.par.br ? r.par.br.name : null, parecido: r.par.parecido })),
     // Cuantos rubros se miraron de verdad, contra los que hay. Si el
     // presupuesto de tiempo corto el barrido, se ve en estos numeros.
+    sin_clasificar: sinClasificar,
+    marcas_filtradas: marcasFiltradas,
     rubros_barridos: barridos,
     rubros_pedidos: pedidos,
     rubros_disponibles: disponibles,
