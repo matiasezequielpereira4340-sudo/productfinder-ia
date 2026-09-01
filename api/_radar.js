@@ -468,6 +468,28 @@ export function opportunityScore(c, mla) {
 
 // Saturacion real en MLA. Reusa el mismo pipeline que el analizador: mismo
 // cache, mismas corridas asincronicas, mismo "preparando". No duplica nada.
+// Cuantas publicaciones tiene la categoria entera, segun MercadoLibre.
+// OJO con que es esto: el tamano del rubro, no la competencia del termino.
+// "Faros Auxiliares" tiene 124.635 publicaciones, pero "faro antiniebla moto"
+// es una rebanada de eso. Sirve para ubicar el producto (¿cae en un rubro
+// gigante o en un nicho chico?), no para reemplazar la saturacion que no
+// tenemos. Se muestra como contexto y no entra en el puntaje: inventar un
+// peso para un numero que mide otra cosa seria el mismo error de antes.
+export async function infoCategoria(id, token) {
+  if (!id || !/^ML[A-Z]\d{3,}$/.test(String(id))) return null;
+  const r = await fetchJson(MELI_API + '/categories/' + id, token, 5000);
+  if (!r || r.status !== 200 || !r.json) return null;
+  const j = r.json;
+  const total = typeof j.total_items_in_this_category === 'number' ? j.total_items_in_this_category : null;
+  if (total == null) return null;
+  return {
+    id,
+    nombre: j.name || '',
+    total,
+    camino: Array.isArray(j.path_from_root) ? j.path_from_root.map(p => p.name).join(' > ') : ''
+  };
+}
+
 export async function saturacionMLA(keyword, token) {
   const r = await buscarPublicaciones(keyword, token, { budgetMs: 6000, maxIds: 48 });
   if (!r) return null;
@@ -475,6 +497,11 @@ export async function saturacionMLA(keyword, token) {
   const precios = (r.results || []).map(x => x.price).filter(p => typeof p === 'number' && p > 0);
   const vendedores = new Set((r.results || []).map(x => x.seller && x.seller.id).filter(Boolean));
   precios.sort((a, b) => a - b);
+
+  // La categoria que mas se repite en la muestra es la del producto.
+  const catId = r.competencia && r.competencia.categoria_dominante && r.competencia.categoria_dominante.id;
+  const cat = catId ? await infoCategoria(catId, token) : null;
+
   return {
     fuente: r.fuente,
     listings: (typeof r.total === 'number' && r.total > 0) ? r.total : (r.results || []).length,
@@ -482,6 +509,7 @@ export async function saturacionMLA(keyword, token) {
     muestra: (r.results || []).length,
     vendedores: vendedores.size,
     competencia: r.competencia || null,
+    categoria: cat,
     precioMin: precios[0] || null,
     precioMediana: precios.length ? precios[Math.floor(precios.length / 2)] : null,
     precioMax: precios[precios.length - 1] || null
