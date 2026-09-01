@@ -69,6 +69,11 @@
   .rd-sat{font-size:13px;line-height:1.6;margin-top:11px;padding-top:11px;border-top:1px solid var(--mc-line)}
   .rd-nums{display:flex;gap:16px;flex-wrap:wrap;margin-top:7px;font-size:12.5px;color:var(--mc-ink-3)}
   .rd-nums b{color:var(--mc-ink);font-weight:600}
+  /* Los botones que gastan plata se distinguen de los gratis a simple vista. */
+  .rd-btn-pago{border-style:dashed}
+  .rd-btn-pago i{font-style:normal;color:var(--mc-ink-4);font-size:11.5px;margin-left:4px}
+  .rd-btn-pago:hover i{color:var(--mc-y)}
+  .rd-costo{margin-top:7px;font-size:11.5px;color:var(--mc-ink-4)}
   .rd-cat{margin-top:9px;padding:8px 11px;background:var(--mc-surface-2);border-radius:var(--mc-r-sm);
     font-size:12.5px;color:var(--mc-ink-3)}
   .rd-cat b{color:var(--mc-ink)}
@@ -152,6 +157,13 @@
     repartida la venta</b> entre los que ya est&aacute;n. Si tres vendedores se llevan el 90%, el rubro est&aacute;
     tomado aunque haya pocas publicaciones; si la venta est&aacute; repartida, hay lugar aunque haya muchas.
     Los n&uacute;meros que ves salen de las publicaciones que efectivamente se miraron, no del mercado entero.
+    <br><br>
+    <b>Qu&eacute; cuesta y qu&eacute; no.</b> Descubrir candidatos es <b>gratis</b>: sale de las tendencias que
+    publica MercadoLibre. Los botones punteados consultan fuentes de afuera y <b>s&iacute; gastan cr&eacute;dito</b>:
+    <b>TikTok Shop Brasil</b> (~US$0,06) muestra qu&eacute; se est&aacute; vendiendo hoy all&aacute;, con unidades;
+    <b>Google Trends</b> (~US$0,03) dice si el t&eacute;rmino crece fuera de MercadoLibre. Ninguna corre sola:
+    hay que apretarlas. Lo consultado queda guardado 3 d&iacute;as, as&iacute; que repetir la misma consulta no
+    vuelve a cobrar.
   </div>
 </div>
 
@@ -194,10 +206,14 @@
       (c.traducidoDe ? '<div class="rd-de">En Brasil lo buscan como &ldquo;' + esc(c.traducidoDe) + '&rdquo;</div>' : '') +
       '<div class="rd-foot">' +
         '<button class="rd-btn" onclick="medir(' + i + ')">Ver cu&aacute;nta competencia tiene ac&aacute;</button>' +
+        '<button class="rd-btn rd-btn-pago" onclick="verTikTok(' + i + ')" ' +
+          'title="Corre una consulta paga a TikTok Shop Brasil">Se vende en TikTok Brasil? <i>~US$0,06</i></button>' +
+        '<button class="rd-btn rd-btn-pago" onclick="verTrends(' + i + ')" ' +
+          'title="Corre una consulta paga a Google Trends">Crece fuera de MercadoLibre? <i>~US$0,03</i></button>' +
         (c.posicionBR ? '<span style="font-size:12px;color:var(--mc-ink-4)">Puesto ' + c.posicionBR + ' en Brasil</span>' : '') +
         (c.posicionAR ? '<span style="font-size:12px;color:var(--mc-ink-4)">Puesto ' + c.posicionAR + ' en Argentina</span>' : '') +
       '</div>' +
-      '<div id="sat' + i + '"></div></div>';
+      '<div id="sat' + i + '"></div><div id="fu' + i + '"></div></div>';
   }
 
   window.medir = function(i){
@@ -275,6 +291,66 @@
         caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-bad)">' + esc(e.message) + '</div>';
         if (btn) { btn.disabled = false; btn.textContent = 'Reintentar'; }
       });
+  };
+
+  // Las dos fuentes de abajo CUESTAN PLATA. Por eso no corren solas: hay que
+  // apretar el boton, que dice cuanto sale antes de gastarlo. La respuesta trae
+  // el costo real y si salio del cache, para que no haya sorpresas al fin de mes.
+  function consultarFuente(i, ruta, titulo, pintar){
+    var c = candidatos[i];
+    var caja = document.getElementById('fu' + i);
+    caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">Consultando ' + esc(titulo) + '...</div>';
+
+    fetch('/api/market?radar=1&' + ruta + '=' + encodeURIComponent(c.keyword))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) throw new Error(d.error || 'No pude consultar ' + titulo);
+        if (d.estado === 'preparando') {
+          caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">' + esc(d.aviso) +
+            ' Reviso solo en 20 segundos.</div>';
+          setTimeout(function(){ consultarFuente(i, ruta, titulo, pintar); }, 20000);
+          return;
+        }
+        if (d.estado === 'sin-datos') {
+          caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">' + esc(d.aviso) + '</div>';
+          return;
+        }
+        var costo = d.desdeCache
+          ? 'Ya estaba consultado: no gast&oacute; nada.'
+          : 'Esta consulta cost&oacute; ~US$' + (d.costo_usd || 0).toFixed(3) + '.';
+        caja.innerHTML = '<div class="rd-sat"><b>' + esc(d.fuente) + '</b>' + pintar(d) +
+          '<div class="rd-costo">' + costo + '</div></div>';
+      })
+      .catch(function(e){
+        caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-bad)">' + esc(e.message) + '</div>';
+      });
+  }
+
+  window.verTikTok = function(i){
+    consultarFuente(i, 'tiktok', 'TikTok Shop Brasil', function(d){
+      var p = d.productos || [];
+      if (!p.length) return '<div class="rd-nums">Sin productos para ese t&eacute;rmino.</div>';
+      // Ordenado por unidades: lo que interesa es que se vende, no que existe.
+      p.sort(function(a,b){ return (b.vendidos||0) - (a.vendidos||0); });
+      return '<div class="rd-lideres">' + p.slice(0,6).map(function(x){
+        return '<div class="rd-lider"><span>' + esc(x.titulo.slice(0,60)) +
+          (x.tienda ? ' <i>' + esc(x.tienda) + '</i>' : '') + '</span><span>' +
+          (x.vendidos ? num(x.vendidos) + ' vendidos' : 'sin dato de ventas') +
+          (x.precio ? ' &middot; R$' + num(x.precio) : '') + '</span></div>';
+      }).join('') + '</div>';
+    });
+  };
+
+  window.verTrends = function(i){
+    consultarFuente(i, 'gtrends', 'Google Trends', function(d){
+      var t = d.relacionadas || [];
+      if (!t.length) return '<div class="rd-nums">Sin b&uacute;squedas relacionadas.</div>';
+      return '<div class="rd-lideres">' + t.slice(0,8).map(function(x){
+        return '<div class="rd-lider"><span>' + esc(x.termino) + '</span><span>' +
+          (x.explota ? 'explotando' : (x.crecimiento != null ? '+' + num(x.crecimiento) + '%' : 'sin dato')) +
+          '</span></div>';
+      }).join('') + '</div>';
+    });
   };
 
   function buscar(){
