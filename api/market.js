@@ -434,6 +434,37 @@ export default async function handler(req, res) {
       return res.status(200).json({ termino, paso });
     }
 
+    // ?catinfo=MLA433655 pregunta a MercadoLibre cuantas publicaciones tiene
+    // esa categoria. Es la unica via que queda para medir saturacion: el
+    // scraper devuelve la publicacion pero nunca el total del mercado.
+    // Acepta varias separadas por coma y prueba tambien el arbol de la
+    // categoria, porque el numero sirve solo si es de la hoja y no del rubro.
+    if (req.query && req.query.catinfo) {
+      const ids = String(req.query.catinfo).split(',')
+        .map(s => s.trim()).filter(s => /^ML[A-Z]\d{3,}$/.test(s)).slice(0, 4);
+      if (!ids.length) return res.status(200).json({ error: 'pasa ids tipo MLA433655' });
+      const tok = await getMeliAccessToken();
+      const auth = tok ? { Authorization: 'Bearer ' + tok, Accept: 'application/json' } : { Accept: 'application/json' };
+      const salida = {};
+      for (const id of ids) {
+        try {
+          const r = await fetch(MELI_API + '/categories/' + id, { headers: auth });
+          if (!r.ok) { salida[id] = { status: r.status }; continue; }
+          const j = await r.json().catch(() => null);
+          salida[id] = {
+            status: r.status,
+            nombre: j && j.name,
+            total_items: j && j.total_items_in_this_category,
+            camino: j && Array.isArray(j.path_from_root) ? j.path_from_root.map(p => p.name).join(' > ') : null,
+            hijas: j && Array.isArray(j.children_categories)
+              ? j.children_categories.slice(0, 6).map(c => c.id + ' ' + c.name + ': ' + c.total_items_in_this_category)
+              : null
+          };
+        } catch (e) { salida[id] = { error: String((e && e.message) || e).slice(0, 120) }; }
+      }
+      return res.status(200).json({ token: !!tok, categorias: salida });
+    }
+
     // ?probe=termino hace una consulta real y reporta a que endpoints de
     // MercadoLibre llega la app. Sirve para diagnosticar sin abrir la web.
     // No devuelve tokens ni datos de ningun usuario.

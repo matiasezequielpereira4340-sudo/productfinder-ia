@@ -394,16 +394,55 @@ export function opportunityScore(c, mla) {
   // hacia decir "solo 39 publicaciones: el mercado esta casi vacio" cuando en
   // realidad no sabemos cuantas hay. Es justo el numero inventado que la app
   // promete no dar.
+  // MercadoLibre no publica cuantas publicaciones hay para un termino, y el
+  // scraper tampoco: se miro el dataset campo por campo y no esta. Contar la
+  // muestra y llamarla "total" era el numero inventado que esta app promete no
+  // dar, asi que la saturacion por conteo queda en null para siempre.
+  //
+  // Lo que si se puede medir con datos reales es como esta repartida la venta
+  // entre los que ya estan. Un rubro donde tres vendedores se llevan casi todo
+  // esta tomado aunque haya pocas publicaciones; uno donde la venta esta
+  // repartida deja lugar aunque haya muchas. Eso es otra pregunta que "cuantas
+  // publicaciones hay", y se informa como lo que es.
   if (!mla.totalReal) {
+    const cp = mla.competencia;
     const precios = mla.precioMediana
       ? ' Precio típico $' + Math.round(mla.precioMediana).toLocaleString('es-AR') + '.'
       : '';
+    const base = 'Vistas ' + mla.muestra + ' publicaciones, ' + mla.vendedores + ' vendedores distintos.';
+
+    // Sin ventas informadas no hay nada que concluir: se dice y se corta.
+    if (!cp || cp.concentracion_top3 == null) {
+      return {
+        score: null, saturacion: null, concentracion: null, pelea: null,
+        motivo: 'No hay datos de ventas para saber quién se queda con este mercado. ' + base + precios,
+        soloMuestra: true
+      };
+    }
+
+    const conc = cp.concentracion_top3;
+    // Tiendas oficiales y platinum encarecen la pelea aunque la venta este
+    // repartida: no es lo mismo competirle a un revendedor que a una marca.
+    const peso = Math.min(30, (cp.tiendas_oficiales || 0) * 6 + (cp.platinum || 0) * 3);
+    const score = Math.max(-100, Math.min(100, Math.round(demanda - conc * 0.5 - peso)));
+
+    let lectura;
+    if (conc >= 80) lectura = 'Tomado: los 3 primeros vendedores se llevan el ' + conc + '% de las ventas.';
+    else if (conc >= 55) lectura = 'Concentrado: los 3 primeros se llevan el ' + conc + '%, pero hay resto.';
+    else lectura = 'Repartido: los 3 primeros se llevan el ' + conc + '%, la venta está distribuida.';
+
+    const quien = [];
+    if (cp.tiendas_oficiales) quien.push(cp.tiendas_oficiales + ' tienda' + (cp.tiendas_oficiales > 1 ? 's' : '') + ' oficial' + (cp.tiendas_oficiales > 1 ? 'es' : ''));
+    if (cp.platinum) quien.push(cp.platinum + ' platinum');
+
     return {
-      score: null,
+      score,
       saturacion: null,
+      concentracion: conc,
       pelea: null,
-      motivo: 'MercadoLibre no expone cuántas publicaciones hay para este término, así que no puedo decir si está saturado. Lo que sí es real: ' +
-        mla.muestra + ' publicaciones vistas, ' + mla.vendedores + ' vendedores distintos.' + precios,
+      competencia: cp,
+      motivo: lectura + ' ' + base + (quien.length ? ' Enfrente: ' + quien.join(' y ') + '.' : '') + precios +
+        ' No puedo decir cuántas publicaciones hay en total: MercadoLibre no lo expone.',
       soloMuestra: true
     };
   }
@@ -442,6 +481,7 @@ export async function saturacionMLA(keyword, token) {
     totalReal: typeof r.total === 'number' && r.total > 0,
     muestra: (r.results || []).length,
     vendedores: vendedores.size,
+    competencia: r.competencia || null,
     precioMin: precios[0] || null,
     precioMediana: precios.length ? precios[Math.floor(precios.length / 2)] : null,
     precioMax: precios[precios.length - 1] || null

@@ -38,6 +38,12 @@
   .rd-sat{font-size:13px;line-height:1.6;margin-top:11px;padding-top:11px;border-top:1px solid var(--mc-line)}
   .rd-nums{display:flex;gap:16px;flex-wrap:wrap;margin-top:7px;font-size:12.5px;color:var(--mc-ink-3)}
   .rd-nums b{color:var(--mc-ink);font-weight:600}
+  .rd-lideres{margin-top:10px;padding-top:9px;border-top:1px solid var(--mc-line)}
+  .rd-lideres>b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;
+    color:var(--mc-ink-4);margin-bottom:5px}
+  .rd-lider{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:2px 0}
+  .rd-lider i{font-style:normal;font-size:11px;color:var(--mc-ink-4)}
+  .rd-lider span:last-child{font-family:'Chivo Mono',monospace;color:var(--mc-ink-3);white-space:nowrap}
   .rd-score{font-family:'Chivo Mono',monospace;font-size:1.5rem;font-weight:600;line-height:1;text-align:right}
   .rd-score small{display:block;font-size:10.5px;font-weight:400;color:var(--mc-ink-4);
     margin-top:4px;letter-spacing:.04em;text-transform:uppercase;font-family:'Chivo',sans-serif}
@@ -146,18 +152,39 @@
         }
 
         var m = d.mla;
-        // Sin total real no se muestra un puntaje: se dice que no se puede medir
-        // la saturacion y se muestran los datos que si son reales.
+        // El puntaje sale de como esta repartida la venta, no de un conteo de
+        // publicaciones: MercadoLibre no publica ese total. Cuando ni siquiera
+        // hay ventas informadas no se muestra puntaje.
         var cabeza = d.score == null
-          ? '<span style="color:#f59e0b;font-weight:700;font-size:15px">Saturaci&oacute;n sin medir</span> &middot; '
+          ? '<span style="color:#f59e0b;font-weight:700;font-size:15px">Sin datos para puntuar</span> &middot; '
           : '<span style="color:' + colorScore(d.score) + ';font-weight:700;font-size:15px">Oportunidad ' + d.score + '/100</span> &middot; ';
+
+        var nums = '<span>Publicaciones vistas: <b>' + num(m.muestra) + '</b> (muestra, no el total)</span>' +
+          '<span>Vendedores: <b>' + num(m.vendedores) + '</b></span>' +
+          '<span>Precio t&iacute;pico: <b>$' + num(m.precioMediana) + '</b></span>' +
+          '<span>Rango: <b>$' + num(m.precioMin) + ' - $' + num(m.precioMax) + '</b></span>';
+
+        var cp = m.competencia;
+        if (cp && cp.concentracion_top3 != null) {
+          nums += '<span>Los 3 primeros se llevan: <b>' + cp.concentracion_top3 + '%</b> de las ventas</span>' +
+            '<span>Ventas en la muestra: <b>' + num(cp.ventas_en_la_muestra) + '</b></span>';
+        }
+        if (cp && cp.tiendas_oficiales) nums += '<span>Tiendas oficiales: <b>' + cp.tiendas_oficiales + '</b></span>';
+
+        var lideres = '';
+        if (cp && cp.lideres && cp.lideres.length) {
+          lideres = '<div class="rd-lideres"><b>Contra qui&eacute;n compet&iacute;s</b>' +
+            cp.lideres.map(function(v){
+              var sellos = [];
+              if (v.oficial) sellos.push('oficial');
+              if (v.reputacion) sellos.push(esc(v.reputacion));
+              return '<div class="rd-lider"><span>' + esc(v.vendedor) + (sellos.length ? ' <i>' + sellos.join(' &middot; ') + '</i>' : '') +
+                '</span><span>' + num(v.vendidos) + ' vendidos &middot; ' + v.publicaciones + ' publ.</span></div>';
+            }).join('') + '</div>';
+        }
+
         caja.innerHTML = '<div class="rd-sat">' + cabeza + esc(d.motivo) +
-          '<div class="rd-nums">' +
-            '<span>' + (m.totalReal ? 'Publicaciones: <b>' + num(m.listings) + '</b>' : 'Publicaciones vistas: <b>' + num(m.muestra) + '</b> (muestra, no el total)') + '</span>' +
-            '<span>Vendedores: <b>' + num(m.vendedores) + '</b></span>' +
-            '<span>Precio t&iacute;pico: <b>$' + num(m.precioMediana) + '</b></span>' +
-            '<span>Rango: <b>$' + num(m.precioMin) + ' - $' + num(m.precioMax) + '</b></span>' +
-          '</div></div>';
+          '<div class="rd-nums">' + nums + '</div>' + lideres + '</div>';
         if (btn) { btn.textContent = 'Medido'; }
       })
       .catch(function(e){

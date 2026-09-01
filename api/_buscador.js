@@ -58,11 +58,33 @@ export function aNumero(valor) {
 const ALIAS = {
   titulo: ['title', 'name', 'productName', 'product_name', 'titulo', 'nombre'],
   precio: ['price', 'priceValue', 'price_value', 'currentPrice', 'current_price', 'precio', 'salePrice'],
-  vendidos: ['soldQuantity', 'sold_quantity', 'sold', 'sales', 'quantitySold', 'vendidos'],
+  vendidos: ['soldQuantity', 'sold_quantity', 'sold', 'sales', 'quantitySold', 'vendidos',
+             'sold_quantity_text', 'soldQuantityText'],
+  reputacion: ['vendor_reputation', 'sellerReputation', 'seller_reputation'],
+  tienda: ['official_store', 'officialStore'],
+  categoria: ['category_id', 'categoryId'],
+  dominio: ['domain_id', 'domainId'],
+  marca: ['brand', 'marca'],
+  opiniones: ['reviews_count', 'reviewsCount'],
+  stock: ['available_quantity', 'availableQuantity'],
   vendedor: ['sellerName', 'seller_name', 'sellerNickname', 'seller', 'vendedor', 'seller_id', 'sellerId'],
   enlace: ['url', 'link', 'permalink', 'itemUrl', 'productUrl', 'enlace'],
-  id: ['itemId', 'item_id', 'id', 'mlaId', 'productId']
+  id: ['itemId', 'item_id', 'ml_id', 'mlId', 'id', 'mlaId', 'productId']
 };
+
+// "+100 vendidos" -> 100. "+5mil vendidos" -> 5000. MeLi abrevia los miles y
+// un parseInt pelado leia "5mil" como 5, que es 1000 veces menos.
+export function aVendidos(valor) {
+  if (typeof valor === 'number') return valor > 0 ? Math.round(valor) : 0;
+  const t = String(valor || '').toLowerCase();
+  if (!t) return 0;
+  const m = t.match(/([\d.,]+)\s*(mil|k)?/);
+  if (!m) return 0;
+  let n = parseFloat(m[1].replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
+  if (!isFinite(n)) return 0;
+  if (m[2]) n *= 1000;
+  return Math.round(n);
+}
 
 function tomar(obj, claves) {
   for (const c of claves) {
@@ -86,13 +108,25 @@ export function normalizarFila(fila) {
     ? (vendedorBruto.nickname || vendedorBruto.name || vendedorBruto.id || null)
     : vendedorBruto;
 
+  // Reputacion y tienda oficial dicen contra quien se compite: no es lo mismo
+  // pelearle a un revendedor que a una tienda oficial platinum.
+  const rep = tomar(fila, ALIAS.reputacion);
+  const tienda = tomar(fila, ALIAS.tienda);
+
   return {
     id,
     title: String(tomar(fila, ALIAS.titulo) || ''),
     price: aNumero(tomar(fila, ALIAS.precio)),
-    sold_quantity: parseInt(String(tomar(fila, ALIAS.vendidos) || '0').replace(/[^\d]/g, ''), 10) || 0,
+    sold_quantity: aVendidos(tomar(fila, ALIAS.vendidos)),
     seller: { id: vendedor || null, nickname: vendedor ? String(vendedor) : '' },
-    shipping: { free_shipping: !!(fila.shipping && (fila.shipping.free_shipping || fila.shipping.freeShipping)) || !!fila.freeShipping }
+    shipping: { free_shipping: !!(fila.shipping && (fila.shipping.free_shipping || fila.shipping.freeShipping)) || !!fila.freeShipping },
+    reputacion: (rep && typeof rep === 'object') ? (rep.power_seller_status || rep.level || null) : (rep || null),
+    tienda_oficial: !!(tienda && (tienda.is_official || tienda.id)),
+    category_id: tomar(fila, ALIAS.categoria) || null,
+    domain_id: tomar(fila, ALIAS.dominio) || null,
+    marca: tomar(fila, ALIAS.marca) || null,
+    opiniones: parseInt(String(tomar(fila, ALIAS.opiniones) || '0'), 10) || 0,
+    stock: parseInt(String(tomar(fila, ALIAS.stock) || '0'), 10) || 0
   };
 }
 
@@ -310,7 +344,54 @@ export async function armarResultado(product, filas, meliToken, opts) {
     total: null,
     muestra: elegidos.length,
     categoryName: '',
+    competencia: medirCompetencia(elegidos),
     results: elegidos
+  };
+}
+
+// MercadoLibre no dice cuantas publicaciones hay para un termino, asi que
+// "saturado" no se puede medir contando. Lo que si se puede medir, y con datos
+// que ya se pagaron, es como esta repartida la venta entre los que ya estan.
+// Un mercado donde tres vendedores se llevan el 90% esta tomado aunque haya
+// cien publicaciones; uno donde la venta esta repartida tiene lugar aunque
+// haya muchas. Todos estos numeros salen de la muestra, no del mercado entero:
+// quien los lea tiene que saberlo, por eso viaja "muestra" al lado.
+export function medirCompetencia(items) {
+  const lista = (items || []).filter(Boolean);
+  if (!lista.length) return null;
+
+  const porVendedor = new Map();
+  for (const it of lista) {
+    const v = (it.seller && (it.seller.nickname || it.seller.id)) || 'sin-nombre';
+    const a = porVendedor.get(v) || { vendedor: v, publicaciones: 0, vendidos: 0, oficial: false, reputacion: null };
+    a.publicaciones++;
+    a.vendidos += it.sold_quantity || 0;
+    if (it.tienda_oficial) a.oficial = true;
+    if (!a.reputacion && it.reputacion) a.reputacion = it.reputacion;
+    porVendedor.set(v, a);
+  }
+  const vendedores = [...porVendedor.values()].sort((a, b) => b.vendidos - a.vendidos);
+  const ventasTotales = vendedores.reduce((s, v) => s + v.vendidos, 0);
+  const top3 = vendedores.slice(0, 3).reduce((s, v) => s + v.vendidos, 0);
+
+  // Sin ventas informadas no se puede hablar de concentracion: se dice y listo.
+  const concentracion = ventasTotales > 0 ? Math.round((top3 / ventasTotales) * 100) : null;
+
+  const conMarca = lista.filter(i => i.marca).length;
+  const categorias = {};
+  for (const it of lista) if (it.category_id) categorias[it.category_id] = (categorias[it.category_id] || 0) + 1;
+  const catDominante = Object.entries(categorias).sort((a, b) => b[1] - a[1])[0] || null;
+
+  return {
+    muestra: lista.length,
+    vendedores_distintos: vendedores.length,
+    concentracion_top3: concentracion,
+    ventas_en_la_muestra: ventasTotales,
+    tiendas_oficiales: vendedores.filter(v => v.oficial).length,
+    platinum: vendedores.filter(v => String(v.reputacion || '').includes('platinum')).length,
+    con_marca: conMarca,
+    categoria_dominante: catDominante ? { id: catDominante[0], publicaciones: catDominante[1] } : null,
+    lideres: vendedores.slice(0, 5)
   };
 }
 
