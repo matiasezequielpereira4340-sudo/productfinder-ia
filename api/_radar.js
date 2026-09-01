@@ -16,7 +16,7 @@
 // Lo que cuesta plata (la saturacion en MLA via el actor de Apify) se gasta
 // solo en los finalistas, nunca en el barrido.
 
-import { MELI_API, fetchJson, buscarPublicaciones, anthropicHeaders } from './_meli.js';
+import { MELI_API, fetchJson, buscarPublicaciones, anthropicHeaders, supa } from './_meli.js';
 
 // ------------------------------------------------------------
 // Tendencias
@@ -216,26 +216,82 @@ async function clasificarLote(terminos) {
   }
 }
 
+// Traducir y clasificar es lo unico caro y lento del barrido, y se repetia
+// entero cada vez: "farol de milha" se traduce igual hoy que la semana que
+// viene. Guardadas, un segundo barrido de los mismos rubros no le pregunta
+// nada a Claude, y eso es lo que permite mirar muchas mas categorias.
+async function clasificacionesGuardadas(keywords) {
+  try {
+    const { url, key, ok } = supa();
+    if (!ok || !keywords.length) return {};
+    const enLista = keywords.slice(0, 400)
+      .map(k => '"' + String(k).replace(/"/g, '') + '"').join(',');
+    const r = await fetch(url + '/rest/v1/keywords_clasificadas?keyword=in.(' +
+      encodeURIComponent(enLista) + ')&select=keyword,es,importable,motivo',
+      { headers: { apikey: key, Authorization: 'Bearer ' + key } });
+    if (!r.ok) return {};
+    const filas = await r.json();
+    const mapa = {};
+    for (const f of (Array.isArray(filas) ? filas : [])) {
+      mapa[f.keyword] = { es: f.es, imp: f.importable, motivo: f.motivo };
+    }
+    return mapa;
+  } catch (_) { return {}; }
+}
+
+async function guardarClasificaciones(mapa) {
+  try {
+    const { url, key, ok } = supa();
+    const filas = Object.keys(mapa || {}).map(k => ({
+      keyword: k, es: mapa[k] && mapa[k].es ? String(mapa[k].es).slice(0, 120) : null,
+      importable: !!(mapa[k] && mapa[k].imp),
+      motivo: mapa[k] && mapa[k].motivo ? String(mapa[k].motivo).slice(0, 200) : null
+    }));
+    if (!ok || !filas.length) return;
+    await fetch(url + '/rest/v1/keywords_clasificadas?on_conflict=keyword', {
+      method: 'POST',
+      headers: {
+        apikey: key, Authorization: 'Bearer ' + key,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates,return=minimal'
+      },
+      body: JSON.stringify(filas)
+    });
+  } catch (_) { /* el cache no puede romper el barrido */ }
+}
+
 export async function clasificarKeywords(keywords) {
   const limpios = [...new Set((keywords || []).filter(Boolean))];
   if (!limpios.length) return { mapa: {}, error: null };
+
+  const guardadas = await clasificacionesGuardadas(limpios);
+  const faltan = limpios.filter(k => !guardadas[k]);
+  if (!faltan.length) return { mapa: guardadas, error: null, desdeCache: limpios.length, preguntadas: 0 };
+
   const lotes = [];
-  for (let i = 0; i < limpios.length; i += LOTE) lotes.push(limpios.slice(i, i + LOTE));
+  for (let i = 0; i < faltan.length; i += LOTE) lotes.push(faltan.slice(i, i + LOTE));
 
   const resultados = await Promise.all(lotes.map(async (lote) => {
     try { return { ok: true, mapa: await clasificarLote(lote) }; }
     catch (e) { return { ok: false, error: String((e && e.message) || e).slice(0, 120) }; }
   }));
 
-  const mapa = {};
+  const nuevas = {};
   const errores = [];
   for (const r of resultados) {
-    if (r.ok) Object.assign(mapa, r.mapa);
+    if (r.ok) Object.assign(nuevas, r.mapa);
     else errores.push(r.error);
   }
+  await guardarClasificaciones(nuevas);
+
   // El error se devuelve para que se vea en la respuesta del endpoint, en vez
   // de quedar como un "traducidos: 0" sin explicacion.
-  return { mapa, error: errores.length ? errores[0] + (errores.length > 1 ? ' (x' + errores.length + ')' : '') : null };
+  return {
+    mapa: Object.assign({}, guardadas, nuevas),
+    error: errores.length ? errores[0] + (errores.length > 1 ? ' (x' + errores.length + ')' : '') : null,
+    desdeCache: Object.keys(guardadas).length,
+    preguntadas: faltan.length
+  };
 }
 
 // ------------------------------------------------------------
@@ -258,25 +314,45 @@ function yaEstaEnArgentina(traducido, listasAR) {
   return false;
 }
 
+// Las tendencias son gratis, pero son dos consultas por rubro y Vercel corta a
+// los 60 segundos. Se van de a tandas y se para cuando se acaba el presupuesto:
+// mejor devolver 20 rubros barridos que morir en el intento con 40.
+async function tendenciasPorRubro(pares, token, limiteMs) {
+  const salida = [];
+  const TANDA = 6;
+  const hasta = Date.now() + (limiteMs || 25000);
+  for (let i = 0; i < pares.length; i += TANDA) {
+    if (Date.now() > hasta) break;
+    const tanda = pares.slice(i, i + TANDA);
+    const hechas = await Promise.all(tanda.map(async (par) => {
+      const [ar, br] = await Promise.all([
+        tendencias('MLA', par.ar.id, token),
+        par.br ? tendencias('MLB', par.br.id, token) : Promise.resolve(partirTendencias([]))
+      ]);
+      return { par, ar, br };
+    }));
+    salida.push(...hechas);
+  }
+  return salida;
+}
+
 export async function descubrir(token, opts) {
   const o = opts || {};
-  const maxCategorias = o.maxCategorias || 6;
+  // Antes eran 6 rubros. Con las clasificaciones cacheadas el barrido grande ya
+  // no le cuesta a Claude lo que costaba, asi que se puede mirar mucho mas.
+  const maxCategorias = o.maxCategorias || 20;
 
   const [catsAR, catsBR] = await Promise.all([categorias('MLA', token), categorias('MLB', token)]);
   if (!catsAR.length) return { error: 'MercadoLibre no devolvio las categorias' };
 
   let pares = emparejarCategorias(catsAR, catsBR);
+  const disponibles = pares.length;
   if (o.categoria) pares = pares.filter(p => p.ar.id === o.categoria);
   pares = pares.slice(0, maxCategorias);
+  const pedidos = pares.length;
 
-  // Las tendencias de cada rubro, en los dos paises, en paralelo.
-  const porRubro = await Promise.all(pares.map(async (par) => {
-    const [ar, br] = await Promise.all([
-      tendencias('MLA', par.ar.id, token),
-      par.br ? tendencias('MLB', par.br.id, token) : Promise.resolve(partirTendencias([]))
-    ]);
-    return { par, ar, br };
-  }));
+  const porRubro = await tendenciasPorRubro(pares, token, o.presupuestoMs);
+  const barridos = porRubro.length;
 
   // Una sola clasificacion para todos los rubros: traduce los brasileños y
   // marca cuales sirven para importar, de los dos paises.
@@ -358,7 +434,14 @@ export async function descubrir(token, opts) {
   const descartados = aClasificar.filter(k => info[k] && info[k].imp === false);
   return {
     candidatos: lista,
-    rubros: pares.map(p => ({ ar: p.ar.name, br: p.br ? p.br.name : null, parecido: p.parecido })),
+    rubros: porRubro.map(r => ({ ar: r.par.ar.name, br: r.par.br ? r.par.br.name : null, parecido: r.par.parecido })),
+    // Cuantos rubros se miraron de verdad, contra los que hay. Si el
+    // presupuesto de tiempo corto el barrido, se ve en estos numeros.
+    rubros_barridos: barridos,
+    rubros_pedidos: pedidos,
+    rubros_disponibles: disponibles,
+    clasificacion_desde_cache: clasif.desdeCache || 0,
+    clasificacion_preguntadas: clasif.preguntadas || 0,
     clasificados: Object.keys(info).length,
     descartadosNoImportables: descartados.length,
     ejemploDescartado: descartados.slice(0, 5),

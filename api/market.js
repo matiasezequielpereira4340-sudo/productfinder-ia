@@ -177,13 +177,22 @@ export default async function handler(req, res) {
       try {
         const r = await radar.descubrir(tok, {
           categoria: typeof req.query.categoria === 'string' ? req.query.categoria : null,
-          maxCategorias: Math.min(parseInt(req.query.rubros, 10) || 6, 12)
+          // Antes: 6 por defecto, tope 12. Con las clasificaciones cacheadas
+          // el barrido grande dejo de ser caro, asi que se abre.
+          maxCategorias: Math.min(parseInt(req.query.rubros, 10) || 20, 40),
+          // Margen para que la funcion no muera a los 60s de Vercel.
+          presupuestoMs: 25000
         });
         if (r.error) return res.status(200).json({ ok: false, error: r.error });
         return res.status(200).json({
           ok: true,
           consultadoEn: new Date().toISOString(),
           rubros: r.rubros,
+          rubros_barridos: r.rubros_barridos,
+          rubros_pedidos: r.rubros_pedidos,
+          rubros_disponibles: r.rubros_disponibles,
+          clasificacion_desde_cache: r.clasificacion_desde_cache,
+          clasificacion_preguntadas: r.clasificacion_preguntadas,
           clasificados: r.clasificados,
           descartados_no_importables: r.descartadosNoImportables,
           ejemplo_descartado: r.ejemploDescartado,
