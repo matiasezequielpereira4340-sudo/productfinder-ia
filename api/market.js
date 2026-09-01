@@ -114,10 +114,21 @@ export default async function handler(req, res) {
         // El pais sale de las urls que trajo, no de lo que se pidio: el actor
         // devuelve la tienda de Estados Unidos aunque se le pida otra.
         const nombrePais = { US: 'Estados Unidos', BR: 'Brasil', MX: 'México', ES: 'España' };
+        // Cada producto necesita un nombre corto en español para poder
+        // preguntarle a MercadoLibre Argentina por el. El titulo original de
+        // TikTok no sirve: es ingles con marca, modelo y especificaciones.
+        let productos = r.items;
+        try {
+          const nombres = await radar.nombrarProductos(productos.map(p => p.titulo));
+          productos = productos.map(p => Object.assign({}, p, {
+            nombre_es: nombres[String(p.titulo).slice(0, 140)] || null
+          }));
+        } catch (_) { /* sin nombre corto igual se muestra el producto */ }
+
         return res.status(200).json({ ok: true, keyword: kw, estado: 'listo',
           fuente: 'TikTok Shop ' + (r.pais ? (nombrePais[r.pais] || r.pais) : '(país no identificado)'),
           pais: r.pais || null, monedas: r.monedas || [], desdeCache: !!r.desdeCache,
-          costo_usd: fu.costoEstimado('tiktok', 30), productos: r.items });
+          costo_usd: fu.costoEstimado('tiktok', 30), productos });
       }
 
       if (typeof req.query.gtrends === 'string' && req.query.gtrends.length > 1) {

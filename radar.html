@@ -38,6 +38,16 @@
   .error-box{display:none;background:var(--mc-bad-wash);border:1px solid var(--mc-bad);
     color:var(--mc-bad);border-radius:var(--mc-r);padding:13px 16px;margin-top:18px;font-size:14px}
 
+  /* Dos listas independientes, cada una con su propia fuente. La que gasta
+     dice en la pestaña lo que cuesta, antes de entrar. */
+  .rd-tabs{display:flex;gap:6px;margin:20px 0 4px;border-bottom:1px solid var(--mc-line);flex-wrap:wrap}
+  .rd-tab{background:none;border:0;border-bottom:2px solid transparent;color:var(--mc-ink-3);
+    font:inherit;font-size:14.5px;font-weight:600;padding:10px 14px;cursor:pointer;
+    transition:color .15s var(--mc-ease),border-color .15s var(--mc-ease)}
+  .rd-tab i{font-style:normal;font-size:11.5px;color:var(--mc-ink-4);margin-left:5px;font-weight:400}
+  .rd-tab:hover{color:var(--mc-ink)}
+  .rd-tab.activa{color:var(--mc-ink);border-bottom-color:var(--mc-y)}
+  .rd-tab.activa i{color:var(--mc-y)}
   .rd-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:18px 0 6px}
   .rd-select{background:var(--mc-surface);border:1px solid var(--mc-line);color:var(--mc-ink);
     border-radius:var(--mc-r);padding:12px 13px;font:inherit;font-size:14px;min-width:230px}
@@ -127,44 +137,74 @@
 <div class="wrap">
   <div class="hero">
     <h1>Radar de <span>Oportunidad</span></h1>
-    <p>Lo dif&iacute;cil no es analizar un producto: es que se te ocurra cu&aacute;l. Ac&aacute; salen los que est&aacute;n creciendo en las b&uacute;squedas de MercadoLibre Brasil y todav&iacute;a no aparecen en las de Argentina.</p>
+    <p>Lo dif&iacute;cil no es analizar un producto: es que se te ocurra cu&aacute;l.
+    Ac&aacute; hay dos fuentes de ideas &mdash; mercados donde las cosas pegan antes que ac&aacute; &mdash;
+    y de cualquiera de las dos pod&eacute;s bajar un producto y <b>validarlo contra Argentina</b>,
+    que es donde vend&eacute;s.</p>
   </div>
 
-  <div class="rd-toolbar">
-    <select class="rd-select" id="rubro"><option value="">Todos los rubros</option></select>
-    <button class="btn btn-yellow" id="go">Buscar oportunidades</button>
-  </div>
-  <div class="hint">El descubrimiento es gratis: sale de las tendencias que publica MercadoLibre. Medir la competencia de un producto s&iacute; consume cr&eacute;dito, por eso se hace de a uno.</div>
-
-  <div class="loading" id="loading"><div class="spin"></div> Leyendo las tendencias de Argentina y Brasil...</div>
-  <div class="error-box" id="error"></div>
-
-  <div class="rd-legend" id="legend" style="display:none">
-    <span><span class="rd-tag nuevo">No lleg&oacute;</span> crece en Brasil, no figura ac&aacute;</span>
-    <span><span class="rd-tag ambos">En los dos</span> demanda confirmada</span>
-    <span><span class="rd-tag ar">Argentina</span> ya est&aacute; creciendo ac&aacute;</span>
+  <div class="rd-tabs" role="tablist">
+    <button class="rd-tab activa" id="tabMeli" role="tab" aria-selected="true">
+      MercadoLibre Brasil <i>gratis</i></button>
+    <button class="rd-tab" id="tabTikTok" role="tab" aria-selected="false">
+      TikTok Shop EE.UU. <i>~US$0,06 por rubro</i></button>
   </div>
 
-  <div class="rd-list" id="lista"></div>
+  <div id="panelMeli">
+    <div class="rd-toolbar">
+      <select class="rd-select" id="rubro"><option value="">Todos los rubros</option></select>
+      <button class="btn btn-yellow" id="go">Buscar oportunidades</button>
+    </div>
+    <div class="hint">Qu&eacute; est&aacute; creciendo en las b&uacute;squedas de MercadoLibre Brasil y
+    todav&iacute;a no aparece en las de Argentina. Esta lista es <b>gratis</b>: sale de las tendencias que
+    publica MercadoLibre.</div>
 
-  <div class="rd-nota" id="nota" style="display:none">
-    <b>C&oacute;mo leer esto.</b> El puntaje de <b>demanda</b> sale de la posici&oacute;n del producto en
-    las listas de crecimiento de MercadoLibre: cuanto m&aacute;s arriba, m&aacute;s fuerte la se&ntilde;al.
-    El de <b>oportunidad</b> aparece reci&eacute;n cuando med&iacute;s la competencia.
+    <div class="loading" id="loading"><div class="spin"></div> Leyendo las tendencias de Argentina y Brasil...</div>
+    <div class="error-box" id="error"></div>
+
+    <div class="rd-legend" id="legend" style="display:none">
+      <span><span class="rd-tag nuevo">No lleg&oacute;</span> crece en Brasil, no figura ac&aacute;</span>
+      <span><span class="rd-tag ambos">En los dos</span> demanda confirmada</span>
+      <span><span class="rd-tag ar">Argentina</span> ya est&aacute; creciendo ac&aacute;</span>
+    </div>
+
+    <div class="rd-list" id="lista"></div>
+  </div>
+
+  <div id="panelTikTok" style="display:none">
+    <div class="rd-toolbar">
+      <select class="rd-select" id="rubroTk"></select>
+      <button class="btn btn-yellow" id="goTk">Ver los m&aacute;s vendidos</button>
+    </div>
+    <div class="hint">Los productos con m&aacute;s unidades vendidas en TikTok Shop de Estados Unidos.
+    Es otra lista, con otros productos: lo que arrasa ah&iacute; suele llegar despu&eacute;s.
+    <b>Cada rubro cuesta ~US$0,06</b> y queda guardado 3 d&iacute;as.</div>
+    <div class="loading" id="loadingTk"><div class="spin"></div> Mirando qu&eacute; se vende m&aacute;s...</div>
+    <div class="error-box" id="errorTk"></div>
+    <div class="rd-list" id="listaTk"></div>
+  </div>
+
+  <div class="rd-nota" id="nota">
+    <b>C&oacute;mo funciona esto.</b> Hay dos <b>fuentes de ideas</b>, y son listas distintas con productos
+    distintos: <b>MercadoLibre Brasil</b> (gratis) muestra qu&eacute; se empez&oacute; a buscar all&aacute; y
+    todav&iacute;a no ac&aacute;; <b>TikTok Shop Estados Unidos</b> (~US$0,06 el rubro) muestra qu&eacute; se
+    est&aacute; <b>vendiendo</b> hoy, con unidades reales. Son dos mercados donde las cosas pegan antes.
     <br><br>
-    Una aclaraci&oacute;n importante: MercadoLibre <b>no publica cu&aacute;ntas publicaciones hay</b> para un
+    <b>Validar es siempre contra Argentina</b>, venga el producto de donde venga, porque es donde vend&eacute;s.
+    Cualquier producto de cualquiera de las dos listas tiene los mismos dos botones:
+    <b>competencia en MercadoLibre Argentina</b> (~US$0,24) y <b>&iquest;lo buscan en Argentina?</b>
+    seg&uacute;n Google (~US$0,10). Que algo explote en Brasil o en Estados Unidos no lo valida: lo hace
+    candidato. Lo valida que ac&aacute; haya demanda y quede lugar.
+    <br><br>
+    <b>Sobre la competencia.</b> MercadoLibre <b>no publica cu&aacute;ntas publicaciones hay</b> para un
     t&eacute;rmino, y no te lo vamos a inventar. Lo que s&iacute; se puede medir es <b>c&oacute;mo est&aacute;
-    repartida la venta</b> entre los que ya est&aacute;n. Si tres vendedores se llevan el 90%, el rubro est&aacute;
-    tomado aunque haya pocas publicaciones; si la venta est&aacute; repartida, hay lugar aunque haya muchas.
-    Los n&uacute;meros que ves salen de las publicaciones que efectivamente se miraron, no del mercado entero.
+    repartida la venta</b> entre los que ya est&aacute;n: si tres vendedores se llevan el 90%, el rubro
+    est&aacute; tomado aunque haya pocas publicaciones. Los n&uacute;meros salen de las publicaciones que
+    efectivamente se miraron, no del mercado entero.
     <br><br>
-    <b>Qu&eacute; cuesta y qu&eacute; no.</b> Descubrir candidatos es <b>gratis</b>: sale de las tendencias que
-    publica MercadoLibre. Los botones punteados consultan fuentes de afuera y <b>s&iacute; gastan cr&eacute;dito</b>:
-    <b>TikTok Shop</b> (~US$0,06) muestra qu&eacute; se est&aacute; vendiendo hoy, con unidades reales; el actor
-    disponible devuelve la tienda de <b>Estados Unidos</b>, y la respuesta dice de qu&eacute; pa&iacute;s es;
-    <b>Google Trends</b> (~US$0,10) dice si el t&eacute;rmino crece fuera de MercadoLibre. Ninguna corre sola:
-    hay que apretarlas. Lo consultado queda guardado 3 d&iacute;as, as&iacute; que repetir la misma consulta no
-    vuelve a cobrar.
+    <b>Qu&eacute; gasta.</b> Los botones con borde punteado consumen cr&eacute;dito y dicen el precio antes
+    de apretarlos. Ninguno corre solo. Lo consultado queda guardado (3 d&iacute;as las fuentes de afuera,
+    una semana la competencia), as&iacute; que repetir no vuelve a cobrar.
   </div>
 </div>
 
@@ -206,25 +246,31 @@
       '<div class="rd-senal">' + esc(c.senal) + '</div>' +
       (c.traducidoDe ? '<div class="rd-de">En Brasil lo buscan como &ldquo;' + esc(c.traducidoDe) + '&rdquo;</div>' : '') +
       '<div class="rd-foot">' +
-        '<button class="rd-btn" onclick="medir(' + i + ')">Ver cu&aacute;nta competencia tiene ac&aacute;</button>' +
-        '<button class="rd-btn rd-btn-pago" onclick="verTikTok(' + i + ')" ' +
-          'title="Corre una consulta paga a TikTok Shop">Se vende en TikTok Shop? <i>~US$0,06</i></button>' +
+        '<button class="rd-btn rd-btn-pago" onclick="medir(' + i + ')" ' +
+          'title="Consulta paga">Competencia en Argentina <i>~US$0,24</i></button>' +
         '<button class="rd-btn rd-btn-pago" onclick="verTrends(' + i + ')" ' +
-          'title="Corre una consulta paga a Google Trends">Crece fuera de MercadoLibre? <i>~US$0,10</i></button>' +
+          'title="Consulta paga">&iquest;Lo buscan en Argentina? <i>~US$0,10</i></button>' +
         (c.posicionBR ? '<span style="font-size:12px;color:var(--mc-ink-4)">Puesto ' + c.posicionBR + ' en Brasil</span>' : '') +
         (c.posicionAR ? '<span style="font-size:12px;color:var(--mc-ink-4)">Puesto ' + c.posicionAR + ' en Argentina</span>' : '') +
       '</div>' +
       '<div id="sat' + i + '"></div><div id="fu' + i + '"></div></div>';
   }
 
-  window.medir = function(i){
+  // Validar es SIEMPRE contra Argentina, venga el producto de donde venga: es
+  // donde se vende. Por eso recibe el termino y el id de la caja, en vez de
+  // suponer que el producto salio de la lista de MercadoLibre.
+  window.medir = function(i, termino, demanda, prefijo){
+    var pre = prefijo || 'c';
     var c = candidatos[i];
-    var caja = document.getElementById('sat' + i);
-    var btn = document.querySelector('#c' + i + ' .rd-btn');
+    var kw = termino || (c && c.keyword);
+    var dem = demanda != null ? demanda : (c ? c.scoreDemanda : 50);
+    var caja = document.getElementById((prefijo === 'tk' ? 'satTk' : 'sat') + i);
+    var btn = document.querySelector('#' + pre + i + ' .rd-btn');
+    if (!kw) { caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">No pude armar un t&eacute;rmino para buscar este producto en MercadoLibre.</div>'; return; }
     if (btn) { btn.disabled = true; btn.textContent = 'Midiendo...'; }
-    caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">Consultando MercadoLibre Argentina...</div>';
+    caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">Consultando MercadoLibre Argentina por &ldquo;' + esc(kw) + '&rdquo;...</div>';
 
-    fetch('/api/market?radar=1&saturacion=' + encodeURIComponent(c.keyword) + '&demanda=' + c.scoreDemanda)
+    fetch('/api/market?radar=1&saturacion=' + encodeURIComponent(kw) + '&demanda=' + dem)
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (!d.ok) throw new Error(d.error || 'No pude medir la competencia');
@@ -232,7 +278,7 @@
         if (d.estado === 'preparando') {
           caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">' + esc(d.aviso) +
             ' Reviso solo en 20 segundos.</div>';
-          setTimeout(function(){ if (btn) { btn.disabled = false; } window.medir(i); }, 20000);
+          setTimeout(function(){ if (btn) { btn.disabled = false; } window.medir(i, kw, dem, prefijo); }, 20000);
           return;
         }
         if (d.estado === 'sin-datos') {
@@ -307,10 +353,11 @@
   // Las dos fuentes de abajo CUESTAN PLATA. Por eso no corren solas: hay que
   // apretar el boton, que dice cuanto sale antes de gastarlo. La respuesta trae
   // el costo real y si salio del cache, para que no haya sorpresas al fin de mes.
-  function consultarFuente(i, ruta, titulo, pintar, termino){
+  function consultarFuente(i, ruta, titulo, pintar, termino, prefijo){
     var c = candidatos[i];
-    var kw = termino || c.keyword;
-    var caja = document.getElementById('fu' + i);
+    var kw = termino || (c && c.keyword);
+    var caja = document.getElementById((prefijo === 'tk' ? 'fuTk' : 'fu') + i);
+    if (!kw) { caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">Sin t&eacute;rmino para consultar.</div>'; return; }
     caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">Consultando ' + esc(titulo) +
       ' por &ldquo;' + esc(kw) + '&rdquo;...</div>';
 
@@ -321,7 +368,7 @@
         if (d.estado === 'preparando') {
           caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">' + esc(d.aviso) +
             ' Reviso solo en 20 segundos.</div>';
-          setTimeout(function(){ consultarFuente(i, ruta, titulo, pintar, kw); }, 20000);
+          setTimeout(function(){ consultarFuente(i, ruta, titulo, pintar, kw, prefijo); }, 20000);
           return;
         }
         if (d.estado === 'sin-datos') {
@@ -339,28 +386,8 @@
       });
   }
 
-  window.verTikTok = function(i){
-    // MEDIDO: el actor devuelve la tienda de Estados Unidos, en ingles, aunque
-    // se le pida Brasil. Asi que se consulta con el termino en español, que es
-    // lo que tenemos, y el pais real lo informa la respuesta: no se rotula.
-    // Si algun dia entra un actor de Brasil, aca va el termino en portugues.
-    consultarFuente(i, 'tiktok', 'TikTok Shop', function(d){
-      var p = d.productos || [];
-      if (!p.length) return '<div class="rd-nums">Sin productos para ese t&eacute;rmino.</div>';
-      var moneda = (d.monedas && d.monedas.length === 1) ? d.monedas[0] : '';
-      // Ordenado por unidades: lo que interesa es que se vende, no que existe.
-      p.sort(function(a,b){ return (b.vendidos||0) - (a.vendidos||0); });
-      return '<div class="rd-lideres">' + p.slice(0,6).map(function(x){
-        return '<div class="rd-lider"><span>' + esc(x.titulo.slice(0,60)) +
-          (x.tienda ? ' <i>' + esc(x.tienda) + '</i>' : '') + '</span><span>' +
-          (x.vendidos ? num(x.vendidos) + ' vendidos' : 'sin dato de ventas') +
-          (x.precio ? ' &middot; ' + (x.moneda || moneda || '') + ' ' + num(x.precio) : '') + '</span></div>';
-      }).join('') + '</div>';
-    });
-  };
-
-  window.verTrends = function(i){
-    consultarFuente(i, 'gtrends', 'Google Trends', function(d){
+  window.verTrends = function(i, termino, prefijo){
+    consultarFuente(i, 'gtrends', 'Google Trends Argentina', function(d){
       var t = d.relacionadas || [];
       if (!t.length) return '<div class="rd-nums">Sin b&uacute;squedas relacionadas.</div>';
       // Lo que viene subiendo va primero: ahi esta la oportunidad, no en lo
@@ -372,15 +399,122 @@
           (x.explota ? 'explotando' : (x.crecimiento != null ? num(x.crecimiento) : 'sin dato')) +
           '</span></div>';
       }).join('') + '</div>';
-    });
+    }, termino, prefijo);
   };
+
+  // ------------------------------------------------------------
+  // Lista 2: TikTok Shop Estados Unidos
+  // ------------------------------------------------------------
+  // Es otra fuente de ideas, no una validacion de la primera: trae productos
+  // distintos. El actor necesita una palabra de arranque (no tiene modo
+  // "traeme todo"), asi que se le dan rubros en ingles, que es el idioma de
+  // esa tienda.
+  var RUBROS_TK = [
+    ['car accessories', 'Accesorios para auto'],
+    ['motorcycle accessories', 'Accesorios para moto'],
+    ['pet supplies', 'Mascotas'],
+    ['baby products', 'Beb&eacute;s'],
+    ['home gadgets', 'Gadgets para el hogar'],
+    ['kitchen gadgets', 'Cocina'],
+    ['tools', 'Herramientas'],
+    ['beauty devices', 'Belleza'],
+    ['phone accessories', 'Accesorios de celular'],
+    ['fitness equipment', 'Fitness'],
+    ['camping gear', 'Camping'],
+    ['led lighting', 'Iluminaci&oacute;n LED']
+  ];
+  var productosTk = [];
+
+  function tarjetaTk(p, i){
+    // El nombre corto en español es lo unico con lo que se puede preguntar en
+    // MercadoLibre Argentina. Si no lo hay, se dice y no se ofrece validar.
+    var kw = p.nombre_es || '';
+    return '<div class="rd-card" id="tk' + i + '">' +
+      '<div class="rd-head">' +
+        '<div class="rd-kw">' + esc(kw || p.titulo.slice(0, 60)) +
+          '<div class="rd-rubro">' + esc(p.titulo.slice(0, 90)) + '</div></div>' +
+        '<div class="rd-score" style="color:var(--mc-ok)">' + num(p.vendidos || 0) +
+          '<small>vendidos</small></div>' +
+      '</div>' +
+      '<div class="rd-nums">' +
+        (p.precio ? '<span>Precio all&aacute;: <b>' + (p.moneda || '') + ' ' + num(p.precio) + '</b></span>' : '') +
+        (p.tienda ? '<span>Tienda: <b>' + esc(p.tienda) + '</b></span>' : '') +
+        (p.puntaje ? '<span>Puntaje: <b>' + p.puntaje + '</b></span>' : '') +
+      '</div>' +
+      '<div class="rd-foot">' +
+        (kw
+          ? '<button class="rd-btn rd-btn-pago" onclick="medir(' + i + ',' + JSON.stringify(kw) + ',50,\'tk\')" ' +
+              'title="Consulta paga">Competencia en Argentina <i>~US$0,24</i></button>' +
+            '<button class="rd-btn rd-btn-pago" onclick="verTrends(' + i + ',' + JSON.stringify(kw) + ',\'tk\')" ' +
+              'title="Consulta paga">&iquest;Lo buscan en Argentina? <i>~US$0,10</i></button>'
+          : '<span style="font-size:12px;color:var(--mc-ink-4)">No pude reducir el t&iacute;tulo a un producto buscable en Argentina.</span>') +
+      '</div>' +
+      '<div id="satTk' + i + '"></div><div id="fuTk' + i + '"></div></div>';
+  }
+
+  function buscarTk(){
+    var sel = document.getElementById('rubroTk');
+    var cajaL = document.getElementById('loadingTk');
+    var cajaE = document.getElementById('errorTk');
+    var lista = document.getElementById('listaTk');
+    cajaL.style.display = 'block'; cajaE.style.display = 'none'; lista.innerHTML = '';
+
+    fetch('/api/market?radar=1&tiktok=' + encodeURIComponent(sel.value))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) throw new Error(d.error || 'No pude consultar TikTok Shop');
+        if (d.estado === 'preparando') {
+          cajaL.innerHTML = '<div class="spin"></div> ' + esc(d.aviso) + ' Reviso solo en 20 segundos.';
+          setTimeout(buscarTk, 20000);
+          return;
+        }
+        cajaL.style.display = 'none';
+        cajaL.innerHTML = '<div class="spin"></div> Mirando qu\u00e9 se vende m\u00e1s...';
+        if (d.estado === 'sin-datos') { cajaE.textContent = d.aviso; cajaE.style.display = 'block'; return; }
+
+        productosTk = (d.productos || []).slice().sort(function(a,b){ return (b.vendidos||0)-(a.vendidos||0); });
+        if (!productosTk.length) { cajaE.textContent = 'Sin productos para ese rubro.'; cajaE.style.display = 'block'; return; }
+        var costo = d.desdeCache
+          ? 'Ya estaba consultado: no gast&oacute; nada.'
+          : 'Esta consulta cost&oacute; ~US$' + (d.costo_usd || 0).toFixed(3) + '.';
+        lista.innerHTML = '<div class="rd-nota"><b>' + esc(d.fuente) + '</b> &middot; ' +
+          productosTk.length + ' productos, ordenados por unidades vendidas. ' +
+          'Son <b>ventas reales</b>, no b&uacute;squedas. ' + costo + '</div>' +
+          productosTk.map(tarjetaTk).join('');
+      })
+      .catch(function(e){
+        cajaL.style.display = 'none';
+        cajaE.textContent = e.message; cajaE.style.display = 'block';
+      });
+  }
+
+  (function iniciarTk(){
+    var sel = document.getElementById('rubroTk');
+    RUBROS_TK.forEach(function(r){
+      var o = document.createElement('option');
+      o.value = r[0]; o.innerHTML = r[1];
+      sel.appendChild(o);
+    });
+    document.getElementById('goTk').addEventListener('click', buscarTk);
+
+    var tM = document.getElementById('tabMeli'), tT = document.getElementById('tabTikTok');
+    var pM = document.getElementById('panelMeli'), pT = document.getElementById('panelTikTok');
+    function mostrar(cual){
+      var esMeli = cual === 'meli';
+      tM.classList.toggle('activa', esMeli); tT.classList.toggle('activa', !esMeli);
+      tM.setAttribute('aria-selected', esMeli); tT.setAttribute('aria-selected', !esMeli);
+      pM.style.display = esMeli ? '' : 'none';
+      pT.style.display = esMeli ? 'none' : '';
+    }
+    tM.addEventListener('click', function(){ mostrar('meli'); });
+    tT.addEventListener('click', function(){ mostrar('tiktok'); });
+  })();
 
   function buscar(){
     loading.style.display = 'block';
     errorBox.style.display = 'none';
     lista.innerHTML = '';
     document.getElementById('legend').style.display = 'none';
-    document.getElementById('nota').style.display = 'none';
 
     var url = '/api/market?radar=1&rubros=8';
     if (selRubro.value) url += '&categoria=' + encodeURIComponent(selRubro.value);
@@ -405,7 +539,6 @@
       }
       lista.innerHTML = candidatos.map(tarjeta).join('');
       document.getElementById('legend').style.display = 'flex';
-      document.getElementById('nota').style.display = 'block';
     }).catch(function(e){
       loading.style.display = 'none';
       errorBox.textContent = e.message;
