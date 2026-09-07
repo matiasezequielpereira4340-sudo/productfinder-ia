@@ -8,8 +8,31 @@
 // ============================================================
 
 import { resolveUserId, buscarPublicaciones, anthropicHeaders } from './_meli.js';
+import { esCliente, tokenDe } from './_sesion.js';
 
 const USD_ARS_FALLBACK = 1510;
+const LIMITE_GRATIS = 3;
+
+// ------------------------------------------------------------
+// Costo puesto en Argentina
+// ------------------------------------------------------------
+// Antes esto era un x2,75 fijo para TODOS los productos. El problema: en
+// courier el flete lo manda el peso, asi que un lector de microSD de 15 g y
+// una mancuerna de 2 kg no pueden llevar el mismo multiplicador. Ahora el
+// recargo se calcula sobre el peso real que ya viene cargado en el catalogo.
+//
+// Sigue siendo una ESTIMACION (no reemplaza la cotizacion del despachante),
+// pero deja de ser el mismo numero para todo.
+const USD_KG_COURIER = 12;      // flete aereo puerta a puerta, USD por kilo
+const MIN_FLETE_USD  = 2.5;     // ningun envio sale menos que esto
+const RECARGO_IMPUESTOS = 1.85; // aranceles + IVA + gastos sobre (FOB + flete)
+
+function costoPuestoARS_(costoUnitUSD, pesoG, usdArs) {
+  const kg = Math.max(0.02, (pesoG || 200) / 1000);
+  const fleteUSD = Math.max(MIN_FLETE_USD, kg * USD_KG_COURIER);
+  const puestoUSD = (costoUnitUSD + fleteUSD) * RECARGO_IMPUESTOS;
+  return Math.round(puestoUSD * usdArs);
+}
 const SUPA_URL = process.env.SUPABASE_URL || 'https://qglieqpcmmffgxijbysb.supabase.co';
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 
@@ -1101,22 +1124,12 @@ export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // AUTH ENDPOINT
-  if (path.endsWith('/auth')) {
-    if (req.method !== 'POST') return res.status(405).json({error: 'Method not allowed'});
-    const { username, password } = req.body;
-    const validUser = process.env.APP_USER;
-    const validPass = process.env.APP_PASS;
-    if (!validUser || !validPass) return res.status(500).json({success:false,error:'Servidor mal configurado'});
-  if (username === validUser && password === validPass) {
-      return res.status(200).json({success: true, user: username});
-    }
-    return res.status(401).json({success: false, error: 'Credenciales incorrectas'});
-  }
+  // El login vive en api/auth.js: Vercel rutea /api/auth a ese archivo.
+  // Aca habia una copia que nunca se ejecutaba.
 
   // CHAT ENDPOINT
   if (path.endsWith('/chat')) {
@@ -1153,9 +1166,23 @@ export default async function handler(req, res) {
   // analizar. El selector del front la consume para no volver a ofrecer
   // opciones que despues no devuelven nada.
   if (req.method === 'GET') {
-    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
+    res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=86400');
     const nichos = listarNichos();
-    return res.status(200).json({ nichos: nichos, total: nichos.length, porDefecto: NICHO_POR_DEFECTO });
+    // La cotizacion viaja junto con la lista: MargenClear la usa para no
+    // arrancar con un tipo de cambio clavado, y al pedirla por aca (mismo
+    // origen) no depende de que dolarapi habilite CORS en el navegador.
+    let dolar = null, dolarFuente = null;
+    try {
+      const dr = await fetch('https://dolarapi.com/v1/dolares/tarjeta');
+      if (dr.ok) {
+        const dj = await dr.json();
+        if (dj && dj.venta) { dolar = Math.round(dj.venta); dolarFuente = 'dolar tarjeta'; }
+      }
+    } catch (_e) { /* si falla, el front avisa que no pudo traerla */ }
+    return res.status(200).json({
+      nichos: nichos, total: nichos.length, porDefecto: NICHO_POR_DEFECTO,
+      dolar: dolar, dolarFuente: dolarFuente
+    });
   }
 
   if (req.method !== 'POST') return res.status(405).json({error: 'Method not allowed'});
@@ -1180,8 +1207,7 @@ export default async function handler(req, res) {
       const batch = lista.slice(i, i+5);
       const evals = await Promise.all(batch.map(async (prod) => {
         const costoUnitUSD = (prod.costoMin + prod.costoMax)/2;
-        const costoUnitARS = Math.round(costoUnitUSD * usdArs);
-        const costoPuestoARS = Math.round(costoUnitARS * 2.75); // x2.5-3.0: estimado gastos de envio/importacion (varia segun producto, impuestos, peso y volumen)
+        const costoPuestoARS = costoPuestoARS_(costoUnitUSD, prod.pesoG, usdArs);
         const data = await meliSearch(prod.q, token, costoPuestoARS);
         function _satFromTotal(t){ if(t==null) return null; if(t < 2000) return 'Baja'; if(t < 5000) return 'Media'; if(t < 9000) return 'Alta'; return 'Muy alta'; }
         if (data && data.precios.length && data.total == null) {
@@ -1226,16 +1252,26 @@ export default async function handler(req, res) {
       productos.push.apply(productos, evals);
     }
 
-    let filtrados = productos;
-    filtrados = productos.slice();
+    let filtrados = productos.slice();
     filtrados.sort(function(a,b){ const ad=a.score!=null, bd=b.score!=null; if(ad!==bd) return ad?-1:1; return (b.score||0)-(a.score||0); });
     if (filtrados.length && filtrados[0].score!=null) filtrados[0].topPick = true;
 
     const conDato = productos.filter(function(p){ return p.score!=null; }).length;
+
+    // El recorte pasa a decidirse ACA, no en el navegador. Antes el candado
+    // vivia en localStorage y la API mandaba los 12 productos igual: se
+    // salteaba abriendo la consola. Ahora, sin token firmado de cliente, los
+    // productos bloqueados directamente no salen del servidor.
+    const cliente = esCliente(tokenDe(req));
+    const totalDisponibles = filtrados.length;
+    if (!cliente && filtrados.length > LIMITE_GRATIS) {
+      filtrados = filtrados.slice(0, LIMITE_GRATIS);
+    }
     return res.status(200).json({
       nicho: nichoKey, nichoLabel: niche.label, icon: niche.icon, usdArs: usdArs,
       nichoSolicitado: nicho || null, nichoAproximado: !resuelto.exacto,
       totalEvaluados: productos.length, conDatoReal: conDato,
+      esCliente: cliente, productosMostrados: filtrados.length, productosTotales: totalDisponibles,
       meliConectado: !!token, meliTokenExpirado: tokenExpired,
       products: filtrados,
       disclaimer: 'Precios y competencia: datos REALES de la API de MercadoLibre (requiere tu cuenta de ML conectada). Los gastos de envio/importacion son ESTIMADOS (dolar en vivo x2,75) y pueden variar segun el producto, los impuestos, el peso y el volumen. El costo puesto es aproximado, no un valor cerrado.'

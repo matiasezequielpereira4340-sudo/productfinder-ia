@@ -1,11 +1,18 @@
 import { anthropicHeaders } from './_meli.js';
+import { haySesion, tokenDe, pedirSesion } from './_sesion.js';
 // ProductFinder IA - Chat endpoint
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({error: 'Method not allowed'});
+
+  // Este endpoint consume tokens de Anthropic con la key de la casa. Antes no
+  // pedia nada: cualquiera con la URL podia dejarla seca en un rato.
+  if (!haySesion(tokenDe(req))) {
+    return pedirSesion(res, 'Para hablar con el asesor IA hace falta iniciar sesion.');
+  }
 
   const { message } = req.body;
   if (!message) return res.status(400).json({error: 'Message required'});

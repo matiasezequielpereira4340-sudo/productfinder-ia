@@ -13,60 +13,60 @@ const MELI_API = 'https://api.mercadolibre.com';
 
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-      }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
 
-      // -----------------------------------------------
-      // Helpers Supabase
-      // -----------------------------------------------
+// -----------------------------------------------
+// Helpers Supabase
+// -----------------------------------------------
 
-      async function getCostoProducto(userId, meliItemId) {
-        const key = process.env.SUPABASE_SERVICE_KEY;
-          const res = await fetch(
-              `${SUPABASE_URL}/rest/v1/productos_costos?user_id=eq.${encodeURIComponent(userId)}&meli_item_id=eq.${encodeURIComponent(meliItemId)}&select=costo_usd,costo_embalaje_ars&limit=1`,
-                  { headers: { apikey: key, Authorization: `Bearer ${key}` } }
-                    );
-                      const rows = await res.json();
-                        return rows[0] || null;
-                        }
+async function getCostoProducto(userId, meliItemId) {
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/productos_costos?user_id=eq.${encodeURIComponent(userId)}&meli_item_id=eq.${encodeURIComponent(meliItemId)}&select=costo_usd,costo_embalaje_ars&limit=1`,
+    { headers: { apikey: key, Authorization: `Bearer ${key}` } }
+  );
+  const rows = await res.json();
+  return rows[0] || null;
+}
 
-                        async function getClienteConfig(userId) {
-                          const key = process.env.SUPABASE_SERVICE_KEY;
-                            const res = await fetch(
-                                `${SUPABASE_URL}/rest/v1/clientes?user_id=eq.${encodeURIComponent(userId)}&select=tipo_cambio_usd&limit=1`,
-                                    { headers: { apikey: key, Authorization: `Bearer ${key}` } }
-                                      );
-                                        const rows = await res.json();
-                                          return rows[0] || { tipo_cambio_usd: 1250 };
-                                          }
+async function getClienteConfig(userId) {
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/clientes?user_id=eq.${encodeURIComponent(userId)}&select=tipo_cambio_usd&limit=1`,
+    { headers: { apikey: key, Authorization: `Bearer ${key}` } }
+  );
+  const rows = await res.json();
+  return rows[0] || { tipo_cambio_usd: 1250 };
+}
 
-                                          async function saveVentaCache(userId, venta) {
-                                            const key = process.env.SUPABASE_SERVICE_KEY;
-                                              await fetch(`${SUPABASE_URL}/rest/v1/ventas_cache`, {
-                                                  method: 'POST',
-                                                      headers: {
-                                                            apikey: key,
-                                                                  Authorization: `Bearer ${key}`,
-                                                                        'Content-Type': 'application/json',
-                                                                              Prefer: 'resolution=merge-duplicates'
-                                                                                  },
-                                                                                      body: JSON.stringify(venta)
-                                                                                        });
-                                                                                        }
+async function saveVentaCache(userId, venta) {
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  await fetch(`${SUPABASE_URL}/rest/v1/ventas_cache`, {
+      method: 'POST',
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify(venta)
+  });
+}
 
-                                                                                        // -----------------------------------------------
-                                                                                        // Helpers MeLi
-                                                                                        // -----------------------------------------------
+// -----------------------------------------------
+// Helpers MeLi
+// -----------------------------------------------
 
-                                                                                        async function getMeliUserId(token) {
-                                                                                          const res = await fetch(`${MELI_API}/users/me`, {
-                                                                                              headers: { Authorization: `Bearer ${token}` }
-                                                                                                });
-                                                                                                  const data = await res.json();
-                                                                                                    return data.id;
-                                                                                                    }
-                                                                                                    
+async function getMeliUserId(token) {
+  const res = await fetch(`${MELI_API}/users/me`, {
+      headers: { Authorization: `Bearer ${token}` }
+  });
+  const data = await res.json();
+  return data.id;
+}
+
 // MercadoLibre documenta la fecha con offset horario
 // (2026-08-01T00:00:00.000-00:00). Con el sufijo Z que devuelve toISOString()
 // el filtro puede quedar sin aplicarse y la busqueda vuelve vacia.
@@ -127,9 +127,9 @@ async function getOrdenes(token, meliUserId, fechaDesde) {
   // Una orden sin ninguna fecha legible se incluye igual y queda marcada: es
   // preferible mostrarla senalada a hacerla desaparecer en silencio.
   return todas.filter(o => {
-    const f = fechaDeOrden(o);
-    if (!f) { if (o) o._sin_fecha = true; return true; }
-    return f >= corte;
+      const f = fechaDeOrden(o);
+      if (!f) { if (o) o._sin_fecha = true; return true; }
+      return f >= corte;
   });
 }
 
@@ -148,7 +148,7 @@ async function diagnosticoOrdenes(token, meliUserId, fechaDesde) {
   for (const [nombre, opciones] of Object.entries(variantes)) {
     try {
       const r = await fetch(urlDeOrdenes(meliUserId, opciones), {
-        headers: { Authorization: 'Bearer ' + token }
+          headers: { Authorization: 'Bearer ' + token }
       });
       const j = await r.json().catch(() => null);
       const filas = (j && Array.isArray(j.results)) ? j.results : [];
@@ -163,10 +163,10 @@ async function diagnosticoOrdenes(token, meliUserId, fechaDesde) {
       // situaciones terminan en el mismo cero.
       if (filas.length) {
         salida[nombre].fechas = filas.slice(0, 5).map(o => ({
-          date_created: o && o.date_created,
-          date_closed: o && o.date_closed,
-          estado: o && o.status,
-          monto: o && o.total_amount
+              date_created: o && o.date_created,
+              date_closed: o && o.date_closed,
+              estado: o && o.status,
+              monto: o && o.total_amount
         }));
         salida[nombre].campos_de_una_orden = Object.keys(filas[0] || {}).slice(0, 20);
       }
@@ -176,188 +176,207 @@ async function diagnosticoOrdenes(token, meliUserId, fechaDesde) {
   }
   return salida;
 }
-                                                                                                                  
-                                                                                                                  async function getEnvioInfo(token, shipmentId) {
-                                                                                                                    if (!shipmentId) return 0;
-                                                                                                                      try {
-                                                                                                                          const res = await fetch(`${MELI_API}/shipments/${shipmentId}`, {
-                                                                                                                                headers: { Authorization: `Bearer ${token}` }
-                                                                                                                                    });
-                                                                                                                                        const data = await res.json();
-                                                                                                                                            // base_cost es lo que paga el vendedor por el envio
-                                                                                                                                                return data.shipping_option?.cost || 0;
-                                                                                                                                                  } catch {
-                                                                                                                                                      return 0;
-                                                                                                                                                        }
-                                                                                                                                                        }
-                                                                                                                                                        
-                                                                                                                                                        // -----------------------------------------------
-                                                                                                                                                        // Calculos de comision MeLi (aproximacion oficial)
-                                                                                                                                                        // -----------------------------------------------
-                                                                                                                                                        
-                                                                                                                                                        function calcularComision(precio, listingType) {
-                                                                                                                                                          // Comisiones aproximadas segun tipo de publicacion MLA 2024
-                                                                                                                                                            const tasas = {
-                                                                                                                                                                gold_special: 0.1325,  // Classic
-                                                                                                                                                                    gold_pro: 0.1325,      // Premium
-                                                                                                                                                                        gold: 0.10,
-                                                                                                                                                                            silver: 0.06,
-                                                                                                                                                                                bronze: 0,
-                                                                                                                                                                                    free: 0
-                                                                                                                                                                                      };
-                                                                                                                                                                                        const tasa = tasas[listingType] || 0.1325;
-                                                                                                                                                                                          const comision = precio * tasa;
-                                                                                                                                                                                            // Cargo fijo por operacion si aplica
-                                                                                                                                                                                              const cargoFijo = precio >= 6900 ? 499 : 0;
-                                                                                                                                                                                                return Math.round(comision + cargoFijo);
-                                                                                                                                                                                                }
-                                                                                                                                                                                                
-                                                                                                                                                                                                // -----------------------------------------------
-                                                                                                                                                                                                // Handler principal
-                                                                                                                                                                                                // -----------------------------------------------
-                                                                                                                                                                                                
-                                                                                                                                                                                                export default async function handler(req, res) {
-                                                                                                                                                                                                  cors(res);
-                                                                                                                                                                                                    if (req.method === 'OPTIONS') return res.status(200).end();
-                                                                                                                                                                                                    
-                                                                                                                                                                                                      const { user_id, dias = '30' } = req.query;
-                                                                                                                                                                                                        if (!user_id) return res.status(400).json({ error: 'user_id requerido' });
-                                                                                                                                                                                                        
-                                                                                                                                                                                                          try {
-                                                                                                                                                                                                              // 1. Obtener token valido (con auto-refresh)
-                                                                                                                                                                                                                  const token = await getValidToken(user_id);
+
+async function getEnvioInfo(token, shipmentId) {
+  if (!shipmentId) return 0;
+  try {
+    const res = await fetch(`${MELI_API}/shipments/${shipmentId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    // base_cost es lo que paga el vendedor por el envio
+    return data.shipping_option?.cost || 0;
+  } catch {
+    return 0;
+  }
+}
+
+// -----------------------------------------------
+// Calculos de comision MeLi (aproximacion oficial)
+// -----------------------------------------------
+
+// ------------------------------------------------------------
+// Comision de MercadoLibre
+// ------------------------------------------------------------
+// Antes esto era una tabla escrita a mano ("tasas MLA 2024") con un cargo
+// fijo de $499 arriba de $6.900, e incluia tipos de publicacion que ya no
+// existen (silver, bronze). Y el panel llamaba "Ganancia neta" al resultado.
+//
+// MercadoLibre publica la comision REAL que cobro en cada venta: viene en
+// order_items[].sale_fee, por unidad. Eso es lo que se usa ahora. La tabla
+// desaparecio: si por algun motivo la orden no trae sale_fee, la venta se
+// marca con comision_real:false y el panel lo aclara, en vez de inventar
+// un numero y presentarlo como real.
+// ------------------------------------------------------------
+function comisionDeLaOrden(orden) {
+  const items = (orden && orden.order_items) || [];
+  let total = 0;
+  let todasReales = items.length > 0;
+  for (const it of items) {
+    const fee = Number(it && it.sale_fee);
+    const cant = Number(it && it.quantity) || 1;
+    if (isFinite(fee) && fee >= 0) total += fee * cant;
+    else todasReales = false;
+  }
+  return { comision: Math.round(total), real: todasReales };
+}
+
+// -----------------------------------------------
+// Handler principal
+// -----------------------------------------------
+
+export default async function handler(req, res) {
+  cors(res);
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  const { user_id, dias = '30' } = req.query;
+  if (!user_id) return res.status(400).json({ error: 'user_id requerido' });
+
+  try {
+    // 1. Obtener token valido (con auto-refresh)
+    const token = await getValidToken(user_id);
 
     // Mismo user_id con el que /api/costos guarda: si no coinciden, los costos
     // cargados no aparecen y el margen vuelve a salir inflado.
     const userIdCanonico = await resolveUserId(user_id).catch(() => String(user_id));
-                                                                                                                                                                                                                  
-                                                                                                                                                                                                                      // 2. Obtener meli_user_id del vendedor
-                                                                                                                                                                                                                          const meliUserId = await getMeliUserId(token);
-                                                                                                                                                                                                                          
-                                                                                                                                                                                                                              // 3. Calcular fecha de inicio del periodo
-                                                                                                                                                                                                                                  const diasNum = Math.min(parseInt(dias) || 30, 365);
-                                                                                                                                                                                                                                      const fechaDesde = new Date(Date.now() - diasNum * 86400000).toISOString();
-                                                                                                                                                                                                                                      
-                                                                                                                                                                                                                                          // 4. Configuracion del cliente (tipo de cambio)
+
+    // 2. Obtener meli_user_id del vendedor
+    const meliUserId = await getMeliUserId(token);
+
+    // 3. Calcular fecha de inicio del periodo
+    const diasNum = Math.min(parseInt(dias) || 30, 365);
+    const fechaDesde = new Date(Date.now() - diasNum * 86400000).toISOString();
+
+    // 4. Configuracion del cliente (tipo de cambio)
     // El tipo de cambio del dia (o el que cargo el vendedor). Antes estaba fijo
     // en 1250, que con el dolar de hoy subestima el costo y por lo tanto
     // exagera el margen.
     const tc = await tipoDeCambio(userIdCanonico);
     const tipoCambio = tc.valor;
-                                                                                                                                                                                                                                                  
-                                                                                                                                                                                                                                                      // ?diag=1 compara varias formas de pedir las ordenes, para saber si el
+
+    // ?diag=1 compara varias formas de pedir las ordenes, para saber si el
     // cero es real o si el filtro esta mal armado. No expone el token.
     if (req.query && req.query.diag) {
       return res.status(200).json({
-        user_id_consultado: String(user_id),
-        meli_user_id: meliUserId,
-        desde: fechaDesde,
-        desde_formato_meli: fechaParaMeli(fechaDesde),
-        variantes: await diagnosticoOrdenes(token, meliUserId, fechaDesde)
+          user_id_consultado: String(user_id),
+          meli_user_id: meliUserId,
+          desde: fechaDesde,
+          desde_formato_meli: fechaParaMeli(fechaDesde),
+          variantes: await diagnosticoOrdenes(token, meliUserId, fechaDesde)
       });
     }
 
     // 5. Traer ordenes de MeLi
-                                                                                                                                                                                                                                                          const ordenes = await getOrdenes(token, meliUserId, fechaDesde);
-                                                                                                                                                                                                                                                          
-                                                                                                                                                                                                                                                              // 6. Procesar cada orden
-                                                                                                                                                                                                                                                                  const ventas = [];
-                                                                                                                                                                                                                                                                      let totalIngresos = 0;
-                                                                                                                                                                                                                                                                          let totalComisiones = 0;
-                                                                                                                                                                                                                                                                              let totalEnvios = 0;
-                                                                                                                                                                                                                                                                                  let totalGananciasBruta = 0;
-                                                                                                                                                                                                                                                                                  
-                                                                                                                                                                                                                                                                                      for (const orden of ordenes) {
-                                                                                                                                                                                                                                                                                            const item = orden.order_items?.[0];
-                                                                                                                                                                                                                                                                                                  if (!item) continue;
-                                                                                                                                                                                                                                                                                                  
-                                                                                                                                                                                                                                                                                                        const meliItemId = item.item?.id || '';
-                                                                                                                                                                                                                                                                                                              const titulo = item.item?.title || 'Sin titulo';
-                                                                                                                                                                                                                                                                                                                    const cantidad = item.quantity || 1;
-                                                                                                                                                                                                                                                                                                                          const precioVenta = parseFloat(orden.total_amount) || 0;
-                                                                                                                                                                                                                                                                                                                          
-                                                                                                                                                                                                                                                                                                                                // Comision estimada
-                                                                                                                                                                                                                                                                                                                                      const listingType = item.listing_type_id || 'gold_special';
-                                                                                                                                                                                                                                                                                                                                            const comisionMeli = calcularComision(precioVenta, listingType);
-                                                                                                                                                                                                                                                                                                                                            
-                                                                                                                                                                                                                                                                                                                                                  // Costo de envio
-                                                                                                                                                                                                                                                                                                                                                        const costoEnvio = await getEnvioInfo(token, orden.shipping?.id);
-                                                                                                                                                                                                                                                                                                                                                        
-                                                                                                                                                                                                                                                                                                                                                              // Costo propio del producto (si esta cargado)
-                                                                                                                                                                                                                                                                                                                                                                    const costoData = await getCostoProducto(userIdCanonico, meliItemId);
-                                                                                                                                                                                                                                                                                                                                                                          const costoProductoARS = costoData
-                                                                                                                                                                                                                                                                                                                                                                                  ? parseFloat(costoData.costo_usd) * tipoCambio * cantidad
-                                                                                                                                                                                                                                                                                                                                                                                          : 0;
-                                                                                                                                                                                                                                                                                                                                                                                                const costoEmbalajeARS = costoData
-                                                                                                                                                                                                                                                                                                                                                                                                        ? parseFloat(costoData.costo_embalaje_ars) * cantidad
-                                                                                                                                                                                                                                                                                                                                                                                                                : 0;
-                                                                                                                                                                                                                                                                                                                                                                                                                
-                                                                                                                                                                                                                                                                                                                                                                                                                      // Ganancia neta
-                                                                                                                                                                                                                                                                                                                                                                                                                            const ingresoBruto = precioVenta - comisionMeli - costoEnvio;
-                                                                                                                                                                                                                                                                                                                                                                                                                                  const gananciaNeta = ingresoBruto - costoProductoARS - costoEmbalajeARS;
-                                                                                                                                                                                                                                                                                                                                                                                                                                        const margenPct = precioVenta > 0
-                                                                                                                                                                                                                                                                                                                                                                                                                                                ? Math.round((gananciaNeta / precioVenta) * 100)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                        : 0;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                        
-                                                                                                                                                                                                                                                                                                                                                                                                                                                              const ventaObj = {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                      user_id,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                              meli_order_id: String(orden.id),
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      fecha_venta: orden.date_created,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              meli_item_id: meliItemId,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      titulo,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              cantidad,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      precio_venta: precioVenta,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              comision_meli: comisionMeli,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      costo_envio: costoEnvio,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              ingreso_neto: gananciaNeta,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      raw_data: { listing_type: listingType, costo_producto_ars: costoProductoARS }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            };
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  // Guardar en cache (upsert)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        await saveVentaCache(user_id, ventaObj);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              ventas.push({
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      orden_id: orden.id,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              fecha: orden.date_created || orden.date_closed || orden.last_updated || null,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              fecha_desconocida: !!orden._sin_fecha,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      item_id: meliItemId,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              titulo,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      cantidad,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              precio_venta: precioVenta,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      comision_meli: comisionMeli,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              costo_envio: costoEnvio,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      costo_producto_ars: costoProductoARS,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              costo_embalaje_ars: costoEmbalajeARS,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      ganancia_neta: Math.round(gananciaNeta),
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              margen_pct: margenPct,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      tiene_costo_cargado: !!costoData
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            });
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  totalIngresos += precioVenta;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        totalComisiones += comisionMeli;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              totalEnvios += costoEnvio;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    totalGananciasBruta += gananciaNeta;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            // 7. Resumen del periodo
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                const resumen = {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      periodo_dias: diasNum,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            fecha_desde: fechaDesde,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  total_ordenes: ventas.length,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        total_ingresos_ars: Math.round(totalIngresos),
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              total_comisiones_ars: Math.round(totalComisiones),
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    total_envios_ars: Math.round(totalEnvios),
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          ganancia_bruta_ars: Math.round(totalGananciasBruta),
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                productos_sin_costo: ventas.filter(v => !v.tiene_costo_cargado).length,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ventas_sin_fecha: ventas.filter(v => v.fecha_desconocida).length,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      tipo_cambio_usado: tipoCambio,
+    const ordenes = await getOrdenes(token, meliUserId, fechaDesde);
+
+    // 6. Procesar cada orden
+    const ventas = [];
+    let totalIngresos = 0;
+    let totalComisiones = 0;
+    let comisionesEstimadas = 0;   // ordenes sin sale_fee en la respuesta de MeLi
+    let totalEnvios = 0;
+    let totalGananciasBruta = 0;
+
+    for (const orden of ordenes) {
+      const item = orden.order_items?.[0];
+      if (!item) continue;
+
+      const meliItemId = item.item?.id || '';
+      const titulo = item.item?.title || 'Sin titulo';
+      const cantidad = item.quantity || 1;
+      const precioVenta = parseFloat(orden.total_amount) || 0;
+
+      // Comision real cobrada por MeLi, sumando todos los items de la orden.
+      // Antes se miraba solo order_items[0]: una orden con dos productos
+      // distintos reportaba la comision de uno solo.
+      const { comision: comisionMeli, real: comisionReal } = comisionDeLaOrden(orden);
+      const itemsEnLaOrden = (orden.order_items || []).length;
+
+      // Costo de envio
+      const costoEnvio = await getEnvioInfo(token, orden.shipping?.id);
+
+      // Costo propio del producto (si esta cargado)
+      const costoData = await getCostoProducto(userIdCanonico, meliItemId);
+      const costoProductoARS = costoData
+      ? parseFloat(costoData.costo_usd) * tipoCambio * cantidad
+      : 0;
+      const costoEmbalajeARS = costoData
+      ? parseFloat(costoData.costo_embalaje_ars) * cantidad
+      : 0;
+
+      // Ganancia neta
+      const ingresoBruto = precioVenta - comisionMeli - costoEnvio;
+      const gananciaNeta = ingresoBruto - costoProductoARS - costoEmbalajeARS;
+      const margenPct = precioVenta > 0
+      ? Math.round((gananciaNeta / precioVenta) * 100)
+      : 0;
+
+      const ventaObj = {
+        user_id,
+        meli_order_id: String(orden.id),
+        fecha_venta: orden.date_created,
+        meli_item_id: meliItemId,
+        titulo,
+        cantidad,
+        precio_venta: precioVenta,
+        comision_meli: comisionMeli,
+        comision_real: comisionReal,
+        items_en_la_orden: itemsEnLaOrden,
+        costo_envio: costoEnvio,
+        ingreso_neto: gananciaNeta,
+        raw_data: { listing_type: listingType, costo_producto_ars: costoProductoARS }
+      };
+
+      // Guardar en cache (upsert)
+      await saveVentaCache(user_id, ventaObj);
+
+      ventas.push({
+          orden_id: orden.id,
+          fecha: orden.date_created || orden.date_closed || orden.last_updated || null,
+          fecha_desconocida: !!orden._sin_fecha,
+          item_id: meliItemId,
+          titulo,
+          cantidad,
+          precio_venta: precioVenta,
+          comision_meli: comisionMeli,
+        comision_real: comisionReal,
+        items_en_la_orden: itemsEnLaOrden,
+          costo_envio: costoEnvio,
+          costo_producto_ars: costoProductoARS,
+          costo_embalaje_ars: costoEmbalajeARS,
+          ganancia_neta: Math.round(gananciaNeta),
+          margen_pct: margenPct,
+          tiene_costo_cargado: !!costoData
+      });
+
+      totalIngresos += precioVenta;
+      totalComisiones += comisionMeli;
+      if (!comisionReal) comisionesEstimadas++;
+      totalEnvios += costoEnvio;
+      totalGananciasBruta += gananciaNeta;
+    }
+
+    // 7. Resumen del periodo
+    const resumen = {
+      periodo_dias: diasNum,
+      fecha_desde: fechaDesde,
+      total_ordenes: ventas.length,
+      total_ingresos_ars: Math.round(totalIngresos),
+      total_comisiones_ars: Math.round(totalComisiones),
+      comisiones_todas_reales: comisionesEstimadas === 0,
+      ordenes_sin_comision_real: comisionesEstimadas,
+      total_envios_ars: Math.round(totalEnvios),
+      ganancia_bruta_ars: Math.round(totalGananciasBruta),
+      productos_sin_costo: ventas.filter(v => !v.tiene_costo_cargado).length,
+      ventas_sin_fecha: ventas.filter(v => v.fecha_desconocida).length,
+      tipo_cambio_usado: tipoCambio,
       tipo_cambio_fuente: tc.fuente
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          };
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              return res.status(200).json({ success: true, resumen, ventas });
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                } catch (err) {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    console.error('meli-ventas error:', err.message);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        return res.status(500).json({ error: err.message });
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          }
+    };
+
+    return res.status(200).json({ success: true, resumen, ventas });
+
+  } catch (err) {
+    console.error('meli-ventas error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+}

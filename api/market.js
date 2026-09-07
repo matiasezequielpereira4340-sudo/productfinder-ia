@@ -4,11 +4,12 @@
 // armado del informe.
 
 import { anthropicHeaders, buscarPublicaciones, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
+import { haySesion, esAdmin, tokenDe, pedirSesion } from './_sesion.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
   // GET = simple status endpoint (sin OAuth). El POST sigue debajo.
   if (req.method === 'GET') {
@@ -95,6 +96,17 @@ export default async function handler(req, res) {
     // El descubrimiento no cuesta nada: sale de /trends de MercadoLibre. Lo
     // unico que se paga es la saturacion, y solo del candidato que se pida.
     if (req.query && req.query.radar) {
+      // Las consultas que gastan creditos de servicios externos se cortan ACA,
+      // antes de pedir el token de MeLi. Si el chequeo va mas abajo, la falta
+      // de token responde primero y el guard no llega a correr nunca.
+      const gastaCreditos = ['tiktok', 'gtrends', 'saturacion'].filter(function (k) {
+        return typeof req.query[k] === 'string' && req.query[k].length > 1;
+      });
+      if (gastaCreditos.length && !haySesion(tokenDe(req))) {
+        const nombres = { tiktok: 'TikTok Shop', gtrends: 'Google Trends', saturacion: 'la competencia en MercadoLibre' };
+        return pedirSesion(res, 'Consultar ' + nombres[gastaCreditos[0]] + ' necesita que inicies sesion.');
+      }
+
       const tok = await getMeliAccessToken();
       if (!tok) return res.status(200).json({ ok: false, error: 'No pude autenticarme contra MercadoLibre.' });
       const radar = await import('./_radar.js');
@@ -277,6 +289,8 @@ export default async function handler(req, res) {
     // que usan el analizador y el radar, y muestra el mensaje de error tal cual
     // lo devuelve Anthropic.
     if (req.query && req.query.ia) {
+      // Diagnostico: dice que variables de entorno estan cargadas. Solo admin.
+      if (!esAdmin(tokenDe(req))) return pedirSesion(res, 'Diagnostico reservado al administrador.');
       const salida = {
         anthropic_key: !!process.env.ANTHROPIC_API_KEY,
         // Si esto es false y los modelos dan 400 pidiendo el workspace, ese es
@@ -312,6 +326,8 @@ export default async function handler(req, res) {
     // ?corrida=1 mira los datos crudos de la ultima corrida pagada, para saber
     // si el actor informa el total de publicaciones. Leer datasets es gratis.
     if (req.query && req.query.corrida) {
+      // Diagnostico: dice que variables de entorno estan cargadas. Solo admin.
+      if (!esAdmin(tokenDe(req))) return pedirSesion(res, 'Diagnostico reservado al administrador.');
       const bus = await import('./_buscador.js');
       const filtro = typeof req.query.corrida === 'string' && req.query.corrida.length > 2
         ? req.query.corrida : null;
@@ -322,6 +338,8 @@ export default async function handler(req, res) {
     // ?esquema=<actor> muestra que campos acepta. Sirve para saber que apagar
     // para no pagar el enriquecimiento. Es lectura: no corre nada.
     if (req.query && req.query.esquema) {
+      // Diagnostico: dice que variables de entorno estan cargadas. Solo admin.
+      if (!esAdmin(tokenDe(req))) return pedirSesion(res, 'Diagnostico reservado al administrador.');
       const bus = await import('./_buscador.js');
       const id = typeof req.query.esquema === 'string' && req.query.esquema.length > 3
         ? req.query.esquema : (process.env.APIFY_ACTOR || 'devcake~mercadolibre-scraper');
@@ -628,7 +646,7 @@ async function stepDemanda(product) {
   const totalMeli = meli && meli.total != null ? meli.total : 'sin dato';
   const catName = meli && meli.categoryName ? meli.categoryName : 'sin dato';
   const trendsStr = trends && trends.values ? trends.values.join(',') : 'sin dato';
-  const prompt = 'Sos analista de e-commerce Argentina. Para el producto "' + product + '" genera JSON de DEMANDA AR. Datos reales: Total publicaciones MeLi AR=' + totalMeli + '; Top categoria=' + catName + '; Google Trends 12m (0-100)=' + trendsStr + '. Responde SOLO JSON sin markdown: {"tendencia":"subiendo|estable|bajando","nivelDemanda":"alto|medio|bajo","demandaScore":0-100,"temporalidad":"string corto","descripcion":"1-2 oraciones rioplatense","tags":["t1","t2","t3"],"monthlyData":[{"mes":"Ene","valor":0-100},{"mes":"Feb","valor":0-100},{"mes":"Mar","valor":0-100},{"mes":"Abr","valor":0-100},{"mes":"May","valor":0-100},{"mes":"Jun","valor":0-100},{"mes":"Jul","valor":0-100},{"mes":"Ago","valor":0-100},{"mes":"Sep","valor":0-100},{"mes":"Oct","valor":0-100},{"mes":"Nov","valor":0-100},{"mes":"Dic","valor":0-100}]}';
+  const prompt = 'Sos analista de e-commerce Argentina. Para el producto "' + product + '" genera JSON de DEMANDA AR. Datos reales: Total publicaciones MeLi AR=' + totalMeli + '; Top categoría=' + catName + '; Google Trends 12m (0-100)=' + trendsStr + '. Responde SOLO JSON sin markdown: {"tendencia":"subiendo|estable|bajando","nivelDemanda":"alto|medio|bajo","demandaScore":0-100,"temporalidad":"string corto","descripción":"1-2 oraciones rioplatense","tags":["t1","t2","t3"],"monthlyData":[{"mes":"Ene","valor":0-100},{"mes":"Feb","valor":0-100},{"mes":"Mar","valor":0-100},{"mes":"Abr","valor":0-100},{"mes":"May","valor":0-100},{"mes":"Jun","valor":0-100},{"mes":"Jul","valor":0-100},{"mes":"Ago","valor":0-100},{"mes":"Sep","valor":0-100},{"mes":"Oct","valor":0-100},{"mes":"Nov","valor":0-100},{"mes":"Dic","valor":0-100}]}';
   const j = await askClaudeJson(prompt);
   if (trends && trends.monthlyData && trends.monthlyData.length === 12) {
     j.monthlyData = trends.monthlyData;
@@ -675,7 +693,7 @@ async function stepCompetencia(product) {
     const conEnvioGratis = meli.results.filter(x => x.shipping && x.shipping.free_shipping).length;
     const competitors = meli.results.slice(0,5).map((x,i)=>({rank:i+1, name:(x.seller && x.seller.nickname) || ('Vendedor '+(i+1)), price:x.price||0, soldQty:x.sold_quantity||0, reputation:(x.seller && x.seller.seller_reputation && x.seller.seller_reputation.level_id) || 'N/A', repClass:'comp-rep-ok', freeShipping: !!(x.shipping && x.shipping.free_shipping)}));
     return { fuente: meli.fuente || 'mercadolibre-search', sellersEstimados: sellers.size || meli.results.length, precioMinARS:min, precioMaxARS:max, precioPromedioARS:avg, totalResults:total, categoryName:meli.categoryName||'', saturacion, competenciaScore: total != null ? Math.min(100, Math.round(total/100)) : null, competitors, envioGratisCount: conEnvioGratis, envioGratisTotal: meli.results.length, envioGratisPct: meli.results.length ? Math.round((conEnvioGratis/meli.results.length)*100) : 0,
-      aviso: total == null ? 'MercadoLibre no expone el total de publicaciones por esta via: el precio y los competidores son reales, la saturacion no se puede calcular.' : null };
+      aviso: total == null ? 'MercadoLibre no expone el total de publicaciones por está via: el precio y los competidores son reales, la saturacion no se puede calcular.' : null };
   }
   // IMPORTANTE: si no hay datos reales de MeLi (API 403 o scraping fallido) NO inventamos numeros via IA.
   return { fuente: 'no-disponible', sellersEstimados: null, precioMinARS: null, precioMaxARS: null, precioPromedioARS: null, totalResults: null, categoryName: '', saturacion: null, competenciaScore: null, competitors: [], aviso: 'Datos de Mercado Libre no disponibles ahora (la API publica requiere autenticacion). Mostramos solo lo verificable.' };
@@ -718,13 +736,13 @@ let _appTokenCache = { token: null, expiresAt: 0 };
 let _ultimoMotivoToken = null;
 
 async function getMeliAccessToken() {
-  // 1) Token explicito en env, si esta configurado.
+  // 1) Token explicito en env, si está configurado.
   const tk = process.env.MELI_ACCESS_TOKEN;
   if (tk && typeof tk === 'string' && tk.length > 10) { _ultimoMotivoToken = 'env'; return tk; }
 
   // 2) Token "de la casa": el de una cuenta de MercadoLibre ya conectada, que
   //    se usa para las busquedas de la demo del hero y del analizador publico.
-  //    MercadoLibre cerro las busquedas anonimas, asi que hace falta el token
+  //    MercadoLibre cerro las busquedas anonimas, así que hace falta el token
   //    de un usuario real. Se elige con MELI_DEMO_USER_ID (el mismo user_id con
   //    el que la cuenta se conecto en /meli-connect.html) y se apaga con "off".
   const demoUser = process.env.MELI_DEMO_USER_ID || 'matypereira';
@@ -764,7 +782,7 @@ async function safeMeliSearch(product) {
   const tok = await getMeliAccessToken();
 
   // 1) Busqueda libre con token de usuario. MeLi la tiene cerrada a terceros
-  //    (403) desde 2025, pero si la reabre esta es la mejor fuente.
+  //    (403) desde 2025, pero si la reabre está es la mejor fuente.
   if (tok) {
     try {
       const r = await fetch(url, { headers: { "Authorization": "Bearer " + tok, "Accept": "application/json" } });
@@ -816,7 +834,7 @@ async function scrapeMeliSearchHtml(product) {
     html.match(/"total"\s*:\s*(\d+)/i)
   ];
   for (const m of totalMatches) { if (m) { total = parseInt(String(m[1]).replace(/[^0-9]/g,''),10) || 0; if (total) break; } }
-  // Categoria principal: tomar el primer breadcrumb o titulo de filtro
+  // Categoría principal: tomar el primer breadcrumb o título de filtro
   let categoryName = '';
   const catMatch = html.match(/<h1[^>]*>([^<]{3,80})<\/h1>/i);
   if (catMatch) categoryName = decodeHtml(catMatch[1]).trim();
@@ -824,12 +842,12 @@ async function scrapeMeliSearchHtml(product) {
     const og = html.match(/<meta[^>]+property=[\"']og:title[\"'][^>]+content=[\"']([^\"']+)[\"']/i);
     if (og) categoryName = decodeHtml(og[1]).trim().replace(/\s*\|.*$/,'');
   }
-  // Extraer items: titulo, precio, vendedor, cantidad vendida
+  // Extraer items: título, precio, vendedor, cantidad vendida
   const results = [];
   const itemRegex = /<a[^>]+class="[^"]*poly-component__title[^"]*"[^>]*>([^<]{3,200})<\/a>([\s\S]{0,2500}?)<\/li>/gi;
   let m;
   while ((m = itemRegex.exec(html)) !== null && results.length < 20) {
-    const titulo = decodeHtml(m[1]).trim();
+    const título = decodeHtml(m[1]).trim();
     const block = m[2] || '';
     const priceMatch = block.match(/andes-money-amount__fraction[^>]*>([\d.]+)<\/span>/);
     const price = priceMatch ? parseInt(priceMatch[1].replace(/\./g,''),10) : null;
@@ -837,8 +855,8 @@ async function scrapeMeliSearchHtml(product) {
     const sellerName = sellerMatch ? decodeHtml(sellerMatch[1]).trim() : '';
     const soldMatch = block.match(/(\d[\d.,]*)\s*vendidos?/i);
     const sold = soldMatch ? parseInt(String(soldMatch[1]).replace(/[^0-9]/g,''),10) : 0;
-    if (titulo && price) {
-      results.push({ title: titulo, price, sold_quantity: sold, seller: { id: sellerName || null, nickname: sellerName } });
+    if (título && price) {
+      results.push({ title: título, price, sold_quantity: sold, seller: { id: sellerName || null, nickname: sellerName } });
     }
   }
   if (!results.length && !total) return null;
@@ -912,15 +930,15 @@ async function readMercadoLibre(url) {
       const apiRes = await fetch('https://api.mercadolibre.com/items/' + itemId);
       if (apiRes.ok) {
         const j = await apiRes.json();
-        return { fuente: 'mercadolibre', itemId, titulo: j.title || '', precio: j.price != null ? Number(j.price) : null, moneda: j.currency_id || 'ARS', imagen: (j.pictures && j.pictures[0] && j.pictures[0].secure_url) || j.thumbnail || '', descripcion: j.subtitle || '', url };
+        return { fuente: 'mercadolibre', itemId, título: j.title || '', precio: j.price != null ? Number(j.price) : null, moneda: j.currency_id || 'ARS', imagen: (j.pictures && j.pictures[0] && j.pictures[0].secure_url) || j.thumbnail || '', descripción: j.subtitle || '', url };
       }
     } catch (_) {}
   }
   try {
     const scraped = await scrapeMercadoLibreHtml(url);
-    if (scraped && scraped.titulo) return { fuente: 'mercadolibre-html', itemId, ...scraped, url };
+    if (scraped && scraped.título) return { fuente: 'mercadolibre-html', itemId, ...scraped, url };
   } catch (_) {}
-  return { fuente: 'mercadolibre-min', itemId, titulo: 'Producto MeLi ' + (itemId||''), precio: null, moneda: 'ARS', imagen: '', descripcion: '', url };
+  return { fuente: 'mercadolibre-min', itemId, título: 'Producto MeLi ' + (itemId||''), precio: null, moneda: 'ARS', imagen: '', descripción: '', url };
 }
 
 async function scrapeMercadoLibreHtml(url) {
@@ -934,7 +952,7 @@ async function scrapeMercadoLibreHtml(url) {
   const priceStr = pick(/<meta[^>]+itemprop=["']price["'][^>]+content=["']([^"']+)["']/i);
   const moneda   = pick(/<meta[^>]+itemprop=["']priceCurrency["'][^>]+content=["']([^"']+)["']/i) || 'ARS';
   const precio = priceStr ? Number(priceStr) : null;
-  return { titulo: ogTitle ? decodeHtml(ogTitle).trim() : '', precio: (precio != null && !isNaN(precio)) ? precio : null, moneda, imagen: ogImage || '', descripcion: ogDesc ? decodeHtml(ogDesc).trim() : '' };
+  return { título: ogTitle ? decodeHtml(ogTitle).trim() : '', precio: (precio != null && !isNaN(precio)) ? precio : null, moneda, imagen: ogImage || '', descripción: ogDesc ? decodeHtml(ogDesc).trim() : '' };
 }
 
 async function readAlibaba(url) {
@@ -942,13 +960,13 @@ async function readAlibaba(url) {
   if (!r.ok) throw new Error('Alibaba respondio ' + r.status);
   const html = await r.text();
   const pick = (re) => { const m = html.match(re); return m ? m[1] : null; };
-  const titulo = pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<title[^>]*>([^<|]+)/i) || '';
+  const título = pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<title[^>]*>([^<|]+)/i) || '';
   const imagen = pick(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) || '';
-  const descripcion = pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) || '';
+  const descripción = pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) || '';
   let precioMin = null, precioMax = null;
   const priceRangeMatch = html.match(/\$\s?([\d,.]+)\s*[-~]\s*\$?\s?([\d,.]+)/);
   if (priceRangeMatch) { precioMin = parseFloat(priceRangeMatch[1].replace(/,/g,'')); precioMax = parseFloat(priceRangeMatch[2].replace(/,/g,'')); }
-  return { fuente: 'alibaba', titulo: decodeHtml(titulo).trim(), precio: precioMin, precioMax, moneda: 'USD', imagen, descripcion: decodeHtml(descripcion).trim(), url };
+  return { fuente: 'alibaba', título: decodeHtml(título).trim(), precio: precioMin, precioMax, moneda: 'USD', imagen, descripción: decodeHtml(descripción).trim(), url };
 }
 
 async function readOpenGraph(url) {
@@ -956,10 +974,10 @@ async function readOpenGraph(url) {
   if (!r.ok) throw new Error('Pagina respondio ' + r.status);
   const html = await r.text();
   const pick = (re) => { const m = html.match(re); return m ? m[1] : null; };
-  const titulo = pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<title[^>]*>([^<|]+)/i) || '';
+  const título = pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<title[^>]*>([^<|]+)/i) || '';
   const imagen = pick(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i) || '';
-  const descripcion = pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']twitter:description["'][^>]+content=["']([^"']+)["']/i) || '';
-  return { fuente: 'opengraph', titulo: decodeHtml(titulo).trim(), imagen, descripcion: decodeHtml(descripcion).trim(), url };
+  const descripción = pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']twitter:description["'][^>]+content=["']([^"']+)["']/i) || '';
+  return { fuente: 'opengraph', título: decodeHtml(título).trim(), imagen, descripción: decodeHtml(descripción).trim(), url };
 }
 
 function decodeHtml(s) {

@@ -202,7 +202,7 @@ async function clasificarLote(terminos) {
     'de MercadoLibre (algunos en portugues de Brasil, otros en español).\n' +
     'Para cada uno devolve:\n' +
     '- "es": el termino en español rioplatense, con el nombre con el que se lo busca ' +
-    'en Argentina (no la traduccion literal). Si ya esta en español, repetilo igual.\n' +
+    'en Argentina (no la traduccion literal). Si ya está en español, repetilo igual.\n' +
     '- "imp": true si es un producto fisico que un importador chico podria traer de ' +
     'China y revender; false si es un alimento fresco o commodity (leche, carne, cafe), ' +
     'una MARCA o un modelo de una marca (apple, iphone, dji, osmo, insta360, gopro, ' +
@@ -247,10 +247,10 @@ async function clasificarLote(terminos) {
   }
 }
 
-// Traducir y clasificar es lo unico caro y lento del barrido, y se repetia
+// Traducir y clasificar es lo único caro y lento del barrido, y se repetia
 // entero cada vez: "farol de milha" se traduce igual hoy que la semana que
 // viene. Guardadas, un segundo barrido de los mismos rubros no le pregunta
-// nada a Claude, y eso es lo que permite mirar muchas mas categorias.
+// nada a Claude, y eso es lo que permite mirar muchas más categorías.
 async function clasificacionesGuardadas(keywords) {
   try {
     const { url, key, ok } = supa();
@@ -328,10 +328,10 @@ export async function clasificarKeywords(keywords) {
 // Un producto de TikTok se llama "Magcubic HY300Pro Projector 290ANSI Android
 // 14 Dual WiFi6 8K 4K Decode Auto Keystone". Con eso no se puede preguntar
 // nada en MercadoLibre Argentina: hay que reducirlo al producto generico, en
-// español, como se lo busca aca ("mini proyector"). Se cachea igual que las
-// traducciones, porque el mismo titulo se repite entre consultas.
-export async function nombrarProductos(titulos) {
-  const limpios = [...new Set((titulos || []).filter(Boolean).map(t => String(t).slice(0, 140)))];
+// español, como se lo busca acá ("mini proyector"). Se cachea igual que las
+// traducciones, porque el mismo título se repite entre consultas.
+export async function nombrarProductos(títulos) {
+  const limpios = [...new Set((títulos || []).filter(Boolean).map(t => String(t).slice(0, 140)))];
   if (!limpios.length) return {};
 
   const guardadas = await clasificacionesGuardadas(limpios);
@@ -346,13 +346,13 @@ export async function nombrarProductos(titulos) {
   const resultados = await Promise.all(lotes.map(async (lote) => {
     try {
       const prompt =
-        'Te paso titulos de productos de TikTok Shop, en ingles y llenos de ' +
+        'Te paso títulos de productos de TikTok Shop, en inglés y llenos de ' +
         'especificaciones y marcas.\n' +
         'Para cada uno devolve el PRODUCTO GENERICO en español rioplatense, con el ' +
         'nombre con el que se lo buscaria en MercadoLibre Argentina: 2 a 4 palabras, ' +
-        'sin marca, sin modelo, sin numeros de especificacion.\n' +
+        'sin marca, sin modelo, sin números de especificacion.\n' +
         'Ejemplo: "Magcubic HY300Pro Projector 290ANSI Android 14 Dual WiFi6" -> "mini proyector".\n' +
-        'Responde SOLO un JSON {"titulo original": "termino corto"} sin markdown.\n' +
+        'Responde SOLO un JSON {"título original": "termino corto"} sin markdown.\n' +
         JSON.stringify(lote);
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 25000);
@@ -376,7 +376,7 @@ export async function nombrarProductos(titulos) {
   // Se guardan como "no importable" a proposito: son titulos, no keywords de
   // busqueda, y no deben aparecer como candidatos por su cuenta.
   const paraGuardar = {};
-  Object.keys(nuevos).forEach(k => { paraGuardar[k] = { es: nuevos[k], imp: false, motivo: 'titulo de tiktok' }; });
+  Object.keys(nuevos).forEach(k => { paraGuardar[k] = { es: nuevos[k], imp: false, motivo: 'título de tiktok' }; });
   await guardarClasificaciones(paraGuardar);
 
   return Object.assign(mapa, nuevos);
@@ -431,7 +431,7 @@ export async function descubrir(token, opts) {
   const maxCategorias = o.maxCategorias || 20;
 
   const [catsAR, catsBR] = await Promise.all([categorias('MLA', token), categorias('MLB', token)]);
-  if (!catsAR.length) return { error: 'MercadoLibre no devolvio las categorias' };
+  if (!catsAR.length) return { error: 'MercadoLibre no devolvio las categorías' };
 
   let pares = emparejarCategorias(catsAR, catsBR);
   const disponibles = pares.length;
@@ -570,7 +570,7 @@ export function opportunityScore(c, mla) {
 
   // Sin total real no se puede hablar de saturacion. El scraper devuelve una
   // muestra (pedimos 48 y trae lo que encuentra), y confundirla con el total
-  // hacia decir "solo 39 publicaciones: el mercado esta casi vacio" cuando en
+  // hacia decir "solo 39 publicaciones: el mercado está casi vacio" cuando en
   // realidad no sabemos cuantas hay. Es justo el numero inventado que la app
   // promete no dar.
   // MercadoLibre no publica cuantas publicaciones hay para un termino, y el
