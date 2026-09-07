@@ -1248,34 +1248,101 @@ export function viaDeBusquedaUsada(site) {
 const _relevanciaLog = [];
 const RELEVANCIA_LOG_MAX = 200;
 
+// Resultado de la ULTIMA escritura a Supabase. Sin esto se trabaja a ciegas:
+// la tabla podia quedar en cero durante dias sin que nada lo dijera.
+let _ultimaEscritura = { intentada: false, ok: null, error: null, ts: null, status: null };
+
+export function estadoEscrituraRelevancia() {
+  const { key, url } = supa();
+  return {
+    ..._ultimaEscritura,
+    // No se expone la key, solo si esta cargada y con que nombre se la busca.
+    envVarEsperada: 'SUPABASE_SERVICE_KEY',
+    keyPresente: !!key,
+    urlSupabase: url,
+    enMemoria: _relevanciaLog.length,
+    pendientesSinEscribir: _pendientes.length
+  };
+}
+
+// Buffer de filas pendientes de escribir. No se escribe una por una: una
+// consulta de exploracion llama a contarPublicaciones hasta 4 veces, y cuatro
+// inserts esperados en serie se comian el presupuesto de tiempo del request.
+// Se juntan y se mandan todas en un solo POST al final, con flushRelevancia().
+let _pendientes = [];
+
+// Registrar es sincronico y barato: solo arma la fila y la encola.
 export function registrarRelevancia(entrada) {
+  let fila = null;
   try {
-    const fila = {
+    fila = {
       ts: new Date().toISOString(),
       query: String(entrada.query || '').slice(0, 160),
       site: entrada.site || null,
       palabras: entrada.palabras || [],
-      ratio: entrada.ratio != null ? Number(entrada.ratio.toFixed(4)) : null,
+      ratio: entrada.ratio != null ? Number(Number(entrada.ratio).toFixed(4)) : null,
       estado: entrada.estado || null,
       muestra: entrada.muestra || 0,
       relevantes: entrada.relevantes || 0,
-      titulos: (entrada.titulos || []).slice(0, 5).map(t => String(t || '').slice(0, 120)),
+      titulos: (entrada.titulos || []).filter(Boolean).slice(0, 5).map(t => String(t || '').slice(0, 120)),
       umbrales: { alto: RELEVANCIA_UMBRAL_ALTO, bajo: RELEVANCIA_UMBRAL_BAJO }
     };
     _relevanciaLog.unshift(fila);
     if (_relevanciaLog.length > RELEVANCIA_LOG_MAX) _relevanciaLog.length = RELEVANCIA_LOG_MAX;
-    // Persistencia best-effort. Si la tabla no existe, se pierde y no importa:
-    // el log en memoria sigue sirviendo dentro de la vida del lambda.
-    const { url, key, ok } = supa();
-    if (ok) {
-      fetch(url + '/rest/v1/relevancia_log', {
-        method: 'POST',
+    _pendientes.push(fila);
+  } catch (e) {
+    _ultimaEscritura = { intentada: true, ok: false, error: 'no pude armar la fila: ' + String((e && e.message) || e).slice(0, 120), ts: new Date().toISOString(), status: null };
+  }
+  return fila;
+}
+
+// Escribe TODO lo encolado en un solo POST, y se espera.
+//
+// El await no es opcional: antes esto era fire-and-forget y en un lambda de
+// Vercel la funcion devuelve la respuesta y el runtime congela el proceso
+// antes de que salga el insert. Se pierde en silencio, que es exactamente por
+// lo que la tabla quedaba en cero aunque nada "fallara".
+//
+// Lo llama el handler una vez por request, antes de responder.
+export async function flushRelevancia() {
+  if (!_pendientes.length) return _ultimaEscritura;
+  const filas = _pendientes;
+  _pendientes = [];
+
+  const { url, key, ok } = supa();
+  if (!ok) {
+    _ultimaEscritura = { intentada: true, ok: false, ts: new Date().toISOString(), status: null, filas: filas.length,
+      error: 'falta SUPABASE_SERVICE_KEY en el entorno: el log queda solo en memoria y se pierde en cada cold start' };
+    console.warn('[relevancia] ' + _ultimaEscritura.error);
+    return _ultimaEscritura;
+  }
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 4000);
+    let r;
+    try {
+      // PostgREST acepta un array: un solo viaje para las N filas del request.
+      r = await fetch(url + '/rest/v1/relevancia_log', {
+        method: 'POST', signal: ctrl.signal,
         headers: { apikey: key, Authorization: 'Bearer ' + key,
                    'Content-Type': 'application/json', Prefer: 'return=minimal' },
-        body: JSON.stringify(fila)
-      }).catch(() => {});
+        body: JSON.stringify(filas)
+      });
+    } finally { clearTimeout(t); }
+    if (!r.ok) {
+      const cuerpo = await r.text().catch(() => '');
+      _ultimaEscritura = { intentada: true, ok: false, status: r.status, ts: new Date().toISOString(), filas: filas.length,
+        error: 'Supabase respondio ' + r.status + ': ' + cuerpo.slice(0, 200) };
+      console.warn('[relevancia] insert fallo: ' + _ultimaEscritura.error);
+    } else {
+      _ultimaEscritura = { intentada: true, ok: true, status: r.status, ts: new Date().toISOString(), filas: filas.length, error: null };
     }
-  } catch (_) { /* el registro nunca puede romper una busqueda */ }
+  } catch (e) {
+    _ultimaEscritura = { intentada: true, ok: false, status: null, ts: new Date().toISOString(), filas: filas.length,
+      error: String((e && e.message) || e).slice(0, 200) };
+    console.warn('[relevancia] insert fallo: ' + _ultimaEscritura.error);
+  }
+  return _ultimaEscritura;
 }
 
 export function leerRelevanciaLog(n) {
@@ -1314,14 +1381,19 @@ export async function contarPublicaciones(product, token, site, opts) {
 
   const results = Array.isArray(r.results) ? r.results : [];
   const rel = r.relevancia || null;
-  if (rel) {
-    registrarRelevancia({
-      query: product, site: st.id, palabras: rel.palabras, ratio: rel.ratio,
-      estado: rel.estado || estadoDeRelevancia(rel.ratio),
-      muestra: rel.muestra, relevantes: rel.relevantes,
-      titulos: (r.titulosMuestra || results.map(x => x && x.title))
-    });
-  }
+  // Se registra SIEMPRE, con relevancia o sin ella. El "if (rel)" de antes
+  // descartaba justo los casos que mas hacen falta para calibrar: cuando la
+  // via no devuelve nada no hay objeto relevancia, y esa es exactamente la
+  // consulta que hay que poder mirar despues.
+  registrarRelevancia({
+    query: product, site: st.id,
+    palabras: rel ? rel.palabras : palabrasSignificativas(product),
+    ratio: rel ? rel.ratio : null,
+    estado: rel ? (rel.estado || estadoDeRelevancia(rel.ratio)) : 'sin-datos',
+    muestra: rel ? rel.muestra : 0,
+    relevantes: rel ? rel.relevantes : 0,
+    titulos: (r.titulosMuestra || results.map(x => x && x.title))
+  });
 
   // Cero literal: MercadoLibre dijo explicitamente que no hay publicaciones.
   // Pasa poco (casi siempre sirve resultados de rescate), pero cuando pasa es

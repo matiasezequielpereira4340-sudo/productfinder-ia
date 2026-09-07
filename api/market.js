@@ -3,7 +3,7 @@
 // Datos de MercadoLibre (catalogo con token de usuario) + Anthropic para el
 // armado del informe.
 
-import { anthropicHeaders, buscarPublicaciones, contarPublicaciones, relevanciaPorTitulo, leerRelevanciaLog, RELEVANCIA_UMBRAL_ALTO, RELEVANCIA_UMBRAL_BAJO, SITIOS, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
+import { anthropicHeaders, buscarPublicaciones, contarPublicaciones, relevanciaPorTitulo, leerRelevanciaLog, registrarRelevancia, flushRelevancia, estadoEscrituraRelevancia, palabrasSignificativas, RELEVANCIA_UMBRAL_ALTO, RELEVANCIA_UMBRAL_BAJO, SITIOS, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
 import { haySesion, esAdmin, tokenDe, pedirSesion } from './_sesion.js';
 import { cotizacionDolar, DOLAR_TIPOS, DOLAR_TIPO_DEFAULT } from './_dolar.js';
 
@@ -44,6 +44,9 @@ export default async function handler(req, res) {
       return res.status(200).json({
         ok: true,
         umbrales: { alto: RELEVANCIA_UMBRAL_ALTO, bajo: RELEVANCIA_UMBRAL_BAJO },
+        // Si esto dice ok:false, el log NO se esta persistiendo y lo que se ve
+        // abajo es solo lo que quedo en memoria de este lambda.
+        escrituraSupabase: estadoEscrituraRelevancia(),
         total: filas.length,
         porEstado,
         ratioPromedio: con ? Number((suma / con).toFixed(4)) : null,
@@ -681,19 +684,21 @@ export default async function handler(req, res) {
     catch (e) { return res.status(500).json({ error: 'Fallo demanda', detalle: String(e && e.message || e) }); }
   }
   if (step === 'competencia') {
-    try { return res.status(200).json(await stepCompetencia(product)); }
+    // El flush va ANTES de responder: si se responde primero, Vercel congela
+    // el proceso y el insert no sale nunca.
+    try { const r = await stepCompetencia(product); await flushRelevancia(); return res.status(200).json(r); }
     catch (e) { return res.status(500).json({ error: 'Fallo competencia', detalle: String(e && e.message || e) }); }
   }
   if (step === 'exploracion') {
-    try { return res.status(200).json(await stepExploracion(product)); }
+    try { const r = await stepExploracion(product); await flushRelevancia(); return res.status(200).json(r); }
     catch (e) { return res.status(500).json({ error: 'Fallo exploracion', detalle: String(e && e.message || e) }); }
   }
   if (step === 'region') {
-    try { return res.status(200).json(await stepRegion(product)); }
+    try { const r = await stepRegion(product); await flushRelevancia(); return res.status(200).json(r); }
     catch (e) { return res.status(500).json({ error: 'Fallo region', detalle: String(e && e.message || e) }); }
   }
   if (step === 'testBusqueda') {
-    try { return res.status(200).json(await stepTestBusqueda(product)); }
+    try { const r = await stepTestBusqueda(product); await flushRelevancia(); return res.status(200).json(r); }
     catch (e) { return res.status(500).json({ error: 'Fallo test de busqueda', detalle: String(e && e.message || e) }); }
   }
   if (step === 'final') {
@@ -744,6 +749,15 @@ async function stepDemanda(product) {
 async function stepCompetencia(product) {
   if (!product) throw new Error('product requerido');
   const meli = await safeMeliSearch(product);
+  // Este es el paso que mas se usa, y hasta ahora era el UNICO que no
+  // registraba: registrarRelevancia() vivia solo adentro de contarPublicaciones(),
+  // que stepCompetencia no usa. Por eso la tabla quedaba vacia aunque el
+  // endpoint de competencia se llamara todo el dia.
+  //
+  // Se registra tambien cuando NO hubo datos ('no-disponible', muestra 0):
+  // esas son las consultas que hay que poder mirar despues, no las que salieron
+  // bien.
+  registrarRelevanciaDeCompetencia(product, meli);
   // La busqueda arranco pero todavia no termino: se avisa en vez de mostrar
   // un vacio que parece un error.
   if (meli && meli.pendiente) {
@@ -1076,6 +1090,32 @@ async function stepTestBusqueda(product) {
     suficiente: c.ok ? (c.estado === 'existe' && c.muestra >= 8) : null,
     motivo: c.motivo
   };
+}
+
+// Registro del paso de competencia. Aparte para no ensuciar stepCompetencia y
+// porque tiene que cubrir todas las salidas, incluidas las que no traen nada.
+function registrarRelevanciaDeCompetencia(product, meli) {
+  try {
+    const rel = meli && meli.relevancia ? meli.relevancia : null;
+    const results = (meli && Array.isArray(meli.results)) ? meli.results : [];
+    let estado;
+    if (!meli) estado = 'sin-respuesta';
+    else if (meli.pendiente) estado = 'preparando';
+    else if (rel) estado = rel.estado || 'existe';
+    else if (meli.vacioConfirmado) estado = 'noExiste';
+    else estado = 'sin-datos';
+    registrarRelevancia({
+      query: product, site: 'MLA',
+      palabras: rel ? rel.palabras : palabrasSignificativas(product),
+      ratio: rel ? rel.ratio : null,
+      estado,
+      muestra: rel ? rel.muestra : results.length,
+      relevantes: rel ? rel.relevantes : 0,
+      titulos: (meli && meli.titulosMuestra) || results.map(x => x && x.title)
+    });
+  } catch (e) {
+    console.warn('[relevancia] no pude registrar competencia: ' + String((e && e.message) || e).slice(0, 140));
+  }
 }
 
 async function stepFinal(customPrompt) {
