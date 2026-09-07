@@ -139,6 +139,35 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Chivo:wght@300;400;500;600;700;900&family=Chivo+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="theme.css?v=20260830b">
+<style>
+.link-ejemplo{
+  display:inline; background:none; border:0; padding:0; margin-left:6px;
+  color:var(--gold,#FFE600); font:inherit; font-weight:700; cursor:pointer;
+  text-decoration:underline; text-underline-offset:2px;
+}
+.link-ejemplo:disabled{ opacity:.55; cursor:default; }
+.que-reviso{ margin:34px auto 0; max-width:960px; }
+.que-reviso h2{
+  font-size:1.05rem; font-weight:800; margin:0 0 8px; color:var(--text,#fff);
+}
+.qr-intro{ margin:0 0 20px; max-width:68ch; font-size:.88rem; line-height:1.6; color:var(--text-dim,#9a9a9a); }
+.qr-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+.qr-grid article{
+  border:1px solid var(--line,#2a2a2a); border-radius:12px; padding:15px 16px;
+  background:rgba(255,255,255,.015);
+}
+.qr-grid h3{
+  margin:0 0 6px; font-size:.86rem; font-weight:800; color:var(--gold,#FFE600);
+}
+.qr-grid p{ margin:0; font-size:.83rem; line-height:1.55; color:var(--text-dim,#9a9a9a); }
+.qr-pie{
+  margin:20px 0 0; padding-top:16px; border-top:1px solid var(--line,#2a2a2a);
+  font-size:.85rem; line-height:1.6; color:var(--text3,#888); max-width:68ch;
+}
+.qr-pie a{ color:var(--gold,#FFE600); font-weight:700; }
+</style>
+<script defer src="/_vercel/insights/script.js"></script>
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
 </head>
 <body>
 <div data-mc-nav="analizador"></div>
@@ -154,25 +183,40 @@
   <div class="wrap">
     <div class="hero">
       <h1>Analizador de <span>Publicaciones</span></h1>
-      <p>Pega el link de una publicacion de MercadoLibre y te digo, en criollo, que esta bien, que esta mal, por que importa y que corregir. Ideal si recien arrancas y no sabes por donde empezar.</p>
+      <p>Peg&aacute; el link de una publicaci&oacute;n de MercadoLibre y te digo, en criollo, qu&eacute; est&aacute; bien, qu&eacute; est&aacute; mal, por qu&eacute; importa y qu&eacute; corregir. Ideal si reci&eacute;n arranc&aacute;s y no sab&eacute;s por d&oacute;nde empezar.</p>
     </div>
 
     <div class="search-box">
-      <input id="url" type="text" placeholder="Pega aca el link: https://articulo.mercadolibre.com.ar/MLA-...">
+      <input id="url" type="text" placeholder="Peg&aacute; ac&aacute; el link: https://artículo.mercadolibre.com.ar/MLA-..." aria-label="Link de la publicaci&oacute;n de MercadoLibre">
       <button class="btn btn-yellow" id="go">Analizar gratis</button>
     </div>
-    <div class="hint">Funciona con datos publicos: no hace falta conectar tu cuenta para probarlo.</div>
+    <div class="hint">Funciona con datos p&uacute;blicos: no hace falta conectar tu cuenta para probarlo.
+      <button type="button" class="link-ejemplo" id="btnEjemplo">&iquest;Todav&iacute;a no publicaste? Prob&aacute; con un ejemplo real &rarr;</button>
+    </div>
 
     <div class="loading" id="loading">
-      <div class="spin"></div> Analizando tu publicacion y comparandola contra el top de la categoria...
+      <div class="spin"></div> Analizando tu publicaci&oacute;n y compar&aacute;ndola contra el top de la categor&iacute;a&hellip;
     </div>
 
     <div class="error-box" id="error"></div>
 
     <div class="results" id="results"></div>
 
-    <div class="note"> Nota: las visitas y la tasa de conversion de tu publicacion solo las ve el dueno conectando su cuenta de MercadoLibre. Eso llega en una proxima fase de MeLi Connect.
-    </div>
+    <section class="que-reviso" id="queReviso" aria-label="Qu&eacute; revisa el analizador">
+      <h2>Qu&eacute; te voy a revisar</h2>
+      <p class="qr-intro">Seis cosas, todas sacadas de tu publicaci&oacute;n real en MercadoLibre. Ninguna nota sale de una opini&oacute;n: cada punto que descuento tiene un motivo verificable.</p>
+      <div class="qr-grid">
+        <article><h3>El t&iacute;tulo</h3><p>Si us&aacute;s las palabras que la gente escribe en el buscador, si aprovech&aacute;s los 60 caracteres y si hay relleno que no suma.</p></article>
+        <article><h3>Las fotos</h3><p>Cu&aacute;ntas subiste, si tienen la resoluci&oacute;n que MercadoLibre pide y si la primera es fondo limpio.</p></article>
+        <article><h3>La descripci&oacute;n</h3><p>Si alcanza para contestar las dudas t&iacute;picas y si se puede leer desde el celular sin sufrir.</p></article>
+        <article><h3>La ficha t&eacute;cnica</h3><p>Cu&aacute;ntos atributos obligatorios de tu categor&iacute;a te faltan completar. Cada uno es un filtro donde hoy no aparec&eacute;s.</p></article>
+        <article><h3>El precio</h3><p>C&oacute;mo qued&aacute;s parado contra las publicaciones que el comprador ve al lado de la tuya.</p></article>
+        <article><h3>El env&iacute;o y la modalidad</h3><p>Si ten&eacute;s env&iacute;o gratis, Flex o Full, y qu&eacute; te est&aacute; costando o dando cada opci&oacute;n.</p></article>
+      </div>
+      <p class="qr-pie">&iquest;Reci&eacute;n arranc&aacute;s y todav&iacute;a no ten&eacute;s ninguna publicaci&oacute;n? Empez&aacute; por la <a href="/educacion.html">gu&iacute;a para publicar</a> y volv&eacute; ac&aacute; cuando tengas la primera.</p>
+    </section>
+
+    <div class="note">Nota: las visitas y la tasa de conversi&oacute;n de tu publicaci&oacute;n solo las ve el due&ntilde;o conectando su cuenta de MercadoLibre. Eso llega en una pr&oacute;xima fase de MeLi Connect.</div>
   </div>
 
 <script>
@@ -181,14 +225,14 @@
   var DESPACHANTE_URL = 'https://wa.me/541160374306?text=Hola%20Matias,%20quiero%20traer%20stock%20nuevo%20y%20asesoria%20de%20importacion';  // WhatsApp de contacto
 
   var SEC = {
-    titulo:      { icon: 'Aa', label: 'Titulo (SEO)' },
+    titulo:      { icon: 'Aa', label: 'Título (SEO)' },
     fotos:       { icon: 'Fo', label: 'Fotos' },
     descripcion: { icon: 'Dc', label: 'Descripcion' },
-    atributos:   { icon: 'Ft', label: 'Ficha tecnica / Atributos' },
+    atributos:   { icon: 'Ft', label: 'Ficha técnica / Atributos' },
     envio:       { icon: 'En', label: 'Envio' },
     precio:      { icon: '$',  label: 'Precio' },
     condicion:   { icon: 'Cn', label: 'Condicion' },
-    reputacion:  { icon: 'Rp', label: 'Reputacion del vendedor' }
+    reputacion:  { icon: 'Rp', label: 'Reputación del vendedor' }
   };
 
   function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':String(s)); return d.innerHTML; }
@@ -203,7 +247,7 @@
 
   async function analizar(){
     var url = ($('url').value || '').trim();
-    if(!url){ showError('Pega primero el link de la publicacion.'); return; }
+    if(!url){ showError('Pega primero el link de la publicación.'); return; }
     clearError();
     $('results').className='results'; $('results').innerHTML='';
     setLoading(true);
@@ -214,7 +258,7 @@
       });
       var data = await r.json();
       setLoading(false);
-      if(!r.ok || data.error){ showError(data.error || 'No se pudo analizar la publicacion.'); return; }
+      if(!r.ok || data.error){ showError(data.error || 'No se pudo analizar la publicación.'); return; }
       render(data);
     }catch(e){
       setLoading(false);
@@ -231,7 +275,7 @@
       var dif = d.evolucion.diferencia;
       var cls = dif>0?'up':(dif<0?'down':'same');
       var sign = dif>0?('+'+dif):(''+dif);
-      evo = '<div class="evo '+cls+'">vs. hace 30 dias: '+sign+' pts</div>';
+      evo = '<div class="evo '+cls+'">vs. hace 30 días: '+sign+' pts</div>';
     }
     html += '<div class="head-card">';
     if(d.thumbnail){ html += '<img src="'+esc(d.thumbnail)+'" alt="">'; }
@@ -281,8 +325,8 @@
     // ---- Comparativa vs top de categoria ----
     if(d.comparacion && d.topCategoria && d.topCategoria.length){
       var c = d.comparacion;
-      html += '<div class="cmp-card"><div class="card-title">Comparativa vs. el top '+d.topCategoria.length+' de tu categoria</div>';
-      html += '<div class="head-meta" style="margin-top:8px">Titulo promedio: '+c.avgTitleLen+' caracteres &middot; Precio promedio: '+fmtARS(c.avgPrice)+' &middot; '+c.pctEnvioGratis+'% con envio gratis &middot; '+c.pctFull+'% con Full</div>';
+      html += '<div class="cmp-card"><div class="card-title">Comparativa vs. el top '+d.topCategoria.length+' de tu categoría</div>';
+      html += '<div class="head-meta" style="margin-top:8px">Título promedio: '+c.avgTitleLen+' caracteres &middot; Precio promedio: '+fmtARS(c.avgPrice)+' &middot; '+c.pctEnvioGratis+'% con envio gratis &middot; '+c.pctFull+'% con Full</div>';
       html += '<table><thead><tr><th>Publicacion</th><th>Precio</th><th>Vendidos</th><th>Envio</th></tr></thead><tbody>';
       d.topCategoria.forEach(function(t){
         var envio = t.full ? '<span class="tag g">Full</span>' : (t.envioGratis ? '<span class="tag g">Gratis</span>' : '<span class="tag">-</span>');
@@ -302,7 +346,7 @@
       html += '</div></div>';
     }
 
-    html += '<div class="note">Volve a analizar esta misma publicacion en 30 dias para ver si tus cambios mejoraron el puntaje.</div>';
+    html += '<div class="note">Volve a analizar esta misma publicación en 30 días para ver si tus cambios mejoraron el puntaje.</div>';
 
     var box = $('results');
     box.innerHTML = html;
@@ -350,15 +394,43 @@
       try{ ['pf_user','pf_role','pf_expiry'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
       window.location.href = 'index.html';
     });
-    var bal=document.getElementById('mcBalloon'), tab=document.getElementById('mcBlTab'), cb=document.getElementById('mcBlClose'), dm=false;
-    try{ dm = localStorage.getItem('mc_promo_closed')==='1'; }catch(e){}
-    function op(){ if(tab) tab.style.display='none'; if(bal){ bal.style.display='block'; setTimeout(function(){ bal.classList.add('show'); },30);} }
-    function cl(){ if(bal) bal.classList.remove('show'); setTimeout(function(){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; },400); try{ localStorage.setItem('mc_promo_closed','1'); }catch(e){} }
-    if(cb) cb.addEventListener('click', cl);
-    if(tab) tab.addEventListener('click', function(){ try{ localStorage.removeItem('mc_promo_closed'); }catch(e){} op(); });
-    if(dm){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; } else { setTimeout(op, 1400); }
+    // El globo de asesoria lo maneja mc-ui.js, una sola vez para toda la
+    // app. Antes esta copia se repetia en cada pagina y se abria sola a los
+    // 1,4 segundos, tapando campos del formulario.
   })();
   </script>
 <script defer src="mc-ui.js?v=20260825"></script>
+<script>
+(function(){
+  var btn = document.getElementById('btnEjemplo');
+  var campo = document.getElementById('url');
+  var go = document.getElementById('go');
+  if(!btn || !campo) return;
+  btn.addEventListener('click', async function(){
+    var textoOriginal = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Buscando una publicaci\u00f3n\u2026';
+    try{
+      var r = await fetch('/api/herramientas', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ accion:'ejemplo' })
+      });
+      var d = await r.json();
+      if(d && d.ok && d.url){
+        campo.value = d.url;
+        btn.textContent = textoOriginal;
+        btn.disabled = false;
+        if(go) go.click();
+        return;
+      }
+      btn.textContent = (d && d.error) ? d.error : 'No pudimos traer un ejemplo. Peg\u00e1 un link.';
+    }catch(e){
+      btn.textContent = 'No pudimos traer un ejemplo. Peg\u00e1 un link.';
+    }
+    btn.disabled = false;
+    setTimeout(function(){ btn.textContent = textoOriginal; }, 6000);
+  });
+})();
+</script>
 </body>
 </html>

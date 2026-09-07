@@ -121,6 +121,40 @@
   }
   @media (max-width:520px){ .mc-balloon{right:12px;left:12px;width:auto} }
 </style>
+<style>
+.explica-plegable{
+  border:1px solid var(--line,#2a2a2a); border-radius:12px;
+  padding:0 16px; margin:0 0 22px; background:rgba(255,255,255,.015);
+}
+.explica-plegable > summary{
+  cursor:pointer; list-style:none; padding:14px 0;
+  font-size:.88rem; font-weight:700; color:var(--gold,#FFE600);
+}
+.explica-plegable > summary::-webkit-details-marker{ display:none; }
+.explica-plegable > summary::before{ content:"+ "; font-weight:800; }
+.explica-plegable[open] > summary::before{ content:"\2212 "; }
+.explica-plegable[open]{ padding-bottom:8px; }
+.explica-plegable p{ max-width:74ch; }
+</style>
+<style>
+.rd-nota-plegable{
+  border:1px solid var(--line,#2a2a2a); border-radius:12px;
+  padding:0 16px; margin:22px 0 0; background:rgba(255,255,255,.015);
+}
+.rd-nota-plegable > summary{
+  cursor:pointer; list-style:none; padding:14px 0;
+  font-size:.87rem; font-weight:700; color:var(--gold,#FFE600);
+}
+.rd-nota-plegable > summary::-webkit-details-marker{ display:none; }
+.rd-nota-plegable > summary::before{ content:"+ "; font-weight:800; }
+.rd-nota-plegable[open] > summary::before{ content:"\2212 "; }
+.rd-nota-cuerpo{
+  padding:0 0 16px; max-width:76ch;
+  font-size:.86rem; line-height:1.65; color:var(--text-dim,#9a9a9a);
+}
+</style>
+<script defer src="/_vercel/insights/script.js"></script>
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
 </head>
 <body>
 <div data-mc-nav="radar"></div>
@@ -147,12 +181,13 @@
     <button class="rd-tab activa" id="tabMeli" role="tab" aria-selected="true">
       MercadoLibre Brasil <i>gratis</i></button>
     <button class="rd-tab" id="tabTikTok" role="tab" aria-selected="false">
-      TikTok Shop EE.UU. <i>~US$0,06 por rubro</i></button>
+      TikTok Shop EE.UU. <i>consulta lenta</i></button>
   </div>
 
   <div id="panelMeli">
     <div class="rd-toolbar">
-      <select class="rd-select" id="rubro"><option value="">Todos los rubros</option></select>
+      <label class="sr-only" for="rubro">Rubro a explorar</label>
+      <select class="rd-select" id="rubro" aria-label="Rubro a explorar"><option value="">Todos los rubros</option></select>
       <button class="btn btn-yellow" id="go">Buscar oportunidades</button>
     </div>
     <div class="hint">Qu&eacute; est&aacute; creciendo en las b&uacute;squedas de MercadoLibre Brasil y
@@ -178,22 +213,24 @@
     </div>
     <div class="hint">Los productos con m&aacute;s unidades vendidas en TikTok Shop de Estados Unidos.
     Es otra lista, con otros productos: lo que arrasa ah&iacute; suele llegar despu&eacute;s.
-    <b>Cada rubro cuesta ~US$0,06</b> y queda guardado 3 d&iacute;as.</div>
+    <b>El resultado queda guardado 3 d&iacute;as</b>, as&iacute; que volver a mirarlo no vuelve a consultar.</div>
     <div class="loading" id="loadingTk"><div class="spin"></div> Mirando qu&eacute; se vende m&aacute;s...</div>
     <div class="error-box" id="errorTk"></div>
     <div class="rd-list" id="listaTk"></div>
   </div>
 
-  <div class="rd-nota" id="nota">
+  <details class="rd-nota-plegable" id="nota">
+    <summary>C&oacute;mo funciona esto, qu&eacute; mide y qu&eacute; consume cada bot&oacute;n</summary>
+    <div class="rd-nota-cuerpo">
     <b>C&oacute;mo funciona esto.</b> Hay dos <b>fuentes de ideas</b>, y son listas distintas con productos
     distintos: <b>MercadoLibre Brasil</b> (gratis) muestra qu&eacute; se empez&oacute; a buscar all&aacute; y
-    todav&iacute;a no ac&aacute;; <b>TikTok Shop Estados Unidos</b> (~US$0,06 el rubro) muestra qu&eacute; se
+    todav&iacute;a no ac&aacute;; <b>TikTok Shop Estados Unidos</b> muestra qu&eacute; se
     est&aacute; <b>vendiendo</b> hoy, con unidades reales. Son dos mercados donde las cosas pegan antes.
     <br><br>
     <b>Validar es siempre contra Argentina</b>, venga el producto de donde venga, porque es donde vend&eacute;s.
     Cualquier producto de cualquiera de las dos listas tiene los mismos dos botones:
-    <b>competencia en MercadoLibre Argentina</b> (~US$0,24) y <b>&iquest;lo buscan en Argentina?</b>
-    seg&uacute;n Google (~US$0,10). Que algo explote en Brasil o en Estados Unidos no lo valida: lo hace
+    <b>competencia en MercadoLibre Argentina</b> y <b>&iquest;lo buscan en Argentina?</b>
+    seg&uacute;n Google. Que algo explote en Brasil o en Estados Unidos no lo valida: lo hace
     candidato. Lo valida que ac&aacute; haya demanda y quede lugar.
     <br><br>
     <b>Sobre la competencia.</b> MercadoLibre <b>no publica cu&aacute;ntas publicaciones hay</b> para un
@@ -202,10 +239,12 @@
     est&aacute; tomado aunque haya pocas publicaciones. Los n&uacute;meros salen de las publicaciones que
     efectivamente se miraron, no del mercado entero.
     <br><br>
-    <b>Qu&eacute; gasta.</b> Los botones con borde punteado consumen cr&eacute;dito y dicen el precio antes
-    de apretarlos. Ninguno corre solo. Lo consultado queda guardado (3 d&iacute;as las fuentes de afuera,
-    una semana la competencia), as&iacute; que repetir no vuelve a cobrar.
+    <b>Qu&eacute; tarda.</b> Los botones con borde punteado salen a consultar servicios de afuera
+    en vivo, as&iacute; que tardan unos segundos. Ninguno corre solo: los apret&aacute;s vos. Lo consultado
+    queda guardado (3 d&iacute;as las fuentes de afuera, una semana la competencia), as&iacute; que volver
+    a mirarlo es instant&aacute;neo.
   </div>
+  </details>
 </div>
 
 <script>
@@ -247,9 +286,9 @@
       (c.traducidoDe ? '<div class="rd-de">En Brasil lo buscan como &ldquo;' + esc(c.traducidoDe) + '&rdquo;</div>' : '') +
       '<div class="rd-foot">' +
         '<button class="rd-btn rd-btn-pago" onclick="medir(' + i + ')" ' +
-          'title="Consulta paga">Competencia en Argentina <i>~US$0,24</i></button>' +
+          'title="Tarda unos segundos: consulta MercadoLibre en vivo">Competencia en Argentina <i>tarda un rato</i></button>' +
         '<button class="rd-btn rd-btn-pago" onclick="verTrends(' + i + ')" ' +
-          'title="Consulta paga">&iquest;Lo buscan en Argentina? <i>~US$0,10</i></button>' +
+          'title="Tarda unos segundos: consulta Google en vivo">&iquest;Lo buscan en Argentina? <i>tarda un rato</i></button>' +
         (c.posicionBR ? '<span style="font-size:12px;color:var(--mc-ink-4)">Puesto ' + c.posicionBR + ' en Brasil</span>' : '') +
         (c.posicionAR ? '<span style="font-size:12px;color:var(--mc-ink-4)">Puesto ' + c.posicionAR + ' en Argentina</span>' : '') +
       '</div>' +
@@ -331,7 +370,7 @@
         }
 
         // De cuando es la medicion. Se guarda una semana porque cada consulta
-        // nueva cuesta ~US$0,24, asi que no se puede dar por recien hecha.
+        // nueva cuesta asi que no se puede dar por recien hecha.
         var cuando = '';
         if (m.medidoEn) {
           var dias = Math.floor((Date.now() - new Date(m.medidoEn).getTime()) / 86400000);
@@ -376,8 +415,8 @@
           return;
         }
         var costo = d.desdeCache
-          ? 'Ya estaba consultado: no gast&oacute; nada.'
-          : 'Esta consulta cost&oacute; ~US$' + (d.costo_usd || 0).toFixed(3) + '.';
+          ? 'Dato guardado de una consulta anterior.'
+          : 'Consultado reci&eacute;n, en vivo.';
         caja.innerHTML = '<div class="rd-sat"><b>' + esc(d.fuente) + '</b>' + pintar(d) +
           '<div class="rd-costo">' + costo + '</div></div>';
       })
@@ -444,9 +483,9 @@
       '<div class="rd-foot">' +
         (kw
           ? '<button class="rd-btn rd-btn-pago" onclick="medir(' + i + ',' + JSON.stringify(kw) + ',50,\'tk\')" ' +
-              'title="Consulta paga">Competencia en Argentina <i>~US$0,24</i></button>' +
+              'title="Tarda unos segundos: consulta MercadoLibre en vivo">Competencia en Argentina <i>tarda un rato</i></button>' +
             '<button class="rd-btn rd-btn-pago" onclick="verTrends(' + i + ',' + JSON.stringify(kw) + ',\'tk\')" ' +
-              'title="Consulta paga">&iquest;Lo buscan en Argentina? <i>~US$0,10</i></button>'
+              'title="Consulta paga">&iquest;Lo buscan en Argentina? <i></i></button>'
           : '<span style="font-size:12px;color:var(--mc-ink-4)">No pude reducir el t&iacute;tulo a un producto buscable en Argentina.</span>') +
       '</div>' +
       '<div id="satTk' + i + '"></div><div id="fuTk' + i + '"></div></div>';
@@ -475,8 +514,8 @@
         productosTk = (d.productos || []).slice().sort(function(a,b){ return (b.vendidos||0)-(a.vendidos||0); });
         if (!productosTk.length) { cajaE.textContent = 'Sin productos para ese rubro.'; cajaE.style.display = 'block'; return; }
         var costo = d.desdeCache
-          ? 'Ya estaba consultado: no gast&oacute; nada.'
-          : 'Esta consulta cost&oacute; ~US$' + (d.costo_usd || 0).toFixed(3) + '.';
+          ? 'Dato guardado de una consulta anterior.'
+          : 'Consultado reci&eacute;n, en vivo.';
         lista.innerHTML = '<div class="rd-nota"><b>' + esc(d.fuente) + '</b> &middot; ' +
           productosTk.length + ' productos, ordenados por unidades vendidas. ' +
           'Son <b>ventas reales</b>, no b&uacute;squedas. ' + costo + '</div>' +
@@ -550,17 +589,6 @@
   buscar();
 })();
 </script>
-<script>
-  (function(){
-    var bal=document.getElementById('mcBalloon'), tab=document.getElementById('mcBlTab'), cb=document.getElementById('mcBlClose'), dm=false;
-    try{ dm = localStorage.getItem('mc_promo_closed')==='1'; }catch(e){}
-    function op(){ if(tab) tab.style.display='none'; if(bal){ bal.style.display='block'; setTimeout(function(){ bal.classList.add('show'); },30);} }
-    function cl(){ if(bal) bal.classList.remove('show'); setTimeout(function(){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; },400); try{ localStorage.setItem('mc_promo_closed','1'); }catch(e){} }
-    if(cb) cb.addEventListener('click', cl);
-    if(tab) tab.addEventListener('click', function(){ try{ localStorage.removeItem('mc_promo_closed'); }catch(e){} op(); });
-    if(dm){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; } else { setTimeout(op, 1400); }
-  })();
-  </script>
 <script defer src="mc-ui.js?v=20260901a"></script>
 </body>
 </html>

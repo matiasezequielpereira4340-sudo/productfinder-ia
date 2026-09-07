@@ -22,7 +22,7 @@
   .mc-di{font-size:18px;line-height:1.1;width:22px;text-align:center;}
   .mc-dt{display:flex;flex-direction:column;}
   .mc-dt b{font-size:13.5px;color:#fff;font-weight:700;}
-  .mc-dt span{font-size:11.5px;color:#9a9a9a;margin-top:1px;}
+  .mc-dt span{font-size:12.5px;line-height:1.45;color:#a4a4a4;margin-top:2px;}
   .mc-sechead{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:#FFE600;padding:6px 11px 3px;font-weight:800;}
   .mc-right{display:flex;align-items:center;gap:12px;}
   .mc-cta{display:flex;align-items:center;gap:7px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff!important;font-weight:800;font-size:13.5px;padding:9px 15px;border-radius:9px;text-decoration:none;white-space:nowrap;box-shadow:0 3px 12px rgba(37,211,102,.4);position:relative;transition:.15s;}
@@ -41,7 +41,22 @@
    .mc-caret{display:none;}.mc-toggle{display:block;}.mc-user .mc-uname{display:none;}.mc-cta span:not(.mc-pulse){display:none;}
   }
   .mc-balloon{position:fixed;right:22px;bottom:22px;z-index:1200;width:312px;background:linear-gradient(160deg,#1f1f1f,#141414);border:1px solid #FFE600;border-radius:18px;padding:18px 18px 16px;box-shadow:0 18px 50px rgba(0,0,0,.6);transform:translateY(160%);opacity:0;transition:transform .5s cubic-bezier(.16,1,.3,1),opacity .4s;}
-  .mc-balloon.show{transform:translateY(0);opacity:1;animation:mcfloat 4s ease-in-out infinite 1.2s;}
+  .mc-balloon.show{transform:translateY(0);opacity:1;}
+  /* La animacion flotante infinita distraia mientras se completaba un
+     formulario. Queda solo un rebote corto al aparecer, y nada mas. */
+  .mc-balloon.show{animation:mcbl-entra .5s cubic-bezier(.16,1,.3,1);}
+  @keyframes mcbl-entra{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+  @media (prefers-reduced-motion:reduce){
+    .mc-balloon,.mc-balloon.show{transition:none;animation:none;}
+    .mc-bltab{animation:none;}
+  }
+  /* En mobile un globo de 312px tapaba medio viewport arriba de los campos
+     del formulario. Pasa a ocupar el ancho util y a anclarse al piso. */
+  @media (max-width:560px){
+    .mc-balloon{left:12px;right:12px;bottom:12px;width:auto;border-radius:16px;padding:15px 15px 14px;}
+    .mc-balloon::after{display:none;}
+    .mc-bltab{right:14px;bottom:14px;padding:11px 15px;font-size:12.5px;}
+  }
   @keyframes mcfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
   .mc-balloon::after{content:"";position:absolute;bottom:-9px;right:38px;width:18px;height:18px;background:linear-gradient(160deg,#1f1f1f,#141414);border-right:1px solid #FFE600;border-bottom:1px solid #FFE600;transform:rotate(45deg);}
   .mc-bl-close{position:absolute;top:10px;right:12px;background:none;border:0;color:#888;font-size:19px;cursor:pointer;line-height:1;}

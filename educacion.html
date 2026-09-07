@@ -145,6 +145,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Chivo:wght@300;400;500;600;700;900&family=Chivo+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="theme.css?v=20260830b">
+<script defer src="/_vercel/insights/script.js"></script>
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
 </head>
 <body>
 
@@ -406,13 +408,9 @@
       try{ ['pf_user','pf_role','pf_expiry'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
       window.location.href = 'index.html';
     });
-    var bal=document.getElementById('mcBalloon'), tab=document.getElementById('mcBlTab'), cb=document.getElementById('mcBlClose'), dm=false;
-    try{ dm = localStorage.getItem('mc_promo_closed')==='1'; }catch(e){}
-    function op(){ if(tab) tab.style.display='none'; if(bal){ bal.style.display='block'; setTimeout(function(){ bal.classList.add('show'); },30);} }
-    function cl(){ if(bal) bal.classList.remove('show'); setTimeout(function(){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; },400); try{ localStorage.setItem('mc_promo_closed','1'); }catch(e){} }
-    if(cb) cb.addEventListener('click', cl);
-    if(tab) tab.addEventListener('click', function(){ try{ localStorage.removeItem('mc_promo_closed'); }catch(e){} op(); });
-    if(dm){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; } else { setTimeout(op, 1400); }
+    // El globo de asesoria lo maneja mc-ui.js, una sola vez para toda la
+    // app. Antes esta copia se repetia en cada pagina y se abria sola a los
+    // 1,4 segundos, tapando campos del formulario.
   })();
   </script>
 <script defer src="mc-ui.js?v=20260825"></script>

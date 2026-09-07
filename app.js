@@ -65,6 +65,9 @@ async function doLogin(){
     localStorage.setItem('pf_user',user);
     localStorage.setItem('pf_role',currentRole);
             localStorage.setItem('pf_premium', (data.premium || data.role==='admin') ? '1' : '0');
+            // El token lo firma el servidor. pf_premium queda solo para pintar la
+            // interfaz: quien decide cuantos productos se entregan es el backend.
+            if(data.token) localStorage.setItem('pf_token', data.token); else localStorage.removeItem('pf_token');
     if(sessionExpiry)localStorage.setItem('pf_expiry',sessionExpiry);
     showScreen('menuScreen');
     setupTopbar(user);
@@ -143,7 +146,8 @@ function showApp(){showScreen('appScreen');setHash('productfinder');try{window.s
 function showMenu(){showScreen('menuScreen');setHash('menu');try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}}
 function showMarket(){showScreen('marketScreen');setHash('market');try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}}
 
-function doGuest(){currentRole='guest';sessionExpiry=null;localStorage.setItem('pf_user','Invitado');localStorage.setItem('pf_role','guest');localStorage.removeItem('pf_premium');localStorage.removeItem('pf_expiry');showScreen('menuScreen');setupTopbar('Invitado');var ab=document.getElementById('btnAdminPanel');if(ab)ab.style.display='none';var ex=document.getElementById('topbarExpiry');if(ex)ex.style.display='none';} function doLogout(){
+function doGuest(){currentRole='guest';sessionExpiry=null;localStorage.setItem('pf_user','Invitado');localStorage.setItem('pf_role','guest');localStorage.removeItem('pf_premium');localStorage.removeItem('pf_expiry');localStorage.removeItem('pf_token');showScreen('menuScreen');setupTopbar('Invitado');var ab=document.getElementById('btnAdminPanel');if(ab)ab.style.display='none';var ex=document.getElementById('topbarExpiry');if(ex)ex.style.display='none';} function doLogout(){
+  try{ localStorage.removeItem('pf_token'); }catch(e){}
   currentRole=null;sessionExpiry=null;analysisResults=null;mrData={};mrCurrentProduct='';
   localStorage.removeItem('pf_user');localStorage.removeItem('pf_role');localStorage.removeItem('pf_expiry');
   document.getElementById('loginUser').value='';
@@ -254,13 +258,17 @@ function hhdSkeleton(){
 function hhdError(product, motivo){
   var el=document.getElementById('hhdResult');
   var tag=document.getElementById('hhdModeTag');
-  if(tag){ tag.textContent='Sin datos'; tag.classList.add('is-error'); tag.classList.remove('is-example'); }
+  if(tag){ tag.textContent='Sin conexi\u00f3n a MeLi'; tag.classList.add('is-example'); tag.classList.remove('is-error'); }
   if(el) el.innerHTML =
-    '<div class="hhd-errstate">'+
-      '<svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg>'+
-      '<p class="hhd-errtitle">No pude consultar MercadoLibre reci&eacute;n</p>'+
-      '<p class="hhd-errtext">'+hhdEscape(motivo||'La consulta no lleg&oacute; a destino.')+' No muestro n&uacute;meros estimados: o son datos reales de MercadoLibre, o no son nada.</p>'+
-      '<button type="button" class="hhd-retry" onclick="runHeroDemo()">Reintentar</button>'+
+    '<div class="hhd-offstate">'+
+      '<p class="hhd-offtitle">Esto es lo que hace la herramienta</p>'+
+      '<ol class="hhd-offlist">'+
+        '<li>Toma el producto que escribiste y le pregunta a MercadoLibre en qu&eacute; categor&iacute;a lo ubica.</li>'+
+        '<li>Fija si ese t&eacute;rmino aparece hoy entre las b&uacute;squedas m&aacute;s frecuentes de Argentina.</li>'+
+        '<li>Te muestra qu&eacute; m&aacute;s est&aacute; buscando la gente alrededor de ese producto.</li>'+
+      '</ol>'+
+      '<p class="hhd-offnote">'+hhdEscape(motivo||'La consulta no lleg&oacute; a destino.')+' Por eso no hay n&uacute;meros ac&aacute; abajo: o son datos reales de MercadoLibre, o no son nada. Nunca vas a ver una estimaci&oacute;n disfrazada de dato.</p>'+
+      '<button type="button" class="hhd-retry" onclick="runHeroDemo()">Probar de nuevo</button>'+
     '</div>';
   var tsWrap=document.getElementById('hhdTsWrap'); if(tsWrap) tsWrap.style.display='none';
   var cta=document.getElementById('hhdCta'); if(cta) cta.style.display='';
@@ -571,7 +579,9 @@ async function doAnalyze(){
     const results = document.getElementById('resultsSection');
     if(results) results.style.display = 'block';
     try{
-      const res = await fetch('/api/analyze', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(params) });
+      var _cab = {'Content-Type':'application/json'};
+      try{ var _tk = localStorage.getItem('pf_token'); if(_tk) _cab['Authorization'] = 'Bearer ' + _tk; }catch(e){}
+      const res = await fetch('/api/analyze', { method:'POST', headers:_cab, body: JSON.stringify(params) });
       const data = await res.json();
       if(!res.ok){ throw new Error(data.error || 'Error al analizar'); }
       window.__lastAnalysis = data;
@@ -617,7 +627,32 @@ function renderResults(data){
     const fuenteTag = real ? '<span class="tag-real" title="Precio y competencia obtenidos en vivo de MercadoLibre"><svg class="ic" aria-hidden="true"><use href="#i-dot"></use></svg> Dato real ML</span>' : '<span class="tag-est" title="Sin precio real: conecta MercadoLibre para activarlo"><svg class="ic" aria-hidden="true"><use href="#i-dot"></use></svg> Estimado</span>';
     return '<div class="product-card '+(p.topPick?'top-pick':'')+'">'+(p.topPick ? '<span class="top-badge"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> TOP PICK</span>' : '')+'<div class="product-name">'+p.nombre+'</div><div style="margin-bottom:10px">'+fuenteTag+' <span class="tag-info" title="Por que es apto para regimen de importacion">'+p.nota+'</span></div>'+(real ? '<div class="score-row"><span>Score</span><strong>'+p.score+'/100</strong></div><div class="score-bar"><div class="score-fill" style="width:'+scorePct+'%"></div></div>' : '')+'<div class="product-stats"><div class="stat"><span class="stat-l" title="Precio promedio de venta en MercadoLibre">Precio venta</span><span class="stat-v">'+precio+'</span></div><div class="stat"><span class="stat-l" title="Costo estimado del producto puesto en Argentina (FOB China + logistica + impuestos)">Costo est.</span><span class="stat-v">'+costo+'</span></div><div class="stat"><span class="stat-l" title="Ganancia sobre el costo estimado">Margen</span><span class="stat-v">'+margen+'</span></div><div class="stat"><span class="stat-l" title="Publicaciones activas compitiendo en MercadoLibre (dato real)">Competencia</span><span class="stat-v">'+sellers+'</span></div><div class="stat"><span class="stat-l" title="Nivel de demanda del producto">Demanda</span><span class="stat-v">'+p.demanda+'</span></div><div class="stat"><span class="stat-l" title="Cuan saturado esta el mercado. Baja = mejor oportunidad">Saturacion</span><span class="stat-v">'+p.saturacion+'</span></div></div><div class="risk-line risk-'+String(p.riesgo).toLowerCase().replace(/[^a-z]/g,'')+'">Riesgo: '+p.riesgo+'</div></div>';
   }).join('');
-  grid.innerHTML = banner + cards;
+  // El servidor manda solo los productos que corresponden. Si sobran, dibujamos
+  // el candado con tarjetas vacias: ya no hay datos reales escondidos en el DOM.
+  var bloqueados = 0;
+  if(data && data.esCliente === false && data.productosTotales > products.length){
+    bloqueados = data.productosTotales - products.length;
+  }
+  var candado = '';
+  if(bloqueados > 0){
+    var lista = '';
+    for(var _b=0; _b<bloqueados; _b++){
+      lista += '<div class="product-card pf-bloqueada" aria-hidden="true"><div class="pf-bl-linea"></div><div class="pf-bl-linea corta"></div><div class="pf-bl-grid"><span></span><span></span><span></span><span></span></div></div>';
+    }
+    candado = lista +
+      '<div class="pf-candado" role="note">' +
+        '<div class="pf-candado-ico"><svg class="ic" aria-hidden="true"><use href="#i-lock"></use></svg></div>' +
+        '<h4>Te faltan ' + bloqueados + ' productos de este rubro</h4>' +
+        '<p>Est&aacute;s viendo los ' + products.length + ' primeros de ' + data.productosTotales + '. Los clientes de asesor&iacute;a ven la lista completa, con el margen detallado y la validaci&oacute;n del proveedor.</p>' +
+        '<button class="pf-candado-btn" type="button" id="pfCandadoBtn"><svg class="ic" aria-hidden="true"><use href="#i-rocket"></use></svg> Ver c&oacute;mo trabajamos</button>' +
+      '</div>';
+  }
+  grid.innerHTML = banner + cards + candado;
+  var _cb = document.getElementById('pfCandadoBtn');
+  if(_cb) _cb.addEventListener('click', function(){
+    var cs = document.querySelector('.contact-section');
+    if(cs) cs.scrollIntoView({behavior:'smooth', block:'center'});
+  });
 }
 
 function exportPDF(){
@@ -651,7 +686,14 @@ async function sendChat(){
   try{
     const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,context:analysisResults?JSON.stringify(analysisResults):null})});
     const data=await res.json();
-    thinking.textContent=data.reply||'No pude procesar tu consulta.';
+    // La API devuelve {response}, no {reply}: con la clave equivocada el chat
+    // mostraba siempre "No pude procesar tu consulta.", aunque la respuesta
+    // hubiera llegado bien.
+    if(data && data.requiereSesion){
+      thinking.textContent = data.error || 'Para usar el asesor IA hace falta iniciar sesion.';
+    } else {
+      thinking.textContent = data.response || data.reply || data.error || 'No pude procesar tu consulta.';
+    }
   }catch(e){thinking.textContent='Error de conexi&#243;n.';}
   box.scrollTop=box.scrollHeight;
 }
@@ -1796,8 +1838,12 @@ window.addEventListener('DOMContentLoaded',()=>{
 })();
 
 /* ---- bloque 6 ---- */
-/* ===== v5 Freemium gate (additive) ===== */
+/* ===== v5 Freemium gate — DESACTIVADO =====
+   El recorte se hace en el servidor (api/analyze.js + api/_sesion.js).
+   Este bloque tapaba tarjetas que igual viajaban al navegador, asi que
+   el candado se salteaba desde la consola. Se deja apagado a proposito. */
 (function(){
+  if(true) return;
   var FREE_LIMIT = 3;
   function isPremium(){ if(localStorage.getItem('pf_role')==='admin') return true;
     try{ return localStorage.getItem('pf_premium')==='1'; }catch(e){ return false; }
@@ -2555,13 +2601,8 @@ window.addEventListener('DOMContentLoaded',()=>{
       document.querySelectorAll('.mc-av').forEach(function(e){ e.textContent = (u.charAt(0)||'?').toUpperCase(); });
       if(role === 'admin'){ document.querySelectorAll('.mc-admin-item').forEach(function(e){ e.style.display=''; }); }
     }catch(e){}
-    var bal=document.getElementById('mcBalloon'), tab=document.getElementById('mcBlTab'), cb=document.getElementById('mcBlClose'), dm=false;
-    try{ dm = localStorage.getItem('mc_promo_closed')==='1'; }catch(e){}
-    function op(){ if(tab) tab.style.display='none'; if(bal){ bal.style.display='block'; setTimeout(function(){ bal.classList.add('show'); },30);} }
-    function cl(){ if(bal) bal.classList.remove('show'); setTimeout(function(){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; },400); try{ localStorage.setItem('mc_promo_closed','1'); }catch(e){} }
-    if(cb) cb.addEventListener('click', cl);
-    if(tab) tab.addEventListener('click', function(){ try{ localStorage.removeItem('mc_promo_closed'); }catch(e){} op(); });
-    if(dm){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; } else { setTimeout(op, 1400); }
+    // El globo de asesoria ahora lo maneja mc-ui.js (una sola copia para
+    // toda la app). Aca habia una segunda que se enganchaba en paralelo.
   })();
 
 /* ---- bloque 20 ---- */

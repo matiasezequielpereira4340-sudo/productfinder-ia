@@ -116,6 +116,40 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Chivo:wght@300;400;500;600;700;900&family=Chivo+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="theme.css?v=20260830b">
+<style>
+/* Comparacion cualitativa: sin montos inventados. */
+.disc-top{
+  display:flex; gap:10px; align-items:flex-start;
+  border:1px solid var(--line,#2a2a2a); border-left:3px solid var(--gold,#FFE600);
+  border-radius:10px; padding:12px 14px; margin:0 0 18px;
+  background:rgba(255,230,0,.05);
+}
+.disc-top p{ margin:0; font-size:.84rem; line-height:1.55; color:var(--text2,#bbb); }
+.disc-top .ic{ flex:0 0 auto; width:16px; height:16px; color:var(--gold,#FFE600); margin-top:2px; }
+.mod-que{ font-size:.86rem; line-height:1.5; color:var(--text2,#bbb); margin:0 0 14px; }
+.mod-sub{
+  font-size:.7rem; font-weight:800; letter-spacing:.5px; text-transform:uppercase;
+  color:var(--text3,#888); margin:0 0 6px;
+}
+ul.detalle.cualitativa{ list-style:none; padding:0; margin:0 0 14px; }
+ul.detalle.cualitativa li{
+  position:relative; padding-left:16px; margin-bottom:6px;
+  font-size:.84rem; line-height:1.5; color:var(--text2,#bbb);
+}
+ul.detalle.cualitativa li::before{
+  content:""; position:absolute; left:0; top:.6em;
+  width:5px; height:5px; border-radius:50%; background:var(--gold,#FFE600);
+}
+.mod-pro,.mod-con{ font-size:.82rem; line-height:1.5; margin:0 0 6px; color:var(--text2,#bbb); }
+.mod-pro strong{ color:#4ade80; }
+.mod-con strong{ color:#fbbf24; }
+.mod-tolerancia{
+  font-size:.84rem; line-height:1.55; color:var(--text3,#888);
+  margin:16px 0 0; padding-top:14px; border-top:1px solid var(--line,#2a2a2a);
+}
+</style>
+<script defer src="/_vercel/insights/script.js"></script>
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
 </head>
 <body>
 <div data-mc-nav="envios"></div>
@@ -180,12 +214,6 @@
           </select>
           <span class="field-hint">Full cobra por guardar tu stock en su depósito. Elegí cuánto te molesta pagar eso: si preferís no pagar depósito elegí "Baja"; si no te importa pagar por comodidad, "Alta".</span>
         </div>
-        <div class="field">
-          <label for="margenUnidad">Margen por unidad (opcional, en $)</label>
-          <input id="margenUnidad" type="number" step="1" min="0" placeholder="Ej: 2500">
-          <span class="field-hint">Cuánta ganancia limpia te queda por cada unidad vendida (precio de venta menos lo que te costó el producto). Si no lo sabés todavía, dejalo vacío: es opcional.</span>
-        </div>
-      </div>
       <button id="btnCalc" class="btn">Calcular modalidad recomendada</button>
     </section>
 
@@ -204,8 +232,7 @@
         anchoCm: parseFloat($('anchoCm').value) || 0,
         altoCm: parseFloat($('altoCm').value) || 0,
         rotacionMes: parseFloat($('rotacionMes').value) || 0,
-        toleranciaAlmacenamiento: $('toleranciaAlmacenamiento').value,
-        margenUnidad: parseFloat($('margenUnidad').value) || null
+        toleranciaAlmacenamiento: $('toleranciaAlmacenamiento').value
       };
       btn.disabled = true;
       btn.textContent = 'Calculando...';
@@ -235,46 +262,42 @@
       const flexWins = rec.indexOf('flex') !== -1;
       let html = '';
 
+      if (data.aclaracion) {
+        html += '<div class="disc-top"><svg class="ic" aria-hidden="true"><use href="#i-info"></use></svg><p>' + data.aclaracion + '</p></div>';
+      }
       html += '<div class="verdict">';
       html += '<div class="v-label">Te conviene</div>';
       html += '<div class="v-main">' + (data.recomendacion || '—') + '</div>';
       if (data.motivo) html += '<p class="v-motivo">' + data.motivo + '</p>';
       html += '</div>';
 
-      const cf = (data.costos && data.costos.full) || {};
-      const cx = (data.costos && data.costos.flex) || {};
+      const comp = data.comparacion || {};
+      const cf = comp.full || {};
+      const cx = comp.flex || {};
 
-      html += '<div class="cols">';
-
-      html += '<div class="mod' + (fullWins ? ' win' : '') + '">';
-      if (fullWins) html += '<span class="win-tag">Recomendado</span>';
-      html += '<h3>Mercado Full</h3>';
-      html += '<div class="mod-cost">' + money(cf.porUnidad) + '<span> / mes aprox.</span></div>';
-      if (Array.isArray(cf.detalle)) {
-        html += '<ul class="detalle">';
-        cf.detalle.forEach(d => { html += '<li><span>' + d.concepto + '</span><span>' + money(d.valor) + '</span></li>'; });
-        html += '</ul>';
+      function bloque(m, gana) {
+        if (!m.titulo) return '';
+        let h = '<div class="mod' + (gana ? ' win' : '') + '">';
+        if (gana) h += '<span class="win-tag">Recomendado</span>';
+        h += '<h3>' + m.titulo + '</h3>';
+        if (m.queTePaga) h += '<p class="mod-que">' + m.queTePaga + '</p>';
+        if (Array.isArray(m.queTeCobra) && m.queTeCobra.length) {
+          h += '<div class="mod-sub">Qu&eacute; te cobra</div><ul class="detalle cualitativa">';
+          m.queTeCobra.forEach(function (t) { h += '<li>' + t + '</li>'; });
+          h += '</ul>';
+        }
+        if (m.aFavor)  h += '<p class="mod-pro"><strong>A favor:</strong> ' + m.aFavor + '</p>';
+        if (m.enContra) h += '<p class="mod-con"><strong>En contra:</strong> ' + m.enContra + '</p>';
+        h += '</div>';
+        return h;
       }
-      if (cf.nota) html += '<p class="mod-nota">' + cf.nota + '</p>';
-      html += '</div>';
 
-      html += '<div class="mod' + (flexWins ? ' win' : '') + '">';
-      if (flexWins) html += '<span class="win-tag">Recomendado</span>';
-      html += '<h3>Mercado Flex</h3>';
-      html += '<div class="mod-cost">' + money(cx.porUnidad) + '<span> / mes aprox.</span></div>';
-      if (Array.isArray(cx.detalle)) {
-        html += '<ul class="detalle">';
-        cx.detalle.forEach(d => { html += '<li><span>' + d.concepto + '</span><span>' + money(d.valor) + '</span></li>'; });
-        html += '</ul>';
+      html += '<div class="cols">' + bloque(cf, fullWins) + bloque(cx, flexWins) + '</div>';
+
+      if (data.tolerancia) {
+        html += '<p class="mod-tolerancia">' + data.tolerancia + '</p>';
       }
-      if (cx.nota) html += '<p class="mod-nota">' + cx.nota + '</p>';
-      html += '</div>';
 
-      html += '</div>';
-
-      if (data.impacto) {
-        html += '<div class="impacto"><b>Impacto en tu bolsillo:</b> ' + data.impacto + '</div>';
-      }
 
       if (data.requisitos) {
         html += '<div class="req">';
@@ -284,9 +307,6 @@
         html += '</div>';
       }
 
-      if (data.aclaracion) {
-        html += '<p class="disc">' + data.aclaracion + '</p>';
-      }
 
       box.className = '';
       box.innerHTML = html;
@@ -316,13 +336,9 @@
       try{ ['pf_user','pf_role','pf_expiry'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
       window.location.href = 'index.html';
     });
-    var bal=document.getElementById('mcBalloon'), tab=document.getElementById('mcBlTab'), cb=document.getElementById('mcBlClose'), dm=false;
-    try{ dm = localStorage.getItem('mc_promo_closed')==='1'; }catch(e){}
-    function op(){ if(tab) tab.style.display='none'; if(bal){ bal.style.display='block'; setTimeout(function(){ bal.classList.add('show'); },30);} }
-    function cl(){ if(bal) bal.classList.remove('show'); setTimeout(function(){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; },400); try{ localStorage.setItem('mc_promo_closed','1'); }catch(e){} }
-    if(cb) cb.addEventListener('click', cl);
-    if(tab) tab.addEventListener('click', function(){ try{ localStorage.removeItem('mc_promo_closed'); }catch(e){} op(); });
-    if(dm){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; } else { setTimeout(op, 1400); }
+    // El globo de asesoria lo maneja mc-ui.js, una sola vez para toda la
+    // app. Antes esta copia se repetia en cada pagina y se abria sola a los
+    // 1,4 segundos, tapando campos del formulario.
   })();
   </script>
 <script defer src="mc-ui.js?v=20260825"></script>

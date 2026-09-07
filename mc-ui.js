@@ -38,12 +38,92 @@
 
   /* Eventos por delegacion: cualquier elemento con data-mc-event se mide solo.
      Asi los CTAs no necesitan onclick propios y no se nos escapa ninguno. */
+  /* Que herramienta es esta pagina, para no depender de la URL cruda. */
+  function herramientaActual() {
+    var f = location.pathname.split("/").pop() || "index.html";
+    var mapa = {
+      "": "inicio", "index.html": "inicio",
+      "radar.html": "radar",
+      "margen.html": "margen",
+      "analizador.html": "analizador",
+      "calculadora-envios.html": "flex-vs-full",
+      "dashboard.html": "dashboard",
+      "educacion.html": "educacion",
+      "meli-connect.html": "conectar-meli",
+      "login.html": "login",
+      "admin.html": "admin"
+    };
+    return mapa[f] || f.replace(".html", "");
+  }
+
   function initTracking() {
+    var herramienta = herramientaActual();
+
+    /* 1. Que se abre. */
+    track("herramienta_abierta", { herramienta: herramienta });
+
+    /* 2. Los CTA que ya estaban marcados a mano. */
     document.addEventListener("click", function (ev) {
       var el = ev.target && ev.target.closest ? ev.target.closest("[data-mc-event]") : null;
       if (!el) return;
-      track(el.getAttribute("data-mc-event"), { destino: el.getAttribute("href") || undefined });
+      track(el.getAttribute("data-mc-event"), {
+        herramienta: herramienta,
+        destino: el.getAttribute("href") || undefined
+      });
     }, true);
+
+    /* 3. Que se USA de verdad. Abrir una herramienta y no apretar nada es
+          distinto de usarla, y hoy no habia forma de distinguirlo. */
+    var accionesClave = {
+      "btnAnalyze": "analisis_corrido",
+      "go": "publicacion_analizada",
+      "btnCalc": "envio_calculado",
+      "btnEjemplo": "ejemplo_pedido",
+      "btnModoCompleto": "margen_modo_completo",
+      "btnModoSimple": "margen_modo_simple"
+    };
+    Object.keys(accionesClave).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener("click", function () {
+        track(accionesClave[id], { herramienta: herramienta });
+      });
+    });
+
+    /* Botones del Radar y de MargenClear, que no tienen id fijo. */
+    document.addEventListener("click", function (ev) {
+      var b = ev.target && ev.target.closest ? ev.target.closest("button") : null;
+      if (!b) return;
+      var t = (b.textContent || "").toLowerCase();
+      if (/buscar oportunidades/.test(t)) track("radar_buscado", { herramienta: herramienta });
+      else if (/competencia en argentina/.test(t)) track("radar_competencia", { herramienta: herramienta });
+      else if (/lo buscan en argentina/.test(t)) track("radar_demanda", { herramienta: herramienta });
+      else if (/agregar producto/.test(t)) track("margen_producto_agregado", { herramienta: herramienta });
+    }, true);
+
+    /* 4. Donde se cae: los errores que el usuario efectivamente ve. */
+    var yaAvisado = {};
+    function reportarError(motivo) {
+      if (!motivo || yaAvisado[motivo]) return;
+      yaAvisado[motivo] = 1;
+      track("error_visible", { herramienta: herramienta, motivo: String(motivo).slice(0, 60) });
+    }
+    window.addEventListener("error", function (e) {
+      reportarError(e && e.message);
+    });
+    window.addEventListener("unhandledrejection", function (e) {
+      reportarError(e && e.reason && e.reason.message);
+    });
+
+    /* Sesion caida: el backend contesta 401 y el usuario ve un cartel. */
+    if (typeof window.fetch === "function") {
+      var f = window.fetch;
+      window.fetch = function () {
+        return f.apply(this, arguments).then(function (r) {
+          if (r && r.status === 401) reportarError("sesion_requerida");
+          return r;
+        });
+      };
+    }
   }
 
   /* ---------------------------------------------------------------------
@@ -117,6 +197,127 @@
      2. Aparicion al hacer scroll
         Umbral bajo + red de seguridad: si algo falla, se ve igual.
      --------------------------------------------------------------------- */
+
+  /* ---------------------------------------------------------------------
+     Globo de asesoria
+     ---------------------------------------------------------------------
+     Antes este bloque estaba copiado a mano en 9 archivos HTML y en app.js,
+     y en todos se abria solo a los 1,4 segundos. Resultado: tapaba los
+     botones de cuotas de MargenClear, un campo de Flex vs Full, la tabla del
+     Dashboard y el ejemplo "Asi NO / Asi SI" de Educacion.
+
+     Ahora hay una sola copia y la regla es simple: en una herramienta el
+     usuario esta trabajando, asi que solo ve la pestania chica. En la portada
+     el globo aparece recien cuando bajo lo suficiente como para mostrar
+     interes. Una vez cerrado, no vuelve a abrirse solo.
+     --------------------------------------------------------------------- */
+
+  /* ---------------------------------------------------------------------
+     Sesion en cada llamada al backend
+     ---------------------------------------------------------------------
+     Varios endpoints consumen creditos de servicios externos (Apify para el
+     Radar, Anthropic para el asesor). Ahora el servidor exige sesion, asi
+     que el navegador tiene que mandarla. Se hace envolviendo fetch una vez,
+     para que ninguna llamada nueva se olvide de hacerlo.
+     --------------------------------------------------------------------- */
+  function initSesionEnFetch() {
+    if (typeof window.fetch !== "function" || window.__mcFetchListo) return;
+    window.__mcFetchListo = true;
+    var fetchOriginal = window.fetch.bind(window);
+
+    function esNuestro(url) {
+      try {
+        var u = new URL(url, location.href);
+        return u.origin === location.origin && u.pathname.indexOf("/api/") === 0;
+      } catch (e) { return false; }
+    }
+
+    window.fetch = function (recurso, opciones) {
+      try {
+        var url = (typeof recurso === "string") ? recurso : (recurso && recurso.url);
+        if (!esNuestro(url)) return fetchOriginal(recurso, opciones);
+
+        var token = null;
+        try { token = localStorage.getItem("pf_token"); } catch (e) {}
+        if (!token) return fetchOriginal(recurso, opciones);
+
+        // Request object: se clona con la cabecera agregada.
+        if (typeof recurso !== "string" && recurso && recurso.headers) {
+          if (!recurso.headers.get("Authorization")) {
+            var r2 = new Request(recurso, { headers: new Headers(recurso.headers) });
+            r2.headers.set("Authorization", "Bearer " + token);
+            return fetchOriginal(r2, opciones);
+          }
+          return fetchOriginal(recurso, opciones);
+        }
+
+        var op = Object.assign({}, opciones || {});
+        var h = new Headers((op.headers) || {});
+        if (!h.get("Authorization")) h.set("Authorization", "Bearer " + token);
+        op.headers = h;
+        return fetchOriginal(recurso, op);
+      } catch (e) {
+        return fetchOriginal(recurso, opciones);
+      }
+    };
+  }
+
+  function initGlobo() {
+    var bal = document.getElementById("mcBalloon");
+    var tab = document.getElementById("mcBlTab");
+    var cb  = document.getElementById("mcBlClose");
+    if (!bal && !tab) return;
+    if (bal && bal.dataset.mcGlobo === "1") return;   // ya inicializado
+    if (bal) bal.dataset.mcGlobo = "1";
+
+    var cerradoAntes = false;
+    try { cerradoAntes = localStorage.getItem("mc_promo_closed") === "1"; } catch (e) {}
+
+    function abrir() {
+      if (tab) tab.style.display = "none";
+      if (bal) { bal.style.display = "block"; setTimeout(function () { bal.classList.add("show"); }, 30); }
+    }
+    function cerrar() {
+      if (bal) bal.classList.remove("show");
+      setTimeout(function () {
+        if (bal) bal.style.display = "none";
+        if (tab) tab.style.display = "flex";
+      }, 400);
+      try { localStorage.setItem("mc_promo_closed", "1"); } catch (e) {}
+    }
+    function soloPestania() {
+      if (bal) bal.style.display = "none";
+      if (tab) tab.style.display = "flex";
+    }
+
+    if (cb)  cb.addEventListener("click", cerrar);
+    if (tab) tab.addEventListener("click", function () {
+      try { localStorage.removeItem("mc_promo_closed"); } catch (e) {}
+      abrir();
+    });
+
+    var ruta = location.pathname.replace(/\/+$/, "");
+    var enPortada = ruta === "" || /\/index\.html$/.test(ruta);
+    soloPestania();
+    if (cerradoAntes || !enPortada) return;
+
+    var yaAbrio = false;
+    function alBajar() {
+      if (yaAbrio) return;
+      var recorrible = document.documentElement.scrollHeight - window.innerHeight;
+      if (recorrible > 0 && window.scrollY / recorrible >= 0.4) {
+        yaAbrio = true;
+        window.removeEventListener("scroll", alBajar);
+        abrir();
+      }
+    }
+    window.addEventListener("scroll", alBajar, { passive: true });
+    setTimeout(function () {
+      if (yaAbrio) return;
+      if (document.documentElement.scrollHeight - window.innerHeight <= 0) { yaAbrio = true; abrir(); }
+    }, 6000);
+  }
+
   function initReveal() {
     var nodes = document.querySelectorAll(".mc-reveal");
     if (!nodes.length) return;
@@ -560,11 +761,17 @@
     safe(injectSprite, "iconos");
     safe(initNav, "nav");
     safe(initReveal, "aparicion");
+    safe(initGlobo, "globo-asesoria");
     safe(initHeroGradient, "hero");
     safe(initPalette, "command-palette");
     safe(initCtaLabels, "etiquetas-cta");
     safe(initTracking, "medicion");
   }
+
+  // Esto NO puede esperar a boot(): mc-ui.js se parsea despues de app.js,
+  // pero antes de que corra ningun DOMContentLoaded. Envolvemos fetch aca
+  // para que la primera llamada de cualquier pagina ya lleve la sesion.
+  try { initSesionEnFetch(); } catch (e) {}
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);

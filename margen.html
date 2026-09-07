@@ -168,6 +168,27 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Chivo:wght@300;400;500;600;700;900&family=Chivo+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="theme.css?v=20260830b">
+<style>
+/* Modo simple: se pliega lo avanzado, no se borra nada. */
+body.modo-simple [data-nivel="avanzado"]{ display:none !important; }
+.modo-barra{
+  display:flex; align-items:center; flex-wrap:wrap; gap:8px;
+  margin:0 0 16px; padding:10px 12px;
+  border:1px solid var(--line,#2a2a2a); border-radius:12px;
+  background:rgba(255,255,255,.02);
+}
+.modo-btn{
+  cursor:pointer; border:1px solid var(--line,#2a2a2a); background:transparent;
+  color:var(--text2,#aaa); font-weight:700; font-size:.8rem;
+  padding:7px 14px; border-radius:99px; transition:.15s;
+}
+.modo-btn:hover{ color:var(--text,#fff); }
+.modo-btn.activo{ background:var(--gold,#FFE600); border-color:var(--gold,#FFE600); color:#111; }
+.modo-ayuda{ flex:1 1 260px; min-width:220px; font-size:.76rem; line-height:1.45; color:var(--text3,#888); }
+@media (prefers-reduced-motion:reduce){ .modo-btn{ transition:none; } }
+</style>
+<script defer src="/_vercel/insights/script.js"></script>
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
 </head>
 <body>
 <div data-mc-nav="margen"></div>
@@ -252,28 +273,36 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
   </div>
 </div>
 
+<!-- MODO -->
+<div class="modo-barra" role="group" aria-label="Nivel de detalle del c&aacute;lculo">
+  <button type="button" class="modo-btn activo" id="btnModoSimple" aria-pressed="true">Modo simple</button>
+  <button type="button" class="modo-btn" id="btnModoCompleto" aria-pressed="false">Modo completo</button>
+  <span class="modo-ayuda" id="modoAyuda">Lo m&iacute;nimo para saber si te conviene. Los impuestos y gastos quedan en sus valores por defecto.</span>
+</div>
+
 <!-- CONFIG GLOBAL -->
 <div class="section">
   <div class="section-title"><svg class="ic" aria-hidden="true"><use href="#i-gear"></use></svg> Configuración global</div>
   <div class="grid4">
     <div class="field">
-      <label>Tipo de cambio USD → ARS</label>
-      <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="tipoCambio" value="1250" min="1" oninput="recalcAll()"></div>
+      <label for="tipoCambio">Tipo de cambio USD → ARS</label>
+      <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="tipoCambio" value="1250" min="1" oninput="tcEditadoAMano=true; recalcAll()"></div>
+      <div class="hint" id="tcOrigen">Buscando la cotizaci&oacute;n de hoy&hellip;</div>
     </div>
-    <div class="field">
-      <label>Período del informe</label>
+    <div data-nivel="avanzado" class="field">
+      <label for="periodo">Período del informe</label>
       <select id="periodo" onchange="recalcAll()">
         <option value="semanal">Semanal (7 días)</option>
         <option value="quincenal" selected>Quincenal (15 días)</option>
         <option value="mensual">Mensual (30 días)</option>
       </select>
     </div>
-    <div class="field">
-      <label>Nombre del cliente / negocio</label>
+    <div data-nivel="avanzado" class="field">
+      <label for="clienteNombre">Nombre del cliente / negocio</label>
       <input type="text" id="clienteNombre" placeholder="Ej: Tienda AuriculAR">
     </div>
-    <div class="field">
-      <label>Fecha del informe</label>
+    <div data-nivel="avanzado" class="field">
+      <label for="fechaInforme">Fecha del informe</label>
       <input type="text" id="fechaInforme">
     </div>
   </div>
@@ -285,7 +314,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 
   <!-- Tipo publicacion y comision -->
   <div style="margin-bottom:14px">
-    <label>Tipo de publicación (aplica a todos los productos por defecto)</label>
+    <span class="campo-titulo">Tipo de publicación (aplica a todos los productos por defecto)</span>
     <div class="chip-row">
       <div class="chip active-chip" id="chip-clasica" onclick="selectTipoPub('clasica')">Clásica — 13.5%</div>
       <div class="chip inactive-chip" id="chip-premium" onclick="selectTipoPub('premium')">Premium — 16%</div>
@@ -294,22 +323,23 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
       <div class="chip inactive-chip" id="chip-custom" onclick="selectTipoPub('custom')">Personalizada</div>
     </div>
     <div id="custom-comision-row" style="display:none;margin-top:8px;max-width:200px">
-      <label>Comisión personalizada (%)</label>
+      <label for="comisionCustom">Comisión personalizada (%)</label>
       <div class="pfx"><span class="sfx-sym">%</span><input type="number" class="has-sfx" id="comisionCustom" value="13.5" step="0.5" min="0" max="100" oninput="recalcAll()"></div>
     </div>
+    <div class="hint" id="comisionOrigen">Consultando las comisiones de MercadoLibre&hellip;</div>
     <input type="hidden" id="comisionMeli" value="13.5">
   </div>
   <div class="divider"></div>
 
   <!-- IVA + cuotas + envio -->
-  <div class="grid3" style="margin-bottom:14px">
+  <div data-nivel="avanzado" class="grid3" style="margin-bottom:14px">
     <div class="field">
-      <label>IVA sobre comisión MeLi (%)</label>
+      <label for="ivaComision">IVA sobre comisión MeLi (%)</label>
       <div class="pfx"><span class="sfx-sym">%</span><input type="number" class="has-sfx" id="ivaComision" value="21" min="0" max="100" oninput="recalcAll()"></div>
       <div class="hint">MeLi factura IVA 21% sobre su comisión. Siempre aplica.</div>
     </div>
     <div class="field">
-      <label>Modalidad de envío</label>
+      <label for="modalidadEnvio">Modalidad de envío</label>
       <select id="modalidadEnvio" onchange="onEnvioChange()">
         <option value="gratis_meli">Envío gratis por MeLi (vendedor absorbe)</option>
         <option value="meli_cargo">MercadoEnvíos (MeLi cobra al comprador)</option>
@@ -320,15 +350,15 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
       <div class="hint" id="envioHint">El costo lo absorbés vos como vendedor.</div>
     </div>
     <div class="field">
-      <label>Costo de envío estimado (ARS/unidad)</label>
+      <label for="costoEnvio">Costo de envío estimado (ARS/unidad)</label>
       <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="costoEnvio" value="1500" min="0" oninput="recalcAll()"></div>
       <div class="hint">Promedio para tus productos. Ver referencia arriba.</div>
     </div>
   </div>
 
   <!-- Cuotas -->
-  <div style="margin-bottom:14px">
-    <label>Cuotas sin interés que ofrecés (cargo al vendedor)</label>
+  <div data-nivel="avanzado" style="margin-bottom:14px">
+    <span class="campo-titulo">Cuotas sin interés que ofrecés (cargo al vendedor)</span>
     <div class="cuotas-grid">
       <div class="cuota-btn active" id="cuota-1" onclick="selectCuotas(1)">
         <div class="cuota-num">1 cuota</div><div class="cuota-costo">+0%</div><div class="cuota-label">sin cargo</div>
@@ -353,25 +383,25 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
   <div class="divider"></div>
 
   <!-- Impuestos -->
-  <div style="margin-bottom:6px;font-size:.76rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px">Impuestos y percepciones</div>
-  <div class="grid4">
+  <div data-nivel="avanzado" style="margin-bottom:6px;font-size:.76rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px">Impuestos y percepciones</div>
+  <div data-nivel="avanzado" class="grid4">
     <div class="field">
-      <label>Ingresos Brutos — IIBB (%)</label>
+      <label for="iibb">Ingresos Brutos — IIBB (%)</label>
       <div class="pfx"><span class="sfx-sym">%</span><input type="number" class="has-sfx" id="iibb" value="3" step="0.5" min="0" oninput="recalcAll()"></div>
       <div class="hint">Se aplica sobre el precio de venta. Varía por provincia (3%–5%).</div>
     </div>
     <div class="field">
-      <label>Percepción AFIP RG 2937 (%)</label>
+      <label for="percAfip">Percepción AFIP RG 2937 (%)</label>
       <div class="pfx"><span class="sfx-sym">%</span><input type="number" class="has-sfx" id="percAfip" value="0" step="0.1" min="0" oninput="recalcAll()"></div>
       <div class="hint">Solo responsables inscriptos o excluidos de monotributo. 0.5%–1%.</div>
     </div>
     <div class="field">
-      <label>Impuesto a las ganancias (%)</label>
+      <label for="impGanancias">Impuesto a las ganancias (%)</label>
       <div class="pfx"><span class="sfx-sym">%</span><input type="number" class="has-sfx" id="impGanancias" value="0" step="1" min="0" oninput="recalcAll()"></div>
       <div class="hint">Sobre ganancia neta. RI: 35%. Monotributo: 0% (ya incluido en cuota).</div>
     </div>
     <div class="field">
-      <label>Devoluciones estimadas (%)</label>
+      <label for="devoluciones">Devoluciones estimadas (%)</label>
       <div class="pfx"><span class="sfx-sym">%</span><input type="number" class="has-sfx" id="devoluciones" value="2" step="0.5" min="0" oninput="recalcAll()"></div>
       <div class="hint">% de ventas con devolución (promedio MeLi: 2%–5%). Impacta la ganancia real.</div>
     </div>
@@ -379,25 +409,25 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 </div>
 
 <!-- GASTOS OPERATIVOS -->
-<div class="section">
+<div data-nivel="avanzado" class="section">
   <div class="section-title"><svg class="ic" aria-hidden="true"><use href="#i-build"></use></svg> Gastos operativos propios</div>
   <div class="grid4">
     <div class="field">
-      <label>Gastos fijos mensuales (ARS)</label>
+      <label for="gastosFijos">Gastos fijos mensuales (ARS)</label>
       <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="gastosFijos" value="0" min="0" oninput="recalcAll()"></div>
       <div class="hint">Alquiler, empleados, servicios, contabilidad.</div>
     </div>
     <div class="field">
-      <label>Publicidad / MeLi Ads (ARS/mes)</label>
+      <label for="publicidad">Publicidad / MeLi Ads (ARS/mes)</label>
       <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="publicidad" value="0" min="0" oninput="recalcAll()"></div>
       <div class="hint">Inversión en Mercado Ads u otras plataformas.</div>
     </div>
     <div class="field">
-      <label>Otros fijos (ARS/mes)</label>
+      <label for="otrosFijos">Otros fijos (ARS/mes)</label>
       <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="otrosFijos" value="0" min="0" oninput="recalcAll()"></div>
     </div>
     <div class="field">
-      <label>Otros variables (% sobre venta)</label>
+      <label for="otrosVar">Otros variables (% sobre venta)</label>
       <div class="pfx"><span class="sfx-sym">%</span><input type="number" class="has-sfx" id="otrosVar" value="0" step="0.5" min="0" oninput="recalcAll()"></div>
       <div class="hint">Embalaje, etiquetas, etc.</div>
     </div>
@@ -409,30 +439,30 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
   <div class="section-title"><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Agregar producto</div>
   <div class="grid3" style="margin-bottom:10px">
     <div class="field">
-      <label>Nombre del producto</label>
+      <label for="pNombre">Nombre del producto</label>
       <input type="text" id="pNombre" placeholder="Ej: Auriculares Bluetooth XM4">
     </div>
     <div class="field">
-      <label>Precio de venta en MeLi (ARS)</label>
+      <label for="pPrecioVenta">Precio de venta en MeLi (ARS)</label>
       <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="pPrecioVenta" placeholder="45000" min="0"></div>
     </div>
     <div class="field">
-      <label>Costo del producto (ARS)</label>
+      <label for="pCosto">Costo del producto (ARS)</label>
       <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="pCosto" placeholder="12000" min="0"></div>
       <div class="hint">Si comprás en USD multiplicá por el tipo de cambio arriba.</div>
     </div>
   </div>
   <div class="grid4" style="margin-bottom:12px">
     <div class="field">
-      <label>Stock disponible (uds)</label>
+      <label for="pStock">Stock disponible (uds)</label>
       <input type="number" id="pStock" placeholder="50" min="0">
     </div>
     <div class="field">
-      <label>Ventas estimadas / día</label>
+      <label for="pVentasDia">Ventas estimadas / día</label>
       <input type="number" id="pVentasDia" placeholder="3" min="0" step="0.1">
     </div>
     <div class="field">
-      <label>Tipo de pub. propio (opcional)</label>
+      <label for="pTipoPub">Tipo de pub. propio (opcional)</label>
       <select id="pTipoPub">
         <option value="">Usar global</option>
         <option value="clasica">Clásica — 13.5%</option>
@@ -442,12 +472,12 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
       </select>
     </div>
     <div class="field">
-      <label>Envío propio (ARS, opcional)</label>
+      <label for="pEnvio">Envío propio (ARS, opcional)</label>
       <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="pEnvio" placeholder="" min="0"></div>
       <div class="hint">Vacío = usa el global.</div>
     </div>
     <div class="field">
-      <label>Empaque (ARS/u)</label>
+      <label for="pEmpaque">Empaque (ARS/u)</label>
       <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="pEmpaque" placeholder="1500" min="0"></div>
       <div class="hint">Costo de caja, bolsa, cinta, etc.</div>
     </div>
@@ -479,20 +509,20 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
   <div class="notice">PDF con portada profesional, resumen ejecutivo, desglose completo de costos y ficha por producto. Listo para enviar al cliente.</div>
   <div class="grid3">
     <div class="field">
-      <label>Marca / empresa</label>
+      <label for="pdfBrand">Marca / empresa</label>
       <input type="text" id="pdfBrand" value="MargenClear" placeholder="Tu marca">
     </div>
     <div class="field">
-      <label>Email de contacto</label>
+      <label for="pdfEmail">Email de contacto</label>
       <input type="text" id="pdfEmail" placeholder="tu@email.com">
     </div>
     <div class="field">
-      <label>WhatsApp</label>
+      <label for="pdfWa">WhatsApp</label>
       <input type="text" id="pdfWa" placeholder="+54 11 ...">
     </div>
   </div>
   <div class="field" style="margin-top:10px">
-    <label>Nota personalizada para el cliente</label>
+    <label for="pdfNota">Nota personalizada para el cliente</label>
     <textarea id="pdfNota" rows="2" placeholder="Ej: Informe quincenal 01/04–15/04. Cualquier consulta al WhatsApp."></textarea>
   </div>
   <button class="btn btn-gold" style="margin-top:12px" onclick="exportPDF()"><svg class="ic" aria-hidden="true"><use href="#i-down"></use></svg> Generar y descargar PDF</button>
@@ -503,8 +533,75 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 // ========== STATE ==========
 let products = [];
 let nextId = 1;
+// Estos valores son solo el punto de partida mientras el servidor responde.
+// La comision real la publica MercadoLibre y la trae /api/herramientas.
+// Si la consulta falla, se sigue con estos y la pantalla avisa que son
+// manuales, en vez de presentarlos como dato de MercadoLibre.
 const TIPO_COM = { clasica: 13.5, premium: 16, moda: 16, gratuita: 0, custom: null };
+let comisionesSonReales = false;
+
+(async function traerComisionesReales() {
+  const aviso = document.getElementById('comisionOrigen');
+  try {
+    const r = await fetch('/api/herramientas', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'comisiones', precio: 100000 })
+    });
+    const d = await r.json();
+    if (!d || !d.ok) throw new Error((d && d.motivo) || 'sin datos');
+
+    let cambio = false;
+    if (d.clasica && d.clasica.porcentaje > 0) { TIPO_COM.clasica = d.clasica.porcentaje; cambio = true; }
+    if (d.premium && d.premium.porcentaje > 0) { TIPO_COM.premium = d.premium.porcentaje; cambio = true; }
+    if (d.gratuita) TIPO_COM.gratuita = d.gratuita.porcentaje || 0;
+    // "Moda" no es un tipo de publicacion de MercadoLibre: es una categoria
+    // con su propia comision. Sin elegir categoria no se puede afirmar nada,
+    // asi que se queda con el valor manual.
+    if (!cambio) throw new Error('sin porcentajes utilizables');
+
+    comisionesSonReales = true;
+    // repintar los chips con el numero nuevo
+    const etiquetas = { clasica: 'Clásica', premium: 'Premium', moda: 'Moda', gratuita: 'Gratuita' };
+    Object.keys(etiquetas).forEach(function (k) {
+      const chip = document.getElementById('chip-' + k);
+      if (chip && TIPO_COM[k] !== null) chip.textContent = etiquetas[k] + ' — ' + TIPO_COM[k] + '%';
+    });
+    if (typeof selectTipoPub === 'function' && typeof currentTipoPub !== 'undefined') selectTipoPub(currentTipoPub);
+    else if (typeof recalcAll === 'function') recalcAll();
+
+    if (aviso) aviso.innerHTML = 'Comisiones tra&iacute;das de MercadoLibre reci&eacute;n, para un precio de referencia de $100.000. ' +
+      'Var&iacute;an por categor&iacute;a: si vend&eacute;s en una con comisi&oacute;n distinta, us&aacute; "Personalizada".';
+    if (aviso) aviso.className = 'hint ok';
+  } catch (e) {
+    if (aviso) aviso.innerHTML = 'No pudimos traer las comisiones de MercadoLibre ahora, as&iacute; que estos porcentajes son <b>valores de referencia cargados a mano</b>. ' +
+      'Confirmalos en tu panel de vendedor antes de tomar una decisi&oacute;n.';
+    if (aviso) aviso.className = 'hint warn';
+  }
+})();
 const CARGO_CUOTAS = { 1:0, 3:3, 6:5.5, 9:9, 12:12 };
+
+// El tipo de cambio ya no arranca clavado: se pide el dolar tarjeta del dia,
+// que es el que efectivamente pagas cuando comprás afuera. Si el usuario lo
+// toca a mano, dejamos de pisarlo.
+let tcEditadoAMano = false;
+(async function traerTipoDeCambio() {
+  const campo = document.getElementById('tipoCambio');
+  const origen = document.getElementById('tcOrigen');
+  try {
+    const r = await fetch('/api/analyze', { cache: 'no-store' });
+    if (!r.ok) throw new Error('sin respuesta');
+    const d = await r.json();
+    const venta = Number(d && d.dolar);
+    if (!isFinite(venta) || venta <= 0) throw new Error('sin valor');
+    if (!tcEditadoAMano && campo) {
+      campo.value = Math.round(venta);
+      if (typeof recalcAll === 'function') recalcAll();
+    }
+    if (origen) origen.textContent = 'D\u00f3lar tarjeta de hoy, tra\u00eddo en vivo. Pod\u00e9s cambiarlo si compr\u00e1s a otro tipo de cambio.';
+  } catch (e) {
+    if (origen) origen.textContent = 'No pudimos traer la cotizaci\u00f3n de hoy. Revis\u00e1 este n\u00famero antes de confiar en el resultado.';
+  }
+})();
 let currentTipoPub = 'clasica';
 let currentCuotas = 1;
 
@@ -942,15 +1039,43 @@ document.addEventListener('DOMContentLoaded', () => {
       try{ ['pf_user','pf_role','pf_expiry'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
       window.location.href = 'index.html';
     });
-    var bal=document.getElementById('mcBalloon'), tab=document.getElementById('mcBlTab'), cb=document.getElementById('mcBlClose'), dm=false;
-    try{ dm = localStorage.getItem('mc_promo_closed')==='1'; }catch(e){}
-    function op(){ if(tab) tab.style.display='none'; if(bal){ bal.style.display='block'; setTimeout(function(){ bal.classList.add('show'); },30);} }
-    function cl(){ if(bal) bal.classList.remove('show'); setTimeout(function(){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; },400); try{ localStorage.setItem('mc_promo_closed','1'); }catch(e){} }
-    if(cb) cb.addEventListener('click', cl);
-    if(tab) tab.addEventListener('click', function(){ try{ localStorage.removeItem('mc_promo_closed'); }catch(e){} op(); });
-    if(dm){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; } else { setTimeout(op, 1400); }
+    // El globo de asesoria lo maneja mc-ui.js, una sola vez para toda la
+    // app. Antes esta copia se repetia en cada pagina y se abria sola a los
+    // 1,4 segundos, tapando campos del formulario.
   })();
   </script>
 <script defer src="mc-ui.js?v=20260825"></script>
+<script>
+(function(){
+  var body = document.body;
+  var bs = document.getElementById('btnModoSimple');
+  var bc = document.getElementById('btnModoCompleto');
+  var ayuda = document.getElementById('modoAyuda');
+  if(!bs || !bc) return;
+
+  var TEXTOS = {
+    simple: 'Lo m\u00ednimo para saber si te conviene. Los impuestos y gastos quedan en sus valores por defecto.',
+    completo: 'Todos los campos: impuestos, percepciones, cuotas, gastos fijos y datos del informe.'
+  };
+
+  function aplicar(modo, guardar){
+    var simple = modo !== 'completo';
+    body.classList.toggle('modo-simple', simple);
+    bs.classList.toggle('activo', simple);
+    bc.classList.toggle('activo', !simple);
+    bs.setAttribute('aria-pressed', String(simple));
+    bc.setAttribute('aria-pressed', String(!simple));
+    if(ayuda) ayuda.textContent = simple ? TEXTOS.simple : TEXTOS.completo;
+    if(guardar){ try{ localStorage.setItem('mc_margen_modo', simple ? 'simple' : 'completo'); }catch(e){} }
+  }
+
+  bs.addEventListener('click', function(){ aplicar('simple', true); });
+  bc.addEventListener('click', function(){ aplicar('completo', true); });
+
+  var guardado = null;
+  try{ guardado = localStorage.getItem('mc_margen_modo'); }catch(e){}
+  aplicar(guardado === 'completo' ? 'completo' : 'simple', false);
+})();
+</script>
 </body>
         </html>

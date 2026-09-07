@@ -128,6 +128,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Chivo:wght@300;400;500;600;700;900&family=Chivo+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="theme.css?v=20260830b">
+<script defer src="/_vercel/insights/script.js"></script>
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
 </head>
         <body>
 
@@ -152,6 +154,13 @@
       <!-- MAIN -->
       <div class="main">
 
+        <!-- ENCABEZADO -->
+        <header class="dash-head">
+          <h1>Tus ventas en MercadoLibre</h1>
+          <p>Cu&aacute;nto vendiste, cu&aacute;nto se llev&oacute; MercadoLibre y cu&aacute;nto te qued&oacute; a vos.
+             Las comisiones salen de lo que MeLi cobr&oacute; realmente en cada venta, no de una tabla estimada.</p>
+        </header>
+
         <!-- PERIODO -->
         <div class="period-bar">
           <label>Período:</label>
@@ -168,6 +177,9 @@
           <svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> <span id="alertaConexionMsg">No se encontró conexión con MercadoLibre.</span>
     <a href="/meli-connect.html" style="color:#fca5a5;margin-left:8px;font-weight:700">Conectar ahora →</a>
         </div>
+
+        <!-- ALERTA COMISIONES NO REALES -->
+        <div class="alert-bar info hidden" id="avisoComisiones"></div>
 
         <!-- ALERTA SIN COSTOS -->
         <div class="alert-bar info hidden" id="alertaCostos">
@@ -206,11 +218,11 @@
                   <th>Envío</th>
                   <th>Costo prod.</th>
                   <th>Ganancia neta</th>
-                  <th>Margen %</th>
+                  <th title="Sobre el precio de venta, ya descontada la comisi&oacute;n real que cobr&oacute; MercadoLibre.">Margen %</th>
                 </tr>
               </thead>
               <tbody id="tablaVentas">
-                <tr><td colspan="9" class="empty">Cargando...</td></tr>
+                <tr><td colspan="9" class="empty">Trayendo tus ventas de MercadoLibre&hellip;</td></tr>
               </tbody>
             </table>
           </div>
@@ -237,13 +249,13 @@
                   <th>Total</th>
                   <th>Costo USD</th>
                   <th>Embalaje $</th>
-                  <th>Margen real</th>
+                  <th title="Precio menos costo de compra y embalaje. La comisi&oacute;n se conoce reci&eacute;n cuando hay una venta.">Margen antes de comisi&oacute;n</th>
                   <th>Estado</th>
                   <th>Link</th>
                 </tr>
               </thead>
               <tbody id="tablaStock">
-                <tr><td colspan="10" class="empty">Cargando...</td></tr>
+                <tr><td colspan="10" class="empty">Trayendo tus publicaciones&hellip;</td></tr>
               </tbody>
             </table>
           </div>
@@ -381,6 +393,21 @@
     document.getElementById('kpiComisiones').textContent = ars(r.total_comisiones_ars);
     document.getElementById('kpiEnvios').textContent = ars(r.total_envios_ars);
     document.getElementById('kpiTC').textContent = '$' + r.tipo_cambio_usado.toLocaleString('es-AR');
+
+    // Honestidad sobre la fuente del numero: si MeLi no devolvio el sale_fee
+    // de alguna orden, se dice, en vez de mostrar el total como si todo
+    // fuera dato real.
+    const avisoCom = document.getElementById('avisoComisiones');
+    if (avisoCom) {
+      if (r.comisiones_todas_reales === false && r.ordenes_sin_comision_real > 0) {
+        avisoCom.innerHTML = 'De este per&iacute;odo, <strong>' + r.ordenes_sin_comision_real +
+          '</strong> ' + (r.ordenes_sin_comision_real === 1 ? 'orden no trajo' : '&oacute;rdenes no trajeron') +
+          ' la comisi&oacute;n desde MercadoLibre, as&iacute; que no est&aacute;n sumadas al total. El resto es dato real.';
+        avisoCom.classList.remove('hidden');
+      } else {
+        avisoCom.classList.add('hidden');
+      }
+    }
 
     const gEl = document.getElementById('kpiGanancia');
     gEl.textContent = ars(r.ganancia_bruta_ars);
@@ -574,20 +601,39 @@
       }
       const embalaje = c && c.costo_embalaje_ars != null ? parseFloat(c.costo_embalaje_ars) : 0;
       const costoTotal = costoUsd * tipoCambio + embalaje;
-      // Comision aproximada de MeLi para publicacion clasica, mas el cargo fijo
-      // por operacion cuando el precio lo supera.
-      const comision = p.precio * 0.1325 + (p.precio >= 6900 ? 499 : 0);
-      const neto = p.precio - comision - costoTotal;
-      const pct = p.precio > 0 ? Math.round((neto / p.precio) * 100) : 0;
+      // La comision real la sabemos por venta, no por publicacion: aca todavia
+      // no hay venta, asi que solo podemos mostrar el margen ANTES de comision.
+      // Antes se restaba un 13,25% + $499 inventados y se rotulaba "Margen %"
+      // a secas, como si fuera el margen final.
+      const brutoAntesComision = p.precio - costoTotal;
+      const pct = p.precio > 0 ? Math.round((brutoAntesComision / p.precio) * 100) : 0;
       const color = pct >= 40 ? '#22c55e' : pct >= 20 ? '#eab308' : '#ef4444';
       return `<span style="color:${color};font-weight:600">${pct}%</span>` +
-             `<div style="color:#777;font-size:11px">${ars(Math.round(neto))} por unidad</div>`;
+             `<div style="color:#777;font-size:11px">${ars(Math.round(brutoAntesComision))} por unidad, antes de comisi&oacute;n</div>`;
     }
 
   // -----------------------------------------------
   // Error de conexion MeLi
   // -----------------------------------------------
+  // Los mensajes crudos del backend no son para el usuario final: "SUPABASE_
+  // SERVICE_KEY no configurada" no le dice nada a alguien que quiere vender
+  // auriculares. Aca se traducen a algo accionable.
+  function enCriollo(msg) {
+    const m = String(msg || '');
+    if (/SUPABASE|SERVICE_KEY|no configurada|env|ENV/i.test(m))
+      return 'Todav&iacute;a no est&aacute; conectada tu cuenta de MercadoLibre a esta app.';
+    if (/expir/i.test(m))
+      return 'Tu conexi&oacute;n con MercadoLibre venci&oacute;. Volv&eacute; a vincularla y listo.';
+    if (/401|403|unauthorized|forbidden/i.test(m))
+      return 'MercadoLibre no nos dej&oacute; entrar a tu cuenta. Conviene volver a vincularla.';
+    if (/fetch|network|timeout|ECONN/i.test(m))
+      return 'No pudimos hablar con MercadoLibre reci&eacute;n. Prob&aacute; de nuevo en un minuto.';
+    if (!m) return 'No pudimos traer tus datos de MercadoLibre.';
+    return m;
+  }
+
   function mostrarErrorConexion(msg) {
+    msg = enCriollo(msg);
     loading(false);
     document.getElementById('alertaConexion').classList.remove('hidden');
     document.getElementById('alertaConexionMsg').textContent = msg;
@@ -628,13 +674,9 @@
       try{ ['pf_user','pf_role','pf_expiry'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
       window.location.href = 'index.html';
     });
-    var bal=document.getElementById('mcBalloon'), tab=document.getElementById('mcBlTab'), cb=document.getElementById('mcBlClose'), dm=false;
-    try{ dm = localStorage.getItem('mc_promo_closed')==='1'; }catch(e){}
-    function op(){ if(tab) tab.style.display='none'; if(bal){ bal.style.display='block'; setTimeout(function(){ bal.classList.add('show'); },30);} }
-    function cl(){ if(bal) bal.classList.remove('show'); setTimeout(function(){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; },400); try{ localStorage.setItem('mc_promo_closed','1'); }catch(e){} }
-    if(cb) cb.addEventListener('click', cl);
-    if(tab) tab.addEventListener('click', function(){ try{ localStorage.removeItem('mc_promo_closed'); }catch(e){} op(); });
-    if(dm){ if(bal) bal.style.display='none'; if(tab) tab.style.display='flex'; } else { setTimeout(op, 1400); }
+    // El globo de asesoria lo maneja mc-ui.js, una sola vez para toda la
+    // app. Antes esta copia se repetia en cada pagina y se abria sola a los
+    // 1,4 segundos, tapando campos del formulario.
   })();
   </script>
 <script defer src="mc-ui.js?v=20260825"></script>

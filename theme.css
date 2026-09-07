@@ -1268,3 +1268,104 @@ table tbody tr:hover td{ background:rgba(255,255,255,.025) !important; }
   filter:grayscale(.55) contrast(1.05) brightness(.86);
   transform:scale(1.04);
 }
+
+/* --------------------------------------------------------------------------
+   Encabezado de pagina (v8)
+   El Dashboard no tenia ningun <h1>: se entraba directo a los filtros de
+   periodo sin saber que era la pantalla. Este encabezado se reutiliza.
+   -------------------------------------------------------------------------- */
+.dash-head{ margin:4px 0 20px; }
+.dash-head h1{
+  font-family:var(--mc-display); font-size:clamp(1.35rem,2.4vw,1.85rem);
+  font-weight:800; letter-spacing:-.02em; margin:0 0 6px; color:var(--mc-ink);
+}
+.dash-head p{
+  margin:0; max-width:68ch; font-size:.92rem; line-height:1.55; color:var(--mc-ink-3);
+}
+
+
+/* --------------------------------------------------------------------------
+   Ilustraciones del hub (v8)
+   Una por herramienta, en SVG inline. Antes eran composiciones CSS genericas
+   y dos tarjetas compartian exactamente el mismo grafico de barras.
+   -------------------------------------------------------------------------- */
+.hp-svg{
+  width:100%; height:100%; max-width:260px; max-height:150px;
+  color:var(--mc-ink-3); overflow:visible;
+}
+.hub-card:hover .hp-svg{ color:var(--mc-ink-2); }
+.hub-card .hub-card-img{ transition:none; }
+
+/* Con 4 tarjetas: la destacada arriba y las otras tres en una fila pareja,
+   en vez de dejar una sola colgando en la ultima fila. */
+.hub-grid.bento.bento-4 .hub-card:not(.hc-feature){ grid-column:span 2; }
+@media (max-width:760px){
+  .hub-grid.bento.bento-4 .hub-card:not(.hc-feature){ grid-column:span 1; }
+}
+@media (max-width:480px){
+  .hub-grid.bento.bento-4 .hub-card:not(.hc-feature){ grid-column:span 1; }
+}
+
+/* --------------------------------------------------------------------------
+   Legibilidad (v8)
+   Dos problemas medidos en la auditoria: parrafos corriendo a 1440px de ancho
+   (unos 200 caracteres por linea, ilegible) y entre 21 y 35 elementos por
+   pagina con texto real por debajo de 12px.
+   -------------------------------------------------------------------------- */
+
+/* Ningun parrafo de lectura pasa de ~75 caracteres por linea. */
+.hub-hero-copy p,
+.ia-copy p,
+.hub-sechead small,
+.mc-hero-sub,
+.hero p,
+.qr-intro, .qr-pie,
+.dash-head p{
+  max-width:72ch;
+}
+
+/* Cuando el parrafo esta centrado, el limite tambien se centra. */
+.hero p, .hub-hero-copy > p[style*="text-align:center"]{
+  margin-left:auto; margin-right:auto;
+}
+
+/* Piso de tamano de fuente: por debajo de 12px el texto deja de ser
+   legible comodo, sobre todo en celular. */
+.hint, .note, .disc, small,
+.hub-card-body p,
+.mod-nota, .req-nota,
+.qr-grid p{
+  font-size:max(.78rem, 12.5px);
+  line-height:1.55;
+}
+
+@media (max-width:720px){
+  /* En celular el minimo sube: la pantalla esta mas cerca pero es mas chica. */
+  .hint, .note, .disc, small,
+  .hub-card-body p, .qr-grid p{
+    font-size:max(.82rem, 13px);
+  }
+}
+
+/* Parrafos de lectura de Educacion y Flex vs Full: corrian a 1360px de ancho
+   (unos 200 caracteres por linea). */
+.bloque p, .bloque li,
+.mc-glosario p, .mc-glosario li,
+.antes p, .antes li,
+.wrap > .card p, .wrap > .info p,
+#queReviso p{
+  max-width:74ch;
+}
+.step-body p, .step-body li{ max-width:74ch; }
+
+/* Estos dos son texto de lectura, no micro-etiquetas: subir el piso.
+   (Los tags en mayuscula tipo .hub-hero-tag o .badge se dejan chicos a
+   proposito: son etiquetas, no parrafos.) */
+.mock-note{ font-size:12.5px !important; line-height:1.5; }
+.ia-stat span{ font-size:12.5px !important; line-height:1.4; }
+/* Titulo de un grupo de controles: no es un <label> porque no apunta a un
+   campo unico, pero se ve igual. */
+.campo-titulo{ display:block; font-size:.78rem; font-weight:600; color:var(--text2,#aaa); margin-bottom:8px; }
+/* Aviso de origen de un dato: verde si vino de la fuente, ambar si es manual. */
+.hint.ok{ color:#86efac; }
+.hint.warn{ color:#fcd34d; }

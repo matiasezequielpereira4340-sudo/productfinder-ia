@@ -813,3 +813,72 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 .login-note{margin-top:14px;color:#777;font-size:.76rem;line-height:1.5}
 
 .v4-live{display:none !important}
+
+/* ============================================================
+   Candado del recorte gratuito (v8)
+   Las tarjetas bloqueadas ya NO traen datos: el servidor manda solo
+   los productos que corresponden. Estas son siluetas vacias, para que
+   se vea que falta contenido sin fingir que el contenido esta ahi.
+   ============================================================ */
+.product-card.pf-bloqueada{
+  position:relative; min-height:190px; pointer-events:none;
+  border-style:dashed; opacity:.5;
+  display:flex; flex-direction:column; gap:12px; justify-content:center;
+}
+.pf-bl-linea{ height:12px; border-radius:99px; background:currentColor; opacity:.16; width:78%; }
+.pf-bl-linea.corta{ width:46%; height:9px; }
+.pf-bl-grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:6px; }
+.pf-bl-grid span{ height:30px; border-radius:8px; background:currentColor; opacity:.09; }
+
+.pf-candado{
+  grid-column:1/-1; text-align:center;
+  border:1px solid var(--gold,#FFE600); border-radius:16px;
+  background:linear-gradient(160deg, rgba(255,230,0,.09), rgba(255,230,0,.02));
+  padding:26px 22px; margin-top:6px;
+}
+.pf-candado-ico{
+  width:42px; height:42px; margin:0 auto 12px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(255,230,0,.14); color:var(--gold,#FFE600);
+}
+.pf-candado h4{ margin:0 0 8px; font-size:1.06rem; font-weight:800; }
+.pf-candado p{ margin:0 auto 16px; max-width:52ch; font-size:.9rem; line-height:1.55; color:var(--text-dim,#9a9a9a); }
+.pf-candado-btn{
+  display:inline-flex; align-items:center; gap:8px; cursor:pointer;
+  background:var(--gold,#FFE600); color:#111; border:0;
+  font-weight:800; font-size:.9rem; padding:11px 20px; border-radius:10px;
+  transition:filter .15s, transform .15s;
+}
+.pf-candado-btn:hover{ filter:brightness(1.07); transform:translateY(-1px); }
+@media (prefers-reduced-motion:reduce){ .pf-candado-btn{ transition:none; } .pf-candado-btn:hover{ transform:none; } }
+
+
+/* ============================================================
+   Hero sin datos de MercadoLibre (v8)
+   Antes esto era un cartel rojo de error: lo primero que veia un
+   visitante nuevo era que algo habia fallado. Ahora explica que hace
+   la herramienta, sin inventar ni un numero.
+   ============================================================ */
+.hhd-offstate{ padding:4px 2px; }
+.hhd-offtitle{
+  margin:0 0 12px; font-size:.92rem; font-weight:800;
+  color:var(--text,#fff); letter-spacing:-.01em;
+}
+.hhd-offlist{
+  margin:0 0 14px; padding:0; list-style:none; counter-reset:paso;
+}
+.hhd-offlist li{
+  counter-increment:paso; position:relative; padding-left:28px; margin-bottom:9px;
+  font-size:.84rem; line-height:1.5; color:var(--text-dim,#a5a5a5);
+}
+.hhd-offlist li::before{
+  content:counter(paso); position:absolute; left:0; top:1px;
+  width:19px; height:19px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(255,230,0,.14); color:var(--gold,#FFE600);
+  font-size:.68rem; font-weight:800;
+}
+.hhd-offnote{
+  margin:0 0 14px; padding-top:12px; border-top:1px solid rgba(255,255,255,.07);
+  font-size:.78rem; line-height:1.55; color:var(--text3,#8a8a8a);
+}
