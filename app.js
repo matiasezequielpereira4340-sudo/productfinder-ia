@@ -1119,6 +1119,19 @@ async function runMRStep2(product){
     const tablaComp=compRows?`<table class="mr-comp-table"><thead><tr><th>#</th><th>Producto / Seller</th><th>Precio</th><th>Vendidos</th><th>Reputaci&#243;n</th></tr></thead><tbody>${compRows}</tbody></table>`:'';
     const pieFuente=`<div style="margin-top:12px"><span class="mr-tag tag-info"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg> ${mrFuenteLabel(r.fuente)}</span></div>`;
 
+    // MercadoLibre casi nunca devuelve cero: ante una busqueda sin
+    // coincidencias sirve resultados DE RESCATE y los presenta como normales.
+    // Por eso se muestra cuantas de las devueltas son de verdad del producto:
+    // el conteo bruto de MeLi no significa nada para un termino de nicho.
+    let relInfo='';
+    if(r.muestraDevuelta!=null&&r.ratioRelevancia!=null){
+      const pct=Math.round(r.ratioRelevancia*100);
+      const bajo=r.ratioRelevancia<0.5;
+      relInfo=`<div class="mr-row"><span class="mr-row-label">Coincidencia con tu b&#250;squeda</span><span class="mr-row-value" style="color:${bajo?'#e0a020':'var(--green)'}">${r.relevantes} de ${r.muestraDevuelta} (${pct}%)</span></div>`+
+        `<div style="margin-top:4px;font-size:.82rem;color:var(--text-dim)">De ${r.muestraDevuelta} publicaciones devueltas por MeLi, ${r.relevantes} coinciden con tu b&#250;squeda.${r.totalCrudoMeli?` MeLi informa ${r.totalCrudoMeli.toLocaleString('es-AR')} resultados en total, pero ese n&#250;mero es posterior al rescate y no dice cu&#225;ntos son tu producto.`:''}</div>`;
+      if(bajo) relInfo+=`<div class="mr-badge-estimacion" style="margin-top:8px">MercadoLibre te devolvi&#243; resultados, pero no son tu producto. Los precios de abajo se calculan <b>solo</b> sobre las ${r.relevantes} que coinciden.</div>`;
+    }
+
     // 8.a) Sin comparable: no es "poca competencia", es que el producto no se
     //      vende aca. Se dispara el modo aparte, que evalua otra cosa.
     if(r.sinComparable && typeof window.activarModoSinComparable==='function'){
@@ -1135,13 +1148,13 @@ async function runMRStep2(product){
         `<div class="mr-badge-estimacion">Muestra insuficiente (${r.muestra||0} ${r.muestra===1?'publicaci&#243;n':'publicaciones'}). No calculo precio de referencia con esto.</div>`+
         `<div class="mr-row"><span class="mr-row-label">Publicaciones encontradas</span><span class="mr-row-value">${r.muestra||0}</span></div>`+
         (r.sellersEstimados!=null?`<div class="mr-row"><span class="mr-row-label">Sellers &#250;nicos en la muestra</span><span class="mr-row-value">${r.sellersEstimados}</span></div>`:'')+
-        catInfo+extraInfo+
+        relInfo+catInfo+extraInfo+
         `<div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">Busc&#225; el producto en MercadoLibre y anot&#225; precio y vendidos de las primeras 10 publicaciones: con eso s&#237; se puede fijar un precio de referencia.</div>`+
         pieFuente+tablaComp;
       return;
     }
 
-    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers &#250;nicos reales</span><span class="mr-row-value">${r.sellersEstimados}</span></div><div class="mr-row"><span class="mr-row-label">Publicaciones en la muestra</span><span class="mr-row-value">${r.muestra||compData.length}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios reales</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio real</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">ARS ${fmt(r.precioPromedioARS)}</span></div>${r.envioGratisPct!=null?`<div class="mr-row"><span class="mr-row-label">Ofrecen env&#237;o gratis</span><span class="mr-row-value">${r.envioGratisPct}% (${r.envioGratisCount||0} de ${r.envioGratisTotal||0})</span></div>`:''}${catInfo}${extraInfo}${satInfo}<div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.aviso?r.aviso+' ':''}${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)"><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> Oportunidad: ${r.oportunidad}</div>`:''}${pieFuente}${tablaComp}`;
+    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers &#250;nicos reales</span><span class="mr-row-value">${r.sellersEstimados}</span></div><div class="mr-row"><span class="mr-row-label">Publicaciones en la muestra</span><span class="mr-row-value">${r.muestra||compData.length}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios reales</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio real</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">ARS ${fmt(r.precioPromedioARS)}</span></div>${relInfo}${r.envioGratisPct!=null?`<div class="mr-row"><span class="mr-row-label">Ofrecen env&#237;o gratis</span><span class="mr-row-value">${r.envioGratisPct}% (${r.envioGratisCount||0} de ${r.envioGratisTotal||0})</span></div>`:''}${catInfo}${extraInfo}${satInfo}<div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.aviso?r.aviso+' ':''}${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)"><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> Oportunidad: ${r.oportunidad}</div>`:''}${pieFuente}${tablaComp}`;
   }catch(e){
     document.getElementById('mrStep2Body').innerHTML='<span style="color:var(--red);font-size:.82rem">Error al analizar MeLi. Continu&#225; con los pasos guiados.</span>';
     mrData.step2={fuente:'no-disponible',muestraInsuficiente:true,muestra:0,sellersEstimados:null,precioMinARS:null,precioMaxARS:null,precioPromedioARS:null,competenciaScore:null,saturacion:null,envioGratisPct:null,competitors:[]};
@@ -3319,8 +3332,17 @@ function goHome(){
       else if (pendientes) chips.push({ t:'Brasil/México', c:'ambar', d:'Consultando ' + (pendientes === 2 ? 'los dos países' : 'el país que falta') + '...' });
       else if (sinDato === 2) chips.push({ t:'Brasil/México', c:'rojo', d:'Ninguno de los dos se pudo consultar' });
       else if (sinDato === 1) chips.push({ t:'Brasil/México', c:'ambar', d:'Solo uno de los dos respondió' });
-      else chips.push({ t:'Brasil/México', c:'verde',
-        d:'Medido: BR ' + ex.conteos.MLB + ' · MX ' + ex.conteos.MLM + ' publicaciones' });
+      else {
+        const rel = ex.relevancia || {};
+        const NOM = { MLB:'BR', MLM:'MX' };
+        const desc = k => {
+          const n = ex.conteos[k];
+          const r = rel[k];
+          if (n === 0 && r && r.devueltas > 0) return NOM[k] + ' 0 de ' + r.devueltas + ' (rescate)';
+          return NOM[k] + ' ' + n;
+        };
+        chips.push({ t:'Brasil/México', c:'verde', d:'Medido: ' + desc('MLB') + ' · ' + desc('MLM') });
+      }
       const a = md.antiguedad || { valor:'sin-dato' };
       if (a.valor === 'sin-dato') chips.push({ t:'Antigüedad demanda', c:'rojo', d:'Sin medir: completá el paso 5' });
       else if (a.valor === 'mixta') chips.push({ t:'Antigüedad demanda', c:'ambar', d:'Señales mezcladas' });
@@ -3793,9 +3815,18 @@ function goHome(){
     var C = function(t,d,clave){ var o = { texto:t, dato:d, peso:'critico' }; if(clave) o.clave=clave; return o; };
 
     // --- La critica de base: no hay comparable ---
+    let datoBase;
+    if (s2.muestraDevuelta != null && s2.muestraDevuelta > 0 && s2.relevantes === 0){
+      // El caso que de verdad se da: MeLi devolvio publicaciones de rescate.
+      datoBase = 'MeLi devolvio ' + s2.muestraDevuelta + ' publicaciones y NINGUNA es de este producto';
+    } else if (s2.muestraDevuelta != null && s2.ratioRelevancia != null){
+      datoBase = s2.relevantes + ' de ' + s2.muestraDevuelta + ' publicaciones coinciden (' + Math.round(s2.ratioRelevancia * 100) + '%)';
+    } else {
+      datoBase = (s2.muestra || 0) + ((s2.muestra === 1) ? ' publicacion encontrada' : ' publicaciones encontradas') + ' en MercadoLibre Argentina';
+    }
     senales.criticos.push(C(
       'Sin comparable en MeLi Argentina. No hay evidencia de que este producto se venda aca.',
-      (s2.muestra || 0) + ((s2.muestra === 1) ? ' publicacion encontrada' : ' publicaciones encontradas') + ' en MercadoLibre Argentina',
+      datoBase,
       'sin-comparable'));
 
     // --- 8.b) Categoria madre ---
@@ -3829,10 +3860,17 @@ function goHome(){
       // o sea que Argentina tiene 2 publicaciones o menos. Una publicacion
       // suelta no es "ya esta aca".
       const noLlegoAca = e.MLA === false || (arN != null && arN <= 2);
-      if (e.MLB === true && brN != null && brN >= 15 && noLlegoAca){
+      // El umbral de 15 se compara contra las publicaciones RELEVANTES
+      // estimadas (ratio x total de MeLi), no contra el conteo bruto ni contra
+      // las relevantes de la muestra: la muestra esta topeada en 30-40 ids, asi
+      // que ese numero satura y un mercado grande se veria igual que uno chico.
+      var relBR = (expl.relevancia && expl.relevancia.MLB) || null;
+      var brEstimadas = relBR && relBR.estimadas != null ? relBR.estimadas : brN;
+      if (e.MLB === true && brEstimadas != null && brEstimadas >= 15 && noLlegoAca){
         senales.aFavor.push(F(
           'Se vende en Brasil y todavia no llego aca. Es la senal mas fuerte de ventana real que puedo darte.',
-          'Brasil ' + nf(brN) + ' publicaciones vs Argentina ' + (arN != null ? nf(arN) : 'sin dato')));
+          'Brasil ~' + nf(brEstimadas) + ' publicaciones del producto (' + (relBR ? relBR.relevantes + ' de ' + relBR.devueltas + ' de la muestra coinciden' : 'estimado') +
+          ') vs Argentina ' + (arN != null ? nf(arN) : 'sin dato')));
       }
       if (e.MLA === false && e.MLB === false && e.MLM === false){
         senales.criticos.push(C(
@@ -3900,6 +3938,10 @@ function goHome(){
     // consultado bien y hayan dado cero. Un escalon bloqueado no prueba
     // ausencia de categoria.
     var sinCategoriaMadre = expl.categoriaMadreAusenteConfirmada === true;
+    // MercadoLibre casi nunca devuelve cero: para una busqueda sin
+    // coincidencias sirve resultados de rescate. Por eso "no existe" NO es un
+    // conteo en cero sino relevancia por debajo del minimo, y existeEn ya
+    // viene resuelto asi desde el backend (estado 'noExiste' -> false).
     var noExisteRegion = e.MLA === false && e.MLB === false && e.MLM === false;
     var testCero = test && test.encontradas === 0;
 
@@ -3944,7 +3986,11 @@ function goHome(){
         ] };
     }
 
-    var brN = c.MLB;
+    // Mismo criterio que la senal de ventana: publicaciones relevantes
+    // ESTIMADAS (ratio x total), no el conteo de la muestra, que esta topeada
+    // en 30-40 ids y satura.
+    var relBR = (expl.relevancia && expl.relevancia.MLB) || null;
+    var brN = (relBR && relBR.estimadas != null) ? relBR.estimadas : c.MLB;
     if (ant.valor === 'nueva' && e.MLB === true && brN != null && brN >= 15 && test.suficiente === true){
       return { clave:'si', titulo:'VENTANA REAL — TEST CHICO',
         sub:'Es la mejor configuración posible sin comparable local. Igual entrá con el test mínimo, no con volumen.',
@@ -4003,11 +4049,16 @@ function goHome(){
     var pExpl = pedir('exploracion').then(function(r){
       // Se conserva lo que ya hubiera llegado de la region.
       var previo = mrData.exploracion || {};
+      // Todos los mapas indexados por pais se mergean. Antes faltaban
+      // relevancia y estados, y sin relevancia la senal de ventana de Brasil
+      // no se podia emitir nunca: leia un objeto que solo tenia Argentina.
       mrData.exploracion = Object.assign({}, r, {
-        terminos: Object.assign({}, r.terminos, previo.terminos),
-        paises:   Object.assign({}, r.paises,   previo.paises),
-        conteos:  Object.assign({}, r.conteos,  previo.conteos),
-        existeEn: Object.assign({}, r.existeEn, previo.existeEn)
+        terminos:   Object.assign({}, r.terminos,   previo.terminos),
+        paises:     Object.assign({}, r.paises,     previo.paises),
+        conteos:    Object.assign({}, r.conteos,    previo.conteos),
+        existeEn:   Object.assign({}, r.existeEn,   previo.existeEn),
+        estados:    Object.assign({}, r.estados,    previo.estados),
+        relevancia: Object.assign({}, r.relevancia, previo.relevancia)
       });
       pintarExploracion(mrData.exploracion);
       refrescarDecision();
@@ -4017,12 +4068,14 @@ function goHome(){
     });
 
     var pReg = pedir('region').then(function(r){
-      var base = mrData.exploracion || { terminos:{}, paises:{}, conteos:{}, existeEn:{} };
+      var base = mrData.exploracion || { terminos:{}, paises:{}, conteos:{}, existeEn:{}, estados:{}, relevancia:{} };
       mrData.exploracion = Object.assign({}, base, {
-        terminos: Object.assign({}, base.terminos, r.terminos),
-        paises:   Object.assign({}, base.paises,   r.paises),
-        conteos:  Object.assign({}, base.conteos,  r.conteos),
-        existeEn: Object.assign({}, base.existeEn, r.existeEn),
+        terminos:   Object.assign({}, base.terminos,   r.terminos),
+        paises:     Object.assign({}, base.paises,     r.paises),
+        conteos:    Object.assign({}, base.conteos,    r.conteos),
+        existeEn:   Object.assign({}, base.existeEn,   r.existeEn),
+        estados:    Object.assign({}, base.estados,    r.estados),
+        relevancia: Object.assign({}, base.relevancia, r.relevancia),
         regionConsultadaEn: r.consultadoEn
       });
       mrData.regionPendiente = false;
@@ -4031,7 +4084,7 @@ function goHome(){
     }).catch(function(e){
       mrData.regionPendiente = false;
       // Un fallo de red NO es un cero: los paises quedan sin dato.
-      var base = mrData.exploracion || { terminos:{}, paises:{}, conteos:{}, existeEn:{} };
+      var base = mrData.exploracion || { terminos:{}, paises:{}, conteos:{}, existeEn:{}, estados:{}, relevancia:{} };
       base.paises = Object.assign({}, base.paises, {
         MLB: { site:'MLB', pais:'Brasil', ok:false, publicaciones:null, muestra:0, motivo:'no pude consultar Brasil: ' + e.message },
         MLM: { site:'MLM', pais:'Mexico', ok:false, publicaciones:null, muestra:0, motivo:'no pude consultar Mexico: ' + e.message }
@@ -4075,9 +4128,15 @@ function goHome(){
       var existe = r.existeEn ? r.existeEn[k] : null;
       var cls = existe === true ? 'si' : (existe === false ? 'no' : 'nd');
       var val = (existe === null || existe === undefined) ? 'sin dato' : (n != null ? nf(n) : (p.muestra || 0));
-      var det = (existe === null || existe === undefined)
-        ? (p.motivo || 'no se pudo consultar')
-        : (existe ? ((p.muestra||0) + ' en la muestra' + (p.precioMediano ? ' · mediana ' + nf(p.precioMediano) + ' ' + (p.moneda||'') : '')) : 'sin publicaciones');
+      var det;
+      if (existe === null || existe === undefined) det = (p.motivo || 'no se pudo consultar');
+      else if (existe) det = (p.relevantes != null ? (p.relevantes + ' de ' + p.muestraDevuelta + ' coinciden') : ((p.muestra||0) + ' en la muestra')) +
+                             (p.precioMediano ? ' · mediana ' + nf(p.precioMediano) + ' ' + (p.moneda||'') : '');
+      // "sin publicaciones" era enganoso: casi siempre MeLi devuelve algo, solo
+      // que de otra cosa. Se dice lo que realmente paso.
+      else det = (p.muestraDevuelta > 0)
+        ? ('MeLi devolvio ' + p.muestraDevuelta + ', ninguna de este producto')
+        : 'sin publicaciones';
       return '<div class="mrv-pais"><div class="mrv-pais-n">' + (p.pais || NOMBRE[k]) + '</div>' +
              '<div class="mrv-pais-v ' + cls + '">' + val + '</div>' +
              '<div class="mrv-pais-d">' + det + (r.terminos && r.terminos[k] ? '<br>buscado como: "' + r.terminos[k] + '"' : '') + '</div></div>';
@@ -4195,9 +4254,18 @@ function goHome(){
         var existe = r.existeEn ? r.existeEn[k] : null;
         var cls = existe === true ? 'si' : (existe === false ? 'no' : 'nd');
         var val = existe === null ? 'sin dato' : (n != null ? nf(n) : (p.muestra || 0));
+        var det;
+        if (existe === null) det = (p.motivo || 'no se pudo consultar');
+        else if (existe) det = 'publicaciones del producto' +
+          (p.muestraDevuelta ? ' (' + p.relevantes + ' de ' + p.muestraDevuelta + ' de la muestra coinciden)' : '');
+        // Casi nunca es literalmente "sin publicaciones": MeLi devuelve
+        // resultados de rescate. Se dice lo que paso de verdad.
+        else det = (p.muestraDevuelta > 0)
+          ? ('MeLi devolvio ' + p.muestraDevuelta + ', ninguna de este producto')
+          : 'sin publicaciones';
         return '<div class="mrv-pais"><div class="mrv-pais-n">' + (p.pais || k) + '</div>' +
                '<div class="mrv-pais-v ' + cls + '">' + val + '</div>' +
-               '<div class="mrv-pais-d">' + (existe === null ? (p.motivo || 'no se pudo consultar') : (existe ? 'publicaciones activas' : 'sin publicaciones')) + '</div></div>';
+               '<div class="mrv-pais-d">' + det + '</div></div>';
       }).join('');
     } else if (paisesEl){
       paisesEl.innerHTML = '<div class="mrv-vacio">No pude consultar la región.</div>';

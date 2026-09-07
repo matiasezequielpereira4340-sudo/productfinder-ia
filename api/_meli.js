@@ -322,6 +322,81 @@ export function sitio(id) {
   return SITIOS[String(id || 'MLA').toUpperCase()] || SITIOS.MLA;
 }
 
+// ------------------------------------------------------------
+// Relevancia por titulo
+//
+// MercadoLibre casi nunca devuelve cero. Ante una busqueda sin coincidencias
+// sirve resultados DE RESCATE y los presenta como normales: medido en
+// produccion, "qwzxvbnmklpoiuy asdfghjk zzz" devuelve "78 resultados" con 48
+// publicaciones de bujias NGK y repuestos de moto, sin ningun aviso. Los
+// marcadores rescue/zrp/intervention del HTML no sirven de senal: aparecen
+// tambien en busquedas con resultados reales, son strings del bundle.
+//
+// O sea que el CONTEO de MeLi no dice nada para un termino de nicho. Lo que si
+// dice es cuantas de las publicaciones devueltas tienen que ver con lo que se
+// busco. Esa es la unica senal confiable, y se calcula en un solo lugar: antes
+// esta logica estaba duplicada en highlightsSearch, publicIdsSearch y dos
+// puntos de _buscador.js, y en tres de esos cuatro el fallback devolvia la
+// lista COMPLETA sin filtrar cuando no habia coincidencias suficientes, que es
+// exactamente como se colaban los resultados de rescate.
+// ------------------------------------------------------------
+export const RELEVANCIA_MINIMA = Number(process.env.RELEVANCIA_MINIMA || 0.25);
+
+function normalizarTitulo(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+// Palabras de la consulta que sirven para decidir. >3 caracteres; si la
+// consulta no tiene ninguna tan larga ("gel uv", "faja"), se baja el corte en
+// vez de quedarse sin palabras y declarar todo irrelevante.
+export function palabrasSignificativas(query) {
+  const t = normalizarTitulo(query).split(/\s+/).filter(Boolean);
+  let p = t.filter(w => w.length > 3);
+  if (!p.length) p = t.filter(w => w.length > 2);
+  if (!p.length) p = t;
+  return p;
+}
+
+// Cuantas palabras de la consulta tiene que contener un titulo para contar
+// como relevante.
+//
+// Calibrado, no elegido a ojo. Con "al menos una" el ratio se satura y deja
+// pasar accesorios: para "proyector portatil" contaba un cable HDMI y una
+// pantalla de proyeccion (ratio 1.00), y para "organizador de cables
+// magnetico de silicona" contaba un soporte magnetico de celular y una funda
+// de silicona (0.70). Exigiendo DOS palabras en consultas de dos o mas, los
+// mismos casos dan 0.80 y 0.40, que describen mejor lo que hay, y el caso de
+// rescate sigue dando 0.00. El tope de 2 evita que una consulta larga se
+// vuelva imposible de satisfacer.
+function palabrasRequeridas(palabras) {
+  return Math.min(2, palabras.length);
+}
+
+// Devuelve { relevantes, muestra, ratio, items } donde items son SOLO las
+// publicaciones relevantes.
+export function relevanciaPorTitulo(query, results) {
+  const lista = Array.isArray(results) ? results : [];
+  const palabras = palabrasSignificativas(query);
+  if (!lista.length) return { relevantes: 0, muestra: 0, ratio: null, items: [], palabras, requeridas: 0 };
+  if (!palabras.length) return { relevantes: lista.length, muestra: lista.length, ratio: 1, items: lista, palabras, requeridas: 0 };
+
+  const requeridas = palabrasRequeridas(palabras);
+  const items = lista.filter(it => {
+    const t = normalizarTitulo(it && (it.title || it.titulo));
+    let n = 0;
+    for (const w of palabras) { if (t.includes(w)) n++; if (n >= requeridas) return true; }
+    return false;
+  });
+  return {
+    relevantes: items.length,
+    muestra: lista.length,
+    ratio: lista.length ? items.length / lista.length : null,
+    items,
+    palabras,
+    requeridas
+  };
+}
+
 export async function catalogSearch(product, token, opts) {
   const o = opts || {};
   const maxProductos = o.maxProductos || 8;
@@ -377,10 +452,17 @@ export async function catalogSearch(product, token, opts) {
 
   const results = porProducto.flat();
   if (!results.length) return null;
+  // El catalogo tampoco filtraba: /products/search devuelve productos que
+  // MercadoLibre considera parecidos, que no es lo mismo que el producto
+  // buscado.
+  const rel = relevanciaPorTitulo(product, results);
   return {
     fuente: 'meli-catalogo',
     total,
-    results,
+    totalEsPostRescate: true,
+    relevancia: { relevantes: rel.relevantes, muestra: rel.muestra, ratio: rel.ratio, palabras: rel.palabras },
+    relevanciaCero: rel.muestra > 0 && rel.relevantes === 0,
+    results: rel.items,
     // domain_id.split('-').pop() devolvia "PROJECTORS": el slug interno, en
     // ingles. Ademas de mostrarse mal, rompia el regex de comision del front
     // (no matcheaba "electronica" y aplicaba 15% en vez de 16,5%). El nombre
@@ -455,18 +537,16 @@ export async function highlightsSearch(product, token, opts) {
   }
   if (!items.length) return null;
 
-  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const palabras = norm(product).split(/\s+/).filter(w => w.length > 2);
-  const conTodas = items.filter(it => { const t = norm(it.title); return palabras.every(w => t.includes(w)); });
-  const conAlguna = items.filter(it => { const t = norm(it.title); return palabras.some(w => t.includes(w)); });
-
-  // Si nada del ranking habla del producto, no forzamos: mejor sin dato que un
-  // dato de otra cosa.
-  const elegidos = conTodas.length >= 3 ? conTodas : (conAlguna.length >= 3 ? conAlguna : []);
-  if (!elegidos.length) return null;
+  // Misma funcion que el resto de las vias. De aca salio la idea: este era el
+  // unico camino que ya filtraba por titulo, justamente "para no mostrar lo mas
+  // vendido de la categoria disfrazado".
+  const rel = relevanciaPorTitulo(product, items);
+  const elegidos = rel.items;
 
   return {
-    fuente: conTodas.length >= 3 ? 'meli-destacados' : 'meli-destacados-parcial',
+    fuente: 'meli-destacados',
+    relevancia: { relevantes: rel.relevantes, muestra: rel.muestra, ratio: rel.ratio, palabras: rel.palabras },
+    relevanciaCero: rel.muestra > 0 && rel.relevantes === 0,
     // No hay total de publicaciones por esta via: se deja en null a proposito
     // para que la saturacion no se calcule sobre una muestra de 40 items.
     total: null,
@@ -520,10 +600,11 @@ export async function publicIdsSearch(product, token, opts) {
   const items = await hidratarItems(ids, token, deadline);
   if (!items.length) return null;
 
-  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const palabras = norm(product).split(/\s+/).filter(w => w.length > 2);
-  const conTodas = items.filter(it => { const t = norm(it.title); return palabras.every(w => t.includes(w)); });
-  const elegidos = conTodas.length >= 3 ? conTodas : items;
+  // El fallback de antes ("si no hay 3 que coincidan, devolve TODO") era la
+  // puerta por la que entraban los resultados de rescate de MercadoLibre.
+  // Ahora se filtra siempre y se informa el ratio.
+  const rel = relevanciaPorTitulo(product, items);
+  const elegidos = rel.items;
 
   // El listado es ahora la via principal, asi que su categoryName es el que
   // termina eligiendo la comision de MeLi en el front. Si el HTML no la trae,
@@ -533,8 +614,16 @@ export async function publicIdsSearch(product, token, opts) {
   return {
     fuente: 'meli-listado+items',
     site,
+    // El total que informa MercadoLibre es POST-RESCATE: para un termino de
+    // nicho puede decir 78 y ser todo de otra cosa. Viaja, pero rotulado.
     total: html.total || null,
+    totalEsPostRescate: true,
     muestra: elegidos.length,
+    relevancia: { relevantes: rel.relevantes, muestra: rel.muestra, ratio: rel.ratio, palabras: rel.palabras },
+    // Se hidrataron publicaciones pero NINGUNA es del producto buscado: eso es
+    // "no existe aca", y hay que devolverlo como respuesta, no como fallo de
+    // la via (si no, se prueba la siguiente y se pierde el dato).
+    relevanciaCero: rel.muestra > 0 && rel.relevantes === 0,
     categoryName: categoria || '',
     results: elegidos.map(it => ({
       id: it.id,
@@ -594,8 +683,10 @@ export async function traerPagina(url, timeoutMs) {
 // Devuelve la primera pagina publica que realmente traiga IDs de publicacion.
 // Clasifica una pagina que respondio 200 pero no trajo ningun ID.
 // Hay dos motivos posibles y significan lo contrario:
-//   'cero'      -> es la pagina de resultados de MercadoLibre y dice que no hay nada
-//   'bloqueada' -> es un muro anti-bot, un challenge o una pagina intermedia
+//   'cero'          -> es la pagina de MercadoLibre y dice explicitamente que no hay nada
+//   'bloqueada'     -> es un muro anti-bot, un challenge o una pagina intermedia
+//   'indeterminada' -> es HTML de MercadoLibre pero sin items legibles (tipico
+//                      de una pagina sin hidratar). No prueba nada.
 // MercadoLibre sirve el muro anti-bot con HTTP 200 y cuerpo, asi que fiarse
 // del status es exactamente como se cuela un cero falso. Ante la duda se
 // devuelve 'bloqueada': es preferible decir "no pude consultar" que afirmar
@@ -631,19 +722,21 @@ export function clasificarPaginaListado(texto, site) {
   const bajoSinTildes = bajo.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   if (sinResultados.some(f => bajoSinTildes.includes(f))) return 'cero';
 
-  // Sin frase explicita: solo se acepta el cero si la pagina TIENE el armazon
-  // del listado de MercadoLibre. Si no lo tiene, no sabemos donde caimos.
-  const st = sitio(site);
-  const armazon = [
-    st.dominio,                      // el footer y los links internos lo repiten
-    'mercadolibre', 'mercadolivre'
-  ];
-  const tieneArmazon = armazon.some(a => bajo.includes(a));
-  const tieneBuscador = bajo.includes('as_word') || bajo.includes('cb1-search') ||
-                        bajo.includes('nav-search') || bajo.includes('type="search"');
-  if (tieneArmazon && tieneBuscador) return 'cero';
-
-  return 'bloqueada';
+  // Sin frase explicita NO se concluye nada, y esto es a proposito.
+  //
+  // Medido en la pagina real: una busqueda de rescate devuelve 626 KB con el
+  // header y el footer completos y el titulo "<termino> | MercadoLibre", pero
+  // los resultados se renderizan del lado del cliente. Un fetch de servidor
+  // puede recibir ese armazon sin los items: eso NO es un bloqueo, pero
+  // tampoco es un cero. La version anterior de esta funcion devolvia 'cero'
+  // justamente para ese caso (armazon + buscador presentes), o sea que una
+  // pagina sin hidratar se contaba como "no hay publicaciones".
+  //
+  // Se devuelve 'indeterminada': ni cero ni bloqueo. Quien llama lo trata como
+  // "no pude consultar", que es lo unico honesto. Igual el camino principal no
+  // depende de esto: publicIdsSearch saca los IDs del texto CRUDO, asi que si
+  // la pagina trae publicaciones las encuentra aunque el DOM no este hidratado.
+  return 'indeterminada';
 }
 
 export async function fetchListadoHtml(product, timeoutMs, site, deadline) {
@@ -665,6 +758,8 @@ export async function fetchListadoHtml(product, timeoutMs, site, deadline) {
     const pag = await traerPagina(url, Math.min(timeoutMs || 6000, restante));
     const hayIds = pag.texto && extraerIdsItem(pag.texto, st.id).length;
     if (!hayIds) {
+      // Solo 'cero' (frase explicita de MercadoLibre) confirma un vacio.
+      // 'indeterminada' y 'bloqueada' se tratan igual: no pude consultar.
       if (pag.status >= 200 && pag.status < 400 && pag.texto &&
           clasificarPaginaListado(pag.texto, st.id) === 'cero') {
         ceroConfirmado = true;
@@ -1010,6 +1105,11 @@ export async function buscarPublicaciones(product, token, opts) {
       // dato, no una falla de la via: se devuelve tal cual, no se penaliza a la
       // via (se entro bien) y no se prueban las siguientes.
       if (r && r.vacioConfirmado) { est.fallos[nombre] = 0; return r; }
+      // Se hidrataron publicaciones y ninguna era del producto: eso es la
+      // respuesta ("no esta aca"), no una falla de la via. Si se siguiera de
+      // largo, la via siguiente devolveria las mismas de rescate y el dato se
+      // perderia.
+      if (r && r.relevanciaCero) { est.fallos[nombre] = 0; return r; }
       // Corte por tiempo: no es culpa de la via, no se la penaliza.
       if (r && r.sinTiempo) return r;
       est.fallos[nombre] = fallos + 1;
@@ -1043,7 +1143,8 @@ export async function contarPublicaciones(product, token, site, opts) {
   const st = sitio(site);
   const vacio = {
     site: st.id, pais: st.pais, termino: product,
-    ok: false, publicaciones: null, muestra: 0,
+    ok: false, estado: null, publicaciones: null, muestra: 0,
+    relevantes: null, muestraDevuelta: 0, ratio: null,
     precioMediano: null, ventasTop3: null, moneda: null,
     motivo: null, fuente: null
   };
@@ -1068,11 +1169,26 @@ export async function contarPublicaciones(product, token, site, opts) {
   if (r.pendiente) return { ...vacio, motivo: 'la busqueda todavia se esta preparando' };
 
   const results = Array.isArray(r.results) ? r.results : [];
-  // Cero confirmado.
-  if (r.vacioConfirmado || (!results.length && r.total === 0)) {
-    return { ...vacio, ok: true, publicaciones: 0, muestra: 0, fuente: r.fuente || null,
+  const rel = r.relevancia || null;
+
+  // Cero literal: MercadoLibre dijo explicitamente que no hay publicaciones.
+  // Pasa poco (casi siempre sirve resultados de rescate), pero cuando pasa es
+  // el mismo veredicto que relevancia cero: el producto no esta aca.
+  if (r.vacioConfirmado || (!results.length && r.total === 0 && !rel)) {
+    return { ...vacio, ok: true, estado: 'noExiste', publicaciones: 0, muestra: 0,
+             relevantes: 0, muestraDevuelta: 0, ratio: null, fuente: r.fuente || null,
              motivo: 'se entro al listado y no hay publicaciones' };
   }
+
+  // Relevancia cero: MercadoLibre devolvio publicaciones, pero NINGUNA es del
+  // producto buscado. Este es el caso real de "no se vende aca", y el que de
+  // verdad se va a dar en produccion: el conteo de MeLi es post-rescate.
+  if (r.relevanciaCero && rel) {
+    return { ...vacio, ok: true, estado: 'noExiste', publicaciones: 0, muestra: 0,
+             relevantes: 0, muestraDevuelta: rel.muestra, ratio: 0, fuente: r.fuente || null,
+             motivo: 'MercadoLibre devolvio ' + rel.muestra + ' publicaciones pero ninguna es de este producto (resultados de rescate)' };
+  }
+
   if (!results.length) {
     return { ...vacio, motivo: 'MercadoLibre ' + st.pais + ' no devolvio publicaciones legibles' };
   }
@@ -1086,12 +1202,44 @@ export async function contarPublicaciones(product, token, site, opts) {
   const vendidos = results.map(x => (x && x.sold_quantity) || 0).sort((a, b) => b - a).slice(0, 3);
   const ventasTop3 = vendidos.length ? Math.round(vendidos.reduce((a, b) => a + b, 0) / vendidos.length) : null;
 
+  // Ratio de relevancia: cuantas de las devueltas hablan del producto.
+  const ratio = rel && rel.ratio != null ? rel.ratio : null;
+  // Tres estados, nunca un booleano:
+  //   'existe'   -> la consulta anduvo y el ratio llega al minimo
+  //   'noExiste' -> la consulta anduvo y el ratio no llega
+  //   null       -> no se pudo consultar
+  const estado = (ratio == null) ? 'existe' : (ratio >= RELEVANCIA_MINIMA ? 'existe' : 'noExiste');
+
+  if (estado === 'noExiste') {
+    return { ...vacio, ok: true, estado: 'noExiste', publicaciones: 0, muestra: results.length,
+             relevantes: rel.relevantes, muestraDevuelta: rel.muestra, ratio, fuente: r.fuente || null,
+             motivo: 'solo ' + rel.relevantes + ' de ' + rel.muestra + ' publicaciones coinciden con la busqueda (ratio ' +
+                     ratio.toFixed(2) + ', minimo ' + RELEVANCIA_MINIMA + ')' };
+  }
+
+  // La muestra esta topeada (30-40 ids), asi que "relevantes" satura y no
+  // sirve para comparar mercados. El total que informa MeLi es post-rescate,
+  // pero multiplicado por el ratio da una estimacion razonable de cuantas de
+  // esas publicaciones son de verdad del producto. Viaja rotulada como
+  // estimacion, y solo se usa donde hace falta un orden de magnitud.
+  const totalCrudo = (typeof r.total === 'number' && r.total > 0) ? r.total : null;
+  const estimadas = (totalCrudo != null && ratio != null)
+    ? Math.max(rel ? rel.relevantes : 0, Math.round(totalCrudo * ratio))
+    : (rel ? rel.relevantes : results.length);
+
   return {
     site: st.id, pais: st.pais, termino: product,
     ok: true,
-    // El total del listado es el numero de publicaciones activas. Si no vino,
-    // se informa el tamano de la muestra y se dice que el total no se sabe.
+    estado: 'existe',
+    relevantesEstimadas: estimadas,
+    relevantes: rel ? rel.relevantes : results.length,
+    muestraDevuelta: rel ? rel.muestra : results.length,
+    ratio,
+    // El total que informa MercadoLibre es POST-RESCATE: para un termino de
+    // nicho puede contar publicaciones que no son del producto. Viaja rotulado
+    // y NO se usa para decidir si existe.
     publicaciones: (typeof r.total === 'number' && r.total > 0) ? r.total : null,
+    totalEsPostRescate: !!r.totalEsPostRescate,
     muestra: results.length,
     precioMediano: mediana,
     ventasTop3,

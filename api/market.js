@@ -3,7 +3,7 @@
 // Datos de MercadoLibre (catalogo con token de usuario) + Anthropic para el
 // armado del informe.
 
-import { anthropicHeaders, buscarPublicaciones, contarPublicaciones, SITIOS, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
+import { anthropicHeaders, buscarPublicaciones, contarPublicaciones, relevanciaPorTitulo, RELEVANCIA_MINIMA, SITIOS, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
 import { haySesion, esAdmin, tokenDe, pedirSesion } from './_sesion.js';
 import { cotizacionDolar, DOLAR_TIPOS, DOLAR_TIPO_DEFAULT } from './_dolar.js';
 
@@ -739,8 +739,35 @@ async function stepCompetencia(product) {
       aviso: 'Cero publicaciones en MercadoLibre Argentina. No es poca competencia: no hay comparable.'
     };
   }
+  // Relevancia cero: MercadoLibre devolvio publicaciones pero ninguna es del
+  // producto buscado. Medido en la pagina real, una busqueda sin coincidencias
+  // devuelve resultados DE RESCATE (bujias, repuestos) presentados como
+  // normales. Antes esto se leia como "existe, competencia moderada" y encima
+  // el precio mediano y la saturacion se calculaban sobre esos productos.
+  if (meli && meli.relevanciaCero && meli.relevancia) {
+    const rel = meli.relevancia;
+    return {
+      fuente: meli.fuente || 'meli-listado+items',
+      muestraInsuficiente: true, muestra: 0, sinComparable: true, consultaFallida: false,
+      relevantes: 0, muestraDevuelta: rel.muestra, ratioRelevancia: 0,
+      sellersEstimados: 0,
+      precioMinARS: null, precioMaxARS: null, precioPromedioARS: null,
+      totalResults: null, totalCatalogo: null, totalLabel: null,
+      totalCrudoMeli: (typeof meli.total === 'number') ? meli.total : null,
+      categoryName: '', saturacion: null, competenciaScore: null,
+      competitors: [], envioGratisPct: null,
+      aviso: 'MercadoLibre te devolvio resultados, pero no son tu producto: ' + rel.muestra +
+             ' publicaciones y ninguna coincide con la busqueda. Son resultados de rescate.'
+    };
+  }
+
   if (meli && meli.results && meli.results.length > 0) {
-    const results = meli.results;
+    // Los results que llegan ya vienen filtrados por relevancia desde la via
+    // de busqueda. Igual se recalcula aca para poder informar el ratio y para
+    // no depender de que toda via lo haya hecho.
+    const relCalc = relevanciaPorTitulo(product, meli.results);
+    const rel = meli.relevancia || { relevantes: relCalc.relevantes, muestra: relCalc.muestra, ratio: relCalc.ratio };
+    const results = relCalc.items.length ? relCalc.items : meli.results;
     const fuente = meli.fuente || 'mercadolibre-search';
     const prices = results.map(x => x.price).filter(p => typeof p === 'number' && p > 0).sort((a,b)=>a-b);
     const sellers = new Set(results.map(x => x.seller && x.seller.id).filter(Boolean));
@@ -780,6 +807,8 @@ async function stepCompetencia(product) {
       return {
         fuente, muestraInsuficiente: true, muestra: results.length,
         sinComparable: sinComp,
+        relevantes: rel.relevantes, muestraDevuelta: rel.muestra, ratioRelevancia: rel.ratio,
+        totalCrudoMeli: (typeof meli.total === 'number') ? meli.total : null,
         sellersEstimados: sellers.size || results.length,
         precioMinARS: null, precioMaxARS: null, precioPromedioARS: null,
         totalResults: total, totalCatalogo, totalLabel,
@@ -797,6 +826,8 @@ async function stepCompetencia(product) {
     const avg = prices.length ? Math.round(prices.reduce((a,b)=>a+b,0)/prices.length) : 0;
     return {
       fuente, muestraInsuficiente: false, sinComparable: false, muestra: results.length,
+      relevantes: rel.relevantes, muestraDevuelta: rel.muestra, ratioRelevancia: rel.ratio,
+      totalCrudoMeli: (typeof meli.total === 'number') ? meli.total : null,
       sellersEstimados: sellers.size || results.length,
       precioMinARS: min, precioMaxARS: max, precioPromedioARS: avg,
       totalResults: total, totalCatalogo, totalLabel,
@@ -866,9 +897,12 @@ async function stepExploracion(product) {
       continue;
     }
     const c = await contarPublicaciones(t, tok, 'MLA', { budgetMs: 5000, maxIds: 30, deadline });
-    escalones.push({ termino: t, ok: c.ok, publicaciones: c.publicaciones, muestra: c.muestra,
+    escalones.push({ termino: t, ok: c.ok, estado: c.estado, publicaciones: c.publicaciones,
+                     muestra: c.muestra, relevantes: c.relevantes, ratio: c.ratio,
                      sinTiempo: !!c.sinTiempo, motivo: c.motivo });
-    if (c.ok && c.muestra >= 8) {
+    // Ocho publicaciones RELEVANTES, no ocho devueltas: con resultados de
+    // rescate cualquier termino llegaba a ocho.
+    if (c.estado === 'existe' && c.muestra >= 8) {
       categoriaMadre = {
         termino: t, publicaciones: c.publicaciones, muestra: c.muestra,
         precioMediano: c.precioMediano, ventasTop3: c.ventasTop3,
@@ -887,7 +921,9 @@ async function stepExploracion(product) {
   // bloqueado o sin tiempo, o alguno trajo publicaciones (aunque sean menos de
   // 8), afirmar que no existe dispara un "SIN MERCADO" falso.
   const escalonesOk = escalones.length > 0 && escalones.every(e => e.ok);
-  const todosEnCero = escalonesOk && escalones.every(e => (e.muestra || 0) === 0 && (e.publicaciones || 0) === 0);
+  // "No existe" ya no es contar cero: MercadoLibre casi nunca devuelve cero.
+  // Es que ninguna de las publicaciones devueltas sea del producto.
+  const todosEnCero = escalonesOk && escalones.every(e => e.estado === 'noExiste');
 
   return {
     producto: product,
@@ -899,8 +935,14 @@ async function stepExploracion(product) {
     sinCategoriaMadre: !categoriaMadre,
     terminos: { MLA: product },
     paises: { MLA: mla },
-    conteos: { MLA: mla.ok ? Math.max(mla.publicaciones || 0, mla.muestra || 0) : null },
-    existeEn: { MLA: mla.ok ? (Math.max(mla.publicaciones || 0, mla.muestra || 0) > 0) : null },
+    // El conteo que se muestra son las publicaciones RELEVANTES de la muestra,
+    // no el total que informa MeLi (que es post-rescate).
+    conteos: { MLA: mla.ok ? (mla.relevantes != null ? mla.relevantes : mla.muestra) : null },
+    // Tres estados: true / false / null. Nunca un booleano derivado de un conteo.
+    existeEn: { MLA: mla.ok ? (mla.estado === 'existe') : null },
+    estados: { MLA: mla.estado },
+    relevancia: { MLA: { relevantes: mla.relevantes, devueltas: mla.muestraDevuelta, ratio: mla.ratio,
+                         estimadas: mla.relevantesEstimadas != null ? mla.relevantesEstimadas : mla.relevantes } },
     parcial: Date.now() > deadline,
     consultadoEn: new Date().toISOString()
   };
@@ -932,19 +974,22 @@ async function stepRegion(product) {
   ]);
 
   const paises = { MLB: mlb, MLM: mlm };
-  const existeEn = {}, conteos = {};
+  const existeEn = {}, conteos = {}, estados = {}, relevancia = {};
   for (const k of Object.keys(paises)) {
     const c = paises[k];
     // Solo se afirma "existe" o "no existe" si la consulta ANDUVO. Si no, null,
-    // y el front muestra "sin dato".
-    conteos[k] = c.ok ? Math.max(c.publicaciones || 0, c.muestra || 0) : null;
-    existeEn[k] = c.ok ? (conteos[k] > 0) : null;
+    // y el front muestra "sin dato". El conteo son las RELEVANTES.
+    conteos[k] = c.ok ? (c.relevantes != null ? c.relevantes : c.muestra) : null;
+    existeEn[k] = c.ok ? (c.estado === 'existe') : null;
+    estados[k] = c.estado;
+    relevancia[k] = { relevantes: c.relevantes, devueltas: c.muestraDevuelta, ratio: c.ratio,
+                      estimadas: c.relevantesEstimadas != null ? c.relevantesEstimadas : c.relevantes };
   }
 
   return {
     producto: product,
     terminos: { MLB: terminoBR, MLM: terminoMX },
-    paises, conteos, existeEn,
+    paises, conteos, existeEn, estados, relevancia,
     parcial: Date.now() > deadline,
     consultadoEn: new Date().toISOString()
   };
@@ -956,10 +1001,16 @@ async function stepTestBusqueda(product) {
   if (!product || !String(product).trim()) throw new Error('product requerido');
   const tok = await getMeliAccessToken();
   const c = await contarPublicaciones(String(product).trim(), tok, 'MLA', { budgetMs: 6000, maxIds: 30 });
-  const encontradas = c.ok ? Math.max(c.publicaciones || 0, c.muestra || 0) : null;
+  // Lo que cuenta son las publicaciones que HABLAN del termino, no las que
+  // MercadoLibre devuelve: para un termino que nadie busca devuelve rescate.
+  const encontradas = c.ok ? (c.relevantes != null ? c.relevantes : c.muestra) : null;
   return {
     termino: product,
     ok: c.ok,
+    estado: c.estado,
+    relevantes: c.relevantes,
+    devueltas: c.muestraDevuelta,
+    ratio: c.ratio,
     publicaciones: c.publicaciones,
     muestra: c.muestra,
     encontradas,
@@ -967,7 +1018,7 @@ async function stepTestBusqueda(product) {
     // suficiente:true  -> hay categoria y la gente sabe nombrarla
     // suficiente:false -> nadie busca eso
     // suficiente:null  -> no se pudo consultar, no se concluye nada
-    suficiente: c.ok ? (c.muestra >= 8) : null,
+    suficiente: c.ok ? (c.estado === 'existe' && c.muestra >= 8) : null,
     motivo: c.motivo
   };
 }
@@ -1080,6 +1131,10 @@ async function safeMeliSearch(product) {
       // "no-disponible" de abajo, que significa "no pude consultar": lo
       // opuesto, y el modo sin comparable nunca se enteraria.
       if (r && r.vacioConfirmado) return r;
+      // Relevancia cero: MercadoLibre devolvio publicaciones de rescate y
+      // ninguna es del producto. Es la respuesta, no una falla: si se sigue de
+      // largo termina en "no pude consultar", que es otra cosa.
+      if (r && r.relevanciaCero) return r;
     } catch (_) {}
   }
 

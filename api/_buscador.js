@@ -15,7 +15,7 @@
 // Se elige proveedor con BUSCADOR_PROVEEDOR (apify | scrapingbee | scraperapi
 // | off). Si no esta, se deduce de que credencial haya cargada.
 
-import { extraerIdsMLA, hidratarItems, meliSlug } from './_meli.js';
+import { extraerIdsMLA, hidratarItems, meliSlug, relevanciaPorTitulo } from './_meli.js';
 
 export function proveedor() {
   const elegido = String(process.env.BUSCADOR_PROVEEDOR || '').trim().toLowerCase();
@@ -351,14 +351,17 @@ export async function armarResultado(product, filas, meliToken, opts) {
   }
   if (!resultados.length) return null;
 
-  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const palabras = norm(product).split(/\s+/).filter(w => w.length > 2);
-  const conTodas = resultados.filter(it => { const t = norm(it.title); return palabras.every(w => t.includes(w)); });
-  const elegidos = conTodas.length >= 3 ? conTodas : resultados;
+  // Misma funcion de relevancia que las vias de MercadoLibre. El fallback de
+  // antes devolvia la lista COMPLETA cuando no habia 3 coincidencias, que es
+  // como se colaban publicaciones de otro producto.
+  const rel = relevanciaPorTitulo(product, resultados);
+  const elegidos = rel.items;
 
   return {
     fuente: 'proveedor-apify',
     total: null,
+    relevancia: { relevantes: rel.relevantes, muestra: rel.muestra, ratio: rel.ratio, palabras: rel.palabras },
+    relevanciaCero: rel.muestra > 0 && rel.relevantes === 0,
     muestra: elegidos.length,
     categoryName: '',
     competencia: medirCompetencia(elegidos),
@@ -504,14 +507,15 @@ export async function buscarConProveedor(product, meliToken, opts) {
   if (!resultados.length) return null;
 
   // Quedarse con lo que realmente habla del producto buscado.
-  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const palabras = norm(product).split(/\s+/).filter(w => w.length > 2);
-  const conTodas = resultados.filter(it => { const t = norm(it.title); return palabras.every(w => t.includes(w)); });
-  const elegidos = conTodas.length >= 3 ? conTodas : resultados;
+  const rel = relevanciaPorTitulo(product, resultados);
+  const elegidos = rel.items;
 
   return {
     fuente: 'proveedor-' + cual,
     total: totalHtml,
+    totalEsPostRescate: true,
+    relevancia: { relevantes: rel.relevantes, muestra: rel.muestra, ratio: rel.ratio, palabras: rel.palabras },
+    relevanciaCero: rel.muestra > 0 && rel.relevantes === 0,
     muestra: elegidos.length,
     categoryName: '',
     results: elegidos
