@@ -336,7 +336,7 @@
           <option value="lcl">Mar&#237;timo LCL (USD 1.2/kg)</option>
           <option value="fcl">Mar&#237;timo FCL (USD 0.3/kg)</option>
         </select></div>
-        <div class="mr-param" id="mrPesoParam" style="border:1px solid rgba(255,230,0,.35);border-radius:8px;padding:8px"><label for="mrPesoKg" style="color:#FFE600">Peso por unidad (kg) &#8212; importante</label><input type="number" id="mrPesoKg" step="0.01" min="0" placeholder="Ej: 0.25"/><div id="mrPesoAviso" style="font-size:.72rem;color:#e8c89f;margin-top:4px;line-height:1.3">Sin el peso no puedo evaluar si el flete se come el producto: el c&#225;lculo cae a 15% sobre FOB, que es una estimaci&#243;n floja.</div></div>
+        <div class="mr-param"><label for="mrMOQ">MOQ del proveedor (unidades)</label><input type="number" id="mrMOQ" step="1" min="1" placeholder="Ej: 100"/><div style="font-size:.72rem;color:var(--text-dim);margin-top:4px;line-height:1.3">M&#237;nimo que te vende el proveedor. Se usa para dimensionar el test de validaci&#243;n.</div></div><div class="mr-param" id="mrPesoParam" style="border:1px solid rgba(255,230,0,.35);border-radius:8px;padding:8px"><label for="mrPesoKg" style="color:#FFE600">Peso por unidad (kg) &#8212; importante</label><input type="number" id="mrPesoKg" step="0.01" min="0" placeholder="Ej: 0.25"/><div id="mrPesoAviso" style="font-size:.72rem;color:#e8c89f;margin-top:4px;line-height:1.3">Sin el peso no puedo evaluar si el flete se come el producto: el c&#225;lculo cae a 15% sobre FOB, que es una estimaci&#243;n floja.</div></div>
         <div class="mr-param"><label for="mrDiasCap">D&#237;as capital inmovilizado</label><input type="number" id="mrDiasCap" step="1" min="0" value="60" placeholder="60"/></div>
         <div class="mr-param"><label for="mrTasaCap">Tasa mensual capital (%)</label><input type="number" id="mrTasaCap" step="0.1" min="0" value="4.5" placeholder="4.5"/></div>
       </div>
@@ -366,6 +366,40 @@
 </div>
         </div>
       </div>
+      <div class="mr-step" id="mrStep5" style="display:none"><div class="mr-step-header"><div class="mr-step-num num-guided" id="mrS5num">5</div><div class="mr-step-title">Producto sin comparable &#8212; antig&#252;edad de la demanda y test de b&#250;squeda</div><span class="mr-badge badge-guided">complet&#225;s vos</span></div>
+        <div class="mr-step-body" id="mrStep5Body">
+          <div class="mr-instruction"><strong><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Este producto no tiene comparable en MercadoLibre Argentina.</strong>Lo que sigue no se puede scrapear: hay que preguntarlo. Es lo que separa &quot;ventana real&quot; de &quot;ya lo probaron y perdieron&quot;: mismo s&#237;ntoma, diagn&#243;stico opuesto.</div>
+          <div class="mr-guided-grid">
+            <div class="mr-field"><label for="mrTiktokEdad">En TikTok, &#191;los videos de este producto son de los &#250;ltimos 6 meses, o hay de hace 2 a&#241;os o m&#225;s?</label>
+              <select id="mrTiktokEdad">
+                <option value="">Eleg&#237; una opci&#243;n</option>
+                <option value="recientes">Mayor&#237;a recientes (&#250;ltimos 6 meses)</option>
+                <option value="mezclados">Mezclados</option>
+                <option value="viejos">Mayor&#237;a viejos (2 a&#241;os o m&#225;s)</option>
+                <option value="sin-videos">No encontr&#233; videos</option>
+              </select></div>
+            <div class="mr-field"><label for="mrAliReviews">&#191;Cu&#225;ntas reviews tiene en AliExpress el listing principal?</label>
+              <input type="text" inputmode="numeric" id="mrAliReviews" placeholder="Ej: 1.2k, 3mil, 450" data-mr-smart-num="1"/></div>
+            <div class="mr-field"><label for="mrAliMes">Las reviews m&#225;s recientes de AliExpress, &#191;de qu&#233; mes y a&#241;o son?</label>
+              <div style="display:flex;gap:8px">
+                <select id="mrAliMes" style="flex:1"><option value="">Mes</option><option value="1">Ene</option><option value="2">Feb</option><option value="3">Mar</option><option value="4">Abr</option><option value="5">May</option><option value="6">Jun</option><option value="7">Jul</option><option value="8">Ago</option><option value="9">Sep</option><option value="10">Oct</option><option value="11">Nov</option><option value="12">Dic</option></select>
+                <input type="number" id="mrAliAnio" placeholder="A&#241;o" min="2015" max="2100" style="flex:1"/>
+              </div></div>
+          </div>
+          <div class="mr-field" style="margin-top:14px;padding:12px;border:1px solid rgba(255,230,0,.35);border-radius:8px">
+            <label for="mrTestBusqueda" style="color:#FFE600;font-weight:600">Escrib&#237; las 3 palabras con las que buscar&#237;a este producto en MeLi alguien que NUNCA lo vio</label>
+            <input type="text" id="mrTestBusqueda" placeholder="Ej: organizador cables escritorio" style="width:100%;margin-top:6px"/>
+            <div style="font-size:.78rem;color:var(--text-dim);margin-top:6px;line-height:1.4">Obligatorio. No pongas el nombre t&#233;cnico del proveedor: pon&#233; lo que escribir&#237;a un comprador. Con esto corro una b&#250;squeda real en MercadoLibre.</div>
+            <div id="mrTestBusquedaOut" style="margin-top:8px;font-size:.84rem"></div>
+          </div>
+          <div class="mr-field" style="margin-top:14px">
+            <label for="mrPrecioCreo">&#191;A qu&#233; precio cre&#233;s que lo vender&#237;as? (ARS)</label>
+            <input type="number" id="mrPrecioCreo" min="0" placeholder="Ej: 45000"/>
+            <div style="font-size:.78rem;color:var(--text-dim);margin-top:4px;line-height:1.4">No hay precio de mercado para comparar. Este n&#250;mero es tuyo, y sirve para calcular cu&#225;ntas unidades necesit&#225;s para recuperar el test.</div>
+          </div>
+          <button class="btn-confirm" onclick="confirmMRStep5()">Confirmar y evaluar &#8594;</button>
+        </div>
+      </div>
     </div>
     <!-- RESULTADO FINAL -->
     <div class="mr-result" id="mrResult">
@@ -389,9 +423,19 @@
             <div id="mrvEnContra"></div>
           </div>
         </div>
+        <div class="mrv-nocomp" id="mrvNoComp" style="display:none">
+          <div class="mrv-nocomp-linea" id="mrvNoCompLinea"></div>
+          <div class="mrv-paises" id="mrvPaises"></div>
+          <div class="mrv-madre" id="mrvMadre"></div>
+        </div>
         <div class="mrv-quiebre" id="mrvQuiebre">
           <h4>Escenarios de quiebre</h4>
           <div class="mrv-quiebre-grid" id="mrvQuiebreGrid"></div>
+        </div>
+        <div class="mrv-test" id="mrvTest" style="display:none">
+          <h4>Presupuesto de test</h4>
+          <div class="mrv-quiebre-grid" id="mrvTestGrid"></div>
+          <div class="mrv-test-nota" id="mrvTestNota"></div>
         </div>
         <div class="mrv-riesgos" id="mrvRiesgos">
           <h4>Riesgos que bloquean el veredicto verde</h4>

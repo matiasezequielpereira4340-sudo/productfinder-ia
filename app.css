@@ -950,3 +950,33 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
    caian en esa regla y quedaban invisibles. Este bloque es el que decide una
    compra: no puede depender de que una animacion dispare. */
 .mrv-decision .v14-reveal{opacity:1 !important;animation:none !important}
+
+/* ==========================================================================
+   Modo "producto sin comparable en MercadoLibre Argentina"
+   ========================================================================== */
+.mrv-nocomp{margin:0 0 16px;padding:14px;border:1px solid #6b5a2a;border-radius:10px;background:#16130a}
+.mrv-nocomp-linea{font-size:.9rem;line-height:1.5;color:#f0c877;font-weight:600;margin-bottom:12px}
+.mrv-paises{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.mrv-pais{padding:10px 12px;border-radius:8px;background:#0a0a0a;border:1px solid #242424}
+.mrv-pais-n{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim,#92929A)}
+.mrv-pais-v{font-size:1.2rem;font-weight:800;margin:3px 0;font-variant-numeric:tabular-nums;color:#e8e8ea}
+.mrv-pais-v.si{color:#27ae60}.mrv-pais-v.no{color:#e05a4a}.mrv-pais-v.nd{color:#8b8b93}
+.mrv-pais-d{font-size:.74rem;color:var(--text-dim,#92929A);line-height:1.35}
+.mrv-madre{margin-top:12px;padding:10px 12px;border-radius:8px;background:#0a0a0a;border:1px solid #242424;font-size:.85rem;line-height:1.5;color:#c8c8cc}
+.mrv-madre b{color:#fff}
+.mrv-madre .mrv-ref{display:block;margin-top:6px;font-size:.76rem;color:#e0a020}
+
+.mrv-test{margin-top:18px;padding:14px;border:1px solid rgba(255,230,0,.28);border-radius:10px;background:rgba(255,230,0,.04)}
+.mrv-test h4{margin:0 0 12px;font-size:.95rem;color:#FFE600;letter-spacing:.03em;text-transform:uppercase}
+.mrv-test-nota{margin-top:12px;font-size:.82rem;line-height:1.5;color:#c8c8cc}
+.mrv-test-nota b{color:#fff}
+.mrv-test-nota .mrv-alerta{display:block;margin-top:8px;padding:10px;border-radius:8px;
+  border:1px solid #c0392b;background:rgba(192,57,43,.10);color:#e8a89f}
+.mrv-gauge-off{padding:18px;text-align:center;font-size:.86rem;line-height:1.5;
+  color:var(--text-dim,#92929A);border:1px dashed #333;border-radius:10px}
+
+/* Tarjeta de factor sin dato: gris, para no confundir "no se puede puntuar"
+   con "puntuo cero". Sin comparable, Competencia cae siempre aca. */
+.mfc.gris{border-color:#3a3a42}
+.mfc-score.gris{color:#8b8b93}
+.mfc-icon.gris{background:#1c1c22;color:#8b8b93}

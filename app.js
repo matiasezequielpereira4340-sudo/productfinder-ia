@@ -1003,6 +1003,9 @@ async function startMRAnalysis(){
     return;
   }
   mrData={product,capital:document.getElementById('mrCapital').value,canal:document.getElementById('mrCanal').value,tc:tcInput};
+  mrData.sinComparable=false; mrData.exploracion=null; mrData.step5=null;
+  mrData.testBusqueda=null; mrData.antiguedad=null;
+  const _p5=document.getElementById('mrStep5'); if(_p5) _p5.style.display='none';
   document.getElementById('btnMRAnalyze').disabled=true;
   document.getElementById('mrSteps').classList.add('visible');
   document.getElementById('mrResult').classList.remove('visible');
@@ -1115,6 +1118,15 @@ async function runMRStep2(product){
     const satInfo=r.saturacion?`<div class="mr-row"><span class="mr-row-label">Nivel de saturaci&#243;n</span><span class="mr-row-value"><span class="mr-tag ${satColor}">${r.saturacion}</span></span></div>`:`<div class="mr-row"><span class="mr-row-label">Nivel de saturaci&#243;n</span><span class="mr-row-value" style="color:var(--text-dim)">no calculable con esta fuente</span></div>`;
     const tablaComp=compRows?`<table class="mr-comp-table"><thead><tr><th>#</th><th>Producto / Seller</th><th>Precio</th><th>Vendidos</th><th>Reputaci&#243;n</th></tr></thead><tbody>${compRows}</tbody></table>`:'';
     const pieFuente=`<div style="margin-top:12px"><span class="mr-tag tag-info"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg> ${mrFuenteLabel(r.fuente)}</span></div>`;
+
+    // 8.a) Sin comparable: no es "poca competencia", es que el producto no se
+    //      vende aca. Se dispara el modo aparte, que evalua otra cosa.
+    if(r.sinComparable && typeof window.activarModoSinComparable==='function'){
+      window.activarModoSinComparable(product);
+    } else if(typeof mrData!=='undefined'&&mrData){
+      mrData.sinComparable=false;
+      const p5=document.getElementById('mrStep5'); if(p5) p5.style.display='none';
+    }
 
     // 3) Con menos de 8 publicaciones no hay rango, ni promedio, ni mediana:
     //    un precio "de mercado" sacado de una publicacion es un invento.
@@ -1312,11 +1324,20 @@ function confirmMRStep4(){
   const breakevenUds=margenARS>0?Math.ceil(inversionARS/margenARS):0;
   const breakevenDias=ventasDia>0&&breakevenUds>0?Math.ceil(breakevenUds/ventasDia):0;
   const scD=Math.min(100,(mrData.step1&&mrData.step1.demandaScore)||50);
-  const scC=100-Math.min(100,(mrData.step2&&mrData.step2.competenciaScore)||50);
+  // Sin comparable NO hay score de competencia. El "||50" de antes convertia
+  // un null en un 50, o sea que un producto que no se vende en Argentina
+  // puntuaba mejor en competencia que uno saturado: el sistema premiaba la
+  // ausencia. Con sinComparable el score entero queda en null y el gauge se
+  // oculta; no se inventa un numero para llenar el hueco.
+  const compScore=(mrData.step2&&mrData.step2.competenciaScore);
+  const scC=(compScore==null)?null:(100-Math.min(100,compScore));
   const scM=Math.max(0,Math.min(100,margenPct*2.5));
   const scR=Math.max(0,Math.min(100,roiAnualPct/3));
   const scDef=mrScoreTikTok(mrData.step3).score;
-  const scoreReponderado=Math.round(scD*0.25+scC*0.20+scM*0.30+scR*0.15+scDef*0.10);
+  const sinComp=!!mrData.sinComparable;
+  const scoreReponderado=(sinComp||scC==null)
+    ? null
+    : Math.round(scD*0.25+scC*0.20+scM*0.30+scR*0.15+scDef*0.10);
 
   mrData.step4={fob,ventas,venta,tc,modalidad,posicion,factorPos,
     costoLanded:costoLandedUSD,costoLandedARS,cifUSD,fobARS,fleteARS,seguroARS,
@@ -1333,7 +1354,7 @@ function confirmMRStep4(){
   const modLabel=modalidadLabel(modalidad);
   const advMediano=usaMediano?`<div class="mr-row"><span class="mr-row-label"><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Sugerencia</span><span class="mr-row-value" style="color:var(--gold)">Mediano ${fmtA(medianoARS)} (tu venta difiere ${Math.round((venta-medianoARS)/medianoARS*100)}%)</span></div>`:'';
   const logRow=mrData.canal==='mercadolibre'?`<div class="mr-row"><span class="mr-row-label">Log&#237;stica (${modLabel})</span><span class="mr-row-value">${logisticaARS>0?fmtA(logisticaARS):'gratis (paga comprador)'}</span></div>`:'';
-  document.getElementById('mrStep4Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Precio FOB</span><span class="mr-row-value">USD ${fob.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Costo CIF (FOB+flete+seguro)</span><span class="mr-row-value">USD ${cifUSD.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Aranceles (${Math.round(arancelRate*100)}% s/CIF)</span><span class="mr-row-value">${fmtA(arancelesARS)}</span></div><div class="mr-row"><span class="mr-row-label">Tasa de estad&#237;stica (3% s/CIF)</span><span class="mr-row-value">${fmtA(tasaEstadisticaARS)}</span></div><div class="mr-row"><span class="mr-row-label">Costo landed total</span><span class="mr-row-value">USD ${costoLandedUSD.toFixed(2)} / ${fmtA(costoLandedARS)}</span></div><div class="mr-row"><span class="mr-row-label">Base imponible de importaci&#243;n (CIF+aranceles+tasa)</span><span class="mr-row-value">${fmtA(baseImponibleARS)}</span></div><div class="mr-row"><span class="mr-row-label">IVA de importaci&#243;n (21% s/base) &#8212; cr&#233;dito fiscal</span><span class="mr-row-value">${fmtA(ivaImportacionARS)}</span></div><div class="mr-row"><span class="mr-row-label">Percepci&#243;n IVA adicional (20% s/base) &#8212; pago a cuenta</span><span class="mr-row-value">${fmtA(ivaAdicionalARS)}</span></div><div class="mr-row"><span class="mr-row-label">Capital inmovilizado por unidad</span><span class="mr-row-value" style="color:var(--gold)">${fmtA(capitalUnitarioARS)}</span></div><div class="mr-row"><span class="mr-row-label">Comisi&#243;n MeLi (${Math.round(comisionFinalPct*100)}%)</span><span class="mr-row-value">${fmtA(comisionMeLiARS)}</span></div><div class="mr-row"><span class="mr-row-label">IVA a pagar (d&#233;bito ${fmtA(ivaDebitoARS)} &#8722; cr&#233;dito ${fmtA(ivaCreditoARS)})</span><span class="mr-row-value">${fmtA(ivaARS)}</span></div><div class="mr-row"><span class="mr-row-label">IIBB (3%)</span><span class="mr-row-value">${fmtA(iibbARS)}</span></div>${logRow}<div class="mr-row"><span class="mr-row-label">Margen neto estimado</span><span class="mr-row-value" style="color:${mColor};font-size:1.1rem">${margenPct}% (${fmtA(margenARS)})</span></div><div class="mr-row"><span class="mr-row-label">ROI anualizado</span><span class="mr-row-value" style="color:var(--gold)">${roiAnualPct}%</span></div>${breakevenUds?`<div class="mr-row"><span class="mr-row-label">Breakeven</span><span class="mr-row-value">${breakevenUds} uds${breakevenDias?` (~${breakevenDias} d&#237;as)`:''}</span></div>`:''}<div class="mr-row"><span class="mr-row-label">Score reponderado</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">${mrData.step4.scoreReponderado}/100</span></div><div class="mr-row"><span class="mr-row-label">Modalidad / Posicionamiento</span><span class="mr-row-value">${modLabel} &#183; ${posicion}</span></div>${advMediano}${ventas?`<div class="mr-row"><span class="mr-row-label">Ventas/mes top sellers MeLi</span><span class="mr-row-value">${ventas} uds</span></div>`:''}<div style="margin-top:8px"><span class="mr-tag tag-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> C&#225;lculo registrado</span></div>`;
+  document.getElementById('mrStep4Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Precio FOB</span><span class="mr-row-value">USD ${fob.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Costo CIF (FOB+flete+seguro)</span><span class="mr-row-value">USD ${cifUSD.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Aranceles (${Math.round(arancelRate*100)}% s/CIF)</span><span class="mr-row-value">${fmtA(arancelesARS)}</span></div><div class="mr-row"><span class="mr-row-label">Tasa de estad&#237;stica (3% s/CIF)</span><span class="mr-row-value">${fmtA(tasaEstadisticaARS)}</span></div><div class="mr-row"><span class="mr-row-label">Costo landed total</span><span class="mr-row-value">USD ${costoLandedUSD.toFixed(2)} / ${fmtA(costoLandedARS)}</span></div><div class="mr-row"><span class="mr-row-label">Base imponible de importaci&#243;n (CIF+aranceles+tasa)</span><span class="mr-row-value">${fmtA(baseImponibleARS)}</span></div><div class="mr-row"><span class="mr-row-label">IVA de importaci&#243;n (21% s/base) &#8212; cr&#233;dito fiscal</span><span class="mr-row-value">${fmtA(ivaImportacionARS)}</span></div><div class="mr-row"><span class="mr-row-label">Percepci&#243;n IVA adicional (20% s/base) &#8212; pago a cuenta</span><span class="mr-row-value">${fmtA(ivaAdicionalARS)}</span></div><div class="mr-row"><span class="mr-row-label">Capital inmovilizado por unidad</span><span class="mr-row-value" style="color:var(--gold)">${fmtA(capitalUnitarioARS)}</span></div><div class="mr-row"><span class="mr-row-label">Comisi&#243;n MeLi (${Math.round(comisionFinalPct*100)}%)</span><span class="mr-row-value">${fmtA(comisionMeLiARS)}</span></div><div class="mr-row"><span class="mr-row-label">IVA a pagar (d&#233;bito ${fmtA(ivaDebitoARS)} &#8722; cr&#233;dito ${fmtA(ivaCreditoARS)})</span><span class="mr-row-value">${fmtA(ivaARS)}</span></div><div class="mr-row"><span class="mr-row-label">IIBB (3%)</span><span class="mr-row-value">${fmtA(iibbARS)}</span></div>${logRow}<div class="mr-row"><span class="mr-row-label">Margen neto estimado</span><span class="mr-row-value" style="color:${mColor};font-size:1.1rem">${margenPct}% (${fmtA(margenARS)})</span></div><div class="mr-row"><span class="mr-row-label">ROI anualizado</span><span class="mr-row-value" style="color:var(--gold)">${roiAnualPct}%</span></div>${breakevenUds?`<div class="mr-row"><span class="mr-row-label">Breakeven</span><span class="mr-row-value">${breakevenUds} uds${breakevenDias?` (~${breakevenDias} d&#237;as)`:''}</span></div>`:''}<div class="mr-row"><span class="mr-row-label">Score reponderado</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">${mrData.step4.scoreReponderado==null?'no aplica (sin comparable en MeLi)':mrData.step4.scoreReponderado+'/100'}</span></div><div class="mr-row"><span class="mr-row-label">Modalidad / Posicionamiento</span><span class="mr-row-value">${modLabel} &#183; ${posicion}</span></div>${advMediano}${ventas?`<div class="mr-row"><span class="mr-row-label">Ventas/mes top sellers MeLi</span><span class="mr-row-value">${ventas} uds</span></div>`:''}<div style="margin-top:8px"><span class="mr-tag tag-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> C&#225;lculo registrado</span></div>`;
   runMRFinalAnalysis();
 }
 
@@ -1369,6 +1390,28 @@ async function runMRFinalAnalysis(){
     calidadDeDatos:decision.chips.map(c=>({dimension:c.t,estado:c.c==='verde'?'dato medido':(c.c==='ambar'?'estimado':'sin dato'),detalle:c.d})),
     riesgosSinVerificar:decision.veredicto.riesgosSinTildar||[]
   };
+  // Modo sin comparable: cambia de que se habla. No hay precio de mercado, asi
+  // que no hay margen proyectado ni escenarios de quiebre; hay presupuesto de
+  // test. Se le pasa eso y se le prohibe hablar de proyeccion de ventas.
+  if(mrData.sinComparable){
+    const pres=window.presupuestoDeTest?window.presupuestoDeTest(mrData):null;
+    paquete.modo='sin-comparable-en-mercadolibre-argentina';
+    paquete.advertenciaObligatoria=window.__modoSinComparable.lineaFija;
+    paquete.escenariosDeQuiebre=null;
+    paquete.presupuestoDeTest=pres?{
+      unidadesTest:pres.unidadesTest, moqCargado:!pres.faltaMOQ,
+      costoTestARS:Math.round(pres.costoTestARS),
+      porcentajeDelCapital:pres.pctCapital!=null?Math.round(pres.pctCapital):null,
+      precioQueCreeElUsuarioARS:pres.precioCreo||null,
+      unidadesParaRecuperarElTest:pres.udsParaRecuperar
+    }:null;
+    paquete.presenciaRegional=mrData.exploracion?{
+      conteos:mrData.exploracion.conteos, existeEn:mrData.exploracion.existeEn,
+      categoriaMadre:mrData.exploracion.categoriaMadre
+    }:null;
+    paquete.antiguedadDemanda=mrData.antiguedad||null;
+    paquete.testDeBusqueda=mrData.testBusqueda||null;
+  }
   try{
     const prompt='Sos analista de importaciones China-Argentina. Te paso un analisis YA RESUELTO: el veredicto, las senales con sus numeros, los escenarios de quiebre y la calidad de los datos. Todo eso lo calculo un motor de reglas, no vos.\n\n'+
       'REGLAS QUE NO PODES ROMPER:\n'+
@@ -1379,6 +1422,9 @@ async function runMRFinalAnalysis(){
       '5. Escribi en espanol rioplatense, directo, sin relleno y sin vender nada.\n\n'+
       'DATOS:\n'+JSON.stringify(paquete)+'\n\n'+
       'Responde SOLO JSON valido sin markdown: {"parrafos":["parrafo 1","parrafo 2","parrafo 3"],"proximosPasos":["paso 1","paso 2","paso 3"]}\n'+
+      (mrData.sinComparable
+        ? 'ATENCION: este producto NO tiene comparable en MercadoLibre Argentina. No existe precio de mercado, asi que NO hay margen proyectado ni proyeccion de ventas. No inventes ninguna de las dos cosas. Lo que se evalua es si vale la pena PAGAR POR AVERIGUARLO: hablá del presupuesto de test, de lo que se aprende y de lo que se arriesga. Empeza el primer parrafo reconociendo la advertencia obligatoria.\n'
+        : '') +
       'Los 3 parrafos tienen que desarrollar el POR QUE del veredicto: que riesgo concreto corre la plata, que tendria que pasar para que salga bien y que para que salga mal. Mencionando UNICAMENTE las senales que te pase.\n'+
       'Los 3 proximos pasos son concretos y acordes al veredicto (por ejemplo, si es CONVIENE SOLO SI: que hay que verificar antes de pagar el FOB, como MOQ real, muestra fisica, certificacion, posicion NCM).';
     const res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'final',customPrompt:prompt,prompt})});
@@ -1684,6 +1730,12 @@ function resetMR(){
     const c2=document.getElementById('mrvChkMarca'); if(c2) c2.checked=false;
   }
   const viejoV=document.getElementById('mrVeredictoBox'); if(viejoV) viejoV.style.display='';
+  // Modo sin comparable: se apaga y se devuelve el gauge, si no el proximo
+  // producto arranca con el paso 5 abierto y el score escondido.
+  const p5=document.getElementById('mrStep5'); if(p5) p5.style.display='none';
+  ['mrvNoComp','mrvTest'].forEach(function(id){ const e=document.getElementById(id); if(e) e.style.display='none'; });
+  const q=document.getElementById('mrvQuiebre'); if(q) q.style.display='';
+  if(typeof window.__mostrarGauge==='function') window.__mostrarGauge(true);
   const at=document.getElementById('mrAnalysisText'); if(at) at.innerHTML='';
   document.getElementById('btnMRAnalyze').disabled=false;
   if(window._radarChart){window._radarChart.destroy();window._radarChart=null;}
@@ -2355,8 +2407,12 @@ window.addEventListener('DOMContentLoaded',()=>{
     var md=(typeof mrData!=='undefined')? mrData : null;
     if(!md||!md.step4) return;
     var s4=md.step4, nf=new Intl.NumberFormat('es-AR');
-    var score=Math.max(0,Math.min(100,s4.scoreReponderado||0));
-    try{
+    // Sin comparable no hay score: el gauge no se dibuja (y ademas se oculta).
+    // Dibujarlo con "||0" mostraba una aguja en cero, que se lee como
+    // "puntuo psimo" cuando en realidad no se puede puntuar.
+    var hayScore = s4.scoreReponderado != null;
+    var score=hayScore?Math.max(0,Math.min(100,s4.scoreReponderado)):0;
+    if(hayScore) try{
       var gaugeArc=251, gOffset=gaugeArc-(score/100)*gaugeArc;
       var gf=document.getElementById('gaugeFill'); if(gf) gf.style.strokeDashoffset=gOffset;
       var gn=document.getElementById('gaugeNeedle'); if(gn) gn.style.transform='rotate('+(-90+(score/100)*180)+'deg)';
@@ -2370,17 +2426,24 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(vBox){ vBox.className='mr-veredicto'; vBox.classList.add(verd==='VIABLE'?'mv-si':verd==='NO RECOMENDADO'?'mv-no':'mv-cond'); }
     if(vTitle){ vTitle.textContent=(verd==='VIABLE'?'<svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> VIABLE':verd==='NO RECOMENDADO'?'<svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> NO RECOMENDADO':'<svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> VIABLE CON CONDICIONES'); }
     function setF(n,sc,label,why){
-      var s=Math.max(0,Math.min(100,sc||0));
-      var tier=s>=65?'verde':s>=40?'amarillo':'rojo';
-      var col=tier==='verde'?'#27ae60':tier==='amarillo'?'#FFE600':'#c0392b';
+      // sc null = no hay score, que NO es lo mismo que un score de 0. Antes el
+      // "||0" pintaba la tarjeta de Competencia en rojo con 0/100 cuando en
+      // realidad no se puede puntuar: se lee como pesimo en vez de "sin dato".
+      var sinDato = (sc == null);
+      var s=sinDato?0:Math.max(0,Math.min(100,sc));
+      var tier=sinDato?'gris':(s>=65?'verde':s>=40?'amarillo':'rojo');
+      var col=tier==='verde'?'#27ae60':tier==='amarillo'?'#FFE600':tier==='rojo'?'#c0392b':'#4a4a52';
       var fc=document.getElementById('fc'+n); if(fc) fc.className='mfc '+tier;
-      var fcs=document.getElementById('fcs'+n); if(fcs){ fcs.textContent=s+'/100'; fcs.className='mfc-score '+tier; }
-      var fcb=document.getElementById('fcb'+n); if(fcb){ fcb.style.width=s+'%'; fcb.style.background=col; }
+      var fcs=document.getElementById('fcs'+n); if(fcs){ fcs.textContent=sinDato?'sin dato':(s+'/100'); fcs.className='mfc-score '+tier; }
+      var fcb=document.getElementById('fcb'+n); if(fcb){ fcb.style.width=(sinDato?0:s)+'%'; fcb.style.background=col; }
       var fcl=document.getElementById('fcl'+n); if(fcl&&label) fcl.textContent=label;
       if(fcl&&!fcl.parentElement.querySelector('.v9-factor-why')){ var w=document.createElement('div'); w.className='v9-factor-why'; w.textContent=why; fcl.parentElement.appendChild(w); }
     }
     setF(1,s4.scD,'Score de demanda','Mide si la gente busca y compra este producto en Argentina.');
-    setF(2,s4.scC,'Competencia estimada','Mide cu\u00e1nta competencia hay vendiendo lo mismo. Menos competencia, mejor.');
+    setF(2,s4.scC,(s4.scC==null?'Sin comparable en MeLi':'Competencia estimada'),
+      (s4.scC==null
+        ? 'No hay publicaciones con que comparar. La ausencia de competencia NO puntua a favor.'
+        : 'Mide cu\u00e1nta competencia hay vendiendo lo mismo. Menos competencia, mejor.'));
     setF(3,s4.scM,(margenPct<0?('Perd\u00e9s $'+nf.format(Math.abs(Math.round(s4.margenARS)))+'/u'):('Margen '+margenPct+'%')),'Mide cu\u00e1nta ganancia queda despu\u00e9s de todos los costos. Es el factor m\u00e1s decisivo.');
     setF(4,s4.scR,'Regulaci\u00f3n','Mide restricciones aduaneras o permisos que compliquen la importaci\u00f3n.');
     if(window.__v9render) window.__v9render(md);
@@ -2550,7 +2613,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   };
   window.__v12shareImg=function(){
     var md=(typeof mrData!=='undefined')?mrData:null; if(!md||!md.step4) return;
-    var s4=md.step4, margenPct=s4.margenPct, prod=md.product||'Producto', score=s4.scoreReponderado||0;
+    var s4=md.step4, margenPct=s4.margenPct, prod=md.product||'Producto', score=s4.scoreReponderado;
     var verd=margenPct<0?'NO CONVIENE':(margenPct<15?'CONVIENE CON CONDICIONES':'CONVIENE');
     var vcol=margenPct<0?'#e74c3c':(margenPct<15?'#FFE600':'#2ecc71');
     var W=1080,H=1080, c=document.createElement('canvas'); c.width=W; c.height=H; var x=c.getContext('2d');
@@ -2585,7 +2648,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   window.__v13add=function(){
     var md=(typeof mrData!=='undefined')?mrData:null; if(!md||!md.step4) return;
     var s4=md.step4, list=[]; try{ list=JSON.parse(localStorage.getItem('pf_compare')||'[]'); }catch(e){}
-    var entry={ prod: md.product||'Producto', score: s4.scoreReponderado||0, margenPct: s4.margenPct, margenARS: Math.round(s4.margenARS||0), venta: s4.venta, ts: Date.now() };
+    var entry={ prod: md.product||'Producto', score: s4.scoreReponderado, margenPct: s4.margenPct, margenARS: Math.round(s4.margenARS||0), venta: s4.venta, ts: Date.now() };
     if(!list.some(function(x){return x.prod===entry.prod;})){ list.push(entry); if(list.length>4) list.shift(); localStorage.setItem('pf_compare', JSON.stringify(list)); }
     window.__v13render();
   };
@@ -3178,7 +3241,9 @@ function goHome(){
     }
 
     // ---------- MUESTRA DE COMPETENCIA ----------
-    if (s2.muestraInsuficiente){
+    // Con sinComparable esta critica la subsume la de "sin comparable en MeLi",
+    // que dice lo mismo con mas contexto: no se emiten las dos.
+    if (s2.muestraInsuficiente && !(md && md.sinComparable)){
       const nM = s2.muestra || 0;
       const cm = C('Solo '+nM+' '+(nM===1?'publicacion':'publicaciones')+' de referencia. No sabes a que precio se vende de verdad',
         nM+' de un minimo de 8');
@@ -3203,7 +3268,13 @@ function goHome(){
         s4.breakevenDias+' dias ('+(s4.breakevenUds||0)+' uds a '+(s4.ventas||0)+' uds/mes)'));
     }
 
-    return { aFavor, enContra, criticos };
+    const senales = { aFavor, enContra, criticos };
+    // 8) Modo sin comparable: se agregan las senales propias (categoria madre,
+    // region, antiguedad, test de busqueda, presupuesto de test).
+    if (md && md.sinComparable && window.__modoSinComparable){
+      return window.__modoSinComparable.senales(md, senales);
+    }
+    return senales;
   }
   window.evaluarViabilidad = evaluarViabilidad;
 
@@ -3220,7 +3291,11 @@ function goHome(){
     chips.push(s1.fuenteDemanda === 'google-trends'
       ? { t:'Demanda', c:'verde', d:'Google Trends, 12 meses medidos' }
       : { t:'Demanda', c:'ambar', d:'Estimacion de IA, no es un dato medido' });
-    if (s2.fuente === 'no-disponible' || s2.muestra === 0) chips.push({ t:'Competencia', c:'rojo', d:'Sin datos de MercadoLibre' });
+    // Un cero confirmado ES un dato medido. "Sin datos" se reserva para cuando
+    // MercadoLibre no dejo consultar: son cosas distintas.
+    if (s2.consultaFallida || s2.fuente === 'no-disponible') chips.push({ t:'Competencia', c:'rojo', d:'No pude consultar MercadoLibre' });
+    else if (s2.sinComparable && s2.muestra === 0) chips.push({ t:'Competencia', c:'verde', d:'Medido: 0 publicaciones en MeLi Argentina' });
+    else if (s2.sinComparable) chips.push({ t:'Competencia', c:'ambar', d:'Sin comparable: solo '+(s2.muestra||0)+' publicaci'+((s2.muestra===1)?'on':'ones')+' en MeLi' });
     else if (s2.muestraInsuficiente) chips.push({ t:'Competencia', c:'ambar', d:'Muestra de '+(s2.muestra||0)+' de un minimo de 8' });
     else chips.push({ t:'Competencia', c:'verde', d:(s2.muestra||0)+' publicaciones reales de MeLi' });
     if (!s3 || s3.omitido) chips.push({ t:'TikTok', c:'rojo', d:'Paso salteado, sin medir' });
@@ -3230,6 +3305,23 @@ function goHome(){
     if (dol && dol.ok && !dol.manual) chips.push({ t:'Tipo de cambio', c:'verde', d:(dol.tipoLabel||'')+' de dolarapi.com' });
     else if (dol && dol.manual) chips.push({ t:'Tipo de cambio', c:'ambar', d:'Cargado a mano: $'+new Intl.NumberFormat('es-AR').format(Math.round(s4.tc||0)) });
     else chips.push({ t:'Tipo de cambio', c:'rojo', d:'No pude traer la cotizacion' });
+    // 8.h) Dos chips propios del modo sin comparable.
+    if (md && md.sinComparable){
+      const ex = md.exploracion;
+      if (!ex) chips.push({ t:'Brasil/México', c:'rojo', d:'No pude consultar la región' });
+      else {
+        const e = ex.existeEn || {};
+        const sinDato = ['MLB','MLM'].filter(k => e[k] === null).length;
+        if (sinDato === 2) chips.push({ t:'Brasil/México', c:'rojo', d:'Ninguno de los dos se pudo consultar' });
+        else if (sinDato === 1) chips.push({ t:'Brasil/México', c:'ambar', d:'Solo uno de los dos respondió' });
+        else chips.push({ t:'Brasil/México', c:'verde',
+          d:'Medido: BR ' + (ex.conteos.MLB != null ? ex.conteos.MLB : '?') + ' · MX ' + (ex.conteos.MLM != null ? ex.conteos.MLM : '?') + ' publicaciones' });
+      }
+      const a = md.antiguedad || { valor:'sin-dato' };
+      if (a.valor === 'sin-dato') chips.push({ t:'Antigüedad demanda', c:'rojo', d:'Sin medir: completá el paso 5' });
+      else if (a.valor === 'mixta') chips.push({ t:'Antigüedad demanda', c:'ambar', d:'Señales mezcladas' });
+      else chips.push({ t:'Antigüedad demanda', c:'verde', d:'Medido: demanda ' + a.valor + (a.reviews ? ' · ' + new Intl.NumberFormat('es-AR').format(a.reviews) + ' reviews' : '') });
+    }
     return chips;
   }
   window.calidadDeDatos = calidadDeDatos;
@@ -3238,6 +3330,30 @@ function goHome(){
   // 6.c VEREDICTO. La regla la decide este codigo, no la IA.
   // ------------------------------------------------------------------
   function veredictoDe(md, senales){
+    // 8.g) Sin comparable el flujo CONVIENE / NO CONVIENE no corre: se
+    // reemplaza por los cuatro estados, que evaluan si vale la pena pagar por
+    // averiguarlo en vez de proyectar una venta que no se puede proyectar.
+    if (md && md.sinComparable && window.__modoSinComparable){
+      const v = window.__modoSinComparable.veredicto(md, senales);
+      const cert  = document.getElementById('mrvChkCert');
+      const marca = document.getElementById('mrvChkMarca');
+      const riesgosSinTildar = [];
+      if (!cert  || !cert.checked)  riesgosSinTildar.push('verificar si necesita certificacion (seguridad electrica, ENACOM, ANMAT, juguetes)');
+      if (!marca || !marca.checked) riesgosSinTildar.push('verificar que no sea marca registrada ni replica');
+      // El verde tampoco sale con los riesgos sin tildar en este modo.
+      if (v.clave === 'si' && riesgosSinTildar.length){
+        v.clave = 'cond';
+        // El titulo tiene que decir que esta frenado: si no, queda el nombre
+        // del estado verde pintado de ambar y no se entiende por que.
+        v.titulo = v.titulo + ' — FALTA VERIFICAR';
+        v.sub = v.sub + ' Antes de pagar el FOB quedan riesgos sin verificar:';
+        v.condiciones = (v.condiciones || []).concat(riesgosSinTildar);
+      }
+      v.riesgosSinTildar = riesgosSinTildar;
+      v.fuertesContra = senales.enContra.filter(x => x.peso === 'fuerte').length;
+      v.aFavorTotal = senales.aFavor.length;
+      return v;
+    }
     const s1 = (md && md.step1) || {};
     const s2 = (md && md.step2) || {};
     const sinDemanda = (s1.fuenteDemanda || 'estimacion-ia') !== 'google-trends';
@@ -3356,6 +3472,10 @@ function goHome(){
       senales.aFavor.map(x => itemHTML(x, false)).join('') ||
       '<div class="mrv-vacio">Ninguna senal a favor con los datos que hay.</div>';
 
+    // 8) Bloques propios del modo sin comparable (paises, categoria madre,
+    // presupuesto de test) y ocultado del gauge.
+    if (typeof window.__pintarSinComparable === 'function') window.__pintarSinComparable(md);
+
     // --- Escenarios de quiebre ---
     const nf = new Intl.NumberFormat('es-AR');
     const grid = document.getElementById('mrvQuiebreGrid');
@@ -3388,8 +3508,11 @@ function goHome(){
     // --- Nota de los riesgos tildables ---
     const nota = document.getElementById('mrvRiesgosNota');
     if (nota){
+      // En el modo sin comparable los estados son otros: el tope no se llama
+      // "CONVIENE SOLO SI" sino "TEST DE VALIDACION".
+      const tope = (md.sinComparable) ? '"TEST DE VALIDACI&#211;N"' : '"CONVIENE SOLO SI"';
       nota.innerHTML = ver.riesgosSinTildar.length
-        ? '<b>'+ver.riesgosSinTildar.length+'</b> sin verificar: mientras queden sin tildar, el veredicto m&#225;ximo posible es "CONVIENE SOLO SI".'
+        ? '<b>'+ver.riesgosSinTildar.length+'</b> sin verificar: mientras queden sin tildar, el veredicto no puede pasar de '+tope+'.'
         : '<span style="color:#27ae60">Los dos verificados.</span>';
     }
 
@@ -3530,4 +3653,542 @@ function goHome(){
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
   setTimeout(init, 500);
+})();
+
+/* ---- bloque 23 ---- */
+/* ===== MODO "PRODUCTO SIN COMPARABLE EN MERCADO LIBRE ARGENTINA" =====
+
+   El bug de fondo que esto arregla: si un producto no estaba en MeLi, el paso
+   2 devolvia pocos resultados, la saturacion salia baja, el competenciaScore
+   salia ALTO y sumaba al veredicto. El sistema premiaba la ausencia de
+   competencia. En importacion es al reves: la falta de competencia casi nunca
+   significa "nadie lo descubrio", significa "alguien ya lo probo y no
+   funciono" o "no se puede traer".
+
+   Con sinComparable el score se anula (no se sube), el gauge se oculta y el
+   veredicto de CONVIENE / NO CONVIENE se reemplaza por cuatro estados que
+   evaluan otra cosa: si vale la pena pagar por averiguarlo.
+   ===================================================================== */
+(function(){
+
+  var LINEA_FIJA = 'Este producto no tiene comparable en MercadoLibre Argentina. ' +
+    'Nada de lo que sigue es una proyección de ventas: es una evaluación de si vale la pena pagar por averiguarlo.';
+
+  function nf(n){ return new Intl.NumberFormat('es-AR').format(n); }
+  function ars(n){ return 'ARS ' + nf(Math.round(n)); }
+
+  // ---------------------------------------------------------------
+  // 8.d) Antiguedad de la demanda. Es la distincion que decide todo y no se
+  // puede scrapear: sale de lo que contesta el usuario.
+  // ---------------------------------------------------------------
+  function derivarAntiguedad(s5){
+    if (!s5) return { valor:'sin-dato', motivo:'El paso de antiguedad no se completo.' };
+    var edad = s5.tiktokEdad || '';
+    var mes = s5.aliMes, anio = s5.aliAnio;
+    var reviews = s5.aliReviews;
+
+    // Que tan fresca es la ultima review, en meses.
+    var mesesDesdeReview = null;
+    if (mes && anio){
+      var hoy = new Date();
+      mesesDesdeReview = (hoy.getFullYear() - anio) * 12 + (hoy.getMonth() + 1 - mes);
+      if (mesesDesdeReview < 0) mesesDesdeReview = 0;
+    }
+    var activaUltimoTrimestre = mesesDesdeReview != null && mesesDesdeReview <= 3;
+    var reviewsViejas = mesesDesdeReview != null && mesesDesdeReview > 12;
+
+    if (!edad && mesesDesdeReview == null) return { valor:'sin-dato', mesesDesdeReview:null, reviews:reviews,
+      motivo:'No cargaste ni la antiguedad de los videos ni la fecha de las reviews.' };
+
+    if (edad === 'recientes' && activaUltimoTrimestre){
+      return { valor:'nueva', mesesDesdeReview:mesesDesdeReview, reviews:reviews,
+        motivo:'Videos de los ultimos 6 meses y reviews del ultimo trimestre' +
+               (reviews ? ' (' + nf(reviews) + ' reviews)' : '') + '.' };
+    }
+    if (edad === 'viejos' && reviewsViejas){
+      return { valor:'vieja', mesesDesdeReview:mesesDesdeReview, reviews:reviews,
+        motivo:'Videos de 2 anos o mas y ultima review hace ' + mesesDesdeReview + ' meses.' };
+    }
+    if (edad === 'sin-videos' && reviewsViejas){
+      return { valor:'vieja', mesesDesdeReview:mesesDesdeReview, reviews:reviews,
+        motivo:'Sin videos en TikTok y ultima review hace ' + mesesDesdeReview + ' meses.' };
+    }
+    if (edad === 'mezclados' || edad === 'recientes' || edad === 'viejos' || edad === 'sin-videos'){
+      return { valor:'mixta', mesesDesdeReview:mesesDesdeReview, reviews:reviews,
+        motivo:'Senales mezcladas: videos "' + edad + '"' +
+               (mesesDesdeReview != null ? ', ultima review hace ' + mesesDesdeReview + ' meses' : ', sin fecha de reviews') + '.' };
+    }
+    return { valor:'sin-dato', mesesDesdeReview:mesesDesdeReview, reviews:reviews,
+      motivo:'Falta la antiguedad de los videos de TikTok.' };
+  }
+  window.derivarAntiguedad = derivarAntiguedad;
+
+  // ---------------------------------------------------------------
+  // 8.f) Presupuesto de test. Sin comparable no hay precio de venta de
+  // referencia, asi que el margen proyectado es ficcion: se reemplaza por
+  // cuanto cuesta averiguarlo.
+  // ---------------------------------------------------------------
+  function presupuestoDeTest(md){
+    var s4 = md && md.step4;
+    var s5 = (md && md.step5) || {};
+    if (!s4) return null;
+
+    var moqEl = document.getElementById('mrMOQ');
+    var moq = moqEl ? parseInt(moqEl.value, 10) : NaN;
+    if (!isFinite(moq) || moq <= 0) moq = window.mrMOQ || 0;
+    var faltaMOQ = !moq;
+
+    var unidadesTest = Math.max(moq || 0, 50);
+    // Mismo costo corregido del fix 2: landed + IVA de importacion +
+    // percepcion. Los tres salen de la caja para traer el test.
+    var costoUnitARS = s4.capitalUnitarioARS || 0;
+    var costoTestARS = unidadesTest * costoUnitARS;
+
+    var capitalUSD = parseFloat(md.capital) || 0;
+    var capitalARS = capitalUSD * (s4.tc || 0);
+    var pctCapital = capitalARS > 0 ? (costoTestARS / capitalARS) * 100 : null;
+    var excede = capitalARS > 0 && costoTestARS > capitalARS * 0.15;
+
+    // A cuanto CREE que lo vende: se calcula al reves, no como margen.
+    var precioCreo = s5.precioCreo || 0;
+    var udsParaRecuperar = null, margenUnitARS = null;
+    if (precioCreo > 0 && typeof window.mrMargenCon === 'function'){
+      var m = window.mrMargenCon(s4, { venta: precioCreo });
+      margenUnitARS = m.margenARS;
+      if (margenUnitARS > 0) udsParaRecuperar = Math.ceil(costoTestARS / margenUnitARS);
+    }
+
+    var modoEnvio = (document.getElementById('mrShipMode') || {}).value || 'auto';
+    var esMaritimo = modoEnvio === 'lcl' || modoEnvio === 'fcl';
+
+    return {
+      moq: moq, faltaMOQ: faltaMOQ, unidadesTest: unidadesTest,
+      costoUnitARS: costoUnitARS, costoTestARS: costoTestARS,
+      capitalARS: capitalARS, pctCapital: pctCapital, excede: excede,
+      precioCreo: precioCreo, margenUnitARS: margenUnitARS,
+      udsParaRecuperar: udsParaRecuperar,
+      modoEnvio: modoEnvio, esMaritimo: esMaritimo
+    };
+  }
+  window.presupuestoDeTest = presupuestoDeTest;
+
+  // ---------------------------------------------------------------
+  // Señales propias del modo. Se suman a las del fix 6.
+  // Regla que no se rompe: si un dato no se pudo consultar, la señal NO se
+  // emite. "No pude preguntar" nunca se convierte en "no existe".
+  // ---------------------------------------------------------------
+  function senalesSinComparable(md, senales){
+    var expl = (md && md.exploracion) || null;
+    var s5 = (md && md.step5) || null;
+    var test = (md && md.testBusqueda) || null;
+    var ant = (md && md.antiguedad) || { valor:'sin-dato' };
+    var s2 = (md && md.step2) || {};
+
+    var F = function(t,d){ return { texto:t, dato:d, peso:'fuerte' }; };
+    var M = function(t,d){ return { texto:t, dato:d, peso:'medio' }; };
+    var C = function(t,d,clave){ var o = { texto:t, dato:d, peso:'critico' }; if(clave) o.clave=clave; return o; };
+
+    // --- La critica de base: no hay comparable ---
+    senales.criticos.push(C(
+      'Sin comparable en MeLi Argentina. No hay evidencia de que este producto se venda aca.',
+      (s2.muestra || 0) + ((s2.muestra === 1) ? ' publicacion encontrada' : ' publicaciones encontradas') + ' en MercadoLibre Argentina',
+      'sin-comparable'));
+
+    // --- 8.b) Categoria madre ---
+    if (expl){
+      if (expl.categoriaMadre){
+        var cm = expl.categoriaMadre;
+        senales.aFavor.push(M(
+          'La categoria madre existe y rota: hay demanda para el tipo de producto, aunque no para este modelo.',
+          '"' + cm.termino + '": ' + (cm.publicaciones != null ? nf(cm.publicaciones) + ' publicaciones' : cm.muestra + ' en la muestra') +
+          (cm.precioMediano ? ', mediana ' + ars(cm.precioMediano) : '')));
+      } else if (Array.isArray(expl.terminosProgresivos) && expl.terminosProgresivos.length){
+        // Solo se afirma que no existe si al menos un escalon se pudo consultar.
+        var algunoConsultado = (expl.escalones || []).some(function(e){ return e.ok; });
+        if (algunoConsultado){
+          senales.criticos.push(C(
+            'Ni siquiera la categoria generica existe en MeLi.',
+            'probados sin resultado: ' + expl.terminosProgresivos.join(' / '),
+            'sin-categoria-madre'));
+        }
+      }
+    }
+
+    // --- 8.c) Brasil y Mexico ---
+    if (expl && expl.existeEn){
+      var e = expl.existeEn, c = expl.conteos || {};
+      var brN = c.MLB, mxN = c.MLM, arN = c.MLA;
+      // La señal mas informativa de todo el punto 8.
+      // "No llego aca" no es solamente cero: estamos en modo sin comparable,
+      // o sea que Argentina tiene 2 publicaciones o menos. Una publicacion
+      // suelta no es "ya esta aca".
+      const noLlegoAca = e.MLA === false || (arN != null && arN <= 2);
+      if (e.MLB === true && brN != null && brN >= 15 && noLlegoAca){
+        senales.aFavor.push(F(
+          'Se vende en Brasil y todavia no llego aca. Es la senal mas fuerte de ventana real que puedo darte.',
+          'Brasil ' + nf(brN) + ' publicaciones vs Argentina ' + (arN != null ? nf(arN) : 'sin dato')));
+      }
+      if (e.MLA === false && e.MLB === false && e.MLM === false){
+        senales.criticos.push(C(
+          'No se vende en ningun MercadoLibre de la region.',
+          'Argentina 0 / Brasil 0 / Mexico 0',
+          'sin-region'));
+      }
+      // Si alguno no se pudo consultar, se dice, pero no se concluye.
+      var sinDato = Object.keys(e).filter(function(k){ return e[k] === null; });
+      if (sinDato.length){
+        senales.enContra.push(M(
+          'No pude consultar ' + sinDato.map(function(k){ return (expl.paises[k] || {}).pais || k; }).join(' y ') +
+          ': ese dato falta, no es un cero.',
+          sinDato.map(function(k){ return k + ': ' + ((expl.paises[k] || {}).motivo || 'sin motivo'); }).join(' | ')));
+      }
+    }
+
+    // --- 8.d) Antiguedad de la demanda ---
+    if (ant.valor === 'nueva'){
+      senales.aFavor.push(F('Demanda nueva: el producto esta apareciendo ahora, no es un descarte viejo.', ant.motivo));
+    } else if (ant.valor === 'vieja'){
+      senales.enContra.push(F('Demanda vieja: el producto ya tiene recorrido afuera y aca no esta.', ant.motivo));
+    } else if (ant.valor === 'sin-dato'){
+      senales.enContra.push(M('No mediste la antiguedad de la demanda: sin eso no se distingue una ventana de un fracaso ajeno.', ant.motivo));
+    }
+
+    // --- 8.e) Test de busqueda ---
+    if (test && test.suficiente === true){
+      senales.aFavor.push(F(
+        'Hay categoria y la gente sabe como nombrarla: tu producto se puede encontrar.',
+        '"' + test.termino + '" devuelve ' + (test.encontradas != null ? nf(test.encontradas) : test.muestra) + ' publicaciones'));
+    } else if (test && test.suficiente === false && test.encontradas === 0){
+      senales.criticos.push(C(
+        'Nadie busca eso en MeLi. Aunque el producto sea bueno, no te lo van a encontrar: crear la categoria requiere contenido y pauta, que es un negocio distinto al de importar.',
+        '"' + test.termino + '" devuelve 0 publicaciones',
+        'test-busqueda-cero'));
+    } else if (test && test.suficiente === false){
+      senales.enContra.push(F(
+        'La busqueda que propusiste devuelve muy poco: cuesta que te encuentren.',
+        '"' + test.termino + '" devuelve ' + (test.encontradas != null ? nf(test.encontradas) : test.muestra) + ' publicaciones'));
+    }
+
+    // --- 8.f) Presupuesto de test contra el capital ---
+    var pres = presupuestoDeTest(md);
+    if (pres && pres.excede){
+      senales.criticos.push(C(
+        'El test cuesta el ' + Math.round(pres.pctCapital) + '% de tu capital. Para un producto sin validar eso no es un test, es una apuesta.',
+        ars(pres.costoTestARS) + ' de ' + ars(pres.capitalARS) + ' (' + pres.unidadesTest + ' uds)',
+        'test-caro'));
+    }
+    return senales;
+  }
+
+  // ---------------------------------------------------------------
+  // 8.g) Veredicto de cuatro estados. Lo decide este codigo, en este orden.
+  // ---------------------------------------------------------------
+  function veredictoSinComparable(md, senales){
+    var expl = (md && md.exploracion) || {};
+    var test = (md && md.testBusqueda) || null;
+    var ant = (md && md.antiguedad) || { valor:'sin-dato' };
+    var e = expl.existeEn || {};
+    var c = expl.conteos || {};
+
+    var sinCategoriaMadre = !expl.categoriaMadre &&
+      (expl.escalones || []).some(function(x){ return x.ok; });
+    var noExisteRegion = e.MLA === false && e.MLB === false && e.MLM === false;
+    var testCero = test && test.encontradas === 0;
+
+    // El test de busqueda es obligatorio: sin el, no se emite veredicto.
+    if (!test){
+      return { clave:'gris', titulo:'FALTA EL TEST DE BÚSQUEDA',
+        sub:'No se puede evaluar un producto que no sabés cómo se busca. Completá las 3 palabras del paso 5.',
+        condiciones:[], bloqueado:true };
+    }
+
+    if ((sinCategoriaMadre && noExisteRegion) || noExisteRegion || testCero || sinCategoriaMadre){
+      return { clave:'no', titulo:'SIN MERCADO',
+        sub:'No hay evidencia de que exista mercado para esto en la región.',
+        condiciones: [
+          sinCategoriaMadre ? 'Ni la categoría genérica tiene publicaciones en MercadoLibre Argentina.' : null,
+          noExisteRegion ? 'No aparece en Argentina, ni en Brasil, ni en México.' : null,
+          testCero ? 'La búsqueda que propusiste ("' + test.termino + '") no devuelve nada.' : null
+        ].filter(Boolean) };
+    }
+
+    var categoriaRota = !!(expl.categoriaMadre &&
+      (expl.categoriaMadre.ventasTop3 == null || expl.categoriaMadre.ventasTop3 > 0));
+    if (ant.valor === 'vieja' && expl.categoriaMadre && categoriaRota){
+      return { clave:'no', titulo:'PROBABLEMENTE YA FRACASÓ',
+        sub:'El producto es viejo afuera, la categoría se vende acá, y sin embargo nadie lo trae. Lo más probable es que alguien ya lo probó. Averiguá por qué antes de repetirlo.',
+        condiciones: [
+          'Buscá el producto en MeLi con publicaciones pausadas o finalizadas: si hubo, alguien lo trajo y lo dejó.',
+          'Preguntale al proveedor si le compró alguien de Argentina antes y qué volumen.',
+          'Revisá si hay traba de importación o certificación que explique la ausencia.'
+        ] };
+    }
+
+    var brN = c.MLB;
+    if (ant.valor === 'nueva' && e.MLB === true && brN != null && brN >= 15 && test.suficiente === true){
+      return { clave:'si', titulo:'VENTANA REAL — TEST CHICO',
+        sub:'Es la mejor configuración posible sin comparable local. Igual entrá con el test mínimo, no con volumen.',
+        condiciones: [] };
+    }
+
+    return { clave:'cond', titulo:'TEST DE VALIDACIÓN',
+      sub:'No hay datos para decidir. Se puede probar, pero el tamaño de la compra lo define lo que estás dispuesto a perder entero, no el margen.',
+      condiciones: [] };
+  }
+
+  window.__modoSinComparable = {
+    senales: senalesSinComparable,
+    veredicto: veredictoSinComparable,
+    lineaFija: LINEA_FIJA,
+    presupuesto: presupuestoDeTest,
+    antiguedad: derivarAntiguedad
+  };
+})();
+
+/* ---- bloque 24 ---- */
+/* ===== Modo sin comparable: paso 5, exploracion y render ===== */
+(function(){
+  function nf(n){ return new Intl.NumberFormat('es-AR').format(n); }
+  function ars(n){ return 'ARS ' + nf(Math.round(n)); }
+
+  // Cuando el paso 2 detecta que no hay comparable, se dispara la exploracion
+  // (categoria madre + Brasil/Mexico) y se muestra el paso 5.
+  window.activarModoSinComparable = async function(product){
+    if (typeof mrData === 'undefined' || !mrData) return;
+    mrData.sinComparable = true;
+    var paso5 = document.getElementById('mrStep5');
+    if (paso5) paso5.style.display = '';
+
+    var cuerpo = document.getElementById('mrStep2Body');
+    if (cuerpo){
+      cuerpo.insertAdjacentHTML('beforeend',
+        '<div class="mr-badge-estimacion" style="margin-top:12px">' +
+        'Sin comparable en MercadoLibre Argentina. Estoy buscando la categoría madre y mirando si se vende en Brasil o México...' +
+        '</div>');
+    }
+    try{
+      var res = await fetch('/api/market', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ step:'exploracion', product: product }) });
+      var r = await res.json();
+      if (!res.ok) throw new Error(r.error || 'Error en exploracion');
+      mrData.exploracion = r;
+      pintarExploracion(r);
+    }catch(e){
+      mrData.exploracion = null;
+      if (cuerpo) cuerpo.insertAdjacentHTML('beforeend',
+        '<div style="margin-top:8px;font-size:.82rem;color:var(--red)">No pude explorar la categoría madre ni la región: ' + e.message + '</div>');
+    }
+  };
+
+  function pintarExploracion(r){
+    var cuerpo = document.getElementById('mrStep2Body');
+    if (!cuerpo) return;
+    var filas = ['MLA','MLB','MLM'].map(function(k){
+      var p = (r.paises && r.paises[k]) || {};
+      var n = r.conteos ? r.conteos[k] : null;
+      var existe = r.existeEn ? r.existeEn[k] : null;
+      var cls = existe === true ? 'si' : (existe === false ? 'no' : 'nd');
+      var val = existe === null ? 'sin dato' : (n != null ? nf(n) : (p.muestra || 0));
+      var det = existe === null
+        ? (p.motivo || 'no se pudo consultar')
+        : (existe ? ((p.muestra||0) + ' en la muestra' + (p.precioMediano ? ' · mediana ' + nf(p.precioMediano) + ' ' + (p.moneda||'') : '')) : 'sin publicaciones');
+      return '<div class="mrv-pais"><div class="mrv-pais-n">' + (p.pais || k) + '</div>' +
+             '<div class="mrv-pais-v ' + cls + '">' + val + '</div>' +
+             '<div class="mrv-pais-d">' + det + (r.terminos && r.terminos[k] ? '<br>buscado como: "' + r.terminos[k] + '"' : '') + '</div></div>';
+    }).join('');
+
+    var madre = '';
+    if (r.categoriaMadre){
+      var cm = r.categoriaMadre;
+      madre = '<div class="mrv-madre">Tu producto exacto no está en MeLi. La categoría madre <b>"' + cm.termino + '"</b> tiene ' +
+        (cm.publicaciones != null ? '<b>' + nf(cm.publicaciones) + '</b> publicaciones activas' : '<b>' + cm.muestra + '</b> publicaciones en la muestra') +
+        (cm.precioMediano ? ', mediana <b>' + ars(cm.precioMediano) + '</b>' : '') + '.' +
+        '<span class="mrv-ref">Esa mediana es una referencia DE LA CATEGORÍA, no el precio de tu producto. No la cargo en el precio de venta.</span></div>';
+    } else if (Array.isArray(r.terminosProgresivos) && r.terminosProgresivos.length){
+      madre = '<div class="mrv-madre">Ni siquiera la categoría genérica existe en MeLi. Probé: <b>' +
+        r.terminosProgresivos.join('</b> · <b>') + '</b>.</div>';
+    } else {
+      madre = '<div class="mrv-madre">No pude derivar términos de categoría madre para este producto.</div>';
+    }
+
+    cuerpo.insertAdjacentHTML('beforeend',
+      '<div class="mrv-nocomp" style="margin-top:12px">' +
+      '<div class="mrv-nocomp-linea">Publicaciones por país</div>' +
+      '<div class="mrv-paises">' + filas + '</div>' + madre + '</div>');
+  }
+
+  // --- Paso 5 ---
+  window.confirmMRStep5 = async function(){
+    var g = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
+    var termino = (g('mrTestBusqueda') || '').trim();
+    if (!termino || termino.split(/\s+/).length < 2){
+      alert('Escribí las palabras con las que un comprador buscaría este producto. Sin eso no puedo evaluarlo: el veredicto queda bloqueado.');
+      return;
+    }
+    var revEl = document.getElementById('mrAliReviews');
+    var reviews = window.__parseSmartNumber ? window.__parseSmartNumber(revEl ? revEl.value : '') : parseFloat(revEl ? revEl.value : '');
+    if (!isFinite(reviews) || reviews < 0) reviews = 0;
+
+    mrData.step5 = {
+      tiktokEdad: g('mrTiktokEdad'),
+      aliReviews: reviews,
+      aliMes: parseInt(g('mrAliMes'), 10) || null,
+      aliAnio: parseInt(g('mrAliAnio'), 10) || null,
+      testTermino: termino,
+      precioCreo: parseFloat(g('mrPrecioCreo')) || 0
+    };
+    mrData.antiguedad = window.derivarAntiguedad(mrData.step5);
+
+    var out = document.getElementById('mrTestBusquedaOut');
+    if (out) out.innerHTML = '<span style="color:var(--text-dim)">Buscando "' + termino + '" en MercadoLibre...</span>';
+    try{
+      var res = await fetch('/api/market', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ step:'testBusqueda', product: termino }) });
+      var r = await res.json();
+      if (!res.ok) throw new Error(r.error || 'Error en el test de busqueda');
+      mrData.testBusqueda = r;
+      if (out){
+        if (r.suficiente === true) out.innerHTML = '<span style="color:var(--green)">Devuelve ' + nf(r.encontradas != null ? r.encontradas : r.muestra) + ' publicaciones. Hay categoría y la gente sabe cómo nombrarla.</span>';
+        else if (r.encontradas === 0) out.innerHTML = '<span style="color:var(--red)">Devuelve 0 publicaciones. Nadie busca eso en MeLi.</span>';
+        else if (r.suficiente === false) out.innerHTML = '<span style="color:#e0a020">Devuelve ' + nf(r.encontradas != null ? r.encontradas : r.muestra) + ' publicaciones: muy poco.</span>';
+        else out.innerHTML = '<span style="color:#e0a020">No pude consultar MercadoLibre (' + (r.motivo || 'sin motivo') + '). Falta el dato; no lo cuento como cero.</span>';
+      }
+    }catch(e){
+      mrData.testBusqueda = null;
+      if (out) out.innerHTML = '<span style="color:var(--red)">No pude correr el test: ' + e.message + '</span>';
+    }
+
+    var a = mrData.antiguedad;
+    var cuerpo = document.getElementById('mrStep5Body');
+    if (cuerpo){
+      var colorA = a.valor === 'nueva' ? 'var(--green)' : (a.valor === 'vieja' ? 'var(--red)' : '#e0a020');
+      cuerpo.insertAdjacentHTML('beforeend',
+        '<div style="margin-top:12px;padding:10px;border-top:1px solid #2a2a2a">' +
+        '<div class="mr-row"><span class="mr-row-label">Antigüedad de la demanda</span>' +
+        '<span class="mr-row-value" style="color:' + colorA + ';font-weight:700">' + a.valor + '</span></div>' +
+        '<div style="font-size:.82rem;color:var(--text-dim);margin-top:4px">De dónde sale: ' + a.motivo + '</div></div>');
+    }
+    if (mrData.step4 && typeof window.renderMRDecision === 'function') window.renderMRDecision(mrData);
+    else if (mrData.step4) runMRFinalAnalysis();
+  };
+
+  // --- Render del modo dentro del bloque de decision ---
+  window.__pintarSinComparable = function(md){
+    var caja = document.getElementById('mrvNoComp');
+    var quiebre = document.getElementById('mrvQuiebre');
+    var test = document.getElementById('mrvTest');
+    if (!caja) return;
+
+    if (!md || !md.sinComparable){
+      caja.style.display = 'none';
+      if (test) test.style.display = 'none';
+      if (quiebre) quiebre.style.display = '';
+      mostrarGauge(true);
+      return;
+    }
+
+    caja.style.display = 'block';
+    document.getElementById('mrvNoCompLinea').textContent = window.__modoSinComparable.lineaFija;
+
+    // 8.h) Los escenarios de quiebre NO van en este modo: se calculan sobre un
+    // precio de venta que no existe. En su lugar, el presupuesto de test.
+    if (quiebre) quiebre.style.display = 'none';
+
+    var r = md.exploracion;
+    var paisesEl = document.getElementById('mrvPaises');
+    var madreEl = document.getElementById('mrvMadre');
+    if (r && paisesEl){
+      paisesEl.innerHTML = ['MLA','MLB','MLM'].map(function(k){
+        var p = (r.paises && r.paises[k]) || {};
+        var n = r.conteos ? r.conteos[k] : null;
+        var existe = r.existeEn ? r.existeEn[k] : null;
+        var cls = existe === true ? 'si' : (existe === false ? 'no' : 'nd');
+        var val = existe === null ? 'sin dato' : (n != null ? nf(n) : (p.muestra || 0));
+        return '<div class="mrv-pais"><div class="mrv-pais-n">' + (p.pais || k) + '</div>' +
+               '<div class="mrv-pais-v ' + cls + '">' + val + '</div>' +
+               '<div class="mrv-pais-d">' + (existe === null ? (p.motivo || 'no se pudo consultar') : (existe ? 'publicaciones activas' : 'sin publicaciones')) + '</div></div>';
+      }).join('');
+    } else if (paisesEl){
+      paisesEl.innerHTML = '<div class="mrv-vacio">No pude consultar la región.</div>';
+    }
+    if (madreEl){
+      if (r && r.categoriaMadre){
+        var cm = r.categoriaMadre;
+        madreEl.innerHTML = 'Categoría madre <b>"' + cm.termino + '"</b>: ' +
+          (cm.publicaciones != null ? '<b>' + nf(cm.publicaciones) + '</b> publicaciones' : '<b>' + cm.muestra + '</b> en la muestra') +
+          (cm.precioMediano ? ', mediana <b>' + ars(cm.precioMediano) + '</b>' : '') +
+          '<span class="mrv-ref">Referencia DE LA CATEGORÍA, no el precio de tu producto.</span>';
+      } else if (r){
+        madreEl.innerHTML = 'Ni la categoría genérica tiene publicaciones en MeLi Argentina.';
+      } else {
+        madreEl.innerHTML = '';
+      }
+    }
+
+    // Presupuesto de test
+    var pres = window.presupuestoDeTest(md);
+    var grid = document.getElementById('mrvTestGrid');
+    var nota = document.getElementById('mrvTestNota');
+    if (test && grid && pres){
+      test.style.display = 'block';
+      var cajas = [];
+      cajas.push('<div class="mrv-qbox"><div class="mrv-qlabel">Unidades del test</div>' +
+        '<div class="mrv-qval">' + nf(pres.unidadesTest) + ' uds</div>' +
+        '<div class="mrv-qtext">' + (pres.faltaMOQ
+          ? 'No cargaste el MOQ del proveedor: uso el mínimo de 50. <b>Cargá el MOQ real</b> para dimensionarlo bien.'
+          : 'El mayor entre tu MOQ (' + nf(pres.moq) + ') y 50 unidades.') + '</div></div>');
+      cajas.push('<div class="mrv-qbox"><div class="mrv-qlabel">Costo del test</div>' +
+        '<div class="mrv-qval' + (pres.excede ? ' mrv-q-bad' : '') + '">' + ars(pres.costoTestARS) + '</div>' +
+        '<div class="mrv-qtext">' + nf(pres.unidadesTest) + ' unidades a ' + ars(pres.costoUnitARS) + ' cada una (landed + IVA de importación + percepción)' +
+        (pres.pctCapital != null ? '. Es el <b>' + Math.round(pres.pctCapital) + '%</b> de tu capital declarado.' : '.') + '</div></div>');
+      if (pres.precioCreo > 0){
+        cajas.push('<div class="mrv-qbox"><div class="mrv-qlabel">Para recuperar el test</div>' +
+          '<div class="mrv-qval">' + (pres.udsParaRecuperar ? nf(pres.udsParaRecuperar) + ' uds' : '—') + '</div>' +
+          '<div class="mrv-qtext">' + (pres.udsParaRecuperar
+            ? 'A ' + ars(pres.precioCreo) + ' necesitás vender <b>' + nf(pres.udsParaRecuperar) + ' unidades</b> para recuperar el test. <b>¿Te parece alcanzable en 90 días?</b> Esa es la pregunta que tenés que contestar vos: no es una proyección mía.'
+            : 'Al precio que cargaste (' + ars(pres.precioCreo) + ') el margen unitario es negativo: no se recupera vendiendo más.') + '</div></div>');
+      } else {
+        cajas.push('<div class="mrv-qbox"><div class="mrv-qlabel">Para recuperar el test</div>' +
+          '<div class="mrv-qval">—</div><div class="mrv-qtext">Cargá en el paso 5 a qué precio creés que lo venderías y te digo cuántas unidades hacen falta.</div></div>');
+      }
+      grid.innerHTML = cajas.join('');
+
+      if (nota){
+        var html = '<b>Modo de envío:</b> en un producto sin validar estás comprando velocidad de aprendizaje, no costo unitario bajo. ' +
+          'Marítimo son 60-90 días para enterarte de algo que el aéreo te dice en 20. Elegí <b>aéreo o courier</b> aunque el unitario salga peor.';
+        if (pres.esMaritimo) html += ' <b style="color:#e0a020">Hoy tenés marítimo seleccionado.</b>';
+        if (pres.excede) html += '<span class="mrv-alerta"><b>El test cuesta el ' + Math.round(pres.pctCapital) + '% de tu capital.</b> Para un producto sin validar eso no es un test, es una apuesta.</span>';
+        nota.innerHTML = html;
+      }
+    } else if (test){
+      test.style.display = 'none';
+    }
+
+    // 8.a / 8.h) El gauge se oculta: sin comparable no hay score posible.
+    mostrarGauge(false);
+  };
+
+  function mostrarGauge(visible){
+    var box = document.querySelector('#mrResult .mr-charts-top .mr-chart-box');
+    if (!box) return;
+    var wrap = box.querySelector('.gauge-wrap');
+    var label = box.querySelector('.gauge-label');
+    var leg = box.querySelector('.gauge-legend');
+    var off = box.querySelector('.mrv-gauge-off');
+    if (visible){
+      if (wrap) wrap.style.display = '';
+      if (label) label.style.display = '';
+      if (leg) leg.style.display = '';
+      if (off) off.remove();
+    } else {
+      if (wrap) wrap.style.display = 'none';
+      if (label) label.style.display = 'none';
+      if (leg) leg.style.display = 'none';
+      if (!off){
+        box.insertAdjacentHTML('beforeend',
+          '<div class="mrv-gauge-off">Sin comparable local no hay score posible. Mirá las señales.</div>');
+      }
+    }
+  }
+  window.__mostrarGauge = mostrarGauge;
 })();

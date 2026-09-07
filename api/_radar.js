@@ -382,6 +382,130 @@ export async function nombrarProductos(títulos) {
   return Object.assign(mapa, nuevos);
 }
 
+// Igual que nombrarProductos, pero para otros idiomas y con clave de cache
+// propia. IMPORTANTE: la tabla keywords_clasificadas tiene UNA sola columna
+// "es", que el Radar usa para el termino castellano. Guardar aca la version en
+// portugues bajo la misma clave pisaria ese dato. Por eso la clave lleva
+// prefijo de idioma ("pt-BR::mini proyector") y nunca colisiona con la del
+// Radar.
+const IDIOMAS = {
+  'pt-BR': { nombre: 'portugues de Brasil', tienda: 'MercadoLivre Brasil', ejemplo: '"mini proyector" -> "mini projetor"' },
+  'es-MX': { nombre: 'español de Mexico',   tienda: 'MercadoLibre Mexico',  ejemplo: '"mini proyector" -> "mini proyector"' }
+};
+
+export async function traducirTerminos(términos, idioma) {
+  const cfg = IDIOMAS[idioma];
+  if (!cfg) throw new Error('idioma no soportado: ' + idioma);
+  const limpios = [...new Set((términos || []).filter(Boolean).map(t => String(t).slice(0, 140)))];
+  if (!limpios.length) return {};
+
+  const claves = limpios.map(t => idioma + '::' + t);
+  const guardadas = await clasificacionesGuardadas(claves);
+  const mapa = {};
+  limpios.forEach(t => {
+    const g = guardadas[idioma + '::' + t];
+    if (g && g.es) mapa[t] = g.es;
+  });
+  const faltan = limpios.filter(t => !mapa[t]);
+  if (!faltan.length) return mapa;
+
+  const lotes = [];
+  for (let i = 0; i < faltan.length; i += LOTE) lotes.push(faltan.slice(i, i + LOTE));
+
+  const resultados = await Promise.all(lotes.map(async (lote) => {
+    try {
+      const prompt =
+        'Te paso terminos de busqueda de producto en español rioplatense.\n' +
+        'Para cada uno devolve como se busca ESE MISMO producto en ' + cfg.tienda +
+        ', en ' + cfg.nombre + ': 2 a 4 palabras, sin marca, sin modelo.\n' +
+        'Ejemplo: ' + cfg.ejemplo + '.\n' +
+        'Si el producto no tiene un nombre corriente en ese mercado, devolve igual la traduccion literal mas usable.\n' +
+        'Responde SOLO un JSON {"termino original": "termino traducido"} sin markdown.\n' +
+        JSON.stringify(lote);
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 25000);
+      try {
+        const r = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST', signal: ctrl.signal, headers: anthropicHeaders(),
+          body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1200,
+            messages: [{ role: 'user', content: prompt }] })
+        });
+        const texto = await r.text();
+        if (!r.ok) throw new Error('Anthropic HTTP ' + r.status + ': ' + texto.slice(0, 150));
+        const j = JSON.parse(texto);
+        const salida = ((j.content || [])[0] || {}).text || '{}';
+        return JSON.parse(salida.replace(/^```(json)?|```$/g, '').trim());
+      } finally { clearTimeout(t); }
+    } catch (_) { return {}; }
+  }));
+
+  const nuevos = {};
+  for (const r of resultados) Object.assign(nuevos, r);
+  const paraGuardar = {};
+  Object.keys(nuevos).forEach(k => {
+    paraGuardar[idioma + '::' + k] = { es: nuevos[k], imp: false, motivo: 'traduccion ' + idioma };
+  });
+  await guardarClasificaciones(paraGuardar);
+
+  return Object.assign(mapa, nuevos);
+}
+
+// De lo especifico a lo generico. Cuando un producto no existe en MercadoLibre
+// Argentina, la pregunta util no es "que otro producto se le parece" sino "en
+// que categoria caeria". Se busca hacia ARRIBA:
+//   "organizador de cables magnetico de silicona"
+//     -> organizador de cables magnetico
+//     -> organizador de cables
+//     -> organizador escritorio
+// Misma cache que las traducciones, con su propio prefijo.
+export async function terminosProgresivos(término) {
+  const base = String(término || '').trim().slice(0, 140);
+  if (!base) return [];
+  const clave = 'progresivo::' + base;
+
+  const guardadas = await clasificacionesGuardadas([clave]);
+  if (guardadas[clave] && guardadas[clave].es) {
+    try {
+      const arr = JSON.parse(guardadas[clave].es);
+      if (Array.isArray(arr) && arr.length) return arr;
+    } catch (_) { /* si el cache quedo con basura, se vuelve a preguntar */ }
+  }
+
+  try {
+    const prompt =
+      'Te paso un termino de producto en español rioplatense: "' + base + '".\n' +
+      'Devolve 3 terminos de busqueda para MercadoLibre Argentina, ordenados de MAS ESPECIFICO a MAS GENERICO. ' +
+      'Cada uno tiene que ser una categoria mas amplia que el anterior, no un sinonimo ni un producto distinto.\n' +
+      'Ejemplo: "organizador de cables magnetico de silicona" -> ["organizador de cables magnetico", "organizador de cables", "organizador escritorio"].\n' +
+      'Sin marcas, sin modelos, 2 a 4 palabras cada uno.\n' +
+      'Responde SOLO un JSON array de 3 strings, sin markdown.';
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 20000);
+    let arr;
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST', signal: ctrl.signal, headers: anthropicHeaders(),
+        body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 400,
+          messages: [{ role: 'user', content: prompt }] })
+      });
+      const texto = await r.text();
+      if (!r.ok) throw new Error('Anthropic HTTP ' + r.status + ': ' + texto.slice(0, 150));
+      const j = JSON.parse(texto);
+      const salida = ((j.content || [])[0] || {}).text || '[]';
+      arr = JSON.parse(salida.replace(/^```(json)?|```$/g, '').trim());
+    } finally { clearTimeout(t); }
+
+    if (!Array.isArray(arr)) return [];
+    const limpios = arr.map(x => String(x || '').trim().toLowerCase()).filter(Boolean).slice(0, 3);
+    if (!limpios.length) return [];
+    await guardarClasificaciones({ [clave]: { es: JSON.stringify(limpios), imp: false, motivo: 'terminos progresivos' } });
+    return limpios;
+  } catch (e) {
+    console.warn('[terminosProgresivos] ' + String((e && e.message) || e).slice(0, 140));
+    return [];
+  }
+}
+
 // ------------------------------------------------------------
 // Descubrimiento
 // ------------------------------------------------------------

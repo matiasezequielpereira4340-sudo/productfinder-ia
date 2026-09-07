@@ -305,15 +305,33 @@ export async function fetchJson(url, token, timeoutMs) {
 //   /products/{id}          -> buy_box_winner, como respaldo
 // Se piden en paralelo y con presupuesto de tiempo, porque en serie una sola
 // busqueda se comia los 10 s de la funcion y el request moria sin respuesta.
+// ------------------------------------------------------------
+// Sitios de MercadoLibre
+// Toda la cadena de busqueda estaba clavada en MLA: el dominio del listado
+// publico, el prefijo de los IDs y el site_id del catalogo. Para poder mirar
+// si un producto se vende en Brasil o Mexico (el mejor proxy que hay para
+// Argentina cuando aca no existe) hace falta parametrizar eso por sitio.
+// ------------------------------------------------------------
+export const SITIOS = {
+  MLA: { id: 'MLA', pais: 'Argentina', dominio: 'mercadolibre.com.ar', listado: 'listado.mercadolibre.com.ar', idioma: 'es-AR' },
+  MLB: { id: 'MLB', pais: 'Brasil',    dominio: 'mercadolivre.com.br', listado: 'lista.mercadolivre.com.br',   idioma: 'pt-BR' },
+  MLM: { id: 'MLM', pais: 'Mexico',    pominio: null, dominio: 'mercadolibre.com.mx', listado: 'listado.mercadolibre.com.mx', idioma: 'es-MX' }
+};
+
+export function sitio(id) {
+  return SITIOS[String(id || 'MLA').toUpperCase()] || SITIOS.MLA;
+}
+
 export async function catalogSearch(product, token, opts) {
   const o = opts || {};
   const maxProductos = o.maxProductos || 8;
   const deadline = Date.now() + (o.budgetMs || 6500);
   if (!token) return null;
 
+  const site = sitio(o.site).id;
   const q = encodeURIComponent(product);
   const busq = await fetchJson(
-    MELI_API + '/products/search?status=active&site_id=MLA&limit=10&q=' + q, token, 5000);
+    MELI_API + '/products/search?status=active&site_id=' + site + '&limit=10&q=' + q, token, 5000);
   if (!busq.ok || !busq.json) return null;
   const catalogo = Array.isArray(busq.json.results) ? busq.json.results : [];
   if (!catalogo.length) return null;
@@ -367,7 +385,7 @@ export async function catalogSearch(product, token, opts) {
     // ingles. Ademas de mostrarse mal, rompia el regex de comision del front
     // (no matcheaba "electronica" y aplicaba 15% en vez de 16,5%). El nombre
     // real de la categoria, en castellano, lo da domain_discovery.
-    categoryName: await nombreDeCategoria(product, token, catalogo[0])
+    categoryName: await nombreDeCategoria(product, token, catalogo[0], site)
   };
 }
 
@@ -375,10 +393,11 @@ export async function catalogSearch(product, token, opts) {
 // Si domain_discovery no responde se devuelve cadena vacia: el front sabe
 // mostrar "sin dato", y es preferible a un slug en ingles que despues se usa
 // para elegir la comision.
-export async function nombreDeCategoria(product, token, productoCatalogo) {
+export async function nombreDeCategoria(product, token, productoCatalogo, site) {
   try {
     const q = encodeURIComponent(product);
-    const dom = await fetchJson(MELI_API + '/sites/MLA/domain_discovery/search?limit=1&q=' + q, token, 3500);
+    const s = sitio(site).id;
+    const dom = await fetchJson(MELI_API + '/sites/' + s + '/domain_discovery/search?limit=1&q=' + q, token, 3500);
     const d0 = dom.ok && Array.isArray(dom.json) && dom.json[0] ? dom.json[0] : null;
     const n = d0 && (d0.category_name || d0.domain_name);
     if (n) return String(n);
@@ -403,13 +422,14 @@ export async function highlightsSearch(product, token, opts) {
   const deadline = Date.now() + (o.budgetMs || 6500);
   const q = encodeURIComponent(product);
 
-  const dom = await fetchJson(MELI_API + '/sites/MLA/domain_discovery/search?limit=3&q=' + q, token, 4000);
+  const site = sitio(o.site).id;
+  const dom = await fetchJson(MELI_API + '/sites/' + site + '/domain_discovery/search?limit=3&q=' + q, token, 4000);
   const cats = (dom.ok && Array.isArray(dom.json))
     ? dom.json.map(d => d && d.category_id).filter(Boolean) : [];
   if (!cats.length) return null;
 
   const nombreCat = (dom.json[0] && (dom.json[0].category_name || dom.json[0].domain_name)) || '';
-  const hl = await fetchJson(MELI_API + '/highlights/MLA/category/' + cats[0], token, 4000);
+  const hl = await fetchJson(MELI_API + '/highlights/' + site + '/category/' + cats[0], token, 4000);
   const contenido = (hl.ok && hl.json && Array.isArray(hl.json.content)) ? hl.json.content : [];
   const ids = contenido
     .filter(c => c && c.id && (!c.type || c.type === 'ITEM'))
@@ -484,10 +504,16 @@ export function meliSlug(product) {
 export async function publicIdsSearch(product, token, opts) {
   const o = opts || {};
   const deadline = Date.now() + (o.budgetMs || 7000);
-  const html = await fetchListadoHtml(product, o.timeoutMs || 6000);
-  if (!html || !html.texto) return null;
+  const site = sitio(o.site).id;
+  const html = await fetchListadoHtml(product, o.timeoutMs || 6000, site);
+  if (!html) return null;
+  // Cero real: se entro al listado y no habia publicaciones. Se devuelve como
+  // resultado vacio, no como null, para que arriba se pueda distinguir de un
+  // bloqueo.
+  if (html.vacio) return { fuente: 'meli-listado+items', site, total: 0, muestra: 0, categoryName: '', results: [], vacioConfirmado: true };
+  if (!html.texto) return null;
 
-  const ids = extraerIdsMLA(html.texto).slice(0, o.maxIds || 40);
+  const ids = extraerIdsItem(html.texto, site).slice(0, o.maxIds || 40);
   if (!ids.length) return null;
 
   const items = await hidratarItems(ids, token, deadline);
@@ -501,10 +527,11 @@ export async function publicIdsSearch(product, token, opts) {
   // El listado es ahora la via principal, asi que su categoryName es el que
   // termina eligiendo la comision de MeLi en el front. Si el HTML no la trae,
   // se pide a domain_discovery en vez de devolver vacio.
-  const categoria = html.categoria || await nombreDeCategoria(product, token, null);
+  const categoria = html.categoria || await nombreDeCategoria(product, token, null, site);
 
   return {
     fuente: 'meli-listado+items',
+    site,
     total: html.total || null,
     muestra: elegidos.length,
     categoryName: categoria || '',
@@ -522,14 +549,15 @@ export async function publicIdsSearch(product, token, opts) {
 // Las direcciones publicas donde MercadoLibre lista resultados. Se prueban en
 // orden hasta que una traiga IDs: si le ponen un muro anti-bot a una, puede
 // que otra siga sirviendo HTML.
-export function candidatosDeListado(product) {
+export function candidatosDeListado(product, site) {
+  const st = sitio(site);
   const slug = meliSlug(product);
   const q = encodeURIComponent(product);
   return [
-    'https://listado.mercadolibre.com.ar/' + slug,
-    'https://www.mercadolibre.com.ar/jm/search?as_word=' + q,
-    'https://listado.mercadolibre.com.ar/' + slug + '_DisplayType_LF',
-    'https://www.mercadolibre.com.ar/ofertas?q=' + q
+    'https://' + st.listado + '/' + slug,
+    'https://www.' + st.dominio + '/jm/search?as_word=' + q,
+    'https://' + st.listado + '/' + slug + '_DisplayType_LF',
+    'https://www.' + st.dominio + '/ofertas?q=' + q
   ];
 }
 
@@ -563,18 +591,28 @@ export async function traerPagina(url, timeoutMs) {
 }
 
 // Devuelve la primera pagina publica que realmente traiga IDs de publicacion.
-export async function fetchListadoHtml(product, timeoutMs) {
-  for (const url of candidatosDeListado(product)) {
+export async function fetchListadoHtml(product, timeoutMs, site) {
+  const st = sitio(site);
+  // Distingue "no hay publicaciones" de "no pude consultar": el punto 8 del
+  // Market Reader decide cosas opuestas segun cual de las dos sea, asi que
+  // confundirlas invierte el diagnostico.
+  let alcanzado = false;
+  for (const url of candidatosDeListado(product, st.id)) {
     const pag = await traerPagina(url, timeoutMs);
-    if (!pag.texto || !extraerIdsMLA(pag.texto).length) continue;
+    if (pag.status >= 200 && pag.status < 400 && pag.texto) alcanzado = true;
+    if (!pag.texto || !extraerIdsItem(pag.texto, st.id).length) continue;
     let total = 0;
+    // "resultados" en es-AR/es-MX, "resultados" tambien en pt-BR.
     const m = pag.texto.match(/([\d][\d.,]*)\s*resultados/i);
     if (m) total = parseInt(String(m[1]).replace(/[^0-9]/g, ''), 10) || 0;
     let categoria = '';
     const h1 = pag.texto.match(/<h1[^>]*>([^<]{3,80})<\/h1>/i);
     if (h1) categoria = h1[1].trim();
-    return { status: pag.status, url, texto: pag.texto, total, categoria };
+    return { status: pag.status, url, texto: pag.texto, total, categoria, site: st.id, alcanzado: true };
   }
+  // Se llego a la pagina pero no habia ninguna publicacion: eso es un CERO
+  // real, distinto de no haber podido entrar.
+  if (alcanzado) return { status: 200, url: null, texto: '', total: 0, categoria: '', site: st.id, alcanzado: true, vacio: true };
   return null;
 }
 
@@ -585,23 +623,33 @@ export async function fetchListadoHtml(product, timeoutMs) {
 // digitos y aparece en la URL del articulo o como item_id en los JSON
 // embebidos. Los /p/MLA... quedan afuera a proposito: son productos de
 // catalogo, no publicaciones.
-const PATRONES_ITEM = [
-  /articulo\.mercadolibre\.com\.ar\/MLA-(\d{9,11})-/g,
-  /\/MLA-(\d{9,11})-/g,
-  /"item_id"\s*:\s*"MLA(\d{9,11})"/g,
-  /"itemId"\s*:\s*"MLA(\d{9,11})"/g,
-  /"id"\s*:\s*"MLA(\d{9,11})"/g
-];
+// Los patrones son los mismos en los tres sitios: solo cambia el prefijo del
+// id (MLA / MLB / MLM). Se arman por sitio en vez de estar clavados.
+function patronesItem(site) {
+  const p = sitio(site).id;
+  return [
+    new RegExp('(?:articulo|produto)\\.[a-z.]+\\/' + p + '-(\\d{9,11})-', 'g'),
+    new RegExp('\\/' + p + '-(\\d{9,11})-', 'g'),
+    new RegExp('"item_id"\\s*:\\s*"' + p + '(\\d{9,11})"', 'g'),
+    new RegExp('"itemId"\\s*:\\s*"' + p + '(\\d{9,11})"', 'g'),
+    new RegExp('"id"\\s*:\\s*"' + p + '(\\d{9,11})"', 'g')
+  ];
+}
 
-export function extraerIdsMLA(html) {
+// Nombre viejo, que siguen usando _buscador.js y el diagnostico de market.js.
+// Equivale a pedir los IDs de Argentina.
+export function extraerIdsMLA(html) { return extraerIdsItem(html, 'MLA'); }
+
+export function extraerIdsItem(html, site) {
   const texto = String(html || '');
+  const pref = sitio(site).id;
   const vistos = new Set();
   const ids = [];
-  for (const patron of PATRONES_ITEM) {
+  for (const patron of patronesItem(pref)) {
     patron.lastIndex = 0;
     let m;
     while ((m = patron.exec(texto)) !== null) {
-      const id = 'MLA' + m[1];
+      const id = pref + m[1];
       if (!vistos.has(id)) { vistos.add(id); ids.push(id); }
     }
   }
@@ -668,7 +716,17 @@ export async function hidratarItems(ids, token, deadline) {
 // El orden se mantiene por si MeLi reabre alguno, pero se recuerda cual anduvo:
 // probar tres vias muertas por cada producto se comia el tiempo de la funcion.
 // ------------------------------------------------------------
-const _viaEstado = { preferida: null, fallos: {} };
+// OJO: el estado es POR SITIO. Cuando era uno solo y global, un 403 del
+// listado de Mexico incrementaba el contador de fallos de "listado" y, a los
+// dos, la via quedaba salteada tambien para Argentina: las busquedas argentinas
+// empezaban a devolver "no pude consultar" por culpa de un bloqueo mexicano.
+// En un lambda tibio de Vercel eso degrada solo con el uso.
+const _viaEstadoPorSitio = {};
+function viaEstado(site) {
+  const k = sitio(site).id;
+  if (!_viaEstadoPorSitio[k]) _viaEstadoPorSitio[k] = { preferida: null, fallos: {} };
+  return _viaEstadoPorSitio[k];
+}
 
 // ------------------------------------------------------------
 // Cache de busquedas
@@ -677,9 +735,14 @@ const _viaEstado = { preferida: null, fallos: {} };
 // el cache, la segunda corrida del dia no gasta nada. Si la tabla no existe,
 // todo sigue funcionando sin cache.
 // ------------------------------------------------------------
-function claveDeBusqueda(product) {
-  return String(product || '').toLowerCase().normalize('NFD')
+// La clave lleva el sitio adelante salvo en Argentina, que se deja pelada
+// para no invalidar el cache ya guardado. Sin esto, buscar "mini proyector" en
+// Brasil pisaba el resultado de Argentina y viceversa.
+function claveDeBusqueda(product, site) {
+  const base = String(product || '').toLowerCase().normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+  const st = sitio(site).id;
+  return st === 'MLA' ? base : (st.toLowerCase() + ':' + base);
 }
 
 // Cada busqueda que NO sale del cache cuesta ~$0.24 (el scraper cobra el
@@ -698,18 +761,18 @@ export async function filaDeCache(product) {
   return await leerFilaCache(product);
 }
 
-async function leerFilaCache(product) {
+async function leerFilaCache(product, site) {
   try {
     const filas = await supaRows('/rest/v1/busquedas_cache?termino=eq.' +
-      encodeURIComponent(claveDeBusqueda(product)) + '&select=*&limit=1');
+      encodeURIComponent(claveDeBusqueda(product, site)) + '&select=*&limit=1');
     return filas[0] || null;
   } catch (_) { return null; }
 }
 
-async function leerCache(product) {
+async function leerCache(product, site) {
   const horas = horasDeCache();
   if (!horas) return null;
-  const f = await leerFilaCache(product);
+  const f = await leerFilaCache(product, site);
   if (!f || !Array.isArray(f.resultados) || !f.resultados.length) return null;
   const vence = new Date(f.created_at).getTime() + horas * 3600 * 1000;
   if (Date.now() > vence) return null;
@@ -742,7 +805,7 @@ async function guardarPendiente(product, corrida) {
         Prefer: 'resolution=merge-duplicates,return=minimal'
       },
       body: JSON.stringify({
-        termino: claveDeBusqueda(product),
+        termino: claveDeBusqueda(product, site),
         fuente: 'proveedor-apify',
         resultados: [],
         run_id: corrida.runId,
@@ -772,7 +835,7 @@ async function cosecharCorrida(product, fila, token) {
   } catch (_) { return null; }
 }
 
-async function guardarCache(product, r) {
+async function guardarCache(product, r, site) {
   if (!horasDeCache() || !r || !r.results || !r.results.length) return;
   try {
     const { url, key, ok } = supa();
@@ -785,7 +848,7 @@ async function guardarCache(product, r) {
         Prefer: 'resolution=merge-duplicates,return=minimal'
       },
       body: JSON.stringify({
-        termino: claveDeBusqueda(product),
+        termino: claveDeBusqueda(product, site),
         fuente: r.fuente || null,
         total: typeof r.total === 'number' ? r.total : null,
         categoria: r.categoryName || null,
@@ -802,16 +865,17 @@ async function guardarCache(product, r) {
 export async function buscarPublicaciones(product, token, opts) {
   if (!token || !product) return null;
   const o = opts || {};
+  const site = sitio(o.site).id;
 
   // 1. Resultado ya cacheado.
   if (!o.sinCache) {
-    const guardado = await leerCache(product);
+    const guardado = await leerCache(product, site);
     if (guardado) return guardado;
   }
 
   // 2. Corrida arrancada antes que ya pueda estar lista. Cosecharla no cuesta
   //    plata: la corrida ya se pago cuando se arranco.
-  const fila = await leerFilaCache(product);
+  const fila = await leerFilaCache(product, site);
   if (corridaVigente(fila)) {
     const cosechado = await cosecharCorrida(product, fila, token);
     if (cosechado && cosechado.results) return cosechado;
@@ -819,9 +883,9 @@ export async function buscarPublicaciones(product, token, opts) {
     // Si la corrida fallo, se sigue de largo y mas abajo se arranca otra.
   }
   const vias = {
-    catalogo: () => catalogSearch(product, token, { maxProductos: o.maxProductos || 6, budgetMs: o.budgetMs || 5000 }),
-    destacados: () => highlightsSearch(product, token, { budgetMs: o.budgetMs || 5000 }),
-    listado: () => publicIdsSearch(product, token, { budgetMs: o.budgetMs || 6000, maxIds: o.maxIds || 40 }),
+    catalogo: () => catalogSearch(product, token, { site, maxProductos: o.maxProductos || 6, budgetMs: o.budgetMs || 5000 }),
+    destacados: () => highlightsSearch(product, token, { site, budgetMs: o.budgetMs || 5000 }),
+    listado: () => publicIdsSearch(product, token, { site, budgetMs: o.budgetMs || 6000, maxIds: o.maxIds || 40 }),
     // Ultima, porque es la unica que cuesta plata: solo se paga cuando ninguna
     // via gratuita respondio.
     //
@@ -831,6 +895,10 @@ export async function buscarPublicaciones(product, token, opts) {
     // pagar. Es la diferencia entre una pantalla colgada un minuto y una que
     // avisa y ya trae el dato al reintentar.
     proveedor: async () => {
+      // El actor externo scrapea MercadoLibre Argentina. Para Brasil o Mexico
+      // no aplica: se devuelve null en vez de pagar una corrida que no
+      // responde lo que se pregunto.
+      if (site !== 'MLA') return null;
       const mod = await import('./_buscador.js');
       const corrida = await mod.arrancarCorrida(product, { maxItems: o.maxIds || 48 });
       await guardarPendiente(product, corrida);
@@ -847,28 +915,109 @@ export async function buscarPublicaciones(product, token, opts) {
   // /items?ids=, que si trae precio, vendedor, vendidos y envio reales: ese es
   // el dato que sirve para decidir una compra, asi que va primero.
   const orden = ['listado', 'destacados', 'catalogo', 'proveedor'];
+  const est = viaEstado(site);
   for (const nombre of orden) {
-    const fallos = _viaEstado.fallos[nombre] || 0;
+    const fallos = est.fallos[nombre] || 0;
     // Se saltea la via que ya fallo dos veces, siempre que otra este andando.
     // El tope de 4 cubre el caso de que no ande ninguna. Si MeLi reabre una,
     // el proximo cold start la vuelve a probar.
-    if (fallos >= 2 && (_viaEstado.preferida || fallos >= 4)) continue;
+    if (fallos >= 2 && (est.preferida || fallos >= 4)) continue;
     try {
       const r = await vias[nombre]();
       if (r && r.pendiente) return r;
       if (r && r.results && r.results.length) {
-        _viaEstado.preferida = nombre;
-        await guardarCache(product, r);
+        est.preferida = nombre;
+        est.fallos[nombre] = 0;   // anduvo: se le limpia el historial
+        await guardarCache(product, r, site);
         return r;
       }
-      _viaEstado.fallos[nombre] = (_viaEstado.fallos[nombre] || 0) + 1;
+      // Cero confirmado: se entro al listado y no hay publicaciones. Eso es un
+      // dato, no una falla de la via: se devuelve tal cual, no se penaliza a la
+      // via (se entro bien) y no se prueban las siguientes.
+      if (r && r.vacioConfirmado) { est.fallos[nombre] = 0; return r; }
+      est.fallos[nombre] = fallos + 1;
     } catch (_) {
-      _viaEstado.fallos[nombre] = (_viaEstado.fallos[nombre] || 0) + 1;
+      est.fallos[nombre] = fallos + 1;
     }
   }
   return null;
 }
 
-export function viaDeBusquedaUsada() {
-  return { preferida: _viaEstado.preferida, fallos: { ..._viaEstado.fallos } };
+export function viaDeBusquedaUsada(site) {
+  const e = viaEstado(site);
+  return { preferida: e.preferida, fallos: { ...e.fallos }, porSitio: _viaEstadoPorSitio };
+}
+
+// ------------------------------------------------------------
+// Conteo de publicaciones por sitio
+//
+// Lo usa el modo "producto sin comparable" del Market Reader para mirar si
+// algo se vende en Brasil o Mexico cuando no existe en Argentina.
+//
+// La distincion que importa, y que el resto del codigo NO puede perder:
+//   ok:true,  publicaciones:0   -> se entro al listado y NO hay nada. Es un dato.
+//   ok:false, publicaciones:null -> no se pudo consultar. NO es un dato.
+// Tratar el segundo como cero invierte el diagnostico: "no se vende en ningun
+// lado" cuando en realidad MercadoLibre nos bloqueo. Por eso nunca se
+// devuelve 0 por defecto.
+// ------------------------------------------------------------
+export async function contarPublicaciones(product, token, site, opts) {
+  const o = opts || {};
+  const st = sitio(site);
+  const vacio = {
+    site: st.id, pais: st.pais, termino: product,
+    ok: false, publicaciones: null, muestra: 0,
+    precioMediano: null, ventasTop3: null, moneda: null,
+    motivo: null, fuente: null
+  };
+  if (!product || !String(product).trim()) return { ...vacio, motivo: 'sin termino de busqueda' };
+  if (!token) return { ...vacio, motivo: 'sin token de MercadoLibre' };
+
+  let r = null;
+  try {
+    r = await buscarPublicaciones(product, token, {
+      site: st.id,
+      budgetMs: o.budgetMs || 6000,
+      maxIds: o.maxIds || 40,
+      sinCache: !!o.sinCache
+    });
+  } catch (e) {
+    return { ...vacio, motivo: 'error consultando ' + st.id + ': ' + String((e && e.message) || e).slice(0, 120) };
+  }
+
+  if (!r) return { ...vacio, motivo: 'MercadoLibre ' + st.pais + ' no respondio (bloqueo o sin resultados legibles)' };
+  if (r.pendiente) return { ...vacio, motivo: 'la busqueda todavia se esta preparando' };
+
+  const results = Array.isArray(r.results) ? r.results : [];
+  // Cero confirmado.
+  if (r.vacioConfirmado || (!results.length && r.total === 0)) {
+    return { ...vacio, ok: true, publicaciones: 0, muestra: 0, fuente: r.fuente || null,
+             motivo: 'se entro al listado y no hay publicaciones' };
+  }
+  if (!results.length) {
+    return { ...vacio, motivo: 'MercadoLibre ' + st.pais + ' no devolvio publicaciones legibles' };
+  }
+
+  const precios = results.map(x => x && x.price).filter(p => typeof p === 'number' && p > 0).sort((a, b) => a - b);
+  let mediana = null;
+  if (precios.length) {
+    const m = Math.floor(precios.length / 2);
+    mediana = precios.length % 2 ? precios[m] : Math.round((precios[m - 1] + precios[m]) / 2);
+  }
+  const vendidos = results.map(x => (x && x.sold_quantity) || 0).sort((a, b) => b - a).slice(0, 3);
+  const ventasTop3 = vendidos.length ? Math.round(vendidos.reduce((a, b) => a + b, 0) / vendidos.length) : null;
+
+  return {
+    site: st.id, pais: st.pais, termino: product,
+    ok: true,
+    // El total del listado es el numero de publicaciones activas. Si no vino,
+    // se informa el tamano de la muestra y se dice que el total no se sabe.
+    publicaciones: (typeof r.total === 'number' && r.total > 0) ? r.total : null,
+    muestra: results.length,
+    precioMediano: mediana,
+    ventasTop3,
+    moneda: st.id === 'MLA' ? 'ARS' : (st.id === 'MLB' ? 'BRL' : 'MXN'),
+    fuente: r.fuente || null,
+    motivo: (typeof r.total === 'number' && r.total > 0) ? null : 'MercadoLibre no expone el total por esta via; se informa el tamano de la muestra'
+  };
 }

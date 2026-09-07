@@ -3,7 +3,7 @@
 // Datos de MercadoLibre (catalogo con token de usuario) + Anthropic para el
 // armado del informe.
 
-import { anthropicHeaders, buscarPublicaciones, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
+import { anthropicHeaders, buscarPublicaciones, contarPublicaciones, SITIOS, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
 import { haySesion, esAdmin, tokenDe, pedirSesion } from './_sesion.js';
 import { cotizacionDolar, DOLAR_TIPOS, DOLAR_TIPO_DEFAULT } from './_dolar.js';
 
@@ -656,6 +656,14 @@ export default async function handler(req, res) {
     try { return res.status(200).json(await stepCompetencia(product)); }
     catch (e) { return res.status(500).json({ error: 'Fallo competencia', detalle: String(e && e.message || e) }); }
   }
+  if (step === 'exploracion') {
+    try { return res.status(200).json(await stepExploracion(product)); }
+    catch (e) { return res.status(500).json({ error: 'Fallo exploracion', detalle: String(e && e.message || e) }); }
+  }
+  if (step === 'testBusqueda') {
+    try { return res.status(200).json(await stepTestBusqueda(product)); }
+    catch (e) { return res.status(500).json({ error: 'Fallo test de busqueda', detalle: String(e && e.message || e) }); }
+  }
   if (step === 'final') {
     try { return res.status(200).json(await stepFinal(customPrompt)); }
     catch (e) { return res.status(500).json({ error: 'Fallo final', detalle: String(e && e.message || e) }); }
@@ -712,6 +720,21 @@ async function stepCompetencia(product) {
       competenciaScore: null, competitors: [],
       aviso: 'Estoy trayendo los datos de MercadoLibre para este producto. La primera vez tarda dos o tres minutos; despues queda guardado y sale al instante.' };
   }
+  // Cero CONFIRMADO: se entro al listado publico y no hay ninguna publicacion.
+  // Es un dato, y es el que dispara el modo "sin comparable". Distinto del
+  // caso de mas abajo, donde MercadoLibre no nos dejo consultar.
+  if (meli && meli.vacioConfirmado) {
+    return {
+      fuente: meli.fuente || 'meli-listado+items',
+      muestraInsuficiente: true, muestra: 0, sinComparable: true, consultaFallida: false,
+      sellersEstimados: 0,
+      precioMinARS: null, precioMaxARS: null, precioPromedioARS: null,
+      totalResults: 0, totalCatalogo: null, totalLabel: 'Total publicaciones activas',
+      categoryName: meli.categoryName || '', saturacion: null, competenciaScore: null,
+      competitors: [], envioGratisPct: null,
+      aviso: 'Cero publicaciones en MercadoLibre Argentina. No es poca competencia: no hay comparable.'
+    };
+  }
   if (meli && meli.results && meli.results.length > 0) {
     const results = meli.results;
     const fuente = meli.fuente || 'mercadolibre-search';
@@ -745,8 +768,14 @@ async function stepCompetencia(product) {
     // referencia: se devuelve el aviso.
     const MUESTRA_MINIMA = 8;
     if (results.length < MUESTRA_MINIMA) {
+      // Con 2 o menos publicaciones no hay comparable: no es "poca
+      // competencia", es que el producto no se vende aca. El competenciaScore
+      // se anula a proposito, porque un score alto por ausencia de
+      // competidores premiaba justamente el caso mas riesgoso.
+      const sinComp = results.length <= 2;
       return {
         fuente, muestraInsuficiente: true, muestra: results.length,
+        sinComparable: sinComp,
         sellersEstimados: sellers.size || results.length,
         precioMinARS: null, precioMaxARS: null, precioPromedioARS: null,
         totalResults: total, totalCatalogo, totalLabel,
@@ -763,7 +792,7 @@ async function stepCompetencia(product) {
     const max = prices[prices.length-1] || 0;
     const avg = prices.length ? Math.round(prices.reduce((a,b)=>a+b,0)/prices.length) : 0;
     return {
-      fuente, muestraInsuficiente: false, muestra: results.length,
+      fuente, muestraInsuficiente: false, sinComparable: false, muestra: results.length,
       sellersEstimados: sellers.size || results.length,
       precioMinARS: min, precioMaxARS: max, precioPromedioARS: avg,
       totalResults: total, totalCatalogo, totalLabel,
@@ -779,7 +808,125 @@ async function stepCompetencia(product) {
     };
   }
   // IMPORTANTE: si no hay datos reales de MeLi (API 403 o scraping fallido) NO inventamos numeros via IA.
-  return { fuente: 'no-disponible', muestraInsuficiente: true, muestra: 0, sellersEstimados: null, precioMinARS: null, precioMaxARS: null, precioPromedioARS: null, totalResults: null, totalCatalogo: null, totalLabel: null, categoryName: '', saturacion: null, competenciaScore: null, competitors: [], envioGratisPct: null, aviso: 'Datos de Mercado Libre no disponibles ahora (la API publica requiere autenticacion). Mostramos solo lo verificable.' };
+  // Ojo con la diferencia: aca NO se pudo consultar. Eso no es lo mismo que
+  // "no hay publicaciones", asi que no se marca sinComparable: marcarlo
+  // dispararia el modo de producto sin comparable por un bloqueo de MeLi.
+  return { fuente: 'no-disponible', muestraInsuficiente: true, muestra: 0, sinComparable: false, consultaFallida: true, sellersEstimados: null, precioMinARS: null, precioMaxARS: null, precioPromedioARS: null, totalResults: null, totalCatalogo: null, totalLabel: null, categoryName: '', saturacion: null, competenciaScore: null, competitors: [], envioGratisPct: null, aviso: 'Datos de Mercado Libre no disponibles ahora (la API publica requiere autenticacion). Mostramos solo lo verificable.' };
+}
+
+// ============================================================
+// MODO "PRODUCTO SIN COMPARABLE EN MERCADO LIBRE"
+//
+// Cuando un producto no esta en MeLi Argentina, el sistema viejo lo leia como
+// saturacion baja -> competencia buena -> sumaba al veredicto. Estaba
+// premiando la ausencia de competencia. En importacion eso es al reves: casi
+// nunca significa "nadie lo descubrio", significa "alguien ya lo probo y no
+// funciono" o "no se puede traer". Estos dos steps juntan la evidencia para
+// distinguir esos casos en vez de premiarlos.
+// ============================================================
+
+// 8.b + 8.c: categoria madre en Argentina y presencia en la region.
+async function stepExploracion(product) {
+  if (!product) throw new Error('product requerido');
+  const tok = await getMeliAccessToken();
+  const radar = await import('./_radar.js');
+
+  // --- 8.b) Categoria madre: se busca hacia ARRIBA, de lo especifico a lo
+  //     generico, hasta encontrar un termino con al menos 8 publicaciones.
+  let progresivos = [];
+  try { progresivos = await radar.terminosProgresivos(product); }
+  catch (e) { console.warn('[exploracion] terminosProgresivos fallo: ' + String((e && e.message) || e).slice(0, 140)); }
+
+  const escalones = [];
+  let categoriaMadre = null;
+  for (const t of progresivos) {
+    const c = await contarPublicaciones(t, tok, 'MLA', { budgetMs: 5000, maxIds: 30 });
+    escalones.push({ termino: t, ok: c.ok, publicaciones: c.publicaciones, muestra: c.muestra, motivo: c.motivo });
+    // Se corta en el primer termino con muestra suficiente: mas generico que
+    // eso ya no describe al producto.
+    if (c.ok && c.muestra >= 8) {
+      categoriaMadre = {
+        termino: t,
+        publicaciones: c.publicaciones,
+        muestra: c.muestra,
+        precioMediano: c.precioMediano,
+        ventasTop3: c.ventasTop3,
+        // El mediano es de la CATEGORIA, no del producto. El front lo tiene
+        // que rotular asi y no cargarlo en el precio de venta.
+        esReferenciaDeCategoria: true
+      };
+      break;
+    }
+  }
+
+  // --- 8.c) Brasil y Mexico. El mejor proxy que existe para Argentina.
+  let terminoBR = null, terminoMX = null;
+  try {
+    const [br, mx] = await Promise.all([
+      radar.traducirTerminos([product], 'pt-BR'),
+      radar.traducirTerminos([product], 'es-MX')
+    ]);
+    terminoBR = (br && br[product]) || null;
+    terminoMX = (mx && mx[product]) || null;
+  } catch (e) {
+    console.warn('[exploracion] traduccion regional fallo: ' + String((e && e.message) || e).slice(0, 140));
+  }
+
+  const [mla, mlb, mlm] = await Promise.all([
+    contarPublicaciones(product, tok, 'MLA', { budgetMs: 5000, maxIds: 30 }),
+    contarPublicaciones(terminoBR || product, tok, 'MLB', { budgetMs: 5000, maxIds: 30 }),
+    contarPublicaciones(terminoMX || product, tok, 'MLM', { budgetMs: 5000, maxIds: 30 })
+  ]);
+
+  const paises = { MLA: mla, MLB: mlb, MLM: mlm };
+  // "Existe" solo se afirma cuando la consulta ANDUVO. Si no se pudo
+  // consultar, queda en null y el front dice "sin dato", nunca "no existe".
+  const existeEn = {};
+  for (const k of Object.keys(paises)) {
+    const c = paises[k];
+    existeEn[k] = c.ok ? (Math.max(c.publicaciones || 0, c.muestra || 0) > 0) : null;
+  }
+
+  const cuenta = k => {
+    const c = paises[k];
+    if (!c.ok) return null;
+    return Math.max(c.publicaciones || 0, c.muestra || 0);
+  };
+
+  return {
+    producto: product,
+    terminosProgresivos: progresivos,
+    escalones,
+    categoriaMadre,
+    sinCategoriaMadre: !categoriaMadre,
+    terminos: { MLA: product, MLB: terminoBR, MLM: terminoMX },
+    paises,
+    conteos: { MLA: cuenta('MLA'), MLB: cuenta('MLB'), MLM: cuenta('MLM') },
+    existeEn,
+    consultadoEn: new Date().toISOString()
+  };
+}
+
+// 8.e: el test de busqueda. Se corre con las palabras que escribe el usuario,
+// no con el nombre tecnico del proveedor.
+async function stepTestBusqueda(product) {
+  if (!product || !String(product).trim()) throw new Error('product requerido');
+  const tok = await getMeliAccessToken();
+  const c = await contarPublicaciones(String(product).trim(), tok, 'MLA', { budgetMs: 6000, maxIds: 30 });
+  const encontradas = c.ok ? Math.max(c.publicaciones || 0, c.muestra || 0) : null;
+  return {
+    termino: product,
+    ok: c.ok,
+    publicaciones: c.publicaciones,
+    muestra: c.muestra,
+    encontradas,
+    precioMediano: c.precioMediano,
+    // suficiente:true  -> hay categoria y la gente sabe nombrarla
+    // suficiente:false -> nadie busca eso
+    // suficiente:null  -> no se pudo consultar, no se concluye nada
+    suficiente: c.ok ? (c.muestra >= 8) : null,
+    motivo: c.motivo
+  };
 }
 
 async function stepFinal(customPrompt) {
@@ -885,6 +1032,11 @@ async function safeMeliSearch(product) {
       const r = await buscarPublicaciones(product, tok, { budgetMs: 6000 });
       if (r && r.pendiente) return r;
       if (r && r.results.length) return r;
+      // Cero confirmado: se entro al listado publico y no hay publicaciones.
+      // Es un dato y hay que devolverlo. Si se sigue de largo, termina en el
+      // "no-disponible" de abajo, que significa "no pude consultar": lo
+      // opuesto, y el modo sin comparable nunca se enteraria.
+      if (r && r.vacioConfirmado) return r;
     } catch (_) {}
   }
 
