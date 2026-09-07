@@ -3308,15 +3308,19 @@ function goHome(){
     // 8.h) Dos chips propios del modo sin comparable.
     if (md && md.sinComparable){
       const ex = md.exploracion;
-      if (!ex) chips.push({ t:'Brasil/México', c:'rojo', d:'No pude consultar la región' });
-      else {
-        const e = ex.existeEn || {};
-        const sinDato = ['MLB','MLM'].filter(k => e[k] === null).length;
-        if (sinDato === 2) chips.push({ t:'Brasil/México', c:'rojo', d:'Ninguno de los dos se pudo consultar' });
-        else if (sinDato === 1) chips.push({ t:'Brasil/México', c:'ambar', d:'Solo uno de los dos respondió' });
-        else chips.push({ t:'Brasil/México', c:'verde',
-          d:'Medido: BR ' + (ex.conteos.MLB != null ? ex.conteos.MLB : '?') + ' · MX ' + (ex.conteos.MLM != null ? ex.conteos.MLM : '?') + ' publicaciones' });
-      }
+      const e = (ex && ex.existeEn) || {};
+      // Tres estados distintos, y no se pueden confundir:
+      //   ausente  -> la consulta todavia no volvio
+      //   null     -> volvio y no se pudo consultar
+      //   true/false -> dato real
+      const pendientes = ['MLB','MLM'].filter(k => !Object.prototype.hasOwnProperty.call(e, k)).length;
+      const sinDato = ['MLB','MLM'].filter(k => e[k] === null).length;
+      if (!ex) chips.push({ t:'Brasil/México', c:'ambar', d:'Consultando...' });
+      else if (pendientes) chips.push({ t:'Brasil/México', c:'ambar', d:'Consultando ' + (pendientes === 2 ? 'los dos países' : 'el país que falta') + '...' });
+      else if (sinDato === 2) chips.push({ t:'Brasil/México', c:'rojo', d:'Ninguno de los dos se pudo consultar' });
+      else if (sinDato === 1) chips.push({ t:'Brasil/México', c:'ambar', d:'Solo uno de los dos respondió' });
+      else chips.push({ t:'Brasil/México', c:'verde',
+        d:'Medido: BR ' + ex.conteos.MLB + ' · MX ' + ex.conteos.MLM + ' publicaciones' });
       const a = md.antiguedad || { valor:'sin-dato' };
       if (a.valor === 'sin-dato') chips.push({ t:'Antigüedad demanda', c:'rojo', d:'Sin medir: completá el paso 5' });
       else if (a.valor === 'mixta') chips.push({ t:'Antigüedad demanda', c:'ambar', d:'Señales mezcladas' });
@@ -3803,9 +3807,11 @@ function goHome(){
           '"' + cm.termino + '": ' + (cm.publicaciones != null ? nf(cm.publicaciones) + ' publicaciones' : cm.muestra + ' en la muestra') +
           (cm.precioMediano ? ', mediana ' + ars(cm.precioMediano) : '')));
       } else if (Array.isArray(expl.terminosProgresivos) && expl.terminosProgresivos.length){
-        // Solo se afirma que no existe si al menos un escalon se pudo consultar.
-        var algunoConsultado = (expl.escalones || []).some(function(e){ return e.ok; });
-        if (algunoConsultado){
+        // Solo se afirma que no existe cuando TODOS los escalones se
+        // consultaron bien y TODOS dieron cero. Con "alguno consultado"
+        // alcanzaba para que un escalon bloqueado disparara un SIN MERCADO
+        // falso.
+        if (expl.categoriaMadreAusenteConfirmada){
           senales.criticos.push(C(
             'Ni siquiera la categoria generica existe en MeLi.',
             'probados sin resultado: ' + expl.terminosProgresivos.join(' / '),
@@ -3890,10 +3896,24 @@ function goHome(){
     var e = expl.existeEn || {};
     var c = expl.conteos || {};
 
-    var sinCategoriaMadre = !expl.categoriaMadre &&
-      (expl.escalones || []).some(function(x){ return x.ok; });
+    // Mismo criterio que la senal: hace falta que TODOS los escalones se hayan
+    // consultado bien y hayan dado cero. Un escalon bloqueado no prueba
+    // ausencia de categoria.
+    var sinCategoriaMadre = expl.categoriaMadreAusenteConfirmada === true;
     var noExisteRegion = e.MLA === false && e.MLB === false && e.MLM === false;
     var testCero = test && test.encontradas === 0;
+
+    // Mientras Brasil/Mexico no volvieron, no se cierra el veredicto: los dos
+    // paises son parte de la evidencia y adelantarse seria decidir con menos
+    // datos de los que van a estar en un rato.
+    var regionPendiente = !expl.existeEn ||
+      !Object.prototype.hasOwnProperty.call(expl.existeEn, 'MLB') ||
+      !Object.prototype.hasOwnProperty.call(expl.existeEn, 'MLM');
+    if (regionPendiente){
+      return { clave:'gris', titulo:'CONSULTANDO LA REGIÓN',
+        sub:'Todavía estoy mirando si este producto se vende en Brasil o México. Es la evidencia más informativa que tengo cuando no hay comparable local, así que espero a tenerla antes de darte un veredicto.',
+        condiciones:[], bloqueado:true };
+    }
 
     // El test de busqueda es obligatorio: sin el, no se emite veredicto.
     if (!test){
@@ -3962,37 +3982,103 @@ function goHome(){
     var cuerpo = document.getElementById('mrStep2Body');
     if (cuerpo){
       cuerpo.insertAdjacentHTML('beforeend',
-        '<div class="mr-badge-estimacion" style="margin-top:12px">' +
-        'Sin comparable en MercadoLibre Argentina. Estoy buscando la categoría madre y mirando si se vende en Brasil o México...' +
-        '</div>');
+        '<div class="mr-badge-estimacion" id="mrNoCompAviso" style="margin-top:12px">' +
+        'Sin comparable en MercadoLibre Argentina. Buscando la categoría madre y mirando si se vende en Brasil o México...' +
+        '</div><div id="mrExploracionOut"></div>');
     }
-    try{
-      var res = await fetch('/api/market', { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ step:'exploracion', product: product }) });
-      var r = await res.json();
-      if (!res.ok) throw new Error(r.error || 'Error en exploracion');
-      mrData.exploracion = r;
-      pintarExploracion(r);
-    }catch(e){
-      mrData.exploracion = null;
-      if (cuerpo) cuerpo.insertAdjacentHTML('beforeend',
-        '<div style="margin-top:8px;font-size:.82rem;color:var(--red)">No pude explorar la categoría madre ni la región: ' + e.message + '</div>');
-    }
+
+    // Dos pedidos EN PARALELO, cada uno con su propia invocacion de 60 s en
+    // Vercel. Se pinta lo que va llegando en vez de esperar a los dos: el
+    // usuario ve la categoria madre y Argentina mucho antes de que vuelvan
+    // Brasil y Mexico.
+    mrData.exploracion = null;
+    mrData.regionPendiente = true;
+
+    var pedir = function(step){
+      return fetch('/api/market', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ step: step, product: product }) })
+        .then(function(res){ return res.json().then(function(j){ if(!res.ok) throw new Error(j.error||('Error en '+step)); return j; }); });
+    };
+
+    var pExpl = pedir('exploracion').then(function(r){
+      // Se conserva lo que ya hubiera llegado de la region.
+      var previo = mrData.exploracion || {};
+      mrData.exploracion = Object.assign({}, r, {
+        terminos: Object.assign({}, r.terminos, previo.terminos),
+        paises:   Object.assign({}, r.paises,   previo.paises),
+        conteos:  Object.assign({}, r.conteos,  previo.conteos),
+        existeEn: Object.assign({}, r.existeEn, previo.existeEn)
+      });
+      pintarExploracion(mrData.exploracion);
+      refrescarDecision();
+    }).catch(function(e){
+      var out = document.getElementById('mrExploracionOut');
+      if (out) out.innerHTML = '<div style="margin-top:8px;font-size:.82rem;color:var(--red)">No pude explorar la categoría madre: ' + e.message + '</div>';
+    });
+
+    var pReg = pedir('region').then(function(r){
+      var base = mrData.exploracion || { terminos:{}, paises:{}, conteos:{}, existeEn:{} };
+      mrData.exploracion = Object.assign({}, base, {
+        terminos: Object.assign({}, base.terminos, r.terminos),
+        paises:   Object.assign({}, base.paises,   r.paises),
+        conteos:  Object.assign({}, base.conteos,  r.conteos),
+        existeEn: Object.assign({}, base.existeEn, r.existeEn),
+        regionConsultadaEn: r.consultadoEn
+      });
+      mrData.regionPendiente = false;
+      pintarExploracion(mrData.exploracion);
+      refrescarDecision();
+    }).catch(function(e){
+      mrData.regionPendiente = false;
+      // Un fallo de red NO es un cero: los paises quedan sin dato.
+      var base = mrData.exploracion || { terminos:{}, paises:{}, conteos:{}, existeEn:{} };
+      base.paises = Object.assign({}, base.paises, {
+        MLB: { site:'MLB', pais:'Brasil', ok:false, publicaciones:null, muestra:0, motivo:'no pude consultar Brasil: ' + e.message },
+        MLM: { site:'MLM', pais:'Mexico', ok:false, publicaciones:null, muestra:0, motivo:'no pude consultar Mexico: ' + e.message }
+      });
+      base.conteos  = Object.assign({}, base.conteos,  { MLB:null, MLM:null });
+      base.existeEn = Object.assign({}, base.existeEn, { MLB:null, MLM:null });
+      mrData.exploracion = base;
+      pintarExploracion(base);
+      refrescarDecision();
+    });
+
+    await Promise.all([pExpl, pReg]);
+    var aviso = document.getElementById('mrNoCompAviso');
+    if (aviso) aviso.textContent = 'Sin comparable en MercadoLibre Argentina. No es poca competencia: no hay comparable.';
   };
 
+  // Si el paso 4 ya corrio, se vuelve a evaluar con los datos nuevos.
+  function refrescarDecision(){
+    if (typeof mrData !== 'undefined' && mrData && mrData.step4 &&
+        typeof window.renderMRDecision === 'function') {
+      window.renderMRDecision(mrData);
+    }
+  }
+
+  // Se llama dos veces (cuando llega Argentina y cuando llega la region), asi
+  // que reemplaza su propio contenido en vez de acumular.
   function pintarExploracion(r){
-    var cuerpo = document.getElementById('mrStep2Body');
-    if (!cuerpo) return;
+    var out = document.getElementById('mrExploracionOut');
+    if (!out) return;
+    var NOMBRE = { MLA:'Argentina', MLB:'Brasil', MLM:'Mexico' };
     var filas = ['MLA','MLB','MLM'].map(function(k){
-      var p = (r.paises && r.paises[k]) || {};
+      var tieneDato = r.paises && Object.prototype.hasOwnProperty.call(r.paises, k);
+      if (!tieneDato){
+        // Todavia no volvio: no es cero ni "sin dato", es "consultando".
+        return '<div class="mrv-pais"><div class="mrv-pais-n">' + NOMBRE[k] + '</div>' +
+               '<div class="mrv-pais-v nd">consultando...</div>' +
+               '<div class="mrv-pais-d">esperando respuesta de MercadoLibre</div></div>';
+      }
+      var p = r.paises[k] || {};
       var n = r.conteos ? r.conteos[k] : null;
       var existe = r.existeEn ? r.existeEn[k] : null;
       var cls = existe === true ? 'si' : (existe === false ? 'no' : 'nd');
-      var val = existe === null ? 'sin dato' : (n != null ? nf(n) : (p.muestra || 0));
-      var det = existe === null
+      var val = (existe === null || existe === undefined) ? 'sin dato' : (n != null ? nf(n) : (p.muestra || 0));
+      var det = (existe === null || existe === undefined)
         ? (p.motivo || 'no se pudo consultar')
         : (existe ? ((p.muestra||0) + ' en la muestra' + (p.precioMediano ? ' · mediana ' + nf(p.precioMediano) + ' ' + (p.moneda||'') : '')) : 'sin publicaciones');
-      return '<div class="mrv-pais"><div class="mrv-pais-n">' + (p.pais || k) + '</div>' +
+      return '<div class="mrv-pais"><div class="mrv-pais-n">' + (p.pais || NOMBRE[k]) + '</div>' +
              '<div class="mrv-pais-v ' + cls + '">' + val + '</div>' +
              '<div class="mrv-pais-d">' + det + (r.terminos && r.terminos[k] ? '<br>buscado como: "' + r.terminos[k] + '"' : '') + '</div></div>';
     }).join('');
@@ -4004,17 +4090,22 @@ function goHome(){
         (cm.publicaciones != null ? '<b>' + nf(cm.publicaciones) + '</b> publicaciones activas' : '<b>' + cm.muestra + '</b> publicaciones en la muestra') +
         (cm.precioMediano ? ', mediana <b>' + ars(cm.precioMediano) + '</b>' : '') + '.' +
         '<span class="mrv-ref">Esa mediana es una referencia DE LA CATEGORÍA, no el precio de tu producto. No la cargo en el precio de venta.</span></div>';
-    } else if (Array.isArray(r.terminosProgresivos) && r.terminosProgresivos.length){
+    } else if (r.categoriaMadreAusenteConfirmada){
       madre = '<div class="mrv-madre">Ni siquiera la categoría genérica existe en MeLi. Probé: <b>' +
-        r.terminosProgresivos.join('</b> · <b>') + '</b>.</div>';
-    } else {
+        (r.terminosProgresivos || []).join('</b> · <b>') + '</b>.</div>';
+    } else if (Array.isArray(r.terminosProgresivos) && r.terminosProgresivos.length){
+      madre = '<div class="mrv-madre">No encontré una categoría madre con muestra suficiente. Probé: <b>' +
+        r.terminosProgresivos.join('</b> · <b>') + '</b>. Algún término no se pudo consultar, así que <b>no afirmo que la categoría no exista</b>.</div>';
+    } else if (r.terminosProgresivos) {
       madre = '<div class="mrv-madre">No pude derivar términos de categoría madre para este producto.</div>';
+    } else {
+      madre = '<div class="mrv-madre" style="opacity:.7">Buscando la categoría madre...</div>';
     }
 
-    cuerpo.insertAdjacentHTML('beforeend',
+    out.innerHTML =
       '<div class="mrv-nocomp" style="margin-top:12px">' +
       '<div class="mrv-nocomp-linea">Publicaciones por país</div>' +
-      '<div class="mrv-paises">' + filas + '</div>' + madre + '</div>');
+      '<div class="mrv-paises">' + filas + '</div>' + madre + '</div>';
   }
 
   // --- Paso 5 ---

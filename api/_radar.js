@@ -393,17 +393,29 @@ const IDIOMAS = {
   'es-MX': { nombre: 'español de Mexico',   tienda: 'MercadoLibre Mexico',  ejemplo: '"mini proyector" -> "mini proyector"' }
 };
 
+// La clave del cache se arma en UN solo lugar. Antes el read y el write
+// repetian la expresion "idioma + '::' + termino" en cuatro puntos distintos:
+// si uno solo se desincroniza, el cache no pega nunca (y se paga Haiku en cada
+// consulta) o, peor, se lee la entrada castellana creyendo que es la
+// portuguesa. Con una sola funcion eso no puede pasar.
+export function claveTraduccion(idioma, término) {
+  return idioma + '::' + String(término || '').slice(0, 140);
+}
+export function claveProgresivos(término) {
+  return 'progresivo::' + String(término || '').trim().slice(0, 140);
+}
+
 export async function traducirTerminos(términos, idioma) {
   const cfg = IDIOMAS[idioma];
   if (!cfg) throw new Error('idioma no soportado: ' + idioma);
   const limpios = [...new Set((términos || []).filter(Boolean).map(t => String(t).slice(0, 140)))];
   if (!limpios.length) return {};
 
-  const claves = limpios.map(t => idioma + '::' + t);
+  const claves = limpios.map(t => claveTraduccion(idioma, t));
   const guardadas = await clasificacionesGuardadas(claves);
   const mapa = {};
   limpios.forEach(t => {
-    const g = guardadas[idioma + '::' + t];
+    const g = guardadas[claveTraduccion(idioma, t)];
     if (g && g.es) mapa[t] = g.es;
   });
   const faltan = limpios.filter(t => !mapa[t]);
@@ -443,7 +455,7 @@ export async function traducirTerminos(términos, idioma) {
   for (const r of resultados) Object.assign(nuevos, r);
   const paraGuardar = {};
   Object.keys(nuevos).forEach(k => {
-    paraGuardar[idioma + '::' + k] = { es: nuevos[k], imp: false, motivo: 'traduccion ' + idioma };
+    paraGuardar[claveTraduccion(idioma, k)] = { es: nuevos[k], imp: false, motivo: 'traduccion ' + idioma };
   });
   await guardarClasificaciones(paraGuardar);
 
@@ -461,7 +473,7 @@ export async function traducirTerminos(términos, idioma) {
 export async function terminosProgresivos(término) {
   const base = String(término || '').trim().slice(0, 140);
   if (!base) return [];
-  const clave = 'progresivo::' + base;
+  const clave = claveProgresivos(base);
 
   const guardadas = await clasificacionesGuardadas([clave]);
   if (guardadas[clave] && guardadas[clave].es) {

@@ -660,6 +660,10 @@ export default async function handler(req, res) {
     try { return res.status(200).json(await stepExploracion(product)); }
     catch (e) { return res.status(500).json({ error: 'Fallo exploracion', detalle: String(e && e.message || e) }); }
   }
+  if (step === 'region') {
+    try { return res.status(200).json(await stepRegion(product)); }
+    catch (e) { return res.status(500).json({ error: 'Fallo region', detalle: String(e && e.message || e) }); }
+  }
   if (step === 'testBusqueda') {
     try { return res.status(200).json(await stepTestBusqueda(product)); }
     catch (e) { return res.status(500).json({ error: 'Fallo test de busqueda', detalle: String(e && e.message || e) }); }
@@ -825,41 +829,91 @@ async function stepCompetencia(product) {
 // distinguir esos casos en vez de premiarlos.
 // ============================================================
 
-// 8.b + 8.c: categoria madre en Argentina y presencia en la region.
+// PRESUPUESTO DE TIEMPO. vercel.json le da 60 s a las funciones. Medido con
+// latencia realista, categoria madre + tres paises tarda 17-26 s; pero en el
+// peor caso (cada URL de listado colgada, 6 s de timeout x 4 candidatas x
+// varios terminos) supera los dos minutos, y ese peor caso es JUSTO el de un
+// producto que no existe, o sea el que esta funcion tiene que atender.
+//
+// Por eso son dos steps, cada uno con su propia invocacion de 60 s:
+//   'exploracion' -> Argentina: categoria madre + conteo local
+//   'region'      -> Brasil y Mexico, en paralelo
+// El front los pide a la vez y pinta el bloque a medida que llegan, asi el
+// usuario ve algo mucho antes del limite. Ademas cada uno corta a los 40 s y
+// devuelve lo que junto: lo que no se llego a consultar queda como "sin dato",
+// nunca como cero.
+const PRESUPUESTO_MS = Number(process.env.MARKET_PRESUPUESTO_MS || 40000);
+
+// 8.b: categoria madre, y el conteo de Argentina.
 async function stepExploracion(product) {
   if (!product) throw new Error('product requerido');
+  const deadline = Date.now() + PRESUPUESTO_MS;
   const tok = await getMeliAccessToken();
   const radar = await import('./_radar.js');
 
-  // --- 8.b) Categoria madre: se busca hacia ARRIBA, de lo especifico a lo
-  //     generico, hasta encontrar un termino con al menos 8 publicaciones.
   let progresivos = [];
   try { progresivos = await radar.terminosProgresivos(product); }
   catch (e) { console.warn('[exploracion] terminosProgresivos fallo: ' + String((e && e.message) || e).slice(0, 140)); }
 
+  // Se busca hacia ARRIBA, de lo especifico a lo generico, hasta encontrar un
+  // termino con al menos 8 publicaciones. Se corta ahi.
   const escalones = [];
   let categoriaMadre = null;
   for (const t of progresivos) {
-    const c = await contarPublicaciones(t, tok, 'MLA', { budgetMs: 5000, maxIds: 30 });
-    escalones.push({ termino: t, ok: c.ok, publicaciones: c.publicaciones, muestra: c.muestra, motivo: c.motivo });
-    // Se corta en el primer termino con muestra suficiente: mas generico que
-    // eso ya no describe al producto.
+    if (Date.now() > deadline) {
+      escalones.push({ termino: t, ok: false, publicaciones: null, muestra: 0, sinTiempo: true,
+                       motivo: 'no alcanzo el tiempo para consultarlo' });
+      continue;
+    }
+    const c = await contarPublicaciones(t, tok, 'MLA', { budgetMs: 5000, maxIds: 30, deadline });
+    escalones.push({ termino: t, ok: c.ok, publicaciones: c.publicaciones, muestra: c.muestra,
+                     sinTiempo: !!c.sinTiempo, motivo: c.motivo });
     if (c.ok && c.muestra >= 8) {
       categoriaMadre = {
-        termino: t,
-        publicaciones: c.publicaciones,
-        muestra: c.muestra,
-        precioMediano: c.precioMediano,
-        ventasTop3: c.ventasTop3,
-        // El mediano es de la CATEGORIA, no del producto. El front lo tiene
-        // que rotular asi y no cargarlo en el precio de venta.
+        termino: t, publicaciones: c.publicaciones, muestra: c.muestra,
+        precioMediano: c.precioMediano, ventasTop3: c.ventasTop3,
+        // El mediano es de la CATEGORIA, no del producto. El front lo rotula
+        // asi y no lo carga en el precio de venta.
         esReferenciaDeCategoria: true
       };
       break;
     }
   }
 
-  // --- 8.c) Brasil y Mexico. El mejor proxy que existe para Argentina.
+  const mla = await contarPublicaciones(product, tok, 'MLA', { budgetMs: 5000, maxIds: 30, deadline });
+
+  // "Ni siquiera la categoria generica existe" solo se puede afirmar si TODOS
+  // los escalones se consultaron bien Y todos dieron cero. Si alguno quedo
+  // bloqueado o sin tiempo, o alguno trajo publicaciones (aunque sean menos de
+  // 8), afirmar que no existe dispara un "SIN MERCADO" falso.
+  const escalonesOk = escalones.length > 0 && escalones.every(e => e.ok);
+  const todosEnCero = escalonesOk && escalones.every(e => (e.muestra || 0) === 0 && (e.publicaciones || 0) === 0);
+
+  return {
+    producto: product,
+    terminosProgresivos: progresivos,
+    escalones,
+    escalonesTodosConsultados: escalonesOk,
+    categoriaMadre,
+    categoriaMadreAusenteConfirmada: !categoriaMadre && todosEnCero,
+    sinCategoriaMadre: !categoriaMadre,
+    terminos: { MLA: product },
+    paises: { MLA: mla },
+    conteos: { MLA: mla.ok ? Math.max(mla.publicaciones || 0, mla.muestra || 0) : null },
+    existeEn: { MLA: mla.ok ? (Math.max(mla.publicaciones || 0, mla.muestra || 0) > 0) : null },
+    parcial: Date.now() > deadline,
+    consultadoEn: new Date().toISOString()
+  };
+}
+
+// 8.c: Brasil y Mexico. Va en su propia invocacion para no compartir los 60 s
+// con la categoria madre. Los dos paises se consultan en paralelo.
+async function stepRegion(product) {
+  if (!product) throw new Error('product requerido');
+  const deadline = Date.now() + PRESUPUESTO_MS;
+  const tok = await getMeliAccessToken();
+  const radar = await import('./_radar.js');
+
   let terminoBR = null, terminoMX = null;
   try {
     const [br, mx] = await Promise.all([
@@ -869,40 +923,29 @@ async function stepExploracion(product) {
     terminoBR = (br && br[product]) || null;
     terminoMX = (mx && mx[product]) || null;
   } catch (e) {
-    console.warn('[exploracion] traduccion regional fallo: ' + String((e && e.message) || e).slice(0, 140));
+    console.warn('[region] traduccion fallo: ' + String((e && e.message) || e).slice(0, 140));
   }
 
-  const [mla, mlb, mlm] = await Promise.all([
-    contarPublicaciones(product, tok, 'MLA', { budgetMs: 5000, maxIds: 30 }),
-    contarPublicaciones(terminoBR || product, tok, 'MLB', { budgetMs: 5000, maxIds: 30 }),
-    contarPublicaciones(terminoMX || product, tok, 'MLM', { budgetMs: 5000, maxIds: 30 })
+  const [mlb, mlm] = await Promise.all([
+    contarPublicaciones(terminoBR || product, tok, 'MLB', { budgetMs: 5000, maxIds: 30, deadline }),
+    contarPublicaciones(terminoMX || product, tok, 'MLM', { budgetMs: 5000, maxIds: 30, deadline })
   ]);
 
-  const paises = { MLA: mla, MLB: mlb, MLM: mlm };
-  // "Existe" solo se afirma cuando la consulta ANDUVO. Si no se pudo
-  // consultar, queda en null y el front dice "sin dato", nunca "no existe".
-  const existeEn = {};
+  const paises = { MLB: mlb, MLM: mlm };
+  const existeEn = {}, conteos = {};
   for (const k of Object.keys(paises)) {
     const c = paises[k];
-    existeEn[k] = c.ok ? (Math.max(c.publicaciones || 0, c.muestra || 0) > 0) : null;
+    // Solo se afirma "existe" o "no existe" si la consulta ANDUVO. Si no, null,
+    // y el front muestra "sin dato".
+    conteos[k] = c.ok ? Math.max(c.publicaciones || 0, c.muestra || 0) : null;
+    existeEn[k] = c.ok ? (conteos[k] > 0) : null;
   }
-
-  const cuenta = k => {
-    const c = paises[k];
-    if (!c.ok) return null;
-    return Math.max(c.publicaciones || 0, c.muestra || 0);
-  };
 
   return {
     producto: product,
-    terminosProgresivos: progresivos,
-    escalones,
-    categoriaMadre,
-    sinCategoriaMadre: !categoriaMadre,
-    terminos: { MLA: product, MLB: terminoBR, MLM: terminoMX },
-    paises,
-    conteos: { MLA: cuenta('MLA'), MLB: cuenta('MLB'), MLM: cuenta('MLM') },
-    existeEn,
+    terminos: { MLB: terminoBR, MLM: terminoMX },
+    paises, conteos, existeEn,
+    parcial: Date.now() > deadline,
     consultadoEn: new Date().toISOString()
   };
 }

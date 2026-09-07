@@ -315,7 +315,7 @@ export async function fetchJson(url, token, timeoutMs) {
 export const SITIOS = {
   MLA: { id: 'MLA', pais: 'Argentina', dominio: 'mercadolibre.com.ar', listado: 'listado.mercadolibre.com.ar', idioma: 'es-AR' },
   MLB: { id: 'MLB', pais: 'Brasil',    dominio: 'mercadolivre.com.br', listado: 'lista.mercadolivre.com.br',   idioma: 'pt-BR' },
-  MLM: { id: 'MLM', pais: 'Mexico',    pominio: null, dominio: 'mercadolibre.com.mx', listado: 'listado.mercadolibre.com.mx', idioma: 'es-MX' }
+  MLM: { id: 'MLM', pais: 'Mexico',    dominio: 'mercadolibre.com.mx', listado: 'listado.mercadolibre.com.mx', idioma: 'es-MX' }
 };
 
 export function sitio(id) {
@@ -505,7 +505,8 @@ export async function publicIdsSearch(product, token, opts) {
   const o = opts || {};
   const deadline = Date.now() + (o.budgetMs || 7000);
   const site = sitio(o.site).id;
-  const html = await fetchListadoHtml(product, o.timeoutMs || 6000, site);
+  const html = await fetchListadoHtml(product, o.timeoutMs || 6000, site, o.deadline);
+  if (html && html.sinTiempo) return { sinTiempo: true, results: [] };
   if (!html) return null;
   // Cero real: se entro al listado y no habia publicaciones. Se devuelve como
   // resultado vacio, no como null, para que arriba se pueda distinguir de un
@@ -591,16 +592,85 @@ export async function traerPagina(url, timeoutMs) {
 }
 
 // Devuelve la primera pagina publica que realmente traiga IDs de publicacion.
-export async function fetchListadoHtml(product, timeoutMs, site) {
+// Clasifica una pagina que respondio 200 pero no trajo ningun ID.
+// Hay dos motivos posibles y significan lo contrario:
+//   'cero'      -> es la pagina de resultados de MercadoLibre y dice que no hay nada
+//   'bloqueada' -> es un muro anti-bot, un challenge o una pagina intermedia
+// MercadoLibre sirve el muro anti-bot con HTTP 200 y cuerpo, asi que fiarse
+// del status es exactamente como se cuela un cero falso. Ante la duda se
+// devuelve 'bloqueada': es preferible decir "no pude consultar" que afirmar
+// que un producto no existe.
+export function clasificarPaginaListado(texto, site) {
+  const t = String(texto || '');
+  if (t.length < 2000) return 'bloqueada';           // una pagina real de MeLi pesa mucho mas
+
+  const bajo = t.toLowerCase();
+
+  // Muros conocidos. Si aparece alguno, no se llego al listado.
+  const murosAntiBot = [
+    'baxia-punish', 'captcha', 'recaptcha', 'px-captcha', 'datadome',
+    'access denied', 'acceso denegado', 'acesso negado',
+    'unusual traffic', 'trafico inusual',
+    'are you a robot', 'verifica que eres', 'verifique que voce',
+    'please enable javascript to continue', 'checking your browser'
+  ];
+  if (murosAntiBot.some(m => bajo.includes(m))) return 'bloqueada';
+
+  // Frases con las que MercadoLibre dice explicitamente que no hay resultados,
+  // en los tres sitios.
+  const sinResultados = [
+    'no hay publicaciones que coincidan',
+    'no hay anuncios que coincidan',
+    'no encontramos publicaciones',
+    'nao ha publicacoes que correspondam',
+    'nao encontramos publicacoes',
+    'no results', 'sin resultados', 'sem resultados',
+    'escribi el producto que quieras encontrar',
+    'revisa la ortografia'
+  ];
+  const bajoSinTildes = bajo.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (sinResultados.some(f => bajoSinTildes.includes(f))) return 'cero';
+
+  // Sin frase explicita: solo se acepta el cero si la pagina TIENE el armazon
+  // del listado de MercadoLibre. Si no lo tiene, no sabemos donde caimos.
+  const st = sitio(site);
+  const armazon = [
+    st.dominio,                      // el footer y los links internos lo repiten
+    'mercadolibre', 'mercadolivre'
+  ];
+  const tieneArmazon = armazon.some(a => bajo.includes(a));
+  const tieneBuscador = bajo.includes('as_word') || bajo.includes('cb1-search') ||
+                        bajo.includes('nav-search') || bajo.includes('type="search"');
+  if (tieneArmazon && tieneBuscador) return 'cero';
+
+  return 'bloqueada';
+}
+
+export async function fetchListadoHtml(product, timeoutMs, site, deadline) {
   const st = sitio(site);
   // Distingue "no hay publicaciones" de "no pude consultar": el punto 8 del
   // Market Reader decide cosas opuestas segun cual de las dos sea, asi que
   // confundirlas invierte el diagnostico.
-  let alcanzado = false;
+  //
+  // OJO: un HTTP 200 con cuerpo NO alcanza para decir que se llego. El muro
+  // anti-bot de MercadoLibre responde 200. Por eso se clasifica el contenido.
+  let ceroConfirmado = false;
+  let sinTiempo = false;
   for (const url of candidatosDeListado(product, st.id)) {
-    const pag = await traerPagina(url, timeoutMs);
-    if (pag.status >= 200 && pag.status < 400 && pag.texto) alcanzado = true;
-    if (!pag.texto || !extraerIdsItem(pag.texto, st.id).length) continue;
+    // Sin presupuesto de tiempo, cuatro URLs colgadas por pais x tres paises se
+    // comen los 60 s de la funcion de Vercel. Cortar aca devuelve null, o sea
+    // "no pude consultar": nunca un cero.
+    if (deadline && Date.now() > deadline) { sinTiempo = true; break; }
+    const restante = deadline ? Math.max(500, deadline - Date.now()) : (timeoutMs || 6000);
+    const pag = await traerPagina(url, Math.min(timeoutMs || 6000, restante));
+    const hayIds = pag.texto && extraerIdsItem(pag.texto, st.id).length;
+    if (!hayIds) {
+      if (pag.status >= 200 && pag.status < 400 && pag.texto &&
+          clasificarPaginaListado(pag.texto, st.id) === 'cero') {
+        ceroConfirmado = true;
+      }
+      continue;
+    }
     let total = 0;
     // "resultados" en es-AR/es-MX, "resultados" tambien en pt-BR.
     const m = pag.texto.match(/([\d][\d.,]*)\s*resultados/i);
@@ -610,9 +680,11 @@ export async function fetchListadoHtml(product, timeoutMs, site) {
     if (h1) categoria = h1[1].trim();
     return { status: pag.status, url, texto: pag.texto, total, categoria, site: st.id, alcanzado: true };
   }
-  // Se llego a la pagina pero no habia ninguna publicacion: eso es un CERO
-  // real, distinto de no haber podido entrar.
-  if (alcanzado) return { status: 200, url: null, texto: '', total: 0, categoria: '', site: st.id, alcanzado: true, vacio: true };
+  // Se llego a la pagina de resultados de MercadoLibre y dice que no hay nada:
+  // eso es un CERO real. Cualquier otra cosa (muro, challenge, pagina que no
+  // reconocemos) devuelve null = "no pude consultar".
+  if (ceroConfirmado) return { status: 200, url: null, texto: '', total: 0, categoria: '', site: st.id, alcanzado: true, vacio: true };
+  if (sinTiempo) return { sinTiempo: true, site: st.id };
   return null;
 }
 
@@ -883,9 +955,9 @@ export async function buscarPublicaciones(product, token, opts) {
     // Si la corrida fallo, se sigue de largo y mas abajo se arranca otra.
   }
   const vias = {
-    catalogo: () => catalogSearch(product, token, { site, maxProductos: o.maxProductos || 6, budgetMs: o.budgetMs || 5000 }),
-    destacados: () => highlightsSearch(product, token, { site, budgetMs: o.budgetMs || 5000 }),
-    listado: () => publicIdsSearch(product, token, { site, budgetMs: o.budgetMs || 6000, maxIds: o.maxIds || 40 }),
+    catalogo: () => catalogSearch(product, token, { site, deadline: o.deadline, maxProductos: o.maxProductos || 6, budgetMs: o.budgetMs || 5000 }),
+    destacados: () => highlightsSearch(product, token, { site, deadline: o.deadline, budgetMs: o.budgetMs || 5000 }),
+    listado: () => publicIdsSearch(product, token, { site, deadline: o.deadline, budgetMs: o.budgetMs || 6000, maxIds: o.maxIds || 40 }),
     // Ultima, porque es la unica que cuesta plata: solo se paga cuando ninguna
     // via gratuita respondio.
     //
@@ -917,6 +989,9 @@ export async function buscarPublicaciones(product, token, opts) {
   const orden = ['listado', 'destacados', 'catalogo', 'proveedor'];
   const est = viaEstado(site);
   for (const nombre of orden) {
+    // Se acabo el presupuesto: se devuelve "sin tiempo", que aguas arriba es
+    // "no pude consultar". Jamas un cero.
+    if (o.deadline && Date.now() > o.deadline) return { sinTiempo: true, results: [] };
     const fallos = est.fallos[nombre] || 0;
     // Se saltea la via que ya fallo dos veces, siempre que otra este andando.
     // El tope de 4 cubre el caso de que no ande ninguna. Si MeLi reabre una,
@@ -935,6 +1010,8 @@ export async function buscarPublicaciones(product, token, opts) {
       // dato, no una falla de la via: se devuelve tal cual, no se penaliza a la
       // via (se entro bien) y no se prueban las siguientes.
       if (r && r.vacioConfirmado) { est.fallos[nombre] = 0; return r; }
+      // Corte por tiempo: no es culpa de la via, no se la penaliza.
+      if (r && r.sinTiempo) return r;
       est.fallos[nombre] = fallos + 1;
     } catch (_) {
       est.fallos[nombre] = fallos + 1;
@@ -977,6 +1054,7 @@ export async function contarPublicaciones(product, token, site, opts) {
   try {
     r = await buscarPublicaciones(product, token, {
       site: st.id,
+      deadline: o.deadline,
       budgetMs: o.budgetMs || 6000,
       maxIds: o.maxIds || 40,
       sinCache: !!o.sinCache
@@ -986,6 +1064,7 @@ export async function contarPublicaciones(product, token, site, opts) {
   }
 
   if (!r) return { ...vacio, motivo: 'MercadoLibre ' + st.pais + ' no respondio (bloqueo o sin resultados legibles)' };
+  if (r.sinTiempo) return { ...vacio, sinTiempo: true, motivo: 'no alcanzo el tiempo para consultar ' + st.pais };
   if (r.pendiente) return { ...vacio, motivo: 'la busqueda todavia se esta preparando' };
 
   const results = Array.isArray(r.results) ? r.results : [];
