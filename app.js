@@ -1123,13 +1123,19 @@ async function runMRStep2(product){
     // coincidencias sirve resultados DE RESCATE y los presenta como normales.
     // Por eso se muestra cuantas de las devueltas son de verdad del producto:
     // el conteo bruto de MeLi no significa nada para un termino de nicho.
+    // El ratio se muestra SIEMPRE, no solo cuando es malo. Si el usuario ve un
+    // numero raro contra un producto que el sabe que existe, esa es la senal de
+    // calibracion que ningun fixture puede dar.
     let relInfo='';
-    if(r.muestraDevuelta!=null&&r.ratioRelevancia!=null){
+    if(r.ratioRelevancia!=null&&r.muestraDevuelta!=null){
       const pct=Math.round(r.ratioRelevancia*100);
-      const bajo=r.ratioRelevancia<0.5;
-      relInfo=`<div class="mr-row"><span class="mr-row-label">Coincidencia con tu b&#250;squeda</span><span class="mr-row-value" style="color:${bajo?'#e0a020':'var(--green)'}">${r.relevantes} de ${r.muestraDevuelta} (${pct}%)</span></div>`+
-        `<div style="margin-top:4px;font-size:.82rem;color:var(--text-dim)">De ${r.muestraDevuelta} publicaciones devueltas por MeLi, ${r.relevantes} coinciden con tu b&#250;squeda.${r.totalCrudoMeli?` MeLi informa ${r.totalCrudoMeli.toLocaleString('es-AR')} resultados en total, pero ese n&#250;mero es posterior al rescate y no dice cu&#225;ntos son tu producto.`:''}</div>`;
-      if(bajo) relInfo+=`<div class="mr-badge-estimacion" style="margin-top:8px">MercadoLibre te devolvi&#243; resultados, pero no son tu producto. Los precios de abajo se calculan <b>solo</b> sobre las ${r.relevantes} que coinciden.</div>`;
+      const est=r.estadoRelevancia||'existe';
+      const color=est==='existe'?'var(--green)':(est==='dudoso'?'#e0a020':'var(--red)');
+      relInfo=`<div class="mr-row"><span class="mr-row-label">Relevancia de la muestra</span><span class="mr-row-value" style="color:${color};font-weight:700">${r.ratioRelevancia.toFixed(2)}</span></div>`+
+        `<div style="margin-top:4px;font-size:.82rem;color:var(--text-dim)">De ${r.muestraDevuelta} publicaciones devueltas, el promedio coincide en un ${pct}% con tu b&#250;squeda (${r.relevantes} tienen al menos una palabra).${r.totalCrudoMeli?` MeLi informa ${r.totalCrudoMeli.toLocaleString('es-AR')} resultados, pero ese n&#250;mero es posterior al rescate y no dice cu&#225;ntos son tu producto.`:''}</div>`;
+      if(est==='dudoso') relInfo+=`<div class="mr-badge-estimacion" style="margin-top:8px">MercadoLibre devolvi&#243; resultados <b>parcialmente relacionados</b>: no puedo confirmar si tu producto exacto se vende ac&#225;. No calculo precio de referencia con esto.</div>`;
+      else if(est==='noExiste') relInfo+=`<div class="mr-badge-estimacion" style="margin-top:8px">MercadoLibre te devolvi&#243; resultados, pero no son tu producto.</div>`;
+      else if(r.ratioRelevancia<0.5) relInfo+=`<div style="margin-top:8px;font-size:.82rem;color:#e0a020">Coincidencia parcial: los precios se calculan <b>solo</b> sobre las ${r.relevantes} publicaciones que coinciden.</div>`;
     }
 
     // 8.a) Sin comparable: no es "poca competencia", es que el producto no se
@@ -3888,6 +3894,17 @@ function goHome(){
       }
     }
 
+    // --- Relevancia dudosa en algun sitio ---
+    if (expl && expl.estados){
+      var dudosos = Object.keys(expl.estados).filter(function(k){ return expl.estados[k] === 'dudoso'; });
+      if (dudosos.length){
+        senales.enContra.push(M(
+          'En ' + dudosos.map(function(k){ return (expl.paises[k] || {}).pais || k; }).join(' y ') +
+          ' MeLi devolvio resultados parcialmente relacionados: no se puede confirmar si tu producto exacto se vende ahi.',
+          dudosos.map(function(k){ var r = (expl.relevancia || {})[k]; return k + ' relevancia ' + (r && r.ratio != null ? r.ratio.toFixed(2) : '?'); }).join(' | ')));
+      }
+    }
+
     // --- 8.d) Antiguedad de la demanda ---
     if (ant.valor === 'nueva'){
       senales.aFavor.push(F('Demanda nueva: el producto esta apareciendo ahora, no es un descarte viejo.', ant.motivo));
@@ -4130,6 +4147,7 @@ function goHome(){
       var val = (existe === null || existe === undefined) ? 'sin dato' : (n != null ? nf(n) : (p.muestra || 0));
       var det;
       if (existe === null || existe === undefined) det = (p.motivo || 'no se pudo consultar');
+      else if (p.estado === 'dudoso') det = 'resultados parcialmente relacionados (relevancia ' + (p.ratio != null ? p.ratio.toFixed(2) : '?') + ')';
       else if (existe) det = (p.relevantes != null ? (p.relevantes + ' de ' + p.muestraDevuelta + ' coinciden') : ((p.muestra||0) + ' en la muestra')) +
                              (p.precioMediano ? ' · mediana ' + nf(p.precioMediano) + ' ' + (p.moneda||'') : '');
       // "sin publicaciones" era enganoso: casi siempre MeLi devuelve algo, solo

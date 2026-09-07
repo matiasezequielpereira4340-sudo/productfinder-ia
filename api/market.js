@@ -3,7 +3,7 @@
 // Datos de MercadoLibre (catalogo con token de usuario) + Anthropic para el
 // armado del informe.
 
-import { anthropicHeaders, buscarPublicaciones, contarPublicaciones, relevanciaPorTitulo, RELEVANCIA_MINIMA, SITIOS, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
+import { anthropicHeaders, buscarPublicaciones, contarPublicaciones, relevanciaPorTitulo, leerRelevanciaLog, RELEVANCIA_UMBRAL_ALTO, RELEVANCIA_UMBRAL_BAJO, SITIOS, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
 import { haySesion, esAdmin, tokenDe, pedirSesion } from './_sesion.js';
 import { cotizacionDolar, DOLAR_TIPOS, DOLAR_TIPO_DEFAULT } from './_dolar.js';
 
@@ -23,6 +23,34 @@ export default async function handler(req, res) {
       anthropic_present: !!process.env.ANTHROPIC_API_KEY,
       demo_user: process.env.MELI_DEMO_USER_ID || 'matypereira'
     };
+
+    // ?relevancia=1 -> las ultimas mediciones de relevancia, para recalibrar
+    // los umbrales con consultas REALES en vez de con titulos supuestos.
+    // Protegido con ADMIN_KEY: expone que busca la gente.
+    if (req.query && req.query.relevancia) {
+      const clave = req.headers['x-admin-key'] || (req.query && req.query.key);
+      if (!process.env.ADMIN_KEY || clave !== process.env.ADMIN_KEY) {
+        return res.status(401).json({ error: 'No autorizado' });
+      }
+      const n = Math.min(200, Math.max(1, parseInt(req.query.n, 10) || 50));
+      const filas = leerRelevanciaLog(n);
+      // Resumen para ver de una si los umbrales estan bien puestos.
+      const porEstado = {};
+      let suma = 0, con = 0;
+      for (const f of filas) {
+        porEstado[f.estado || 'sin-estado'] = (porEstado[f.estado || 'sin-estado'] || 0) + 1;
+        if (typeof f.ratio === 'number') { suma += f.ratio; con++; }
+      }
+      return res.status(200).json({
+        ok: true,
+        umbrales: { alto: RELEVANCIA_UMBRAL_ALTO, bajo: RELEVANCIA_UMBRAL_BAJO },
+        total: filas.length,
+        porEstado,
+        ratioPromedio: con ? Number((suma / con).toFixed(4)) : null,
+        nota: 'El log vive en memoria del proceso: un cold start de Vercel lo vacia. Si existe la tabla relevancia_log en Supabase, ahi queda el historico completo.',
+        entradas: filas
+      });
+    }
 
     // ?dolar=1 -> cotizaciones del dolar para el formulario del Market Reader.
     // Se consulta desde el server para no depender del CORS de dolarapi, y se
@@ -744,12 +772,34 @@ async function stepCompetencia(product) {
   // devuelve resultados DE RESCATE (bujias, repuestos) presentados como
   // normales. Antes esto se leia como "existe, competencia moderada" y encima
   // el precio mediano y la saturacion se calculaban sobre esos productos.
+  // 'dudoso': MercadoLibre devolvio cosas parcialmente relacionadas. No se
+  // afirma ausencia (eso cerraria SIN MERCADO sobre una duda) pero tampoco se
+  // publica un precio de referencia como si fuera del producto.
+  if (meli && meli.relevancia && meli.relevancia.estado === 'dudoso') {
+    const rel = meli.relevancia;
+    return {
+      fuente: meli.fuente || 'meli-listado+items',
+      muestraInsuficiente: true, muestra: (meli.results || []).length,
+      sinComparable: true, consultaFallida: false, relevanciaDudosa: true,
+      estadoRelevancia: 'dudoso',
+      relevantes: rel.relevantes, muestraDevuelta: rel.muestra, ratioRelevancia: rel.ratio,
+      sellersEstimados: null,
+      precioMinARS: null, precioMaxARS: null, precioPromedioARS: null,
+      totalResults: null, totalCatalogo: null, totalLabel: null,
+      totalCrudoMeli: (typeof meli.total === 'number') ? meli.total : null,
+      categoryName: meli.categoryName || '', saturacion: null, competenciaScore: null,
+      competitors: [], envioGratisPct: null,
+      aviso: 'MercadoLibre devolvio resultados parcialmente relacionados (relevancia ' +
+             rel.ratio.toFixed(2) + '): no puedo confirmar si tu producto exacto se vende aca.'
+    };
+  }
+
   if (meli && meli.relevanciaCero && meli.relevancia) {
     const rel = meli.relevancia;
     return {
       fuente: meli.fuente || 'meli-listado+items',
       muestraInsuficiente: true, muestra: 0, sinComparable: true, consultaFallida: false,
-      relevantes: 0, muestraDevuelta: rel.muestra, ratioRelevancia: 0,
+      relevantes: 0, muestraDevuelta: rel.muestra, ratioRelevancia: 0, estadoRelevancia: 'noExiste',
       sellersEstimados: 0,
       precioMinARS: null, precioMaxARS: null, precioPromedioARS: null,
       totalResults: null, totalCatalogo: null, totalLabel: null,
@@ -808,6 +858,7 @@ async function stepCompetencia(product) {
         fuente, muestraInsuficiente: true, muestra: results.length,
         sinComparable: sinComp,
         relevantes: rel.relevantes, muestraDevuelta: rel.muestra, ratioRelevancia: rel.ratio,
+        estadoRelevancia: rel.estado || 'existe',
         totalCrudoMeli: (typeof meli.total === 'number') ? meli.total : null,
         sellersEstimados: sellers.size || results.length,
         precioMinARS: null, precioMaxARS: null, precioPromedioARS: null,
@@ -827,6 +878,7 @@ async function stepCompetencia(product) {
     return {
       fuente, muestraInsuficiente: false, sinComparable: false, muestra: results.length,
       relevantes: rel.relevantes, muestraDevuelta: rel.muestra, ratioRelevancia: rel.ratio,
+      estadoRelevancia: rel.estado || 'existe',
       totalCrudoMeli: (typeof meli.total === 'number') ? meli.total : null,
       sellersEstimados: sellers.size || results.length,
       precioMinARS: min, precioMaxARS: max, precioPromedioARS: avg,
@@ -923,6 +975,7 @@ async function stepExploracion(product) {
   const escalonesOk = escalones.length > 0 && escalones.every(e => e.ok);
   // "No existe" ya no es contar cero: MercadoLibre casi nunca devuelve cero.
   // Es que ninguna de las publicaciones devueltas sea del producto.
+  // 'dudoso' NO cuenta: no se afirma que la categoria no exista sobre una duda.
   const todosEnCero = escalonesOk && escalones.every(e => e.estado === 'noExiste');
 
   return {
@@ -939,7 +992,9 @@ async function stepExploracion(product) {
     // no el total que informa MeLi (que es post-rescate).
     conteos: { MLA: mla.ok ? (mla.relevantes != null ? mla.relevantes : mla.muestra) : null },
     // Tres estados: true / false / null. Nunca un booleano derivado de un conteo.
-    existeEn: { MLA: mla.ok ? (mla.estado === 'existe') : null },
+    // 'dudoso' viaja como null en existeEn a proposito: no afirma presencia ni
+    // ausencia. El estado exacto va aparte, en estados.
+    existeEn: { MLA: mla.ok ? (mla.estado === 'existe' ? true : (mla.estado === 'noExiste' ? false : null)) : null },
     estados: { MLA: mla.estado },
     relevancia: { MLA: { relevantes: mla.relevantes, devueltas: mla.muestraDevuelta, ratio: mla.ratio,
                          estimadas: mla.relevantesEstimadas != null ? mla.relevantesEstimadas : mla.relevantes } },
@@ -980,7 +1035,7 @@ async function stepRegion(product) {
     // Solo se afirma "existe" o "no existe" si la consulta ANDUVO. Si no, null,
     // y el front muestra "sin dato". El conteo son las RELEVANTES.
     conteos[k] = c.ok ? (c.relevantes != null ? c.relevantes : c.muestra) : null;
-    existeEn[k] = c.ok ? (c.estado === 'existe') : null;
+    existeEn[k] = c.ok ? (c.estado === 'existe' ? true : (c.estado === 'noExiste' ? false : null)) : null;
     estados[k] = c.estado;
     relevancia[k] = { relevantes: c.relevantes, devueltas: c.muestraDevuelta, ratio: c.ratio,
                       estimadas: c.relevantesEstimadas != null ? c.relevantesEstimadas : c.relevantes };

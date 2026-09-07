@@ -340,7 +340,20 @@ export function sitio(id) {
 // lista COMPLETA sin filtrar cuando no habia coincidencias suficientes, que es
 // exactamente como se colaban los resultados de rescate.
 // ------------------------------------------------------------
-export const RELEVANCIA_MINIMA = Number(process.env.RELEVANCIA_MINIMA || 0.25);
+// Umbrales. La asimetria es deliberada y esta pensada, no calibrada al medio:
+// los dos errores NO cuestan lo mismo.
+//   Falso 'existe'   -> arma un precio de referencia con productos equivocados.
+//                       Malo, pero queda VISIBLE en pantalla (el ratio se
+//                       muestra siempre) y el usuario lo puede desconfiar.
+//   Falso 'noExiste'  -> le dice que un producto no tiene mercado. Invisible,
+//                       no vuelve a mirarlo nunca, y no deja rastro para
+//                       auditar despues.
+// Por eso el piso es bajo y hay una banda intermedia: en la duda no se afirma
+// ausencia, se admite que no se sabe.
+export const RELEVANCIA_UMBRAL_ALTO = Number(process.env.RELEVANCIA_UMBRAL_ALTO || 0.35);
+export const RELEVANCIA_UMBRAL_BAJO = Number(process.env.RELEVANCIA_UMBRAL_BAJO || 0.15);
+// Nombre viejo, para no romper import existentes.
+export const RELEVANCIA_MINIMA = RELEVANCIA_UMBRAL_BAJO;
 
 function normalizarTitulo(s) {
   return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -354,46 +367,106 @@ export function palabrasSignificativas(query) {
   let p = t.filter(w => w.length > 3);
   if (!p.length) p = t.filter(w => w.length > 2);
   if (!p.length) p = t;
-  return p;
+  return [...new Set(p)];
 }
 
-// Cuantas palabras de la consulta tiene que contener un titulo para contar
-// como relevante.
+// ¿La palabra aparece SOLO como cola de una palabra mas larga?
+// "cables" dentro de "pasacables" es eso. Es un match debil: cuenta si hay
+// otras coincidencias, pero no alcanza por si solo.
+function soloComoSufijo(titulo, palabra) {
+  let desde = 0, hubo = false;
+  for (;;) {
+    const k = titulo.indexOf(palabra, desde);
+    if (k === -1) break;
+    hubo = true;
+    const anterior = k > 0 ? titulo[k - 1] : '';
+    // Empieza en frontera de palabra: es un match limpio.
+    if (!anterior || !/[a-z0-9]/.test(anterior)) return false;
+    desde = k + 1;
+  }
+  return hubo;
+}
+
+// Puntaje 0..1 de una publicacion: que fraccion de las palabras significativas
+// de la consulta aparece en su titulo.
 //
-// Calibrado, no elegido a ojo. Con "al menos una" el ratio se satura y deja
-// pasar accesorios: para "proyector portatil" contaba un cable HDMI y una
-// pantalla de proyeccion (ratio 1.00), y para "organizador de cables
-// magnetico de silicona" contaba un soporte magnetico de celular y una funda
-// de silicona (0.70). Exigiendo DOS palabras en consultas de dos o mas, los
-// mismos casos dan 0.80 y 0.40, que describen mejor lo que hay, y el caso de
-// rescate sigue dando 0.00. El tope de 2 evita que una consulta larga se
-// vuelva imposible de satisfacer.
-function palabrasRequeridas(palabras) {
-  return Math.min(2, palabras.length);
+// Ponderado y no binario porque los vendedores titulan por la keyword de mayor
+// volumen, no por la frase del comprador: un proyector portatil real se publica
+// como "Mini Proyector Full Hd 1080p Wifi Bluetooth Android", con "proyector" y
+// sin "portatil". Con una regla de "al menos 2 palabras" ese titulo puntuaba
+// CERO y un producto que si se vende terminaba clasificado como inexistente.
+// Ponderado da 0.5: cuenta a medias, que es lo que corresponde. El rescate
+// (bujias contra proyector) sigue dando 0.
+// Variantes de una palabra que cuentan como la misma. Solo singular/plural:
+// medido, "cables" no matcheaba "Cable Utp Cat6" y una consulta de una sola
+// palabra significativa se hundia por eso. Es la misma clase de falso
+// "noExiste" invisible que se quiere evitar.
+function variantesDe(w) {
+  const v = [w];
+  if (w.length > 4 && w.endsWith('es')) v.push(w.slice(0, -2));
+  if (w.length > 4 && w.endsWith('s')) v.push(w.slice(0, -1));
+  return v.filter(x => x.length >= 4);
 }
 
-// Devuelve { relevantes, muestra, ratio, items } donde items son SOLO las
-// publicaciones relevantes.
+export function puntajeDeTitulo(titulo, palabras) {
+  const t = normalizarTitulo(titulo);
+  if (!t || !palabras.length) return 0;
+
+  const encontradas = [];
+  for (const w of palabras) {
+    const hit = variantesDe(w).find(v => t.includes(v));
+    if (hit) encontradas.push(hit);
+  }
+  if (!encontradas.length) return 0;
+
+  // Guarda de sufijo: si la UNICA coincidencia es la cola de otra palabra
+  // ("cables" dentro de "pasacables"), no cuenta.
+  //
+  // SOLO se aplica cuando la consulta tiene dos o mas palabras significativas.
+  // Medido: con una sola palabra, toda coincidencia es "la unica", asi que la
+  // guarda se aplicaba siempre y hundia la consulta entera. "cables de red"
+  // caia de 0.300 a 0.100 y volteaba a noExiste un producto que se vende.
+  if (palabras.length >= 2 && encontradas.length === 1 && soloComoSufijo(t, encontradas[0])) return 0;
+
+  return encontradas.length / palabras.length;
+}
+
+// Tres estados. La banda del medio existe para no afirmar ausencia en la duda.
+export function estadoDeRelevancia(ratio) {
+  if (ratio == null) return 'existe';
+  if (ratio >= RELEVANCIA_UMBRAL_ALTO) return 'existe';
+  if (ratio < RELEVANCIA_UMBRAL_BAJO) return 'noExiste';
+  return 'dudoso';
+}
+
+// Devuelve el ratio (promedio de los puntajes de la muestra), el estado, y los
+// items que se usan para calcular precios.
+//
+// Para PRECIOS el corte es distinto y a proposito mas inclusivo: entra todo lo
+// que tenga puntaje > 0. Lo que rompia produccion eran las bujias, que puntuan
+// 0; un accesorio que comparte una palabra ensucia un poco la mediana pero eso
+// se ve en pantalla, mientras que descartarlo de mas no se ve.
 export function relevanciaPorTitulo(query, results) {
   const lista = Array.isArray(results) ? results : [];
   const palabras = palabrasSignificativas(query);
-  if (!lista.length) return { relevantes: 0, muestra: 0, ratio: null, items: [], palabras, requeridas: 0 };
-  if (!palabras.length) return { relevantes: lista.length, muestra: lista.length, ratio: 1, items: lista, palabras, requeridas: 0 };
+  const base = { relevantes: 0, muestra: 0, ratio: null, items: [], palabras, puntajes: [], estado: 'existe' };
+  if (!lista.length) return base;
+  if (!palabras.length) {
+    return { ...base, relevantes: lista.length, muestra: lista.length, ratio: 1, items: lista, estado: 'existe' };
+  }
 
-  const requeridas = palabrasRequeridas(palabras);
-  const items = lista.filter(it => {
-    const t = normalizarTitulo(it && (it.title || it.titulo));
-    let n = 0;
-    for (const w of palabras) { if (t.includes(w)) n++; if (n >= requeridas) return true; }
-    return false;
-  });
+  const puntajes = lista.map(it => puntajeDeTitulo(it && (it.title || it.titulo), palabras));
+  const ratio = puntajes.reduce((a, b) => a + b, 0) / puntajes.length;
+  const items = lista.filter((_, k) => puntajes[k] > 0);
+
   return {
     relevantes: items.length,
     muestra: lista.length,
-    ratio: lista.length ? items.length / lista.length : null,
+    ratio,
     items,
     palabras,
-    requeridas
+    puntajes,
+    estado: estadoDeRelevancia(ratio)
   };
 }
 
@@ -460,7 +533,8 @@ export async function catalogSearch(product, token, opts) {
     fuente: 'meli-catalogo',
     total,
     totalEsPostRescate: true,
-    relevancia: { relevantes: rel.relevantes, muestra: rel.muestra, ratio: rel.ratio, palabras: rel.palabras },
+    relevancia: { relevantes: rel.relevantes, muestra: rel.muestra, ratio: rel.ratio, palabras: rel.palabras, estado: rel.estado },
+    titulosMuestra: results.slice(0, 5).map(x => x && x.title),
     relevanciaCero: rel.muestra > 0 && rel.relevantes === 0,
     results: rel.items,
     // domain_id.split('-').pop() devolvia "PROJECTORS": el slug interno, en
@@ -545,7 +619,8 @@ export async function highlightsSearch(product, token, opts) {
 
   return {
     fuente: 'meli-destacados',
-    relevancia: { relevantes: rel.relevantes, muestra: rel.muestra, ratio: rel.ratio, palabras: rel.palabras },
+    relevancia: { relevantes: rel.relevantes, muestra: rel.muestra, ratio: rel.ratio, palabras: rel.palabras, estado: rel.estado },
+    titulosMuestra: items.slice(0, 5).map(x => x && x.title),
     relevanciaCero: rel.muestra > 0 && rel.relevantes === 0,
     // No hay total de publicaciones por esta via: se deja en null a proposito
     // para que la saturacion no se calcule sobre una muestra de 40 items.
@@ -619,7 +694,8 @@ export async function publicIdsSearch(product, token, opts) {
     total: html.total || null,
     totalEsPostRescate: true,
     muestra: elegidos.length,
-    relevancia: { relevantes: rel.relevantes, muestra: rel.muestra, ratio: rel.ratio, palabras: rel.palabras },
+    relevancia: { relevantes: rel.relevantes, muestra: rel.muestra, ratio: rel.ratio, palabras: rel.palabras, estado: rel.estado },
+    titulosMuestra: items.slice(0, 5).map(x => x && x.title),
     // Se hidrataron publicaciones pero NINGUNA es del producto buscado: eso es
     // "no existe aca", y hay que devolverlo como respuesta, no como fallo de
     // la via (si no, se prueba la siguiente y se pierde el dato).
@@ -1138,6 +1214,56 @@ export function viaDeBusquedaUsada(site) {
 // lado" cuando en realidad MercadoLibre nos bloqueo. Por eso nunca se
 // devuelve 0 por defecto.
 // ------------------------------------------------------------
+// ------------------------------------------------------------
+// Registro de relevancia
+//
+// El umbral esta calibrado contra titulos que se escribieron a mano imitando
+// los de MercadoLibre, porque no hay salida a internet desde donde corre esto.
+// Eso alcanza para arrancar y no alcanza para quedarse: la unica forma de
+// afinarlo es mirar consultas reales. Cada medicion se guarda con la consulta,
+// las palabras, el ratio, el estado y los primeros 5 titulos devueltos, y se
+// leen con GET /api/market?relevancia=1 (con ADMIN_KEY).
+//
+// Se guarda en memoria siempre (sobrevive mientras viva el lambda) y ademas en
+// Supabase si la tabla existe. Nunca puede romper una busqueda.
+// ------------------------------------------------------------
+const _relevanciaLog = [];
+const RELEVANCIA_LOG_MAX = 200;
+
+export function registrarRelevancia(entrada) {
+  try {
+    const fila = {
+      ts: new Date().toISOString(),
+      query: String(entrada.query || '').slice(0, 160),
+      site: entrada.site || null,
+      palabras: entrada.palabras || [],
+      ratio: entrada.ratio != null ? Number(entrada.ratio.toFixed(4)) : null,
+      estado: entrada.estado || null,
+      muestra: entrada.muestra || 0,
+      relevantes: entrada.relevantes || 0,
+      titulos: (entrada.titulos || []).slice(0, 5).map(t => String(t || '').slice(0, 120)),
+      umbrales: { alto: RELEVANCIA_UMBRAL_ALTO, bajo: RELEVANCIA_UMBRAL_BAJO }
+    };
+    _relevanciaLog.unshift(fila);
+    if (_relevanciaLog.length > RELEVANCIA_LOG_MAX) _relevanciaLog.length = RELEVANCIA_LOG_MAX;
+    // Persistencia best-effort. Si la tabla no existe, se pierde y no importa:
+    // el log en memoria sigue sirviendo dentro de la vida del lambda.
+    const { url, key, ok } = supa();
+    if (ok) {
+      fetch(url + '/rest/v1/relevancia_log', {
+        method: 'POST',
+        headers: { apikey: key, Authorization: 'Bearer ' + key,
+                   'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify(fila)
+      }).catch(() => {});
+    }
+  } catch (_) { /* el registro nunca puede romper una busqueda */ }
+}
+
+export function leerRelevanciaLog(n) {
+  return _relevanciaLog.slice(0, n || 50);
+}
+
 export async function contarPublicaciones(product, token, site, opts) {
   const o = opts || {};
   const st = sitio(site);
@@ -1170,6 +1296,14 @@ export async function contarPublicaciones(product, token, site, opts) {
 
   const results = Array.isArray(r.results) ? r.results : [];
   const rel = r.relevancia || null;
+  if (rel) {
+    registrarRelevancia({
+      query: product, site: st.id, palabras: rel.palabras, ratio: rel.ratio,
+      estado: rel.estado || estadoDeRelevancia(rel.ratio),
+      muestra: rel.muestra, relevantes: rel.relevantes,
+      titulos: (r.titulosMuestra || results.map(x => x && x.title))
+    });
+  }
 
   // Cero literal: MercadoLibre dijo explicitamente que no hay publicaciones.
   // Pasa poco (casi siempre sirve resultados de rescate), pero cuando pasa es
@@ -1202,19 +1336,30 @@ export async function contarPublicaciones(product, token, site, opts) {
   const vendidos = results.map(x => (x && x.sold_quantity) || 0).sort((a, b) => b - a).slice(0, 3);
   const ventasTop3 = vendidos.length ? Math.round(vendidos.reduce((a, b) => a + b, 0) / vendidos.length) : null;
 
-  // Ratio de relevancia: cuantas de las devueltas hablan del producto.
+  // Ratio ponderado: promedio de cuanto coincide cada titulo con la consulta.
   const ratio = rel && rel.ratio != null ? rel.ratio : null;
-  // Tres estados, nunca un booleano:
-  //   'existe'   -> la consulta anduvo y el ratio llega al minimo
-  //   'noExiste' -> la consulta anduvo y el ratio no llega
+  // CUATRO estados posibles, nunca un booleano:
+  //   'existe'   -> ratio >= UMBRAL_ALTO
+  //   'dudoso'   -> ratio entre BAJO y ALTO. NO afirma ausencia.
+  //   'noExiste' -> ratio < UMBRAL_BAJO
   //   null       -> no se pudo consultar
-  const estado = (ratio == null) ? 'existe' : (ratio >= RELEVANCIA_MINIMA ? 'existe' : 'noExiste');
+  const estado = estadoDeRelevancia(ratio);
 
-  if (estado === 'noExiste') {
-    return { ...vacio, ok: true, estado: 'noExiste', publicaciones: 0, muestra: results.length,
-             relevantes: rel.relevantes, muestraDevuelta: rel.muestra, ratio, fuente: r.fuente || null,
-             motivo: 'solo ' + rel.relevantes + ' de ' + rel.muestra + ' publicaciones coinciden con la busqueda (ratio ' +
-                     ratio.toFixed(2) + ', minimo ' + RELEVANCIA_MINIMA + ')' };
+  if (estado === 'noExiste' || estado === 'dudoso') {
+    const dudoso = estado === 'dudoso';
+    return { ...vacio, ok: true, estado,
+             // En 'dudoso' NO se pone publicaciones en cero: no se esta
+             // afirmando que no haya, se esta diciendo que no se sabe.
+             publicaciones: dudoso ? null : 0,
+             muestra: results.length,
+             relevantes: rel.relevantes, muestraDevuelta: rel.muestra, ratio,
+             precioMediano: dudoso ? mediana : null,
+             fuente: r.fuente || null,
+             motivo: dudoso
+               ? ('MercadoLibre devolvio resultados parcialmente relacionados (relevancia ' + ratio.toFixed(2) +
+                  '): no puedo confirmar si tu producto exacto se vende aca')
+               : ('relevancia ' + ratio.toFixed(2) + ' sobre ' + rel.muestra +
+                  ' publicaciones: ninguna habla del producto buscado (minimo ' + RELEVANCIA_UMBRAL_BAJO + ')') };
   }
 
   // La muestra esta topeada (30-40 ids), asi que "relevantes" satura y no
