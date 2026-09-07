@@ -919,14 +919,19 @@ export function extraerIdsItem(html, site) {
 
 // Cuantos IDs aporta cada patron: si MercadoLibre cambia el formato de sus
 // links se ve aca, sin tener que leer 600 KB de HTML a mano.
-export function idsPorPatron(html) {
+// Diagnostico: cuantos IDs saca cada patron. Quedo referenciando
+// PATRONES_ITEM, que dejo de existir cuando los patrones se pasaron a
+// construirse por sitio. En ESM eso es un ReferenceError, no un undefined:
+// tiraba abajo el endpoint ?catalogo entero con "PATRONES_ITEM is not defined".
+export function idsPorPatron(html, site) {
   const texto = String(html || '');
+  const pref = sitio(site).id;
   const salida = {};
-  PATRONES_ITEM.forEach((patron, i) => {
+  patronesItem(pref).forEach((patron, i) => {
     patron.lastIndex = 0;
     const encontrados = new Set();
     let m;
-    while ((m = patron.exec(texto)) !== null) encontrados.add('MLA' + m[1]);
+    while ((m = patron.exec(texto)) !== null) encontrados.add(pref + m[1]);
     salida['patron_' + i] = encontrados.size;
   });
   return salida;
@@ -1019,7 +1024,7 @@ function horasDeCache() {
 
 // Expuesta para el diagnostico: deja ver la corrida pendiente sin arrancar una.
 export async function filaDeCache(product) {
-  return await leerFilaCache(product);
+  return await leerFilaCache(product, 'MLA');
 }
 
 async function leerFilaCache(product, site) {
@@ -1027,7 +1032,13 @@ async function leerFilaCache(product, site) {
     const filas = await supaRows('/rest/v1/busquedas_cache?termino=eq.' +
       encodeURIComponent(claveDeBusqueda(product, site)) + '&select=*&limit=1');
     return filas[0] || null;
-  } catch (_) { return null; }
+  } catch (e) {
+    // Silencioso, esto hacia que una corrida ya en curso no se viera y se
+    // arrancara otra: se paga dos veces la misma busqueda.
+    console.error('[cache] no pude leer la fila de "' + product + '": ' +
+                  String((e && e.message) || e).slice(0, 200));
+    return null;
+  }
 }
 
 async function leerCache(product, site) {
@@ -1054,11 +1065,44 @@ function corridaVigente(fila) {
   return !!desde && (Date.now() - desde) < 15 * 60 * 1000;
 }
 
-async function guardarPendiente(product, corrida) {
+// Registra la corrida paga recien arrancada. La firma lleva site igual que
+// guardarCache y leerFilaCache: antes referenciaba un 'site' que no era
+// parametro ni existia a nivel modulo, o sea ReferenceError en cada llamada.
+//
+// Devuelve true/false: quien la llama TIENE que mirar el resultado. Si esto
+// falla, la corrida pagada queda sin run_id y no se puede cosechar nunca.
+// Chequeo barato y previo: ¿se puede escribir en busquedas_cache? Si la
+// respuesta es no, no tiene sentido arrancar una corrida paga: no se va a
+// poder anotar el run_id y la plata se tira.
+async function puedoRegistrarCorrida() {
+  const { url, key, ok } = supa();
+  if (!ok) return false;
+  try {
+    // HEAD contra la tabla: no escribe nada y dice si las credenciales sirven.
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 3000);
+    try {
+      const r = await fetch(url + '/rest/v1/busquedas_cache?select=termino&limit=1',
+        { method: 'HEAD', signal: ctrl.signal,
+          headers: { apikey: key, Authorization: 'Bearer ' + key } });
+      if (!r.ok) console.error('[proveedor] busquedas_cache no acepta lectura: HTTP ' + r.status);
+      return r.ok;
+    } finally { clearTimeout(t); }
+  } catch (e) {
+    console.error('[proveedor] no pude verificar busquedas_cache: ' + String((e && e.message) || e).slice(0, 160));
+    return false;
+  }
+}
+
+async function guardarPendiente(product, corrida, site) {
   try {
     const { url, key, ok } = supa();
-    if (!ok) return;
-    await fetch(url + '/rest/v1/busquedas_cache?on_conflict=termino', {
+    if (!ok) {
+      console.error('[proveedor] no puedo registrar la corrida ' + (corrida && corrida.runId) +
+                    ': falta SUPABASE_SERVICE_KEY. La corrida se pago y no se va a poder cosechar.');
+      return false;
+    }
+    const r = await fetch(url + '/rest/v1/busquedas_cache?on_conflict=termino', {
       method: 'POST',
       headers: {
         apikey: key, Authorization: 'Bearer ' + key,
@@ -1076,12 +1120,28 @@ async function guardarPendiente(product, corrida) {
         created_at: new Date().toISOString()
       })
     });
-  } catch (_) { /* no puede romper la busqueda */ }
+    if (!r.ok) {
+      const cuerpo = await r.text().catch(() => '');
+      console.error('[proveedor] Supabase rechazo el registro de la corrida ' + (corrida && corrida.runId) +
+                    ': HTTP ' + r.status + ' ' + cuerpo.slice(0, 200) +
+                    '. La corrida se pago y no se va a poder cosechar.');
+      return false;
+    }
+    return true;
+  } catch (e) {
+    // Este catch era silencioso y es el que escondio el ReferenceError durante
+    // toda la vida del bug. Una corrida paga que no se puede registrar tiene
+    // que gritar.
+    console.error('[proveedor] fallo el registro de la corrida ' + (corrida && corrida.runId) +
+                  ': ' + String((e && e.message) || e).slice(0, 200) +
+                  '. La corrida se pago y no se va a poder cosechar.');
+    return false;
+  }
 }
 
 // Levanta el resultado de una corrida que ya termino. No arranca ninguna
 // corrida nueva, asi que no cuesta plata.
-async function cosecharCorrida(product, fila, token) {
+async function cosecharCorrida(product, fila, token, site) {
   try {
     const bus = await import('./_buscador.js');
     const est = await bus.estadoCorrida(fila.run_id);
@@ -1091,9 +1151,18 @@ async function cosecharCorrida(product, fila, token) {
     const filas = await bus.itemsDeCorrida(est.datasetId || fila.dataset_id, { limite: 60 });
     const r = await bus.armarResultado(product, filas, token, { maxItems: 40 });
     if (!r || !r.results.length) return null;
-    await guardarCache(product, r);
+    // El site iba sin pasar: funcionaba por accidente porque sitio(undefined)
+    // cae en MLA, que es el unico sitio donde corre el proveedor. Se pasa
+    // explicito para que no muerda si eso cambia.
+    await guardarCache(product, r, site);
     return r;
-  } catch (_) { return null; }
+  } catch (e) {
+    // Silencioso, y del otro lado hay una corrida YA PAGADA: si la cosecha
+    // falla sin decir nada, la plata se perdio y nadie se entera.
+    console.error('[proveedor] fallo la cosecha de la corrida ' + (fila && fila.run_id) +
+                  ' para "' + product + '": ' + String((e && e.message) || e).slice(0, 200));
+    return null;
+  }
 }
 
 async function guardarCache(product, r, site) {
@@ -1101,7 +1170,7 @@ async function guardarCache(product, r, site) {
   try {
     const { url, key, ok } = supa();
     if (!ok) return;
-    await fetch(url + '/rest/v1/busquedas_cache?on_conflict=termino', {
+    const resp = await fetch(url + '/rest/v1/busquedas_cache?on_conflict=termino', {
       method: 'POST',
       headers: {
         apikey: key, Authorization: 'Bearer ' + key,
@@ -1120,7 +1189,18 @@ async function guardarCache(product, r, site) {
         created_at: new Date().toISOString()
       })
     });
-  } catch (_) { /* el cache es una optimizacion, no puede romper la busqueda */ }
+    if (!resp.ok) {
+      const cuerpo = await resp.text().catch(() => '');
+      console.error('[cache] Supabase rechazo el guardado de "' + product + '": HTTP ' +
+                    resp.status + ' ' + cuerpo.slice(0, 200));
+    }
+  } catch (e) {
+    // No puede romper la busqueda, pero tampoco puede ser mudo: cuando el
+    // resultado viene de una corrida PAGA, no guardarlo significa volver a
+    // pagarla la proxima vez.
+    console.error('[cache] no pude guardar el resultado de "' + product + '" (' +
+                  (r && r.fuente) + '): ' + String((e && e.message) || e).slice(0, 200));
+  }
 }
 
 export async function buscarPublicaciones(product, token, opts) {
@@ -1138,7 +1218,7 @@ export async function buscarPublicaciones(product, token, opts) {
   //    plata: la corrida ya se pago cuando se arranco.
   const fila = await leerFilaCache(product, site);
   if (corridaVigente(fila)) {
-    const cosechado = await cosecharCorrida(product, fila, token);
+    const cosechado = await cosecharCorrida(product, fila, token, site);
     if (cosechado && cosechado.results) return cosechado;
     if (cosechado && cosechado.pendiente) return { pendiente: true, results: [], fuente: 'preparando' };
     // Si la corrida fallo, se sigue de largo y mas abajo se arranca otra.
@@ -1161,9 +1241,27 @@ export async function buscarPublicaciones(product, token, opts) {
       // responde lo que se pregunto.
       if (site !== 'MLA') return null;
       const mod = await import('./_buscador.js');
+
+      // ANTES de gastar: si no se va a poder registrar la corrida, no se
+      // arranca. Una corrida que no queda anotada se paga igual y no se puede
+      // cosechar nunca, que es exactamente lo que estuvo pasando.
+      if (!(await puedoRegistrarCorrida())) {
+        console.error('[proveedor] no arranco la corrida para "' + product +
+                      '": no puedo escribir en busquedas_cache, asi que no la podria cosechar.');
+        return null;
+      }
+
       const corrida = await mod.arrancarCorrida(product, { maxItems: o.maxIds || 48 });
-      await guardarPendiente(product, corrida);
-      return { pendiente: true, results: [], fuente: 'preparando' };
+
+      // Y despues de arrancar: si igual no se pudo anotar, se aborta para
+      // cortar el gasto en vez de dejarla corriendo a ciegas.
+      const anotada = await guardarPendiente(product, corrida, site);
+      if (!anotada) {
+        await mod.abortarCorrida(corrida && corrida.runId);
+        throw new Error('corrida ' + (corrida && corrida.runId) +
+                        ' arrancada pero no registrada: se aborto para no gastar de gusto');
+      }
+      return { pendiente: true, results: [], fuente: 'preparando', runId: corrida.runId };
     }
   };
   // El orden va de mejor a peor DATO REAL, no de mejor a peor total.
@@ -1207,7 +1305,11 @@ export async function buscarPublicaciones(product, token, opts) {
       // Corte por tiempo: no es culpa de la via, no se la penaliza.
       if (r && r.sinTiempo) return r;
       est.fallos[nombre] = fallos + 1;
-    } catch (_) {
+    } catch (e) {
+      // Este catch es el que se comio el ReferenceError de guardarPendiente
+      // durante toda la vida del bug: la via "fallaba" y nadie sabia por que.
+      console.error('[busqueda] la via "' + nombre + '" fallo para "' + product +
+                    '" (' + site + '): ' + String((e && e.message) || e).slice(0, 200));
       est.fallos[nombre] = fallos + 1;
     }
   }

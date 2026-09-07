@@ -248,6 +248,34 @@ function minimoItems(pedido) {
 }
 
 // Arranca la corrida y devuelve el id. No espera a que termine.
+// Aborta una corrida ya arrancada. Existe para no dejar corriendo (y pagando)
+// una corrida que no se va a poder cosechar porque no se pudo registrar el
+// run_id. Apify cobra por uso, asi que abortar temprano es lo que evita el
+// gasto, no un detalle de prolijidad.
+export async function abortarCorrida(runId) {
+  const token = process.env.APIFY_TOKEN;
+  if (!token || !runId) return { ok: false, motivo: 'sin token o sin runId' };
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const r = await fetch('https://api.apify.com/v2/actor-runs/' + encodeURIComponent(runId) +
+                            '/abort?token=' + encodeURIComponent(token),
+                            { method: 'POST', signal: ctrl.signal });
+      if (!r.ok) {
+        const cuerpo = await r.text().catch(() => '');
+        console.error('[proveedor] no pude abortar la corrida ' + runId + ': HTTP ' + r.status + ' ' + cuerpo.slice(0, 160));
+        return { ok: false, status: r.status };
+      }
+      console.warn('[proveedor] corrida ' + runId + ' abortada: no se pudo registrar, se corta el gasto.');
+      return { ok: true };
+    } finally { clearTimeout(t); }
+  } catch (e) {
+    console.error('[proveedor] error abortando la corrida ' + runId + ': ' + String((e && e.message) || e).slice(0, 160));
+    return { ok: false, error: String((e && e.message) || e).slice(0, 160) };
+  }
+}
+
 export async function arrancarCorrida(product, opts) {
   const token = process.env.APIFY_TOKEN;
   if (!token) throw new Error('APIFY_TOKEN no configurado');

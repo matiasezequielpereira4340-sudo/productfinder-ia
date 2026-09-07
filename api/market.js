@@ -546,7 +546,7 @@ export default async function handler(req, res) {
             titulo: (pag.texto.match(/<title[^>]*>([^<]{0,90})/i) || [])[1] || null,
             ids: ids.length,
             muro: /suspicious-traffic|account-verification|captcha|unusual traffic/.test(t) || undefined,
-            patrones: ids.length ? idsPorPatron(pag.texto) : undefined,
+            patrones: ids.length ? idsPorPatron(pag.texto, 'MLA') : undefined,
             inicio: pag.texto.replace(/\s+/g, ' ').slice(0, 160)
           });
           if (ids.length) { paso.ids_de = cand; paso.ids_muestra = ids.slice(0, 8); break; }
