@@ -526,6 +526,30 @@ async function runHeroDemo(term){
   var storedNicho = null;
   try{ storedNicho = localStorage.getItem('pf_nicho'); }catch(e){}
   selectNicho((storedNicho && byValue[storedNicho]) ? storedNicho : 'tecnologia', false);
+
+  // La lista de arriba es solo el arranque offline. La lista REAL la define el
+  // catalogo del backend: si el selector ofrece un nicho que /api/analyze no
+  // tiene, el usuario elige y no recibe ningun producto. Apenas responde el
+  // servidor, reemplazamos la lista local por la suya.
+  (function sincronizarNichosConBackend(){
+    var ctrl = null, corta = null;
+    try{ ctrl = new AbortController(); corta = setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, 8000); }catch(e){}
+    fetch('/api/analyze', ctrl ? { signal: ctrl.signal } : undefined)
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(corta) clearTimeout(corta);
+        if(!d || !Array.isArray(d.nichos) || d.nichos.length < 5) return;
+        var elegido = sel.value;
+        NICHOS = d.nichos.map(function(n){ return { v:n.v, l:n.l }; });
+        byValue = {};
+        NICHOS.forEach(function(n){ byValue[n.v] = n.l; });
+        sel.innerHTML = NICHOS.map(function(n){ return '<option value="'+n.v+'">'+n.l+'</option>'; }).join('');
+        TOP8 = TOP8.filter(function(v){ return byValue[v]; });
+        renderChips();
+        selectNicho(byValue[elegido] ? elegido : NICHOS[0].v, false);
+      })
+      .catch(function(){ if(corta) clearTimeout(corta); /* sin red: queda la lista local */ });
+  })();
 })();
 
 // ===== PRODUCTFINDER =====
@@ -574,11 +598,14 @@ function renderResults(data){
   const products = (data && data.products) || [];
   const nf = new Intl.NumberFormat('es-AR');
   let banner = '';
+  if(data.nichoAproximado && data.nichoSolicitado){
+    banner += '<div class="ml-banner" style="grid-column:1/-1;background:rgba(255,255,255,.06);border:1px solid var(--border,#333);border-radius:10px;padding:10px 14px;margin-bottom:8px;color:var(--text)">No tengo un cat&#225;logo propio para <strong>'+String(data.nichoSolicitado).replace(/[<>&]/g,'')+'</strong>, as&#237; que te muestro <strong>'+data.nichoLabel+'</strong>, que es lo m&#225;s parecido que puedo analizar hoy.</div>';
+  }
   if(!data.meliConectado){
     const motivo = data.meliTokenExpirado ? 'tu conexi&#243;n con MercadoLibre expir&#243;' : 'no ten&#233;s MercadoLibre conectado';
-    banner = '<div class="ml-banner" style="grid-column:1/-1;background:rgba(255,230,0,.12);border:1px solid var(--gold);border-radius:10px;padding:14px 16px;margin-bottom:8px;color:var(--text)"><strong><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Precios estimados:</strong> como '+motivo+', muestro los productos ordenados por su potencial (peso, margen esperado y estacionalidad), pero <strong>sin precios de venta reales</strong>. Conecta tu cuenta para ver precio, competencia y saturaci&#243;n reales de cada producto. <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">Conectar MercadoLibre \u2192</a></div>';
+    banner += '<div class="ml-banner" style="grid-column:1/-1;background:rgba(255,230,0,.12);border:1px solid var(--gold);border-radius:10px;padding:14px 16px;margin-bottom:8px;color:var(--text)"><strong><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Precios estimados:</strong> como '+motivo+', muestro los productos ordenados por su potencial (peso, margen esperado y estacionalidad), pero <strong>sin precios de venta reales</strong>. Conecta tu cuenta para ver precio, competencia y saturaci&#243;n reales de cada producto. <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">Conectar MercadoLibre \u2192</a></div>';
   } else {
-    banner = '<div class="ml-banner" style="grid-column:1/-1;background:rgba(39,174,96,.12);border:1px solid var(--green);border-radius:10px;padding:12px 16px;margin-bottom:8px;color:var(--text)"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Datos reales de MercadoLibre. Analizamos <strong>'+data.totalEvaluados+'</strong> productos, <strong>'+data.conDatoReal+'</strong> con datos de mercado en vivo. Cotizacion usada: 1 USD \u2248 $'+nf.format(data.usdArs)+'.</div>';
+    banner += '<div class="ml-banner" style="grid-column:1/-1;background:rgba(39,174,96,.12);border:1px solid var(--green);border-radius:10px;padding:12px 16px;margin-bottom:8px;color:var(--text)"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Datos reales de MercadoLibre. Analizamos <strong>'+data.totalEvaluados+'</strong> productos, <strong>'+data.conDatoReal+'</strong> con datos de mercado en vivo. Cotizacion usada: 1 USD \u2248 $'+nf.format(data.usdArs)+'.</div>';
   }
   const cards = products.map(function(p){
     const real = p.score != null;
@@ -1732,7 +1759,8 @@ window.addEventListener('DOMContentLoaded',()=>{
       var badge=document.createElement('div');
       badge.className='v4-verdict '+v.cls;
       var icon=v.cls==='alta'?'<svg class="ic" aria-hidden="true"><use href="#i-fire"></use></svg>':(v.cls==='baja'?'<svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg>':'<svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg>');
-      badge.textContent=icon+' '+v.txt;
+      // textContent escapaba el <svg> y el usuario veia el markup crudo en cada tarjeta
+      badge.innerHTML=icon+' '+v.txt;
       var bar=card.querySelector('.score-bar');
       if(bar&&bar.parentNode){bar.parentNode.insertBefore(badge,bar.nextSibling);}
       else{card.appendChild(badge);}
