@@ -367,6 +367,7 @@ export function palabrasSignificativas(query) {
   let p = t.filter(w => w.length > 3);
   if (!p.length) p = t.filter(w => w.length > 2);
   if (!p.length) p = t;
+  // El orden se conserva: el peso depende de la posicion en la consulta.
   return [...new Set(p)];
 }
 
@@ -408,16 +409,33 @@ function variantesDe(w) {
   return v.filter(x => x.length >= 4);
 }
 
+// Peso por posicion. En castellano rioplatense el sustantivo nucleo va
+// primero y los modificadores despues ("proyector portatil", "organizador de
+// cables magnetico de silicona"): el nucleo define el producto, los
+// modificadores aparecen en muchisimos titulos.
+//
+// Sin esto, el ratio caia solo por agregar palabras, y el largo de la consulta
+// NO lo elige el usuario: lo produce nombrarProductos(), que devuelve 2 a 4
+// palabras segun lo que le salga a Haiku. O sea que dos productos igual de
+// buenos caian en bandas distintas porque la traduccion de uno salio mas
+// verbosa. Ese sesgo no es ruido: esta correlacionado con un paso automatico
+// del propio sistema.
+const PESOS_POSICION = [1.0, 0.6, 0.3];
+function pesoDe(i) { return PESOS_POSICION[i] != null ? PESOS_POSICION[i] : 0.3; }
+
 export function puntajeDeTitulo(titulo, palabras) {
   const t = normalizarTitulo(titulo);
   if (!t || !palabras.length) return 0;
 
   const encontradas = [];
-  for (const w of palabras) {
+  let pesoEncontrado = 0, pesoTotal = 0;
+  palabras.forEach((w, i) => {
+    const peso = pesoDe(i);
+    pesoTotal += peso;
     const hit = variantesDe(w).find(v => t.includes(v));
-    if (hit) encontradas.push(hit);
-  }
-  if (!encontradas.length) return 0;
+    if (hit) { encontradas.push(hit); pesoEncontrado += peso; }
+  });
+  if (!encontradas.length || !pesoTotal) return 0;
 
   // Guarda de sufijo: si la UNICA coincidencia es la cola de otra palabra
   // ("cables" dentro de "pasacables"), no cuenta.
@@ -428,7 +446,7 @@ export function puntajeDeTitulo(titulo, palabras) {
   // caia de 0.300 a 0.100 y volteaba a noExiste un producto que se vende.
   if (palabras.length >= 2 && encontradas.length === 1 && soloComoSufijo(t, encontradas[0])) return 0;
 
-  return encontradas.length / palabras.length;
+  return pesoEncontrado / pesoTotal;
 }
 
 // Tres estados. La banda del medio existe para no afirmar ausencia en la duda.

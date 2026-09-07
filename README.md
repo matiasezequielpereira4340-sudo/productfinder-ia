@@ -216,3 +216,70 @@ productfinder-ia/
 ├── package.json    # Dependencias de Node.js
 └── README.md       # Este archivo
 ```
+
+---
+
+## Constantes calibradas contra fixtures, no contra datos reales
+
+Esta sección existe porque dentro de tres meses nadie se va a acordar de cuáles
+números salieron de una medición y cuáles de una suposición razonable. La
+distinción importa: son las que deciden si un producto se marca como "no se
+vende en Argentina".
+
+**El problema que resuelven.** MercadoLibre casi nunca devuelve cero. Ante una
+búsqueda sin coincidencias sirve *resultados de rescate* y los presenta como
+normales: verificado en el navegador, `listado.mercadolibre.com.ar/qwzxvbnmklpoiuy-asdfghjk-zzz`
+devuelve "78 resultados" con bujías NGK y repuestos de moto, sin ningún aviso.
+Los marcadores `rescue`/`zrp`/`intervention` del HTML **no sirven** como señal:
+aparecen también en búsquedas con resultados reales, son strings del bundle.
+Por eso la señal es la *relevancia por título*: qué fracción de las palabras de
+la búsqueda aparece en los títulos devueltos.
+
+**Qué está estimado** (todo en `api/_meli.js`):
+
+| Constante | Valor | Cómo se eligió |
+|---|---|---|
+| `RELEVANCIA_UMBRAL_ALTO` | `0.35` | Fixture. Los casos reales de la calibración cayeron entre 0.42 y 0.55, el de rescate en 0.00. Hay aire, pero el techo es el número menos validado de los tres. |
+| `RELEVANCIA_UMBRAL_BAJO` | `0.15` | Fixture, elegido deliberadamente bajo (ver asimetría, abajo). |
+| `PESOS_POSICION` | `[1.0, 0.6, 0.3]` | Fixture. Corrige el sesgo por largo de consulta; medido, lo reduce pero no lo elimina del todo. |
+| Mínimo de muestra | `8` publicaciones | Heurística, nunca medida. |
+
+Los tres se pueden pisar por variable de entorno: `RELEVANCIA_UMBRAL_ALTO`,
+`RELEVANCIA_UMBRAL_BAJO`.
+
+**La asimetría es deliberada.** Los dos errores no cuestan lo mismo:
+
+- Un falso `existe` arma un precio de referencia con productos equivocados.
+  Malo, pero queda **visible** en pantalla (el ratio se muestra siempre) y el
+  usuario lo puede desconfiar.
+- Un falso `noExiste` le dice que un producto no tiene mercado. **Invisible**:
+  no vuelve a mirarlo, y no deja rastro para auditar después.
+
+Por eso el piso es bajo y existe la banda `dudoso` en el medio, que no afirma
+ausencia. Si hay que equivocarse, que sea para el lado que se ve.
+
+**Cómo recalibrar, que es lo que hay que hacer.** No se puede medir esto sin
+consultas reales. Cada medición queda registrada con la búsqueda, las palabras
+significativas, el ratio, el estado y los primeros 5 títulos **devueltos**
+(crudos, incluidos los de rescate: sin ellos un ratio suelto no dice nada):
+
+```bash
+curl -H "x-admin-key: $ADMIN_KEY" \
+     "https://productfinder-ia.vercel.app/api/market?relevancia=1&n=50"
+```
+
+Requiere la tabla `relevancia_log` (ver `supabase/relevancia_log_migration.sql`).
+Sin ella el registro vive sólo en memoria del proceso y **un cold start de
+Vercel lo vacía**, con lo cual nunca se juntan suficientes consultas para
+decidir nada. Las tres consultas SQL para recalibrar están comentadas al final
+de ese archivo de migración.
+
+Lo primero que hay que mirar son los productos que vos sabés que se venden y
+quedaron en `dudoso` o `noExiste`: esos son los falsos negativos, el error que
+no se ve solo.
+
+**Lo que sí está medido**, para no confundirlo con lo de arriba: el tipo de
+cambio sale de `dolarapi.com` en vivo (`api/_dolar.js`), el IVA de importación y
+la percepción salen de la base imponible real (CIF + aranceles + tasa de
+estadística), y los precios de competencia salen de `/items?ids=` de la API
+oficial de MercadoLibre.
