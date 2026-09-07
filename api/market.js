@@ -5,6 +5,7 @@
 
 import { anthropicHeaders, buscarPublicaciones, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
 import { haySesion, esAdmin, tokenDe, pedirSesion } from './_sesion.js';
+import { cotizacionDolar, DOLAR_TIPOS, DOLAR_TIPO_DEFAULT } from './_dolar.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
@@ -22,6 +23,29 @@ export default async function handler(req, res) {
       anthropic_present: !!process.env.ANTHROPIC_API_KEY,
       demo_user: process.env.MELI_DEMO_USER_ID || 'matypereira'
     };
+
+    // ?dolar=1 -> cotizaciones del dolar para el formulario del Market Reader.
+    // Se consulta desde el server para no depender del CORS de dolarapi, y se
+    // cachea 30 minutos en _dolar.js. El front lo pide una vez al abrir la
+    // pantalla y completa el input de tipo de cambio con el tipo elegido.
+    if (req.query && req.query.dolar) {
+      const c = await cotizacionDolar();
+      return res.status(200).json({
+        ok: !!c.ok,
+        oficial: c.oficial ?? null,
+        mayorista: c.mayorista ?? null,
+        mep: c.mep ?? null,
+        ccl: c.ccl ?? null,
+        tarjeta: c.tarjeta ?? null,
+        fecha: c.fecha || null,
+        porDefecto: DOLAR_TIPO_DEFAULT,
+        tipos: DOLAR_TIPOS,
+        fuente: c.fuente || 'dolarapi.com',
+        deCache: !!c.deCache,
+        vencido: !!c.vencido,
+        error: c.error || null
+      });
+    }
 
     // ?demo=termino alimenta la demo publica del hero.
     // MercadoLibre cerro /sites/MLA/search (403) y /products/search no trae
@@ -643,12 +667,24 @@ async function stepDemanda(product) {
   if (!product) throw new Error('product requerido');
   const meli = await safeMeliSearch(product);
   const trends = await safeGoogleTrends(product);
+  const hayTrends = !!(trends && trends.monthlyData && trends.monthlyData.length === 12);
+  // De donde sale la curva de demanda. Google bloquea las IPs de datacenter,
+  // asi que desde Vercel safeGoogleTrends devuelve null casi siempre: cuando
+  // eso pasa los 12 meses y el score los estima el modelo, y el front lo tiene
+  // que decir con todas las letras en vez de mostrarlo como dato medido.
+  const fuenteDemanda = hayTrends ? 'google-trends' : 'estimacion-ia';
   const totalMeli = meli && meli.total != null ? meli.total : 'sin dato';
   const catName = meli && meli.categoryName ? meli.categoryName : 'sin dato';
-  const trendsStr = trends && trends.values ? trends.values.join(',') : 'sin dato';
-  const prompt = 'Sos analista de e-commerce Argentina. Para el producto "' + product + '" genera JSON de DEMANDA AR. Datos reales: Total publicaciones MeLi AR=' + totalMeli + '; Top categoría=' + catName + '; Google Trends 12m (0-100)=' + trendsStr + '. Responde SOLO JSON sin markdown: {"tendencia":"subiendo|estable|bajando","nivelDemanda":"alto|medio|bajo","demandaScore":0-100,"temporalidad":"string corto","descripción":"1-2 oraciones rioplatense","tags":["t1","t2","t3"],"monthlyData":[{"mes":"Ene","valor":0-100},{"mes":"Feb","valor":0-100},{"mes":"Mar","valor":0-100},{"mes":"Abr","valor":0-100},{"mes":"May","valor":0-100},{"mes":"Jun","valor":0-100},{"mes":"Jul","valor":0-100},{"mes":"Ago","valor":0-100},{"mes":"Sep","valor":0-100},{"mes":"Oct","valor":0-100},{"mes":"Nov","valor":0-100},{"mes":"Dic","valor":0-100}]}';
+  const trendsStr = hayTrends ? trends.values.join(',') : 'sin dato';
+  const prompt = 'Sos analista de e-commerce Argentina. Para el producto "' + product + '" genera JSON de DEMANDA AR. Datos reales: Total publicaciones MeLi AR=' + totalMeli + '; Top categoria=' + catName + '; Google Trends 12m (0-100)=' + trendsStr + '. Responde SOLO JSON sin markdown: {"tendencia":"subiendo|estable|bajando","nivelDemanda":"alto|medio|bajo","demandaScore":0-100,"temporalidad":"string corto","descripcion":"1-2 oraciones rioplatense","tags":["t1","t2","t3"],"monthlyData":[{"mes":"Ene","valor":0-100},{"mes":"Feb","valor":0-100},{"mes":"Mar","valor":0-100},{"mes":"Abr","valor":0-100},{"mes":"May","valor":0-100},{"mes":"Jun","valor":0-100},{"mes":"Jul","valor":0-100},{"mes":"Ago","valor":0-100},{"mes":"Sep","valor":0-100},{"mes":"Oct","valor":0-100},{"mes":"Nov","valor":0-100},{"mes":"Dic","valor":0-100}]}';
   const j = await askClaudeJson(prompt);
-  if (trends && trends.monthlyData && trends.monthlyData.length === 12) {
+  // El prompt pedia la clave con tilde ("descripcion") y el front leia
+  // r.descripcion: el texto nunca se mostraba. Se acepta cualquiera de las dos
+  // por si el modelo devuelve la vieja, pero la que viaja es sin tilde.
+  if (!j.descripcion && j['descripci\u00f3n']) j.descripcion = j['descripci\u00f3n'];
+  delete j['descripci\u00f3n'];
+
+  if (hayTrends) {
     j.monthlyData = trends.monthlyData;
     const first3 = (trends.values[0]+trends.values[1]+trends.values[2])/3;
     const last3 = (trends.values[9]+trends.values[10]+trends.values[11])/3;
@@ -658,8 +694,10 @@ async function stepDemanda(product) {
     const avg = trends.values.reduce((a,b)=>a+b,0)/12;
     j.demandaScore = Math.round(Math.min(100, Math.max(0, avg)));
   }
-    j.monthlyData = buildRollingMonths(j.monthlyData);
-    j.rangoFechas = j.monthlyData[0].label + ' - ' + j.monthlyData[11].label;
+  j.monthlyData = buildRollingMonths(j.monthlyData);
+  j.rangoFechas = j.monthlyData[0].label + ' - ' + j.monthlyData[11].label;
+  j.fuenteDemanda = fuenteDemanda;
+  j.trendsMotivo = hayTrends ? null : (_ultimoMotivoTrends || 'Google Trends no respondio');
   return j;
 }
 
@@ -675,14 +713,23 @@ async function stepCompetencia(product) {
       aviso: 'Estoy trayendo los datos de MercadoLibre para este producto. La primera vez tarda dos o tres minutos; despues queda guardado y sale al instante.' };
   }
   if (meli && meli.results && meli.results.length > 0) {
-    const prices = meli.results.map(x => x.price).filter(p => typeof p === 'number' && p > 0).sort((a,b)=>a-b);
-    const min = prices[0] || 0;
-    const max = prices[prices.length-1] || 0;
-    const avg = prices.length ? Math.round(prices.reduce((a,b)=>a+b,0)/prices.length) : 0;
-    const sellers = new Set(meli.results.map(x => x.seller && x.seller.id).filter(Boolean));
-    // Solo hay total de publicaciones por algunas vias. Si no lo hay, la
-    // saturacion queda en null: no se deduce de una muestra de 40 items.
-    const total = (typeof meli.total === 'number' && meli.total > 0) ? meli.total : null;
+    const results = meli.results;
+    const fuente = meli.fuente || 'mercadolibre-search';
+    const prices = results.map(x => x.price).filter(p => typeof p === 'number' && p > 0).sort((a,b)=>a-b);
+    const sellers = new Set(results.map(x => x.seller && x.seller.id).filter(Boolean));
+    const conEnvioGratis = results.filter(x => x.shipping && x.shipping.free_shipping).length;
+    const competitors = results.slice(0,5).map((x,i)=>({rank:i+1, name:(x.seller && x.seller.nickname) || ('Vendedor '+(i+1)), price:x.price||0, soldQty:x.sold_quantity||0, reputation:(x.seller && x.seller.seller_reputation && x.seller.seller_reputation.level_id) || 'N/A', repClass:'comp-rep-ok', freeShipping: !!(x.shipping && x.shipping.free_shipping)}));
+
+    // El "total" del catalogo NO son publicaciones activas: paging.total de
+    // /products/search cuenta PRODUCTOS DE CATALOGO. Rotularlo como
+    // publicaciones y sacarle saturacion es inventar un dato. Por esa via el
+    // numero se muestra con su nombre real y la saturacion queda en null.
+    const esCatalogo = fuente === 'meli-catalogo';
+    const totalCrudo = (typeof meli.total === 'number' && meli.total > 0) ? meli.total : null;
+    const total = esCatalogo ? null : totalCrudo;
+    const totalCatalogo = esCatalogo ? totalCrudo : null;
+    const totalLabel = esCatalogo ? 'Productos en el catalogo de MeLi' : 'Total publicaciones activas';
+
     let saturacion = null;
     if (total != null) {
       saturacion = 'moderado';
@@ -690,13 +737,49 @@ async function stepCompetencia(product) {
       else if (total > 10000) saturacion = 'muy saturado';
       else if (total > 2000) saturacion = 'saturado';
     }
-    const conEnvioGratis = meli.results.filter(x => x.shipping && x.shipping.free_shipping).length;
-    const competitors = meli.results.slice(0,5).map((x,i)=>({rank:i+1, name:(x.seller && x.seller.nickname) || ('Vendedor '+(i+1)), price:x.price||0, soldQty:x.sold_quantity||0, reputation:(x.seller && x.seller.seller_reputation && x.seller.seller_reputation.level_id) || 'N/A', repClass:'comp-rep-ok', freeShipping: !!(x.shipping && x.shipping.free_shipping)}));
-    return { fuente: meli.fuente || 'mercadolibre-search', sellersEstimados: sellers.size || meli.results.length, precioMinARS:min, precioMaxARS:max, precioPromedioARS:avg, totalResults:total, categoryName:meli.categoryName||'', saturacion, competenciaScore: total != null ? Math.min(100, Math.round(total/100)) : null, competitors, envioGratisCount: conEnvioGratis, envioGratisTotal: meli.results.length, envioGratisPct: meli.results.length ? Math.round((conEnvioGratis/meli.results.length)*100) : 0,
-      aviso: total == null ? 'MercadoLibre no expone el total de publicaciones por está via: el precio y los competidores son reales, la saturacion no se puede calcular.' : null };
+
+    // Muestra chica: con menos de 8 publicaciones el rango, el promedio y la
+    // mediana no describen nada. Medido en produccion, el catalogo devolvia
+    // UNA publicacion y el front mostraba precioMin = precioMax como si fuera
+    // el precio de mercado. Con muestra insuficiente no se devuelve precio de
+    // referencia: se devuelve el aviso.
+    const MUESTRA_MINIMA = 8;
+    if (results.length < MUESTRA_MINIMA) {
+      return {
+        fuente, muestraInsuficiente: true, muestra: results.length,
+        sellersEstimados: sellers.size || results.length,
+        precioMinARS: null, precioMaxARS: null, precioPromedioARS: null,
+        totalResults: total, totalCatalogo, totalLabel,
+        categoryName: meli.categoryName || '',
+        saturacion: null, competenciaScore: null,
+        competitors,
+        envioGratisCount: conEnvioGratis, envioGratisTotal: results.length,
+        envioGratisPct: null,
+        aviso: 'Muestra insuficiente (' + results.length + ' publicaciones). No calculo precio de referencia con esto.'
+      };
+    }
+
+    const min = prices[0] || 0;
+    const max = prices[prices.length-1] || 0;
+    const avg = prices.length ? Math.round(prices.reduce((a,b)=>a+b,0)/prices.length) : 0;
+    return {
+      fuente, muestraInsuficiente: false, muestra: results.length,
+      sellersEstimados: sellers.size || results.length,
+      precioMinARS: min, precioMaxARS: max, precioPromedioARS: avg,
+      totalResults: total, totalCatalogo, totalLabel,
+      categoryName: meli.categoryName || '',
+      saturacion,
+      competenciaScore: total != null ? Math.min(100, Math.round(total/100)) : null,
+      competitors,
+      envioGratisCount: conEnvioGratis, envioGratisTotal: results.length,
+      envioGratisPct: Math.round((conEnvioGratis/results.length)*100),
+      aviso: esCatalogo
+        ? 'Este numero sale del catalogo de MercadoLibre: son productos de catalogo, no publicaciones activas. Por eso no calculo saturacion.'
+        : (total == null ? 'MercadoLibre no expone el total de publicaciones por esta via: el precio y los competidores son reales, la saturacion no se puede calcular.' : null)
+    };
   }
   // IMPORTANTE: si no hay datos reales de MeLi (API 403 o scraping fallido) NO inventamos numeros via IA.
-  return { fuente: 'no-disponible', sellersEstimados: null, precioMinARS: null, precioMaxARS: null, precioPromedioARS: null, totalResults: null, categoryName: '', saturacion: null, competenciaScore: null, competitors: [], aviso: 'Datos de Mercado Libre no disponibles ahora (la API publica requiere autenticacion). Mostramos solo lo verificable.' };
+  return { fuente: 'no-disponible', muestraInsuficiente: true, muestra: 0, sellersEstimados: null, precioMinARS: null, precioMaxARS: null, precioPromedioARS: null, totalResults: null, totalCatalogo: null, totalLabel: null, categoryName: '', saturacion: null, competenciaScore: null, competitors: [], envioGratisPct: null, aviso: 'Datos de Mercado Libre no disponibles ahora (la API publica requiere autenticacion). Mostramos solo lo verificable.' };
 }
 
 async function stepFinal(customPrompt) {
@@ -863,23 +946,43 @@ async function scrapeMeliSearchHtml(product) {
   return { fuente: 'meli-html', total: total || results.length, results, categoryName };
 }
 
+// Ultimo motivo por el que Google Trends no devolvio datos. stepDemanda lo
+// adjunta a la respuesta para que el front pueda decir por que la curva es una
+// estimacion y no un dato medido.
+let _ultimoMotivoTrends = null;
+
+// OJO: desde Vercel esto devuelve null practicamente siempre. Google bloquea
+// las IPs de datacenter contra su endpoint interno de Trends (responde 429 o
+// una pagina de consentimiento). Antes el catch se tragaba la falla en
+// silencio y los 12 meses inventados por el modelo se mostraban como Google
+// Trends. Ahora cada salida deja el motivo en _ultimoMotivoTrends y lo loguea.
 async function safeGoogleTrends(product) {
+  _ultimoMotivoTrends = null;
+  const fallo = (motivo) => {
+    _ultimoMotivoTrends = motivo;
+    console.warn('[trends] sin datos para "' + product + '": ' + motivo);
+    return null;
+  };
   try {
     const exploreReq = JSON.stringify({comparisonItem:[{keyword:product,geo:'AR',time:'today 12-m'}],category:0,property:''});
     const r1 = await fetch('https://trends.google.com/trends/api/explore?hl=es-AR&tz=180&req=' + encodeURIComponent(exploreReq), { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    if (!r1.ok) return null;
+    if (!r1.ok) return fallo('explore respondio HTTP ' + r1.status + (r1.status === 429 ? ' (Google bloquea IPs de datacenter)' : ''));
     const txt1 = await r1.text();
     const clean1 = txt1.replace(/^\)\]\}',?\n?/, '');
-    const j1 = JSON.parse(clean1);
+    let j1;
+    try { j1 = JSON.parse(clean1); }
+    catch (e) { return fallo('explore no devolvio JSON (probable pagina de consentimiento o captcha)'); }
     const tw = (j1.widgets || []).find(w => w.id === 'TIMESERIES');
-    if (!tw) return null;
+    if (!tw) return fallo('explore no trajo el widget TIMESERIES');
     const r2 = await fetch('https://trends.google.com/trends/api/widgetdata/multiline?hl=es-AR&tz=180&req=' + encodeURIComponent(JSON.stringify(tw.request)) + '&token=' + encodeURIComponent(tw.token), { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    if (!r2.ok) return null;
+    if (!r2.ok) return fallo('widgetdata respondio HTTP ' + r2.status + (r2.status === 429 ? ' (Google bloquea IPs de datacenter)' : ''));
     const txt2 = await r2.text();
     const clean2 = txt2.replace(/^\)\]\}',?\n?/, '');
-    const j2 = JSON.parse(clean2);
+    let j2;
+    try { j2 = JSON.parse(clean2); }
+    catch (e) { return fallo('widgetdata no devolvio JSON'); }
     const points = (j2.default && j2.default.timelineData) || [];
-    if (!points.length) return null;
+    if (!points.length) return fallo('la serie vino vacia');
     const monthly = {};
     points.forEach(p => {
       const d = new Date(parseInt(p.time)*1000);
@@ -890,6 +993,7 @@ async function safeGoogleTrends(product) {
     const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
     const keys = Object.keys(monthly).sort();
     const last12 = keys.slice(-12);
+    if (last12.length < 12) return fallo('solo vinieron ' + last12.length + ' meses de 12');
     const monthlyData = last12.map(k => {
       const m = parseInt(k.split('-')[1])-1;
       const arr = monthly[k];
@@ -898,14 +1002,47 @@ async function safeGoogleTrends(product) {
     });
     const values = monthlyData.map(x => x.valor);
     return { values, monthlyData };
-  } catch { return null; }
+  } catch (e) {
+    return fallo(String((e && e.message) || e).slice(0, 160));
+  }
 }
 
 async function readProductUrl(url) {
   const host = (() => { try { return new URL(url).hostname.toLowerCase(); } catch { return ''; } })();
-  if (host.includes('mercadolibre') || host.includes('mercadolivre')) return await readMercadoLibre(url);
-  if (host.includes('alibaba')) return await readAlibaba(url);
-  return await readOpenGraph(url);
+  let r;
+  if (host.includes('mercadolibre') || host.includes('mercadolivre')) r = await readMercadoLibre(url);
+  else if (host.includes('alibaba')) r = await readAlibaba(url);
+  else r = await readOpenGraph(url);
+  return await conTerminoDeBusqueda(r);
+}
+
+// El titulo de origen ("Magcubic HY300Pro Projector 290ANSI Android 14 Dual
+// WiFi6 8K") no sirve para buscar en MercadoLibre Argentina: hay que reducirlo
+// al producto generico en castellano ("mini proyector"). Esa traduccion ya
+// existe y esta cacheada en _radar.js, asi que se reusa tal cual.
+// El front usa terminoBusqueda para el buscador de MeLi y muestra los dos, con
+// el termino editable: si la traduccion sale mal, el usuario la corrige.
+async function conTerminoDeBusqueda(r) {
+  if (!r || typeof r !== 'object') return r;
+  const titulo = String((r['t\u00edtulo'] || r.titulo || '')).trim();
+  if (!titulo || r.lecturaFallida) return r;
+  try {
+    const radar = await import('./_radar.js');
+    const mapa = await radar.nombrarProductos([titulo.slice(0, 140)]);
+    const t = mapa && mapa[titulo.slice(0, 140)];
+    if (t && String(t).trim()) {
+      r.terminoBusqueda = String(t).trim().toLowerCase();
+      r.terminoBusquedaFuente = 'ia-nombrarProductos';
+      return r;
+    }
+  } catch (e) {
+    console.warn('[terminoBusqueda] no pude traducir el titulo: ' + String((e && e.message) || e).slice(0, 140));
+  }
+  // Sin traduccion se devuelve el titulo crudo, avisando de donde salio, para
+  // que el front no muestre un termino traducido que no lo es.
+  r.terminoBusqueda = titulo.slice(0, 60);
+  r.terminoBusquedaFuente = 'titulo-original';
+  return r;
 }
 
 async function readMercadoLibre(url) {
@@ -930,15 +1067,15 @@ async function readMercadoLibre(url) {
       const apiRes = await fetch('https://api.mercadolibre.com/items/' + itemId);
       if (apiRes.ok) {
         const j = await apiRes.json();
-        return { fuente: 'mercadolibre', itemId, título: j.title || '', precio: j.price != null ? Number(j.price) : null, moneda: j.currency_id || 'ARS', imagen: (j.pictures && j.pictures[0] && j.pictures[0].secure_url) || j.thumbnail || '', descripción: j.subtitle || '', url };
+        return { fuente: 'mercadolibre', itemId, lecturaFallida: false, título: j.title || '', titulo: j.title || '', precio: j.price != null ? Number(j.price) : null, moneda: j.currency_id || 'ARS', imagen: (j.pictures && j.pictures[0] && j.pictures[0].secure_url) || j.thumbnail || '', descripción: j.subtitle || '', descripcion: j.subtitle || '', permalink: j.permalink || url, condicion: j.condition || '', vendidos: j.sold_quantity != null ? j.sold_quantity : null, disponibles: j.available_quantity != null ? j.available_quantity : null, realData: true, url };
       }
     } catch (_) {}
   }
   try {
     const scraped = await scrapeMercadoLibreHtml(url);
-    if (scraped && scraped.título) return { fuente: 'mercadolibre-html', itemId, ...scraped, url };
+    if (scraped && scraped.título) return { fuente: 'mercadolibre-html', itemId, lecturaFallida: false, ...scraped, titulo: scraped.título, descripcion: scraped.descripción, realData: false, url };
   } catch (_) {}
-  return { fuente: 'mercadolibre-min', itemId, título: 'Producto MeLi ' + (itemId||''), precio: null, moneda: 'ARS', imagen: '', descripción: '', url };
+  return { fuente: 'mercadolibre-min', itemId, lecturaFallida: true, motivo: 'MercadoLibre no devolvio los datos de esta publicacion', título: '', titulo: '', precio: null, moneda: 'ARS', imagen: '', descripción: '', descripcion: '', url };
 }
 
 async function scrapeMercadoLibreHtml(url) {
@@ -955,29 +1092,69 @@ async function scrapeMercadoLibreHtml(url) {
   return { título: ogTitle ? decodeHtml(ogTitle).trim() : '', precio: (precio != null && !isNaN(precio)) ? precio : null, moneda, imagen: ogImage || '', descripción: ogDesc ? decodeHtml(ogDesc).trim() : '' };
 }
 
+// Alibaba bloquea las lecturas desde IPs de datacenter: sirve una pagina de
+// challenge sin og: tags. Medido en produccion, esto devolvia HTTP 200 con
+// titulo, precio, imagen y descripcion TODOS vacios, y la UI mostraba el
+// formulario manual como si hubiera leido algo. No se puede arreglar el
+// scraping desde Vercel; lo que si se puede es decirlo.
 async function readAlibaba(url) {
   const r = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ProductFinderBot/1.0)' } });
-  if (!r.ok) throw new Error('Alibaba respondio ' + r.status);
+  if (!r.ok) {
+    console.warn('[alibaba] respondio HTTP ' + r.status);
+    return { fuente: 'alibaba', url, lecturaFallida: true, motivo: 'Alibaba bloquea la lectura automatica desde el servidor', detalle: 'HTTP ' + r.status };
+  }
   const html = await r.text();
   const pick = (re) => { const m = html.match(re); return m ? m[1] : null; };
-  const título = pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<title[^>]*>([^<|]+)/i) || '';
+  const título = decodeHtml(pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<title[^>]*>([^<|]+)/i) || '').trim();
   const imagen = pick(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) || '';
-  const descripción = pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) || '';
-  let precioMin = null, precioMax = null;
+  const descripción = decodeHtml(pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) || '').trim();
+
+  // El rango "$X - $Y" se agarra del primer match del HTML: no se sabe a que
+  // tramo de cantidad corresponde ni si es de otro producto de la barra
+  // lateral. Viaja como SUGERENCIA para que el usuario la confirme; el FOB
+  // nunca se autocompleta con esto.
+  let precioSugeridoMin = null, precioSugeridoMax = null;
   const priceRangeMatch = html.match(/\$\s?([\d,.]+)\s*[-~]\s*\$?\s?([\d,.]+)/);
-  if (priceRangeMatch) { precioMin = parseFloat(priceRangeMatch[1].replace(/,/g,'')); precioMax = parseFloat(priceRangeMatch[2].replace(/,/g,'')); }
-  return { fuente: 'alibaba', título: decodeHtml(título).trim(), precio: precioMin, precioMax, moneda: 'USD', imagen, descripción: decodeHtml(descripción).trim(), url };
+  if (priceRangeMatch) {
+    const a = parseFloat(priceRangeMatch[1].replace(/,/g,''));
+    const b = parseFloat(priceRangeMatch[2].replace(/,/g,''));
+    if (isFinite(a) && isFinite(b) && a > 0) { precioSugeridoMin = a; precioSugeridoMax = b; }
+  }
+
+  // Sin titulo, sin precio y sin imagen no se leyo nada: se dice, en vez de
+  // devolver un objeto lleno de nulls que la UI disimula.
+  if (!título && precioSugeridoMin == null && !imagen) {
+    console.warn('[alibaba] HTTP 200 pero sin og: tags — pagina de challenge');
+    return { fuente: 'alibaba', url, lecturaFallida: true, motivo: 'Alibaba bloquea la lectura automatica desde el servidor' };
+  }
+
+  return {
+    fuente: 'alibaba', url, lecturaFallida: false,
+    'título': título, titulo: título,
+    // El FOB NO se autocompleta: el rango leido es una sugerencia a confirmar.
+    precio: null, moneda: 'USD',
+    precioSugeridoMin, precioSugeridoMax,
+    imagen, 'descripción': descripción, descripcion: descripción
+  };
 }
 
 async function readOpenGraph(url) {
   const r = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ProductFinderBot/1.0)' } });
-  if (!r.ok) throw new Error('Pagina respondio ' + r.status);
+  if (!r.ok) {
+    console.warn('[opengraph] ' + url + ' respondio HTTP ' + r.status);
+    return { fuente: 'opengraph', url, lecturaFallida: true, motivo: 'La pagina no dejo leerla desde el servidor', detalle: 'HTTP ' + r.status };
+  }
   const html = await r.text();
   const pick = (re) => { const m = html.match(re); return m ? m[1] : null; };
-  const título = pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<title[^>]*>([^<|]+)/i) || '';
+  const título = decodeHtml(pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i) || pick(/<title[^>]*>([^<|]+)/i) || '').trim();
   const imagen = pick(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i) || '';
-  const descripción = pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']twitter:description["'][^>]+content=["']([^"']+)["']/i) || '';
-  return { fuente: 'opengraph', título: decodeHtml(título).trim(), imagen, descripción: decodeHtml(descripción).trim(), url };
+  const descripción = decodeHtml(pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) || pick(/<meta[^>]+name=["']twitter:description["'][^>]+content=["']([^"']+)["']/i) || '').trim();
+  // Mismo criterio que Alibaba: si no vino nada, se avisa.
+  if (!título && !imagen && !descripción) {
+    console.warn('[opengraph] ' + url + ' devolvio HTTP 200 sin og: tags');
+    return { fuente: 'opengraph', url, lecturaFallida: true, motivo: 'La pagina no expone titulo ni imagen legibles desde el servidor' };
+  }
+  return { fuente: 'opengraph', url, lecturaFallida: false, 'título': título, titulo: título, imagen, 'descripción': descripción, descripcion: descripción };
 }
 
 function decodeHtml(s) {

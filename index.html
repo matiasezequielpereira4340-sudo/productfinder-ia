@@ -36,7 +36,7 @@
 <title>MeLi Connect &#8212; Dej&#225; de importar a ciegas</title>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="app.css?v=20260830">
+<link rel="stylesheet" href="app.css?v=20260907a">
 
   
 
@@ -321,14 +321,14 @@
         <div class="mr-param"><label for="mrCanal">Canal de venta</label><select id="mrCanal"><option value="mercadolibre" selected>Mercado Libre</option><option value="tiendanube">Tienda Nube</option><option value="mayorista">Mayorista</option><option value="local">Local f&#237;sico</option></select></div>
         <div class="mr-param"><label for="mrModalidad">Modalidad de env&#237;o</label><select id="mrModalidad"><option value="full">Mercado Env&#237;os Full</option><option value="flex" selected>Flex (entreg&#225;s vos)</option><option value="estandar">Mercado Env&#237;os est&#225;ndar</option><option value="retiro">Retiro / Acordar</option></select></div>
         <div class="mr-param"><label for="mrPosicion">Posicionamiento</label><select id="mrPosicion"><option value="estandar" selected>Est&#225;ndar</option><option value="premium">Premium (+25%)</option><option value="multifuncion">Multifunci&#243;n (+45%)</option></select></div>
-        <div class="mr-param"><label for="mrTipoCambio">Tipo de cambio USD/ARS</label><input type="number" id="mrTipoCambio" value="1250" min="1"/></div>
+        <div class="mr-param"><label for="mrDolarTipo">Tipo de d&#243;lar</label><select id="mrDolarTipo"><option value="mayorista">Mayorista</option><option value="oficial">Oficial</option><option value="mep" selected>MEP</option><option value="ccl">CCL</option><option value="tarjeta">Tarjeta</option></select></div><div class="mr-param"><label for="mrTipoCambio">Tipo de cambio USD/ARS</label><input type="number" id="mrTipoCambio" min="1" step="0.01" placeholder="Cargando cotizaci&#243;n..."/><div id="mrDolarHint" style="font-size:.72rem;color:var(--text-dim);margin-top:4px;line-height:1.3">Consultando cotizaci&#243;n...</div></div>
         <div class="mr-param"><label for="mrNCM">Posici&#243;n arancelaria (NCM)</label><select id="mrNCM">
-          <option value="auto" selected>Auto (seg&#250;n nicho)</option>
+          <option value="auto" selected>Auto &#8212; 20% (m&#225;s frecuente)</option>
           <option value="0.16">Tecnolog&#237;a 8517 &#8212; 16%</option>
           <option value="0.18">Pl&#225;stico/Accesorios 3926 &#8212; 18%</option>
           <option value="0.20">Juguetes / Hogar &#8212; 20%</option>
           <option value="0.35">Textil / Otros &#8212; 35%</option>
-        </select></div>
+        </select><div style="font-size:.72rem;color:var(--text-dim);margin-top:4px;line-height:1.3">35% es el <b>techo</b> del AEC, no el valor normal. El arancel real depende de tu posici&#243;n NCM: verificalo antes de pagar el FOB.</div></div>
         <div class="mr-param"><label for="mrShipMode">Modo de env&#237;o desde China</label><select id="mrShipMode">
           <option value="auto" selected>Auto (15% s/FOB)</option>
           <option value="courier">Courier express (USD 8/kg)</option>
@@ -336,7 +336,7 @@
           <option value="lcl">Mar&#237;timo LCL (USD 1.2/kg)</option>
           <option value="fcl">Mar&#237;timo FCL (USD 0.3/kg)</option>
         </select></div>
-        <div class="mr-param"><label for="mrPesoKg">Peso por unidad (kg)</label><input type="number" id="mrPesoKg" step="0.01" min="0" placeholder="Ej: 0.25"/></div>
+        <div class="mr-param" id="mrPesoParam" style="border:1px solid rgba(255,230,0,.35);border-radius:8px;padding:8px"><label for="mrPesoKg" style="color:#FFE600">Peso por unidad (kg) &#8212; importante</label><input type="number" id="mrPesoKg" step="0.01" min="0" placeholder="Ej: 0.25"/><div id="mrPesoAviso" style="font-size:.72rem;color:#e8c89f;margin-top:4px;line-height:1.3">Sin el peso no puedo evaluar si el flete se come el producto: el c&#225;lculo cae a 15% sobre FOB, que es una estimaci&#243;n floja.</div></div>
         <div class="mr-param"><label for="mrDiasCap">D&#237;as capital inmovilizado</label><input type="number" id="mrDiasCap" step="1" min="0" value="60" placeholder="60"/></div>
         <div class="mr-param"><label for="mrTasaCap">Tasa mensual capital (%)</label><input type="number" id="mrTasaCap" step="0.1" min="0" value="4.5" placeholder="4.5"/></div>
       </div>
@@ -371,6 +371,36 @@
     <div class="mr-result" id="mrResult">
       <h2>Resultado &#183; <span id="mrResultProduct"></span></h2>
       <div class="mr-veredicto" id="mrVeredictoBox"><div class="mv-title" id="mrVeredictoTitle">Analizando...</div><div class="mv-text" id="mrVeredictoText"></div></div>
+      <!-- BLOQUE DE DECISION (calculado en JS, reglas deterministas).
+           Va arriba del gauge a proposito: el gauge es orientativo, las
+           senales de aca son las que deciden la compra. -->
+      <div class="mrv-decision" id="mrvDecision" style="display:none">
+        <div class="mrv-veredicto" id="mrvVeredicto">
+          <div class="mrv-veredicto-title" id="mrvVeredictoTitle">&#8211;</div>
+          <div class="mrv-veredicto-sub" id="mrvVeredictoSub"></div>
+        </div>
+        <div class="mrv-cols">
+          <div class="mrv-col mrv-col-si">
+            <h4>Por qu&#233; S&#205;</h4>
+            <div id="mrvAFavor"></div>
+          </div>
+          <div class="mrv-col mrv-col-no">
+            <h4>Por qu&#233; NO</h4>
+            <div id="mrvEnContra"></div>
+          </div>
+        </div>
+        <div class="mrv-quiebre" id="mrvQuiebre">
+          <h4>Escenarios de quiebre</h4>
+          <div class="mrv-quiebre-grid" id="mrvQuiebreGrid"></div>
+        </div>
+        <div class="mrv-riesgos" id="mrvRiesgos">
+          <h4>Riesgos que bloquean el veredicto verde</h4>
+          <label class="mrv-check"><input type="checkbox" id="mrvChkCert"/><span>&#191;El producto necesita certificaci&#243;n? (seguridad el&#233;ctrica, ENACOM si tiene RF/bluetooth, ANMAT si es cosm&#233;tica/alimento, certificaci&#243;n de juguetes). Tildalo cuando lo hayas verificado.</span></label>
+          <label class="mrv-check"><input type="checkbox" id="mrvChkMarca"/><span>&#191;Es marca registrada o r&#233;plica? Si lo es, MeLi te baja la publicaci&#243;n y perd&#233;s el stock entero. Tildalo cuando lo hayas verificado.</span></label>
+          <div class="mrv-riesgos-nota" id="mrvRiesgosNota"></div>
+        </div>
+        <div class="mrv-chips" id="mrvChips"></div>
+      </div>
       <div class="mr-charts-top">
         <div class="mr-chart-box"><h4>Score de viabilidad</h4>
           <div class="gauge-wrap">
@@ -388,6 +418,7 @@
             </svg>
           </div>
           <div class="gauge-label" id="gaugeLabel">&#8211;</div>
+          <div class="gauge-legend" style="font-size:.72rem;color:var(--text-dim);text-align:center;margin-top:6px">Score orientativo. Las se&#241;ales de arriba mandan.</div>
         </div>
         <div class="mr-chart-box"><h4>Perfil del producto</h4><div style="position:relative;width:100%;height:180px"><canvas id="radarChart"></canvas></div></div>
       </div>
@@ -424,7 +455,7 @@
   <button class="mc-bltab" id="mcBlTab" data-mc-cta="contacto"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Hablar por WhatsApp</button>
 
   
-<script defer src="app.js?v=20260901a"></script>
+<script defer src="app.js?v=20260907a"></script>
 <script defer src="mc-ui.js?v=20260825"></script>
 </body>
 </html>

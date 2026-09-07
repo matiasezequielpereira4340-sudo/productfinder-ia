@@ -9,6 +9,7 @@
 
 import { resolveUserId, buscarPublicaciones, anthropicHeaders } from './_meli.js';
 import { esCliente, tokenDe } from './_sesion.js';
+import { cotizacionDolar, tipoDeCambio, DOLAR_TIPO_DEFAULT } from './_dolar.js';
 
 const USD_ARS_FALLBACK = 1510;
 const LIMITE_GRATIS = 3;
@@ -1171,17 +1172,21 @@ export default async function handler(req, res) {
     // La cotizacion viaja junto con la lista: MargenClear la usa para no
     // arrancar con un tipo de cambio clavado, y al pedirla por aca (mismo
     // origen) no depende de que dolarapi habilite CORS en el navegador.
-    let dolar = null, dolarFuente = null;
-    try {
-      const dr = await fetch('https://dolarapi.com/v1/dolares/tarjeta');
-      if (dr.ok) {
-        const dj = await dr.json();
-        if (dj && dj.venta) { dolar = Math.round(dj.venta); dolarFuente = 'dolar tarjeta'; }
-      }
-    } catch (_e) { /* si falla, el front avisa que no pudo traerla */ }
+    // Una sola fuente de dolar para toda la app (_dolar.js), con el mismo
+    // default que el Market Reader: MEP. Antes aca se pedia /dolares/tarjeta
+    // (~1989) mientras el Market Reader arrancaba en 1250 hardcodeado: 59% de
+    // diferencia entre dos pantallas de la misma app.
+    let dolar = null, dolarFuente = null, dolarTipo = null;
+    const _cot = await tipoDeCambio(DOLAR_TIPO_DEFAULT);
+    if (_cot.valor != null) {
+      dolar = _cot.valor;
+      dolarTipo = _cot.tipo;
+      dolarFuente = 'dolarapi.com (' + _cot.tipo + ')';
+    }
     return res.status(200).json({
       nichos: nichos, total: nichos.length, porDefecto: NICHO_POR_DEFECTO,
-      dolar: dolar, dolarFuente: dolarFuente
+      dolar: dolar, dolarFuente: dolarFuente, dolarTipo: dolarTipo,
+      cotizaciones: await cotizacionDolar()
     });
   }
 
@@ -1192,11 +1197,10 @@ export default async function handler(req, res) {
     const nichoKey = resuelto.key;
     const niche = CATALOGO[nichoKey];
 
+    // Mismo tipo de cambio y misma funcion que el Market Reader: MEP.
     let usdArs = parseFloat(process.env.USD_ARS) || USD_ARS_FALLBACK;
-    try {
-      const _dr = await fetch('https://dolarapi.com/v1/dolares/tarjeta');
-      if (_dr.ok) { const _dj = await _dr.json(); if (_dj && _dj.venta) usdArs = _dj.venta; }
-    } catch (_e) { /* si falla la API de dolar, se usa el fallback */ }
+    const _tc = await tipoDeCambio(DOLAR_TIPO_DEFAULT);
+    if (_tc.valor != null) usdArs = _tc.valor;
     const tk = await getMeliToken(user_id);
     const token = tk && tk.token ? tk.token : null;
     const tokenExpired = tk && tk.expired ? true : false;

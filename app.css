@@ -882,3 +882,71 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
   margin:0 0 14px; padding-top:12px; border-top:1px solid rgba(255,255,255,.07);
   font-size:.78rem; line-height:1.55; color:var(--text3,#8a8a8a);
 }
+
+/* ==========================================================================
+   Bloque de decision del Market Reader (por que SI / por que NO)
+   Se calcula en JS con reglas deterministas; la IA solo redacta el texto.
+   Va arriba del gauge: el gauge quedo como dato secundario.
+   ========================================================================== */
+.mrv-decision{margin:18px 0 22px;padding:18px;border:1px solid #2a2a2a;border-radius:14px;background:#0d0d0d}
+.mrv-veredicto{text-align:center;padding:14px 10px 16px;border-radius:12px;margin-bottom:18px;border:2px solid #333}
+.mrv-veredicto-title{font-size:2rem;font-weight:800;letter-spacing:.02em;line-height:1.15}
+.mrv-veredicto-sub{font-size:.88rem;margin-top:6px;color:var(--text-dim,#92929A)}
+.mrv-v-si{background:rgba(39,174,96,.10);border-color:#27ae60}
+.mrv-v-si .mrv-veredicto-title{color:#27ae60}
+.mrv-v-cond{background:rgba(255,176,32,.10);border-color:#e0a020}
+.mrv-v-cond .mrv-veredicto-title{color:#e0a020}
+.mrv-v-no{background:rgba(192,57,43,.12);border-color:#c0392b}
+.mrv-v-no .mrv-veredicto-title{color:#e05a4a}
+.mrv-v-gris{background:rgba(140,140,150,.10);border-color:#6b6b74}
+.mrv-v-gris .mrv-veredicto-title{color:#a8a8b2}
+
+.mrv-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:780px){.mrv-cols{grid-template-columns:1fr}}
+.mrv-col h4{margin:0 0 10px;font-size:.95rem;letter-spacing:.03em;text-transform:uppercase}
+.mrv-col-si h4{color:#27ae60}
+.mrv-col-no h4{color:#e05a4a}
+.mrv-item{padding:10px 12px;border-radius:8px;margin-bottom:8px;font-size:.86rem;line-height:1.45;background:#131313;border-left:3px solid #333}
+.mrv-item b{color:#fff;font-weight:700}
+.mrv-item .mrv-dato{display:block;margin-top:4px;font-size:.78rem;color:var(--text-dim,#92929A);font-variant-numeric:tabular-nums}
+.mrv-item-fuerte{border-left-color:#27ae60}
+.mrv-col-no .mrv-item-fuerte{border-left-color:#e0a020}
+.mrv-item-medio{border-left-color:#555}
+.mrv-item-critico{border:1px solid #c0392b;border-left:4px solid #c0392b;background:rgba(192,57,43,.10)}
+.mrv-item-critico .mrv-crit-tag{display:inline-block;font-size:.68rem;font-weight:800;letter-spacing:.08em;color:#e05a4a;margin-right:6px;vertical-align:1px}
+.mrv-vacio{font-size:.82rem;color:var(--text-dim,#92929A);font-style:italic;padding:10px 2px}
+
+.mrv-quiebre{margin-top:18px;padding:14px;border:1px solid rgba(255,230,0,.28);border-radius:10px;background:rgba(255,230,0,.04)}
+.mrv-quiebre h4{margin:0 0 12px;font-size:.95rem;color:#FFE600;letter-spacing:.03em;text-transform:uppercase}
+.mrv-quiebre-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.mrv-qbox{padding:12px;border-radius:8px;background:#0a0a0a;border:1px solid #242424}
+.mrv-qlabel{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim,#92929A)}
+.mrv-qval{font-size:1.35rem;font-weight:800;color:#FFE600;margin:4px 0 6px;font-variant-numeric:tabular-nums}
+.mrv-qtext{font-size:.8rem;line-height:1.45;color:#c8c8cc}
+.mrv-qval.mrv-q-bad{color:#e05a4a}
+
+.mrv-riesgos{margin-top:16px;padding:14px;border:1px solid #33291a;border-radius:10px;background:#141008}
+.mrv-riesgos h4{margin:0 0 10px;font-size:.9rem;color:#e8c89f;letter-spacing:.03em;text-transform:uppercase}
+.mrv-check{display:flex;gap:10px;align-items:flex-start;font-size:.84rem;line-height:1.45;margin-bottom:10px;cursor:pointer;color:#d8d8dc}
+.mrv-check input{margin-top:3px;flex:0 0 auto;width:16px;height:16px;accent-color:#FFE600;cursor:pointer}
+.mrv-riesgos-nota{font-size:.8rem;margin-top:4px;color:#e0a020}
+
+.mrv-chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.mrv-chip{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border-radius:8px;font-size:.78rem;border:1px solid #333;background:#111;min-width:130px}
+.mrv-chip-t{font-weight:700;letter-spacing:.03em}
+.mrv-chip-d{font-size:.72rem;color:var(--text-dim,#92929A)}
+.mrv-chip-verde{border-color:#27ae60}.mrv-chip-verde .mrv-chip-t{color:#27ae60}
+.mrv-chip-ambar{border-color:#e0a020}.mrv-chip-ambar .mrv-chip-t{color:#e0a020}
+.mrv-chip-rojo{border-color:#c0392b}.mrv-chip-rojo .mrv-chip-t{color:#e05a4a}
+
+/* Badge de estimacion de IA para el paso de demanda */
+.mr-badge-estimacion{display:block;margin:10px 0;padding:10px 12px;border-radius:8px;
+  background:rgba(224,160,32,.12);border:1px solid #e0a020;color:#f0c877;
+  font-size:.84rem;font-weight:600;line-height:1.4}
+
+/* El realce visual v14 le pone opacity:0 a cualquier div con borde izquierdo
+   grueso y lo revela recien cuando dispara su IntersectionObserver. Las
+   senales del bloque de decision tienen borde izquierdo de 3-4px, asi que
+   caian en esa regla y quedaban invisibles. Este bloque es el que decide una
+   compra: no puede depender de que una animacion dispare. */
+.mrv-decision .v14-reveal{opacity:1 !important;animation:none !important}

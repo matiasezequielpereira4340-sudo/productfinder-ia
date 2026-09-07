@@ -767,7 +767,9 @@ function drawSavedCharts(item){
       const bandLower=tc.trendData.map(v=>Math.max(5,v-12));
       window._trendsChart=new Chart(trendCtx,{type:'line',data:{labels:months,datasets:[
         {data:bandUpper,borderColor:'rgba(255,230,0,0.08)',borderWidth:1,fill:'-1',backgroundColor:'rgba(255,230,0,0.06)',tension:0.4,pointRadius:0},
-        {data:tc.trendData,borderColor:'#FFE600',borderWidth:2.5,backgroundColor:'rgba(255,230,0,0.12)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#FFE600'},
+        // Punteada cuando la demanda es estimacion de IA: la linea solida se
+        // reserva para lo que se midio de verdad (Google Trends).
+        {data:tc.trendData,borderColor:'#FFE600',borderWidth:2.5,borderDash:(typeof mrData!=='undefined'&&mrData&&mrData.step1&&mrData.step1.fuenteDemanda==='google-trends')?[]:[6,4],backgroundColor:'rgba(255,230,0,0.12)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#FFE600'},
         {data:bandLower,borderColor:'rgba(255,230,0,0.08)',borderWidth:1,fill:'-1',backgroundColor:'rgba(255,230,0,0.06)',tension:0.4,pointRadius:0}
       ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'rgba(0,0,0,0.85)',titleColor:'#FFE600',bodyColor:'#F6F6F4',borderColor:'#FFE600',borderWidth:1}},scales:{x:{ticks:{color:'#92929A',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}},y:{min:0,max:100,ticks:{color:'#92929A',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}}}}});
     }
@@ -831,53 +833,123 @@ function toggleHistory(){
 
     function renderProductCard(r){
       const card=document.getElementById('mrProductCard');
-      const realBadge=r.realData?'<span style="background:#1d4d1d;color:#9fe89f;padding:2px 8px;border-radius:12px;font-size:0.75rem;font-weight:600"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Dato real</span>':'<span style="background:#4d3d1d;color:#e8c89f;padding:2px 8px;border-radius:12px;font-size:0.75rem;font-weight:600"><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Datos parciales</span>';
-      const fuenteNombre=r.fuente==='mercadolibre'?'MercadoLibre Argentina':(r.fuente==='alibaba'?'Alibaba':'Otra fuente');
+
+      // 7.b) Cuando la lectura fallo se dice, en vez de mostrar los campos
+      //      vacios como si se hubiera leido algo. Alibaba bloquea la lectura
+      //      automatica desde el servidor y eso no se puede arreglar desde
+      //      Vercel: lo que si se puede es avisarlo y dejar cargar a mano.
+      if(r.lecturaFallida){
+        const esAli=r.fuente==='alibaba';
+        card.innerHTML=`
+          <div style="padding:14px;border:1px solid #e0a020;border-radius:10px;background:rgba(224,160,32,.10)">
+            <div style="font-weight:700;color:#f0c877;margin-bottom:6px">No pude leer esta p&#225;gina${esAli?' de Alibaba':''}</div>
+            <div style="font-size:.88rem;color:#e8c89f;line-height:1.5">${esAli?'Alibaba bloquea la lectura autom&#225;tica desde el servidor. Carg&#225; el producto a mano: peg&#225; el t&#237;tulo y el precio FOB que veas en la p&#225;gina.':(r.motivo||'La p&#225;gina no dej&#243; leerla desde el servidor.')+' Carg&#225; el producto a mano.'}</div>
+            ${r.detalle?`<div style="font-size:.76rem;color:#b89a6f;margin-top:6px">Detalle t&#233;cnico: ${r.detalle}</div>`:''}
+          </div>
+          <div style="margin-top:12px;padding:12px;border:1px dashed #4a3d1d;border-radius:8px;background:#1a1606">
+            <div style="font-weight:600;color:#FFE600;margin-bottom:10px">Carg&#225; el producto a mano</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+              <div style="grid-column:1/-1"><label style="font-size:.82rem;color:#bbb">T&#237;tulo del producto (como figura en la p&#225;gina)</label><input type="text" id="mrLinkTitulo" placeholder="Ej: Mini projector 1080p Android" style="width:100%;margin-top:4px"/></div>
+              <div><label style="font-size:.82rem;color:#bbb">Precio FOB (USD/unidad)</label><input type="number" step="0.01" min="0" id="mrLinkFOB" placeholder="Ej: 12.50" style="width:100%;margin-top:4px"/></div>
+              <div><label style="font-size:.82rem;color:#bbb">MOQ (unidades)</label><input type="number" step="1" min="1" id="mrLinkMOQ" placeholder="Ej: 100" style="width:100%;margin-top:4px"/></div>
+              <div><label style="font-size:.82rem;color:#bbb">Peso/unidad (kg)</label><input type="number" step="0.01" min="0" id="mrLinkPeso" placeholder="Ej: 0.25" style="width:100%;margin-top:4px"/></div>
+            </div>
+            <div style="font-size:.78rem;color:#b89a6f;margin-top:8px">Sin el peso no puedo evaluar si el flete se come el producto.</div>
+          </div>
+          <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn-mr-analyze" onclick="useProductForMarketRead()">Hacer lectura de mercado de este producto</button>
+            <button class="btn-outline-dim" style="padding:8px 14px" onclick="clearProductCard()">Limpiar</button>
+          </div>`;
+        return;
+      }
+
+      const fuenteNombre=r.fuente&&r.fuente.indexOf('mercadolibre')===0?'MercadoLibre Argentina':(r.fuente==='alibaba'?'Alibaba':'Otra fuente');
+      const realBadge=r.realData
+        ?'<span style="background:#1d4d1d;color:#9fe89f;padding:2px 8px;border-radius:12px;font-size:0.75rem;font-weight:600">Dato real (API oficial)</span>'
+        :'<span style="background:#4d3d1d;color:#e8c89f;padding:2px 8px;border-radius:12px;font-size:0.75rem;font-weight:600">Datos parciales</span>';
+      const titulo=r.titulo||r['título']||'';
+      const descripcion=r.descripcion||r['descripción']||'';
       const img=r.imagen?`<img src="${r.imagen}" alt="" style="width:120px;height:120px;object-fit:cover;border-radius:8px;background:#1a1a1a"/>`:'<div style="width:120px;height:120px;background:#1a1a1a;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#555">sin foto</div>';
       let precioHtml='';
-      if(r.fuente==='mercadolibre'&&r.precio!=null){
+      if(r.fuente&&r.fuente.indexOf('mercadolibre')===0&&r.precio!=null){
         precioHtml=`<div style="font-size:1.3rem;color:#FFE600;font-weight:700;margin-top:4px">${r.moneda||'ARS'} ${Number(r.precio).toLocaleString('es-AR')}</div>`;
       }
       let metaHtml='';
-      if(r.fuente==='mercadolibre'){
+      if(r.fuente&&r.fuente.indexOf('mercadolibre')===0){
         const cond=r.condicion==='new'?'Nuevo':(r.condicion==='used'?'Usado':r.condicion||'');
-        const envio=r.envioGratis?' &#8226; <svg class="ic" aria-hidden="true"><use href="#i-truck"></use></svg> Env&#237;o gratis':'';
-        metaHtml=`<div style="font-size:0.85rem;color:#9a9a9a;margin-top:6px">${cond}${envio}${r.vendidos!=null?' &#8226; '+r.vendidos+' vendidos':''}${r.disponibles!=null?' &#8226; '+r.disponibles+' disponibles':''}</div>`;
-        if(r.categoria)metaHtml+=`<div style="font-size:0.8rem;color:#777;margin-top:2px">Categor&#237;a: ${r.categoria}</div>`;
+        metaHtml=`<div style="font-size:0.85rem;color:#9a9a9a;margin-top:6px">${cond}${r.vendidos!=null?' &#183; '+r.vendidos+' vendidos':''}${r.disponibles!=null?' &#183; '+r.disponibles+' disponibles':''}</div>`;
       }
-      let alibabaForm='';
-      if(r.fuente==='alibaba'){
-        alibabaForm=`<div style="margin-top:14px;padding:12px;border:1px dashed #4a3d1d;border-radius:8px;background:#1a1606">
-          <div style="font-weight:600;color:#FFE600;margin-bottom:6px"><svg class="ic" aria-hidden="true"><use href="#i-build"></use></svg> Complet&#225; los datos de Alibaba</div>
-          <div style="font-size:0.82rem;color:#9a9a9a;margin-bottom:10px">${r.aviso||''}</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
-            <div><label style="font-size:0.82rem;color:#bbb">Precio FOB (USD/unidad) <span title="${r.explicacion?.FOB||''}" style="cursor:help;color:#FFE600"><svg class="ic" aria-hidden="true"><use href="#i-info"></use></svg></span></label><input type="number" step="0.01" min="0" id="mrLinkFOB" placeholder="Ej: 2.50" style="width:100%;margin-top:4px"/></div>
-            <div><label style="font-size:0.82rem;color:#bbb">MOQ (unidades) <span title="${r.explicacion?.MOQ||''}" style="cursor:help;color:#FFE600"><svg class="ic" aria-hidden="true"><use href="#i-info"></use></svg></span></label><input type="number" step="1" min="1" id="mrLinkMOQ" placeholder="Ej: 100" style="width:100%;margin-top:4px"/></div>
-            <div><label style="font-size:0.82rem;color:#bbb">Peso/unidad (kg) <span title="Sirve para estimar el flete" style="cursor:help;color:#FFE600"><svg class="ic" aria-hidden="true"><use href="#i-info"></use></svg></span></label><input type="number" step="0.01" min="0" id="mrLinkPeso" placeholder="Ej: 0.25" style="width:100%;margin-top:4px"/></div>
-          </div>
-          <div style="font-size:0.78rem;color:#777;margin-top:8px"><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> ${r.explicacion?.por_que_manual||''}</div>
+
+      // 7.d) El termino de busqueda castellano es lo que va al buscador de
+      //      MeLi, no el titulo crudo en ingles. Se muestran los dos y el
+      //      termino queda editable.
+      const term=r.terminoBusqueda||titulo;
+      const termFuente=r.terminoBusquedaFuente==='ia-nombrarProductos'
+        ? 'traducido al t&#233;rmino con el que se busca en MeLi'
+        : 'no pude traducirlo: es el t&#237;tulo original recortado';
+      const terminoHtml=`
+        <div style="margin-top:12px;padding:12px;border:1px solid #2a2a2a;border-radius:8px;background:#0f0f0f">
+          <div style="font-size:.82rem;color:#9a9a9a;margin-bottom:6px">Producto: <span style="color:#ddd">${titulo||'(sin t&#237;tulo)'}</span></div>
+          <label style="font-size:.82rem;color:#bbb;display:block;margin-bottom:4px">Busco en MeLi como <span style="opacity:.7">(${termFuente} &#183; editable)</span></label>
+          <input type="text" id="mrTerminoBusqueda" value="${String(term).replace(/"/g,'&quot;')}" style="width:100%"/>
         </div>`;
+
+      // 7.c) El rango de precio leido del HTML no se autocompleta nunca: es
+      //      el primer "$X - $Y" del documento, sin saber a que tramo de
+      //      cantidad corresponde. Va como sugerencia con boton de aceptar.
+      let sugerenciaFOB='';
+      if(r.precioSugeridoMin!=null){
+        sugerenciaFOB=`
+          <div style="margin-top:12px;padding:12px;border:1px dashed #e0a020;border-radius:8px;background:rgba(224,160,32,.08)">
+            <div style="font-size:.86rem;color:#f0c877;line-height:1.5">En la p&#225;gina vi un rango <b>USD ${r.precioSugeridoMin} &#8211; ${r.precioSugeridoMax}</b>. &#191;Es el precio de tu tramo de cantidad?</div>
+            <div style="font-size:.76rem;color:#b89a6f;margin:6px 0 8px">No lo cargo solo: el rango sale del primer precio que aparece en el HTML y puede ser de otro producto o de otro tramo.</div>
+            <button class="btn-outline-dim" style="padding:6px 12px;font-size:.82rem" onclick="aceptarFOBSugerido(${r.precioSugeridoMin})">S&#237;, usar USD ${r.precioSugeridoMin} como FOB</button>
+          </div>`;
       }
-      const desc=r.descripcion?`<div style="margin-top:10px;padding:10px;background:#0a0a0a;border-radius:6px;font-size:0.85rem;color:#bbb;max-height:120px;overflow:auto">${(r.descripcion||'').substring(0,500)}${r.descripcion.length>500?'...':''}</div>`:'';
+
+      const manualAli=r.fuente==='alibaba'?`
+        <div style="margin-top:12px;padding:12px;border:1px dashed #4a3d1d;border-radius:8px;background:#1a1606">
+          <div style="font-weight:600;color:#FFE600;margin-bottom:10px">Complet&#225; los datos de Alibaba</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+            <div><label style="font-size:.82rem;color:#bbb">Precio FOB (USD/unidad)</label><input type="number" step="0.01" min="0" id="mrLinkFOB" placeholder="Ej: 12.50" style="width:100%;margin-top:4px"/></div>
+            <div><label style="font-size:.82rem;color:#bbb">MOQ (unidades)</label><input type="number" step="1" min="1" id="mrLinkMOQ" placeholder="Ej: 100" style="width:100%;margin-top:4px"/></div>
+            <div><label style="font-size:.82rem;color:#bbb">Peso/unidad (kg)</label><input type="number" step="0.01" min="0" id="mrLinkPeso" placeholder="Ej: 0.25" style="width:100%;margin-top:4px"/></div>
+          </div>
+          <div style="font-size:.78rem;color:#b89a6f;margin-top:8px">Sin el peso no puedo evaluar si el flete se come el producto.</div>
+        </div>`:'';
+
+      const desc=descripcion?`<div style="margin-top:10px;padding:10px;background:#0a0a0a;border-radius:6px;font-size:0.85rem;color:#bbb;max-height:120px;overflow:auto">${descripcion.substring(0,500)}${descripcion.length>500?'...':''}</div>`:'';
       card.innerHTML=`
         <div style="display:flex;gap:14px;align-items:flex-start;padding:12px;border:1px solid #2a2a2a;border-radius:10px;background:#0a0a0a">
           ${img}
           <div style="flex:1;min-width:0">
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px"><span style="font-size:0.78rem;color:#888">${fuenteNombre}</span>${realBadge}</div>
-            <div style="font-weight:600;color:#fff;font-size:1rem;line-height:1.3">${r.titulo||'(sin t&#237;tulo)'}</div>
+            <div style="font-weight:600;color:#fff;font-size:1rem;line-height:1.3">${titulo||'(sin t&#237;tulo)'}</div>
             ${precioHtml}
             ${metaHtml}
-            <div style="margin-top:8px"><a href="${r.permalink||'#'}" target="_blank" rel="noopener" style="font-size:0.8rem;color:#FFE600">Ver publicaci&#243;n original &#8599;</a></div>
+            ${r.permalink?`<div style="margin-top:8px"><a href="${r.permalink}" target="_blank" rel="noopener" style="font-size:0.8rem;color:#FFE600">Ver publicaci&#243;n original &#8599;</a></div>`:''}
           </div>
         </div>
         ${desc}
-        ${alibabaForm}
+        ${terminoHtml}
+        ${sugerenciaFOB}
+        ${manualAli}
         <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn-mr-analyze" onclick="useProductForMarketRead()"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg> Hacer lectura de mercado de este producto</button>
+          <button class="btn-mr-analyze" onclick="useProductForMarketRead()">Hacer lectura de mercado de este producto</button>
           <button class="btn-outline-dim" style="padding:8px 14px" onclick="clearProductCard()">Limpiar</button>
-        </div>
-      `;
+        </div>`;
     }
+
+    // El FOB nunca se autocompleta solo: entra por aca, con el usuario
+    // confirmando que el rango leido corresponde a su tramo de cantidad.
+    function aceptarFOBSugerido(v){
+      const f=document.getElementById('mrFOB');
+      if(f){ f.value=String(v); f.dispatchEvent(new Event('input',{bubbles:true})); }
+      const lf=document.getElementById('mrLinkFOB');
+      if(lf) lf.value=String(v);
+      alert('Listo: FOB USD '+v+' cargado. Revisalo contra el tramo de cantidad que vas a comprar.');
+    }
+    window.aceptarFOBSugerido=aceptarFOBSugerido;
 
     function clearProductCard(){
       document.getElementById('mrProductCard').style.display='none';
@@ -889,36 +961,48 @@ function toggleHistory(){
     function useProductForMarketRead(){
       if(!mrLastProductData)return;
       const r=mrLastProductData;
-      // Volcar el t&#237;tulo al campo principal
       const titleInput=document.getElementById('mrProductInput');
-      if(titleInput&&r.titulo)titleInput.value=r.titulo;
-      // Si es Alibaba y el usuario carg&#243; FOB/MOQ/Peso, pasarlos al c&#225;lculo
-      if(r.fuente==='alibaba'){
-        const fob=document.getElementById('mrLinkFOB');
-        const moq=document.getElementById('mrLinkMOQ');
-        const peso=document.getElementById('mrLinkPeso');
-        if(fob&&fob.value){const f=document.getElementById('mrFOB');if(f)f.value=fob.value;}
-        if(peso&&peso.value){const p=document.getElementById('mrPesoKg');if(p)p.value=peso.value;}
-        if(moq&&moq.value){window.mrMOQ=parseInt(moq.value,10);}
-      }
-      // Si es MercadoLibre y hay precio, lo guardamos como referencia de precio de venta
-      if(r.fuente==='mercadolibre'&&r.precio!=null){
+      // Lo que va al buscador de MeLi es el termino castellano (editable por
+      // el usuario), no el titulo crudo en ingles.
+      const termEl=document.getElementById('mrTerminoBusqueda');
+      const tituloManual=document.getElementById('mrLinkTitulo');
+      let termino='';
+      if(termEl&&termEl.value.trim()) termino=termEl.value.trim();
+      else if(tituloManual&&tituloManual.value.trim()) termino=tituloManual.value.trim();
+      else termino=r.terminoBusqueda||r.titulo||r['título']||'';
+      if(titleInput&&termino)titleInput.value=termino;
+
+      const fob=document.getElementById('mrLinkFOB');
+      const moq=document.getElementById('mrLinkMOQ');
+      const peso=document.getElementById('mrLinkPeso');
+      if(fob&&fob.value){const f=document.getElementById('mrFOB');if(f)f.value=fob.value;}
+      if(peso&&peso.value){const p=document.getElementById('mrPesoKg');if(p){p.value=peso.value;p.dispatchEvent(new Event('input',{bubbles:true}));}}
+      if(moq&&moq.value){window.mrMOQ=parseInt(moq.value,10);}
+      if(r.fuente&&r.fuente.indexOf('mercadolibre')===0&&r.precio!=null){
         window.mrPrecioReferenciaARS=r.precio;
+        const pv=document.getElementById('mrPrecioVenta');
+        if(pv&&!pv.value)pv.value=String(Math.round(r.precio));
       }
-      // Arrancar el an&#225;lisis existente
+      if(!termino){alert('Cargá el título o el término de búsqueda antes de seguir.');return;}
       startMRAnalysis();
-      // Scrollear al resultado
       setTimeout(()=>{const el=document.getElementById('mrStep1');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});},300);
     }
 
-    
-function mrLoadingHTML(txt){return `<div class="mr-loading"><div class="dot-anim"><span></span><span></span><span></span></div><span>${txt}</span></div>`;}
+    function mrLoadingHTML(txt){return `<div class="mr-loading"><div class="dot-anim"><span></span><span></span><span></span></div><span>${txt}</span></div>`;}
 
 async function startMRAnalysis(){
   const product=document.getElementById('mrProductInput').value.trim();
   if(!product){alert('Ingres&#225; un producto para analizar');return;}
   mrCurrentProduct=product;
-  mrData={product,capital:document.getElementById('mrCapital').value,canal:document.getElementById('mrCanal').value,tc:parseFloat(document.getElementById('mrTipoCambio').value)||1250};
+  // Sin tipo de cambio no se calcula nada: antes caia en 1250 hardcodeado y
+  // el margen salia inflado sin que nadie se enterara.
+  const tcInput=parseFloat(document.getElementById('mrTipoCambio').value);
+  if(!isFinite(tcInput)||tcInput<=0){
+    alert('Falta el tipo de cambio. Eleg\u00ed un tipo de d\u00f3lar o cargalo a mano: sin \u00e9l el margen no significa nada.');
+    if(window.__mrCargarDolar) window.__mrCargarDolar();
+    return;
+  }
+  mrData={product,capital:document.getElementById('mrCapital').value,canal:document.getElementById('mrCanal').value,tc:tcInput};
   document.getElementById('btnMRAnalyze').disabled=true;
   document.getElementById('mrSteps').classList.add('visible');
   document.getElementById('mrResult').classList.remove('visible');
@@ -953,10 +1037,17 @@ async function runMRStep1(product){
     const tendIcon=r.tendencia==='subiendo'?'\u2191':r.tendencia==='bajando'?'\u2193':'\u2192';
     const tags=(r.tags||[]).map(t=>`<span class="mr-tag tag-info">${t}</span>`).join('');
     const monthlyRows=r.monthlyData?(r.monthlyData.map(m=>`<div class="mr-row"><span class="mr-row-label">${m.label}</span><span class="mr-row-value" style="color:var(--gold)">${m.valor}/100</span></div>`).join('')):'';
-    document.getElementById('mrStep1Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Tendencia en Argentina</span><span class="mr-row-value"><span class="mr-tag ${tendColor}">${tendIcon} ${r.tendencia}</span></span></div><div class="mr-row"><span class="mr-row-label">Nivel de demanda</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">${r.nivelDemanda||'--'}</span></div><div class="mr-row"><span class="mr-row-label">Temporalidad</span><span class="mr-row-value">${r.temporalidad||'--'}</span></div><div class="mr-row"><span class="mr-row-label">Score de demanda</span><span class="mr-row-value">${r.demandaScore||'--'}/100</span></div><div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.aviso?r.aviso+' ':''}${r.descripcion||''}</div><div style="margin-top:8px">${tags}</div><div style="margin-top:12px"><span class="mr-tag tag-info"><svg class="ic" aria-hidden="true"><use href="#i-trend"></use></svg> Datos de demanda basados en categor&#237;a y estacionalidad AR</span></div>${monthlyRows}`;
+    // 5) De donde salio la curva. Si Google Trends no respondio, el score y los
+    //    12 meses los estimo el modelo: se dice, con un badge visible, en vez
+    //    de mostrarlos como dato medido.
+    const esEstimacion=r.fuenteDemanda!=='google-trends';
+    const badgeFuente=esEstimacion
+      ? `<div class="mr-badge-estimacion">Estimaci&#243;n de IA &#8212; Google Trends no disponible. No es un dato medido.${r.trendsMotivo?`<div style="font-weight:400;font-size:.78rem;margin-top:4px;opacity:.85">Motivo: ${r.trendsMotivo}</div>`:''}</div>`
+      : `<div style="margin:10px 0"><span class="mr-tag tag-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Google Trends Argentina, 12 meses medidos</span></div>`;
+    document.getElementById('mrStep1Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Tendencia en Argentina</span><span class="mr-row-value"><span class="mr-tag ${tendColor}">${tendIcon} ${r.tendencia}</span></span></div><div class="mr-row"><span class="mr-row-label">Nivel de demanda</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">${r.nivelDemanda||'--'}</span></div><div class="mr-row"><span class="mr-row-label">Temporalidad</span><span class="mr-row-value">${r.temporalidad||'--'}</span></div><div class="mr-row"><span class="mr-row-label">Score de demanda</span><span class="mr-row-value">${r.demandaScore||'--'}/100</span></div><div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.aviso?r.aviso+' ':''}${r.descripcion||''}</div><div style="margin-top:8px">${tags}</div>${badgeFuente}${monthlyRows}`;
   }catch(e){
     document.getElementById('mrStep1Body').innerHTML='<span style="color:var(--red);font-size:.82rem">Error al obtener datos. Continu&#225; con los pasos guiados.</span>';
-    mrData.step1={tendencia:'estable',demandaScore:50,temporalidad:'todo el a&#241;o',tags:[],nivelDemanda:'medio'};
+    mrData.step1={tendencia:'estable',demandaScore:50,temporalidad:'todo el a&#241;o',tags:[],nivelDemanda:'medio',fuenteDemanda:'estimacion-ia',trendsMotivo:'el paso de demanda fall\u00f3'};
   }
 }
 
@@ -1015,41 +1106,116 @@ async function runMRStep2(product){
     const compData=Array.isArray(r.competitors)?r.competitors:[];
     mrData.competitors=compData;
     const compRows=compData.map((c,i)=>`<tr><td class="comp-rank">#${c.rank||(i+1)}</td><td class="comp-name" title="${c.name}">${c.name}</td><td class="comp-price">ARS ${c.price.toLocaleString('es-AR')}</td><td class="comp-sales">${c.soldQty||0} vendidos</td><td><span class="comp-rep ${c.repClass}">${c.reputation||c.rep||'N/A'}</span></td></tr>`).join('');
-    const extraInfo=r.totalResults?`<div class="mr-row"><span class="mr-row-label">Total publicaciones activas</span><span class="mr-row-value">${r.totalResults.toLocaleString('es-AR')}</span></div>`:'';
+    // El total del catalogo NO son publicaciones activas: son productos de
+    // catalogo. El backend manda el rotulo correcto y aca se usa ese.
+    const totalNum=r.totalResults!=null?r.totalResults:(r.totalCatalogo!=null?r.totalCatalogo:null);
+    const totalLbl=r.totalLabel||'Total publicaciones activas';
+    const extraInfo=totalNum?`<div class="mr-row"><span class="mr-row-label">${totalLbl}</span><span class="mr-row-value">${totalNum.toLocaleString('es-AR')}</span></div>`:'';
     const catInfo=r.categoryName?`<div class="mr-row"><span class="mr-row-label">Categor&#237;a principal</span><span class="mr-row-value">${r.categoryName}</span></div>`:'';
-    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers &#250;nicos reales</span><span class="mr-row-value">${r.sellersEstimados}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios reales</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio real</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">ARS ${fmt(r.precioPromedioARS)}</span></div>${catInfo}${extraInfo}<div class="mr-row"><span class="mr-row-label">Nivel de saturaci&#243;n</span><span class="mr-row-value"><span class="mr-tag ${satColor}">${r.saturacion||'--'}</span></span></div><div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.aviso?r.aviso+' ':''}${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)"><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> Oportunidad: ${r.oportunidad}</div>`:''}<div style="margin-top:12px"><span class="mr-tag tag-info"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg> ${mrFuenteLabel(r.fuente)}</span></div><table class="mr-comp-table"><thead><tr><th>#</th><th>Producto / Seller</th><th>Precio</th><th>Vendidos</th><th>Reputaci&#243;n</th></tr></thead><tbody>${compRows}</tbody></table>`;
+    const satInfo=r.saturacion?`<div class="mr-row"><span class="mr-row-label">Nivel de saturaci&#243;n</span><span class="mr-row-value"><span class="mr-tag ${satColor}">${r.saturacion}</span></span></div>`:`<div class="mr-row"><span class="mr-row-label">Nivel de saturaci&#243;n</span><span class="mr-row-value" style="color:var(--text-dim)">no calculable con esta fuente</span></div>`;
+    const tablaComp=compRows?`<table class="mr-comp-table"><thead><tr><th>#</th><th>Producto / Seller</th><th>Precio</th><th>Vendidos</th><th>Reputaci&#243;n</th></tr></thead><tbody>${compRows}</tbody></table>`:'';
+    const pieFuente=`<div style="margin-top:12px"><span class="mr-tag tag-info"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg> ${mrFuenteLabel(r.fuente)}</span></div>`;
+
+    // 3) Con menos de 8 publicaciones no hay rango, ni promedio, ni mediana:
+    //    un precio "de mercado" sacado de una publicacion es un invento.
+    if(r.muestraInsuficiente){
+      document.getElementById('mrStep2Body').innerHTML=
+        `<div class="mr-badge-estimacion">Muestra insuficiente (${r.muestra||0} ${r.muestra===1?'publicaci&#243;n':'publicaciones'}). No calculo precio de referencia con esto.</div>`+
+        `<div class="mr-row"><span class="mr-row-label">Publicaciones encontradas</span><span class="mr-row-value">${r.muestra||0}</span></div>`+
+        (r.sellersEstimados!=null?`<div class="mr-row"><span class="mr-row-label">Sellers &#250;nicos en la muestra</span><span class="mr-row-value">${r.sellersEstimados}</span></div>`:'')+
+        catInfo+extraInfo+
+        `<div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">Busc&#225; el producto en MercadoLibre y anot&#225; precio y vendidos de las primeras 10 publicaciones: con eso s&#237; se puede fijar un precio de referencia.</div>`+
+        pieFuente+tablaComp;
+      return;
+    }
+
+    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers &#250;nicos reales</span><span class="mr-row-value">${r.sellersEstimados}</span></div><div class="mr-row"><span class="mr-row-label">Publicaciones en la muestra</span><span class="mr-row-value">${r.muestra||compData.length}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios reales</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio real</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">ARS ${fmt(r.precioPromedioARS)}</span></div>${r.envioGratisPct!=null?`<div class="mr-row"><span class="mr-row-label">Ofrecen env&#237;o gratis</span><span class="mr-row-value">${r.envioGratisPct}% (${r.envioGratisCount||0} de ${r.envioGratisTotal||0})</span></div>`:''}${catInfo}${extraInfo}${satInfo}<div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.aviso?r.aviso+' ':''}${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)"><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> Oportunidad: ${r.oportunidad}</div>`:''}${pieFuente}${tablaComp}`;
   }catch(e){
     document.getElementById('mrStep2Body').innerHTML='<span style="color:var(--red);font-size:.82rem">Error al analizar MeLi. Continu&#225; con los pasos guiados.</span>';
-    mrData.step2={sellersEstimados:0,precioMinARS:0,precioMaxARS:0,precioPromedioARS:0,competenciaScore:50,saturacion:'moderado'};
+    mrData.step2={fuente:'no-disponible',muestraInsuficiente:true,muestra:0,sellersEstimados:null,precioMinARS:null,precioMaxARS:null,precioPromedioARS:null,competenciaScore:null,saturacion:null,envioGratisPct:null,competitors:[]};
   }
 }
 
+// Score de traccion de contenido. Antes salia solo del dropdown
+// (si=70 / pocos=50 / no=30) y el numero de vistas se descartaba: un producto
+// con 12 videos de 2 mil vistas puntuaba igual que uno con 12 videos de 3
+// millones. Ahora la base sale de las vistas, en escala logaritmica (los
+// saltos que importan son de orden de magnitud, no lineales), y el dropdown
+// solo la multiplica.
+function mrScoreTikTok(step3){
+  if(!step3||step3.omitido) return {score:30,base:30,mult:1,vistas:0,motivo:'Paso salteado: sin dato de vistas ni de contenido en Argentina.'};
+  const v=Number(step3.views)||0;
+  let base,tramo;
+  if(!v){ base=35; tramo='sin dato de vistas'; }
+  else if(v<10000){ base=20; tramo='menos de 10k vistas'; }
+  else if(v<100000){ base=45; tramo='entre 10k y 100k vistas'; }
+  else if(v<1000000){ base=70; tramo='entre 100k y 1M de vistas'; }
+  else { base=90; tramo='mas de 1M de vistas'; }
+  const mult=step3.arg==='si'?1.0:step3.arg==='pocos'?0.85:0.7;
+  const multLabel=step3.arg==='si'?'contenido en Argentina (x1.0)':step3.arg==='pocos'?'poco contenido en Argentina (x0.85)':'sin contenido en Argentina (x0.7)';
+  return {
+    score: Math.round(base*mult), base, mult, vistas:v, tramo, multLabel,
+    motivo: 'Base '+base+' por '+tramo+', por '+multLabel+'.'
+  };
+}
+
 function confirmMRStep3(){
-  const views=parseFloat(document.getElementById('mrTiktokViews').value)||0;
+  // El input acepta "250k", "1.2M", "300mil": se parsea con el mismo lector
+  // que muestra el hint debajo del campo, no con parseFloat.
+  const rawEl=document.getElementById('mrTiktokViews');
+  const raw=rawEl?rawEl.value:'';
+  let views=window.__parseSmartNumber?window.__parseSmartNumber(raw):parseFloat(raw);
+  if(!isFinite(views)||views<0) views=0;
   const arg=document.getElementById('mrTiktokArg').value;
   mrData.step3={views,arg};
+  const sc=mrScoreTikTok(mrData.step3);
+  mrData.step3.score=sc.score;
+  mrData.step3.scoreMotivo=sc.motivo;
   const argLabel=arg==='si'?'S&#237;, hay varios':arg==='pocos'?'Pocos (1-2)':'No';
-  document.getElementById('mrStep3Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Vistas promedio top 3</span><span class="mr-row-value">${views.toLocaleString('es-AR')}</span></div><div class="mr-row"><span class="mr-row-label">Contenido en Argentina</span><span class="mr-row-value">${argLabel}</span></div><div style="margin-top:8px"><span class="mr-tag tag-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Datos TikTok registrados</span></div>`;
+  const scColor=sc.score>=70?'var(--green)':sc.score>=45?'var(--gold)':'var(--red)';
+  document.getElementById('mrStep3Body').innerHTML=
+    `<div class="mr-row"><span class="mr-row-label">Vistas promedio top 3</span><span class="mr-row-value">${views?views.toLocaleString('es-AR'):'sin dato'}</span></div>`+
+    `<div class="mr-row"><span class="mr-row-label">Contenido en Argentina</span><span class="mr-row-value">${argLabel}</span></div>`+
+    `<div class="mr-row"><span class="mr-row-label">Score de tracci&#243;n</span><span class="mr-row-value" style="color:${scColor};font-weight:700">${sc.score}/100</span></div>`+
+    `<div style="margin-top:6px;font-size:.82rem;color:var(--text-dim)">De d&#243;nde sale: ${sc.motivo}</div>`+
+    `<div style="margin-top:8px"><span class="mr-tag tag-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Datos TikTok registrados</span></div>`;
 }
 
 // El paso de TikTok es opcional: si lo saltean, el score se calcula igual y
 // se deja registrado que la demanda se midio con menos precision.
 function skipMRStep3(){
   mrData.step3={views:0,arg:'no-informado',omitido:true};
+  const sc=mrScoreTikTok(mrData.step3);
+  mrData.step3.score=sc.score;
+  mrData.step3.scoreMotivo=sc.motivo;
   document.getElementById('mrStep3Body').innerHTML=
     '<div class="mr-row"><span class="mr-row-label">Tracci&#243;n en TikTok</span>'+
     '<span class="mr-row-value">Sin medir</span></div>'+
+    '<div class="mr-row"><span class="mr-row-label">Score de tracci&#243;n</span>'+
+    '<span class="mr-row-value">'+sc.score+'/100 (por defecto)</span></div>'+
     '<div style="margin-top:8px"><span class="mr-tag tag-info">'+
     '<svg class="ic" aria-hidden="true"><use href="#i-info"></use></svg> '+
     'Paso salteado: calculo el score igual, con menos precisi&#243;n en demanda.</span></div>';
   if(window.mcTrack) window.mcTrack('tiktok_salteado',{producto:mrCurrentProduct||''});
 }
 
+// Tarifa de logistica de MeLi por modalidad. Vive afuera del paso 4 porque los
+// escenarios de quiebre la vuelven a evaluar a otros precios de venta: la
+// formula tiene que ser una sola.
+function mrTarifaLogisticaARS(precio,mod){
+  if(mod==='retiro')return 0;
+  const envioGratis=precio>=35000;
+  if(mod==='full'){const fija=precio<15000?2800:precio<30000?3600:4500;const almacen=precio*0.015;return fija+almacen;}
+  if(mod==='flex')return 1200;
+  if(mod==='estandar'){const tarifaBase=precio<15000?2500:3500;return envioGratis?tarifaBase*0.5:0;}
+  return 0;
+}
+
 function confirmMRStep4(){
   const fob=parseFloat(document.getElementById('mrFOB').value)||0;
   const ventas=parseFloat(document.getElementById('mrVentas').value)||0;
   const venta=parseFloat(document.getElementById('mrPrecioVenta').value)||0;
-  if(!fob||!venta){alert('Complet&#225; al menos el precio FOB y el precio de venta');return;}
+  if(!fob||!venta){alert('Completá al menos el precio FOB y el precio de venta');return;}
   const tc=mrData.tc;
   const s2=mrData.step2||{};
   const modalidad=(document.getElementById('mrModalidad')||{}).value||'flex';
@@ -1057,30 +1223,25 @@ function confirmMRStep4(){
   mrData.modalidad=modalidad;mrData.posicion=posicion;
   const factorPos=posicion==='premium'?1.25:posicion==='multifuncion'?1.45:1.00;
   let medianoARS=0;
-  if(s2.competitors&&s2.competitors.length){
+  // Con muestra insuficiente no hay precio de referencia: no se calcula mediana
+  // sobre 1 o 2 publicaciones ni se la muestra como si fuera el mercado.
+  if(!s2.muestraInsuficiente&&s2.competitors&&s2.competitors.length>=3){
     const arr=s2.competitors.map(c=>c.price).filter(p=>p>0).sort((a,b)=>a-b);
     if(arr.length){const m=Math.floor(arr.length/2);medianoARS=arr.length%2?arr[m]:Math.round((arr[m-1]+arr[m])/2);}
   }
-  if(!medianoARS&&s2.precioPromedioARS){medianoARS=Math.round(s2.precioPromedioARS*0.92);}
+  if(!medianoARS&&!s2.muestraInsuficiente&&s2.precioPromedioARS){medianoARS=Math.round(s2.precioPromedioARS*0.92);}
   medianoARS=Math.round(medianoARS*factorPos);
   const usaMediano=medianoARS>0&&Math.abs(venta-medianoARS)/medianoARS>0.25;
-  const catName=(s2.categoryName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const catName=(s2.categoryName||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
   let comisionPct=0.15;
-  if(/electron|tecnolog|celular|computa/.test(catName))comisionPct=0.165;
+  if(/electron|tecnolog|celular|computa|inform|audio|video|proyector|imagen|sonido/.test(catName))comisionPct=0.165;
   else if(/hogar|deco|mueble/.test(catName))comisionPct=0.14;
   else if(/deport|fitness/.test(catName))comisionPct=0.13;
   else if(/moda|indumen|ropa|calzado/.test(catName))comisionPct=0.16;
-  else if(/mascot|bebe|ni&#241;/.test(catName))comisionPct=0.13;
-  else if(/herramienta|industri/.test(catName))comisionPct=0.12;
-  const ivaPct=0.21;const iibbPct=0.03;const ivaImportPct=0.21;
-  function tarifaLogisticaARS(precio,mod){
-    if(mod==='retiro')return 0;
-    const envioGratis=precio>=35000;
-    if(mod==='full'){const fija=precio<15000?2800:precio<30000?3600:4500;const almacen=precio*0.015;return fija+almacen;}
-    if(mod==='flex')return 1200;
-    if(mod==='estandar'){const tarifaBase=precio<15000?2500:3500;return envioGratis?tarifaBase*0.5:0;}
-    return 0;
-  }
+  else if(/mascot|bebe|niñ|nin/.test(catName))comisionPct=0.13;
+  else if(/herramienta|industri|construc/.test(catName))comisionPct=0.12;
+  const ivaPct=0.21;const iibbPct=0.03;
+  const tarifaLogisticaARS=mrTarifaLogisticaARS;
   const recargoFull=modalidad==='full'?0.05:0;
   const comisionFinalPct=comisionPct+recargoFull;
   const logisticaARS=mrData.canal==='mercadolibre'?tarifaLogisticaARS(venta,modalidad):0;
@@ -1088,29 +1249,64 @@ function confirmMRStep4(){
   const fleteUSD=(window.__getFleteUSDPerUnit?window.__getFleteUSDPerUnit(fob):fob*0.15);
   const seguroUSD=(fob+fleteUSD)*0.015;
   const cifUSD=fob+fleteUSD+seguroUSD;
-  const arancelesUSD=cifUSD*(window.__getArancelRate?window.__getArancelRate():0.35);
+  const arancelRate=(window.__getArancelRate?window.__getArancelRate():0.20);
+  const arancelesUSD=cifUSD*arancelRate;
+  // Tasa de estadistica: 3% sobre CIF. No estaba en el calculo y se paga
+  // siempre (salvo exenciones por posicion), asi que subvaluaba el landed.
+  const tasaEstadisticaPct=0.03;
+  const tasaEstadisticaUSD=cifUSD*tasaEstadisticaPct;
   const despachoUSD=cifUSD*0.08;
-  const costoLandedUSD=fob+fleteUSD+seguroUSD+arancelesUSD+despachoUSD+empaqueUSD;
+  const costoLandedUSD=fob+fleteUSD+seguroUSD+arancelesUSD+tasaEstadisticaUSD+despachoUSD+empaqueUSD;
+
+  // IVA de importacion. La base imponible NO es el costo landed: es
+  // CIF + aranceles + tasa de estadistica.
+  //   ivaImportacion = base * 21%  -> credito fiscal del periodo
+  //   ivaAdicional   = base * 20%  -> percepcion, es pago a cuenta:
+  //                                    sale de la caja pero NO es credito
+  //                                    del periodo.
+  // Antes se hacia landed - landed/1.21, que asume que el landed YA incluye
+  // IVA. No lo incluye (es FOB+flete+seguro+aranceles+despacho+empaque), asi
+  // que ese "credito" era un numero inventado que inflaba el margen.
+  const ivaImportPct=0.21;
+  const ivaAdicionalPct=0.20;
+  const baseImponibleUSD=cifUSD+arancelesUSD+tasaEstadisticaUSD;
+  const ivaImportacionUSD=baseImponibleUSD*ivaImportPct;
+  const ivaAdicionalUSD=baseImponibleUSD*ivaAdicionalPct;
+
   const fobARS=fob*tc;
   const fleteARS=fleteUSD*tc;
   const seguroARS=seguroUSD*tc;
   const arancelesARS=arancelesUSD*tc;
+  const tasaEstadisticaARS=tasaEstadisticaUSD*tc;
   const despachoARS=despachoUSD*tc;
   const empaqueARS=empaqueUSD*tc;
   const costoLandedARS=costoLandedUSD*tc;
+  const baseImponibleARS=baseImponibleUSD*tc;
+  const ivaImportacionARS=ivaImportacionUSD*tc;
+  const ivaAdicionalARS=ivaAdicionalUSD*tc;
+
   const comisionMeLiARS=venta*comisionFinalPct;
-  const ivaDebitoARS=venta-(venta/(1+ivaPct));const ivaCreditoARS=(costoLandedARS+logisticaARS)-((costoLandedARS+logisticaARS)/(1+ivaImportPct));const ivaARS=Math.max(0,ivaDebitoARS-ivaCreditoARS);
+  const ivaDebitoARS=venta-(venta/(1+ivaPct));
+  const ivaCreditoARS=ivaImportacionARS;          // el adicional es a cuenta, no credito del periodo
+  const ivaARS=Math.max(0,ivaDebitoARS-ivaCreditoARS);
   const iibbARS=venta*iibbPct;
   const fullARS=modalidad==='full'?logisticaARS:0;
   const costoTotalARS=costoLandedARS+comisionMeLiARS+ivaARS+iibbARS+logisticaARS;
   const margenARS=venta-costoTotalARS;
   const margenPct=venta>0?Math.round((margenARS/venta)*100):0;
+
+  // Capital inmovilizado por unidad: el landed MAS el IVA de importacion y la
+  // percepcion. Los dos salen de la caja al nacionalizar aunque despues se
+  // recuperen, y hasta ahora no figuraban en ningun lado.
+  const capitalUnitarioARS=costoLandedARS+ivaImportacionARS+ivaAdicionalARS;
+  const capitalUnitarioUSD=capitalUnitarioARS/tc;
+
   const ventasMes=ventas||0;
   const ventasDia=ventasMes/30;
   const capitalUSD=parseFloat(mrData.capital)||10000;
-  const unidadesPosibles=Math.floor(capitalUSD/Math.max(0.01,costoLandedUSD));
+  const unidadesPosibles=Math.floor(capitalUSD/Math.max(0.01,capitalUnitarioUSD));
   const ingresoMensualARS=margenARS*ventasMes;
-  const inversionARS=costoLandedARS*Math.min(unidadesPosibles,Math.max(1,ventasMes));
+  const inversionARS=capitalUnitarioARS*Math.min(unidadesPosibles,Math.max(1,ventasMes));
   const roiMensualPct=inversionARS>0?(ingresoMensualARS/inversionARS)*100:0;
   const roiAnualPct=Math.round(roiMensualPct*12);
   const breakevenUds=margenARS>0?Math.ceil(inversionARS/margenARS):0;
@@ -1119,35 +1315,112 @@ function confirmMRStep4(){
   const scC=100-Math.min(100,(mrData.step2&&mrData.step2.competenciaScore)||50);
   const scM=Math.max(0,Math.min(100,margenPct*2.5));
   const scR=Math.max(0,Math.min(100,roiAnualPct/3));
-  const scDef=mrData.step3&&mrData.step3.arg==='si'?70:mrData.step3&&mrData.step3.arg==='pocos'?50:30;
+  const scDef=mrScoreTikTok(mrData.step3).score;
   const scoreReponderado=Math.round(scD*0.25+scC*0.20+scM*0.30+scR*0.15+scDef*0.10);
-  mrData.step4={fob,ventas,venta,tc,modalidad,posicion,factorPos,costoLanded:costoLandedUSD,costoLandedARS,fobARS,fleteARS,seguroARS,arancelesARS,despachoARS,empaqueARS,comisionMeLiARS,ivaARS,iibbARS,logisticaARS,fullARS,margenARS,margenPct,medianoARS,comisionPct:comisionFinalPct,usaFull:modalidad==='full',roiMensualPct,roiAnualPct,breakevenUds,breakevenDias,unidadesPosibles,ingresoMensualARS,scoreReponderado,scD,scC,scM,scR,scDef};
+
+  mrData.step4={fob,ventas,venta,tc,modalidad,posicion,factorPos,
+    costoLanded:costoLandedUSD,costoLandedARS,cifUSD,fobARS,fleteARS,seguroARS,
+    arancelesARS,arancelRate,tasaEstadisticaARS,tasaEstadisticaPct,despachoARS,empaqueARS,
+    baseImponibleARS,ivaImportacionARS,ivaAdicionalARS,ivaImportPct,ivaAdicionalPct,
+    capitalUnitarioARS,capitalUnitarioUSD,
+    comisionMeLiARS,ivaARS,ivaDebitoARS,ivaCreditoARS,iibbARS,logisticaARS,fullARS,
+    margenARS,margenPct,medianoARS,comisionPct:comisionFinalPct,usaFull:modalidad==='full',
+    roiMensualPct,roiAnualPct,breakevenUds,breakevenDias,unidadesPosibles,inversionARS,
+    ingresoMensualARS,scoreReponderado,scD,scC,scM,scR,scDef};
+
   const mColor=margenPct>=40?'var(--green)':margenPct>=20?'var(--gold)':'var(--red)';
   const fmtA=n=>'ARS '+Math.round(n).toLocaleString('es-AR');
   const modLabel=modalidadLabel(modalidad);
   const advMediano=usaMediano?`<div class="mr-row"><span class="mr-row-label"><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Sugerencia</span><span class="mr-row-value" style="color:var(--gold)">Mediano ${fmtA(medianoARS)} (tu venta difiere ${Math.round((venta-medianoARS)/medianoARS*100)}%)</span></div>`:'';
   const logRow=mrData.canal==='mercadolibre'?`<div class="mr-row"><span class="mr-row-label">Log&#237;stica (${modLabel})</span><span class="mr-row-value">${logisticaARS>0?fmtA(logisticaARS):'gratis (paga comprador)'}</span></div>`:'';
-  document.getElementById('mrStep4Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Precio FOB</span><span class="mr-row-value">USD ${fob.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Costo CIF (FOB+flete+seguro)</span><span class="mr-row-value">USD ${cifUSD.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Costo landed total</span><span class="mr-row-value">USD ${costoLandedUSD.toFixed(2)} / ${fmtA(costoLandedARS)}</span></div><div class="mr-row"><span class="mr-row-label">Comisi&#243;n MeLi (${Math.round(comisionFinalPct*100)}%)</span><span class="mr-row-value">${fmtA(comisionMeLiARS)}</span></div><div class="mr-row"><span class="mr-row-label">IVA (21%)</span><span class="mr-row-value">${fmtA(ivaARS)}</span></div><div class="mr-row"><span class="mr-row-label">IIBB (3%)</span><span class="mr-row-value">${fmtA(iibbARS)}</span></div>${logRow}<div class="mr-row"><span class="mr-row-label">Margen neto estimado</span><span class="mr-row-value" style="color:${mColor};font-size:1.1rem">${margenPct}% (${fmtA(margenARS)})</span></div><div class="mr-row"><span class="mr-row-label">ROI anualizado</span><span class="mr-row-value" style="color:var(--gold)">${roiAnualPct}%</span></div>${breakevenUds?`<div class="mr-row"><span class="mr-row-label">Breakeven</span><span class="mr-row-value">${breakevenUds} uds${breakevenDias?` (~${breakevenDias} d&#237;as)`:''}</span></div>`:''}<div class="mr-row"><span class="mr-row-label">Score reponderado</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">${mrData.step4.scoreReponderado}/100</span></div><div class="mr-row"><span class="mr-row-label">Modalidad / Posicionamiento</span><span class="mr-row-value">${modLabel} &#183; ${posicion}</span></div>${advMediano}${ventas?`<div class="mr-row"><span class="mr-row-label">Ventas/mes top sellers MeLi</span><span class="mr-row-value">${ventas} uds</span></div>`:''}<div style="margin-top:8px"><span class="mr-tag tag-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> C&#225;lculo registrado</span></div>`;
+  document.getElementById('mrStep4Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Precio FOB</span><span class="mr-row-value">USD ${fob.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Costo CIF (FOB+flete+seguro)</span><span class="mr-row-value">USD ${cifUSD.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Aranceles (${Math.round(arancelRate*100)}% s/CIF)</span><span class="mr-row-value">${fmtA(arancelesARS)}</span></div><div class="mr-row"><span class="mr-row-label">Tasa de estad&#237;stica (3% s/CIF)</span><span class="mr-row-value">${fmtA(tasaEstadisticaARS)}</span></div><div class="mr-row"><span class="mr-row-label">Costo landed total</span><span class="mr-row-value">USD ${costoLandedUSD.toFixed(2)} / ${fmtA(costoLandedARS)}</span></div><div class="mr-row"><span class="mr-row-label">Base imponible de importaci&#243;n (CIF+aranceles+tasa)</span><span class="mr-row-value">${fmtA(baseImponibleARS)}</span></div><div class="mr-row"><span class="mr-row-label">IVA de importaci&#243;n (21% s/base) &#8212; cr&#233;dito fiscal</span><span class="mr-row-value">${fmtA(ivaImportacionARS)}</span></div><div class="mr-row"><span class="mr-row-label">Percepci&#243;n IVA adicional (20% s/base) &#8212; pago a cuenta</span><span class="mr-row-value">${fmtA(ivaAdicionalARS)}</span></div><div class="mr-row"><span class="mr-row-label">Capital inmovilizado por unidad</span><span class="mr-row-value" style="color:var(--gold)">${fmtA(capitalUnitarioARS)}</span></div><div class="mr-row"><span class="mr-row-label">Comisi&#243;n MeLi (${Math.round(comisionFinalPct*100)}%)</span><span class="mr-row-value">${fmtA(comisionMeLiARS)}</span></div><div class="mr-row"><span class="mr-row-label">IVA a pagar (d&#233;bito ${fmtA(ivaDebitoARS)} &#8722; cr&#233;dito ${fmtA(ivaCreditoARS)})</span><span class="mr-row-value">${fmtA(ivaARS)}</span></div><div class="mr-row"><span class="mr-row-label">IIBB (3%)</span><span class="mr-row-value">${fmtA(iibbARS)}</span></div>${logRow}<div class="mr-row"><span class="mr-row-label">Margen neto estimado</span><span class="mr-row-value" style="color:${mColor};font-size:1.1rem">${margenPct}% (${fmtA(margenARS)})</span></div><div class="mr-row"><span class="mr-row-label">ROI anualizado</span><span class="mr-row-value" style="color:var(--gold)">${roiAnualPct}%</span></div>${breakevenUds?`<div class="mr-row"><span class="mr-row-label">Breakeven</span><span class="mr-row-value">${breakevenUds} uds${breakevenDias?` (~${breakevenDias} d&#237;as)`:''}</span></div>`:''}<div class="mr-row"><span class="mr-row-label">Score reponderado</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">${mrData.step4.scoreReponderado}/100</span></div><div class="mr-row"><span class="mr-row-label">Modalidad / Posicionamiento</span><span class="mr-row-value">${modLabel} &#183; ${posicion}</span></div>${advMediano}${ventas?`<div class="mr-row"><span class="mr-row-label">Ventas/mes top sellers MeLi</span><span class="mr-row-value">${ventas} uds</span></div>`:''}<div style="margin-top:8px"><span class="mr-tag tag-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> C&#225;lculo registrado</span></div>`;
   runMRFinalAnalysis();
 }
 
 async function runMRFinalAnalysis(){
   document.getElementById('mrResult').classList.add('visible');
-  document.getElementById('gaugeScore').textContent='...';
   document.getElementById('mrResultProduct').textContent=mrCurrentProduct;
-  const {step1,step2,step3,step4}=mrData;
+
+  // 1) La decision se calcula y se dibuja ACA, en JavaScript, con reglas
+  //    deterministas. No depende de que la IA responda.
+  const decision=window.renderMRDecision?window.renderMRDecision(mrData):null;
+
+  // 2) El gauge, las tarjetas de factores y los graficos se dibujan con los
+  //    numeros locales (scD/scC/scM/scR del paso 4). El gauge quedo abajo del
+  //    bloque de decision y es orientativo.
+  try{ if(typeof window.__v9fallback==='function') window.__v9fallback(); }catch(_e){}
+
+  const at=document.getElementById('mrAnalysisText');
+  if(at) at.innerHTML='<div class="v9-note">Redactando el an&#225;lisis...</div>';
+
+  // 3) La IA solo redacta. Se le pasa el objeto de senales ya calculado, los
+  //    escenarios de quiebre y la calidad de datos, y tiene prohibido inventar
+  //    cifras o agregar factores que no esten ahi.
+  if(!decision){ if(at) at.innerHTML=''; document.getElementById('btnMRAnalyze').disabled=false; return; }
+  const paquete={
+    producto:mrCurrentProduct,
+    veredicto:decision.veredicto.titulo,
+    porQueDelVeredicto:decision.veredicto.sub,
+    condicionesParaDarloVuelta:decision.veredicto.condiciones||[],
+    senalesAFavor:decision.senales.aFavor.map(x=>({senal:x.texto,dato:x.dato,peso:x.peso})),
+    senalesEnContra:decision.senales.enContra.map(x=>({senal:x.texto,dato:x.dato,peso:x.peso})),
+    senalesCriticas:decision.senales.criticos.map(x=>({senal:x.texto,dato:x.dato,peso:'critico'})),
+    escenariosDeQuiebre:decision.quiebre,
+    calidadDeDatos:decision.chips.map(c=>({dimension:c.t,estado:c.c==='verde'?'dato medido':(c.c==='ambar'?'estimado':'sin dato'),detalle:c.d})),
+    riesgosSinVerificar:decision.veredicto.riesgosSinTildar||[]
+  };
   try{
-    const prompt=`Sos un analista experto en importaciones China-Argentina. Hac&#233; un an&#225;lisis completo de viabilidad para: "${mrCurrentProduct}". Datos recopilados: - DEMANDA: tendencia=${step1?.tendencia}, demandaScore=${step1?.demandaScore}/100, temporalidad=${step1?.temporalidad}, nivelDemanda=${step1?.nivelDemanda} - COMPETENCIA MELI: sellers\u2248${step2?.sellersEstimados}, saturacion=${step2?.saturacion}, competenciaScore=${step2?.competenciaScore}/100, precio promedio ARS ${step2?.precioPromedioARS}, precio mediano ARS ${step4?.medianoARS||'n/d'}, categoria=${step2?.categoryName||'n/d'} - TIKTOK: vistas promedio top3=${step3?.views||'no informado'}, contenido Argentina=${step3?.arg||'no informado'} - RENTABILIDAD: FOB USD ${step4?.fob}, costo landed USD ${step4?.costoLanded?.toFixed(2)}, comisi&#243;n MeLi ${Math.round((step4?.comisionPct||0.15)*100)}%, IVA 21% + IIBB 3%${step4?.usaFull?' + Full 10%':''}, precio venta ARS ${step4?.venta}, margen NETO ${step4?.margenPct}% (ARS ${Math.round(step4?.margenARS||0).toLocaleString('es-AR')}), ROI anualizado ${step4?.roiAnualPct}%, breakeven ${step4?.breakevenUds} uds, score reponderado ${step4?.scoreReponderado}/100, ventas/mes top sellers=${step4?.ventas||'no informado'} - Canal: ${mrData.canal}, Capital disponible: USD ${mrData.capital} Respond&#233; SOLO con JSON v&#225;lido sin markdown: {"scoreTotal":number 0-100,"scoresDemanda":number 0-100,"scoresCompetencia":number 0-100,"scoresMargen":number 0-100,"scoresRegulatorio":number 0-100,"labelDemanda":"string corto","labelCompetencia":"string corto","labelMargen":"string corto","labelRegulatorio":"string corto","veredicto":"VIABLE|VIABLE CON CONDICIONES|NO RECOMENDADO","veredictoTexto":"2-3 oraciones directas en espa&#241;ol rioplatense","analisisCompleto":"an&#225;lisis detallado de los 4 factores, riesgos principales y pr&#243;ximos pasos. Consider&#225; el ROI anualizado y el breakeven. M&#225;x 350 palabras. Rioplatense, directo."}`;
-    const res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'final',prompt})});
+    const prompt='Sos analista de importaciones China-Argentina. Te paso un analisis YA RESUELTO: el veredicto, las senales con sus numeros, los escenarios de quiebre y la calidad de los datos. Todo eso lo calculo un motor de reglas, no vos.\n\n'+
+      'REGLAS QUE NO PODES ROMPER:\n'+
+      '1. NO decidis el veredicto: ya esta decidido, tu trabajo es explicarlo.\n'+
+      '2. NO inventes ninguna cifra, porcentaje, precio ni plazo. Solo podes usar los numeros que estan en el JSON de abajo, tal cual estan.\n'+
+      '3. NO agregues factores, riesgos ni ventajas que no esten en las senales que te paso.\n'+
+      '4. Si te falta un dato para decir algo, deci que ese dato falta. No lo completes.\n'+
+      '5. Escribi en espanol rioplatense, directo, sin relleno y sin vender nada.\n\n'+
+      'DATOS:\n'+JSON.stringify(paquete)+'\n\n'+
+      'Responde SOLO JSON valido sin markdown: {"parrafos":["parrafo 1","parrafo 2","parrafo 3"],"proximosPasos":["paso 1","paso 2","paso 3"]}\n'+
+      'Los 3 parrafos tienen que desarrollar el POR QUE del veredicto: que riesgo concreto corre la plata, que tendria que pasar para que salga bien y que para que salga mal. Mencionando UNICAMENTE las senales que te pase.\n'+
+      'Los 3 proximos pasos son concretos y acordes al veredicto (por ejemplo, si es CONVIENE SOLO SI: que hay que verificar antes de pagar el FOB, como MOQ real, muestra fisica, certificacion, posicion NCM).';
+    const res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'final',customPrompt:prompt,prompt})});
     const r=await res.json();
-    if(!res.ok) throw new Error(r.error||'Error en an&#225;lisis final');
-    renderMRResult(r);
+    if(!res.ok) throw new Error(r.error||'Error en analisis final');
+    renderAnalisisIA(r,decision);
   }catch(e){
-        try{ if(typeof window.__v9fallback==='function'){ window.__v9fallback(); } }catch(_e){}
-        var _at=document.getElementById('mrAnalysisText');
-        if(_at){ _at.innerHTML='<div class="v9-note"><b><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> An\u00e1lisis inteligente no disponible ahora.</b> Igual calculo tu veredicto con los n\u00fameros reales que cargaste (arriba). El detalle ampliado con IA no carg\u00f3 esta vez \u2014 prob\u00e1 de nuevo en un momento si quer\u00e9s el texto extendido.</div>'; }
-        var _b=document.getElementById('btnMRAnalyze'); if(_b) _b.disabled=false;
-      }
+    if(at) at.innerHTML='<div class="v9-note"><b>El texto ampliado con IA no carg&#243; esta vez.</b> El veredicto, las se&#241;ales y los escenarios de quiebre de arriba est&#225;n calculados con tus n&#250;meros y no dependen de la IA.</div>';
+  }
+  document.getElementById('btnMRAnalyze').disabled=false;
+  try{ guardarAnalisisMR(decision); }catch(_e){}
+}
+
+// El texto de la IA se muestra aparte del bloque de decision, y rotulado como
+// lo que es: una redaccion de senales que ya estaban calculadas.
+function renderAnalisisIA(r,decision){
+  const at=document.getElementById('mrAnalysisText');
+  if(!at) return;
+  const parrafos=Array.isArray(r.parrafos)?r.parrafos:[];
+  const pasos=Array.isArray(r.proximosPasos)?r.proximosPasos:[];
+  at.innerHTML=
+    '<h4 style="margin:0 0 8px;font-size:.95rem;letter-spacing:.03em;text-transform:uppercase;color:var(--gold)">Lectura del veredicto</h4>'+
+    parrafos.map(p=>'<p style="margin:0 0 10px;line-height:1.55">'+p+'</p>').join('')+
+    (pasos.length?'<h4 style="margin:14px 0 8px;font-size:.95rem;letter-spacing:.03em;text-transform:uppercase;color:var(--gold)">Pr&#243;ximos 3 pasos</h4><ol style="margin:0;padding-left:20px">'+
+      pasos.map(x=>'<li style="margin-bottom:6px;line-height:1.5">'+x+'</li>').join('')+'</ol>':'')+
+    '<div style="margin-top:12px;font-size:.76rem;color:var(--text-dim)">Texto redactado por IA a partir de las se&#241;ales calculadas arriba. No agrega n&#250;meros ni factores propios.</div>';
+}
+
+function guardarAnalisisMR(decision){
+  const s2=mrData.step2||{},s4=mrData.step4||{};
+  const score=Math.max(0,Math.min(100,s4.scoreReponderado||0));
+  const monthly=(mrData.step1&&mrData.step1.monthlyData)||[];
+  saveToHistory({product:mrCurrentProduct,date:Date.now(),score,tc:mrData.tc,
+    margenPct:s4.margenPct||0,
+    veredicto:decision&&decision.veredicto?decision.veredicto.titulo:'',
+    analisisTexto:decision&&decision.veredicto?decision.veredicto.sub:'',
+    analisisCompleto:(document.getElementById('mrAnalysisText')||{}).textContent||'',
+    mrData,
+    scores:[{score:s4.scD,label:'Demanda'},{score:s4.scC,label:'Competencia'},{score:s4.scM,label:'Margen'},{score:s4.scR,label:'ROI'}],
+    chartData:{trendData:monthly.map(d=>d.valor),
+      meliData:[s2.precioMinARS||0,s2.precioPromedioARS||0,s2.precioMaxARS||0],
+      waterfallData:s4.fob?{fob:s4.fobARS,flete:s4.fleteARS,aranceles:s4.arancelesARS,despacho:s4.despachoARS,comision:s4.comisionMeLiARS}:null}});
 }
 
 function renderMRResult(r){
@@ -1202,7 +1475,7 @@ function renderMRResult(r){
   const trendLabels=monthlyData&&monthlyData.length>0?monthlyData.map(d=>d.mes):months;
   window._trendsChart=new Chart(trendsCtx,{type:'line',data:{labels:trendLabels,datasets:[
     {data:bandUpper,borderColor:'rgba(255,230,0,0.08)',borderWidth:1,fill:'-1',backgroundColor:'rgba(255,230,0,0.05)',tension:0.4,pointRadius:0,order:2},
-    {data:trendData,borderColor:'#FFE600',borderWidth:2.5,backgroundColor:'rgba(255,230,0,0.12)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#FFE600',pointHoverRadius:5,order:1},
+    {data:trendData,borderColor:'#FFE600',borderWidth:2.5,borderDash:(mrData.step1&&mrData.step1.fuenteDemanda==='google-trends')?[]:[6,4],backgroundColor:'rgba(255,230,0,0.12)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#FFE600',pointHoverRadius:5,order:1},
     {data:bandLower,borderColor:'rgba(255,230,0,0.08)',borderWidth:1,fill:'-1',backgroundColor:'rgba(255,230,0,0.05)',tension:0.4,pointRadius:0,order:3}
   ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'rgba(0,0,0,0.85)',titleColor:'#FFE600',bodyColor:'#F6F6F4',borderColor:'#FFE600',borderWidth:1,callbacks:{title:ctx=>monthlyData&&monthlyData[ctx[0].dataIndex]?(monthlyData[ctx[0].dataIndex].mes+' 2025'):(ctx[0].label+' 2025'),label:ctx=>'Inter&#233;s: '+ctx.parsed.y.toFixed(0)+'/100'}}},scales:{x:{ticks:{color:'#92929A',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}},y:{min:0,max:100,ticks:{color:'#92929A',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}}}}});
   const s2=mrData.step2||{};
@@ -1220,7 +1493,7 @@ function renderMRResult(r){
   const veredictoMap={'VIABLE':'VIABLE','NO RECOMENDADO':'NO RECOMENDADO','VIABLE CON CONDICIONES':'VIABLE CON CONDICIONES'};
   saveToHistory({product:mrCurrentProduct,date:Date.now(),score,tc:mrData.tc,margenPct:mrData.step4?.margenPct||0,veredicto:veredictoMap[r.veredicto]||r.veredicto,analisisTexto:r.veredictoTexto,analisisCompleto:r.analisisCompleto,mrData,scores:[
     {score:sD,label:r.labelDemanda},{score:sC,label:r.labelCompetencia},{score:sM,label:r.labelMargen},{score:sR,label:r.labelRegulatorio}
-  ],chartData:{trendData,meliData:[pMin,pProm,pMax],waterfallData:mrData.step4?{fob:mrData.step4.fob,flete:(window.__getFleteUSDPerUnit?window.__getFleteUSDPerUnit(mrData.step4.fob):mrData.step4.fob*0.15),aranceles:mrData.step4.fob*(window.__getArancelRate?window.__getArancelRate():0.35),despacho:mrData.step4.fob*0.08,comision:mrData.step4.venta*0.15}:null}});
+  ],chartData:{trendData,meliData:[pMin,pProm,pMax],waterfallData:mrData.step4?{fob:mrData.step4.fob,flete:(window.__getFleteUSDPerUnit?window.__getFleteUSDPerUnit(mrData.step4.fob):mrData.step4.fob*0.15),aranceles:mrData.step4.fob*(window.__getArancelRate?window.__getArancelRate():0.20),despacho:mrData.step4.fob*0.08,comision:mrData.step4.venta*0.15}:null}});
 }
 function renderFactorCard(n,score,label,icon){
   const s=Math.max(0,Math.min(100,score||0));
@@ -1249,7 +1522,10 @@ function renderWaterfall(step4,tc){
   const fobARS=step4.fobARS!=null?step4.fobARS:(step4.fob*tc);
   const fleteARS=step4.fleteARS!=null?step4.fleteARS:((window.__getFleteUSDPerUnit?window.__getFleteUSDPerUnit(step4.fob):step4.fob*0.15)*tc);
   const seguroARS=step4.seguroARS||0;
-  const arancelesARS=step4.arancelesARS!=null?step4.arancelesARS:(step4.fob*(window.__getArancelRate?window.__getArancelRate():0.35)*tc);
+  const arancelesARS=step4.arancelesARS!=null?step4.arancelesARS:(step4.fob*(window.__getArancelRate?window.__getArancelRate():0.20)*tc);
+  const tasaEstadisticaARS=step4.tasaEstadisticaARS||0;
+  const ivaImportacionARS=step4.ivaImportacionARS||0;
+  const ivaAdicionalARS=step4.ivaAdicionalARS||0;
   const despachoARS=step4.despachoARS!=null?step4.despachoARS:(step4.fob*0.08*tc);
   const empaqueARS=step4.empaqueARS||0;
   const comisionARS=step4.comisionMeLiARS!=null?step4.comisionMeLiARS:(venta*0.15);
@@ -1264,11 +1540,14 @@ function renderWaterfall(step4,tc){
     {label:'FOB (USD '+step4.fob.toFixed(2)+')',val:-fobARS,type:'neg',show:true},
     {label:'  Flete '+(window.__getFleteLabel?window.__getFleteLabel():'15%'),val:-fleteARS,type:'sub',show:true},
     {label:'  Seguro 1.5%',val:-seguroARS,type:'sub',show:seguroARS>0},
-    {label:'  Aranceles '+(((window.__getArancelRate?window.__getArancelRate():0.35)*100).toFixed(0))+'% s/CIF',val:-arancelesARS,type:'sub',show:true},
+    {label:'  Aranceles '+(((window.__getArancelRate?window.__getArancelRate():0.20)*100).toFixed(0))+'% s/CIF',val:-arancelesARS,type:'sub',show:true},
+    {label:'  Tasa estad&#237;stica 3% s/CIF',val:-tasaEstadisticaARS,type:'sub',show:tasaEstadisticaARS>0},
     {label:'  Despacho 8% s/CIF',val:-despachoARS,type:'sub',show:true},
     {label:'  Empaque',val:-empaqueARS,type:'sub',show:empaqueARS>0},
     {label:'Comisi&#243;n MeLi',val:-comisionARS,type:'neg',show:true},
-    {label:'IVA 21%',val:-ivaARS,type:'neg',show:ivaARS>0},
+    {label:'IVA importaci&#243;n 21% s/base (cr&#233;dito fiscal)',val:-ivaImportacionARS,type:'sub',show:ivaImportacionARS>0},
+    {label:'Percepci&#243;n IVA 20% s/base (pago a cuenta)',val:-ivaAdicionalARS,type:'sub',show:ivaAdicionalARS>0},
+    {label:'IVA a pagar (d&#233;bito &#8722; cr&#233;dito)',val:-ivaARS,type:'neg',show:ivaARS>0},
     {label:'IIBB 3%',val:-iibbARS,type:'neg',show:iibbARS>0},
     {label:'Log&#237;stica ('+modLabel+')',val:-logisticaARS,type:'neg',show:logisticaARS>0},
     {label:'Costo financiero ('+(window.__getCostoFinDays?window.__getCostoFinDays():0)+'d &#215; '+((window.__getCostoFinMonthlyPct?window.__getCostoFinMonthlyPct():0)*100).toFixed(1)+'%/mes)',val:-(window.__computeCostoFinARS?window.__computeCostoFinARS(fobARS+fleteARS+seguroARS+arancelesARS+despachoARS+empaqueARS):0),type:'neg',show:(window.__computeCostoFinARS?window.__computeCostoFinARS(fobARS+fleteARS+seguroARS+arancelesARS+despachoARS+empaqueARS):0)>0}
@@ -1282,6 +1561,22 @@ function renderWaterfall(step4,tc){
     const displayVal=(isPos?'+':'-')+fmt(item.val);
     return `<div class="wf-row"><span class="wf-label">${item.label}</span><div class="wf-bar-bg"><div class="wf-bar-fill ${item.type}" style="width:${pct}%"></div></div><span class="wf-val ${isPos?'pos':'neg'}">${displayVal}</span></div>`;
   }).join('');
+  // El IVA de importacion y la percepcion se muestran como lineas propias
+  // porque salen de la caja al nacionalizar, pero NO restan del margen: el
+  // primero es credito fiscal y el segundo es pago a cuenta. Lo que si hacen
+  // es inmovilizar capital, y eso se dice explicitamente.
+  const capUnit=step4.capitalUnitarioARS||0;
+  if(capUnit>0){
+    barsEl.insertAdjacentHTML('beforeend',
+      '<div class="wf-row" style="margin-top:10px;padding-top:10px;border-top:1px dashed #333">'+
+      '<span class="wf-label" style="opacity:.85">Capital inmovilizado por unidad (landed + IVA imp. + percepci&#243;n)</span>'+
+      '<div class="wf-bar-bg"></div>'+
+      '<span class="wf-val" style="color:var(--gold)">'+fmt(capUnit)+'</span></div>'+
+      '<div style="font-size:.74rem;color:var(--text-dim);margin-top:6px;line-height:1.4">'+
+      'El IVA de importaci&#243;n y la percepci&#243;n figuran arriba porque salen de tu caja al nacionalizar, '+
+      'pero no restan del margen: el primero es cr&#233;dito fiscal del per&#237;odo y el segundo es pago a cuenta. '+
+      'Lo que s&#237; hacen es inmovilizar capital.</div>');
+  }
   const sumEl=document.getElementById('wfSummaryVal');
   const margenPct=step4.margenPct||0;
   const signo=margenARS>=0?'+':'-';
@@ -1380,6 +1675,16 @@ function resetMR(){
   document.getElementById('mrSteps').classList.remove('visible');
   document.getElementById('mrResult').classList.remove('visible');
   document.getElementById('waterfallWrap').style.display='none';
+  // El bloque de decision tambien se limpia: si queda visible con las senales
+  // del analisis anterior, el proximo producto arranca con un veredicto ajeno.
+  const dec=document.getElementById('mrvDecision');
+  if(dec){
+    dec.style.display='none';
+    const c1=document.getElementById('mrvChkCert'); if(c1) c1.checked=false;
+    const c2=document.getElementById('mrvChkMarca'); if(c2) c2.checked=false;
+  }
+  const viejoV=document.getElementById('mrVeredictoBox'); if(viejoV) viejoV.style.display='';
+  const at=document.getElementById('mrAnalysisText'); if(at) at.innerHTML='';
   document.getElementById('btnMRAnalyze').disabled=false;
   if(window._radarChart){window._radarChart.destroy();window._radarChart=null;}
   if(window._trendsChart){window._trendsChart.destroy();window._trendsChart=null;}
@@ -1417,14 +1722,21 @@ window.addEventListener('DOMContentLoaded',()=>{
 /* ---- bloque 2 ---- */
 /* ===== ProductFinder v2 patch: live recalc + NCM tariffs + 4-modality comparison ===== */
 (function(){
-  var NICHO_TO_RATE = {tecnologia:0.16, hogar:0.20, deportes:0.20, moda:0.35, mascotas:0.18, bebe:0.20};
+  // El arancel del Market Reader sale UNICAMENTE de su propio selector de NCM.
+  // Antes, con el selector en "Auto", se leia localStorage.pf_nicho, que es el
+  // nicho elegido en OTRA pantalla (el analizador): un usuario que habia
+  // tocado el analizador se llevaba 16% sin enterarse, aunque aca dijera
+  // "Auto". Ahora Auto es 20% y punto.
+  //
+  // 20% y no 35%: el 35% es el TECHO del AEC, no el arancel normal. Usarlo de
+  // default sobrevaluaba el costo de casi cualquier producto. El real depende
+  // de la posicion NCM y el selector lo deja elegir.
   window.__getArancelRate = function(){
     try {
       var sel = document.getElementById('mrNCM');
       if (sel && sel.value && sel.value !== 'auto') return parseFloat(sel.value);
-      try { var s = localStorage.getItem('pf_nicho'); if (s && NICHO_TO_RATE[s] != null) return NICHO_TO_RATE[s]; } catch(e){}
-      return 0.35;
-    } catch(e){ return 0.35; }
+      return 0.20;
+    } catch(e){ return 0.20; }
   };
   var liveDebounce = null;
   function scheduleLiveRecalc(){
@@ -2611,3 +2923,611 @@ function goHome(){
   try{ window.scrollTo({top:0,behavior:'smooth'}); }catch(e){ window.scrollTo(0,0); }
 }
 (function(){ if(location.hash==='#menu'){ setTimeout(function(){ try{ var m=document.querySelector('.mc-menu'); if(m) m.classList.add('show'); }catch(e){} }, 300); } })();
+
+/* ---- bloque 21 ---- */
+/* ===== Bloque de decision: por que SI / por que NO =====
+   Todo lo que sigue se calcula en JavaScript con reglas deterministas. La IA
+   no decide, no inventa numeros y no agrega factores: solo redacta el texto a
+   partir de las senales que este codigo le pasa. Si falta un dato, la senal se
+   omite; nunca se rellena con una estimacion.
+   ===================================================================== */
+(function(){
+
+  // ------------------------------------------------------------------
+  // Recalculo del margen con la MISMA formula del paso 4, variando una
+  // sola variable por vez. Los escenarios de quiebre iteran sobre esto:
+  // no se estiman, se resuelven.
+  // ------------------------------------------------------------------
+  function mrMargenCon(s4, over){
+    over = over || {};
+    const tc    = over.tc    != null ? over.tc    : s4.tc;
+    const venta = over.venta != null ? over.venta : s4.venta;
+    const fob = s4.fob;
+    // El flete y el empaque estan fijados en USD: no dependen del tipo de
+    // cambio ni del precio de venta.
+    const fleteUSD   = s4.tc ? (s4.fleteARS / s4.tc) : fob*0.15;
+    const empaqueUSD = s4.tc ? (s4.empaqueARS / s4.tc) : 0.5;
+    const seguroUSD  = (fob + fleteUSD) * 0.015;
+    const cifUSD     = fob + fleteUSD + seguroUSD;
+    const arancelesUSD = cifUSD * (s4.arancelRate != null ? s4.arancelRate : 0.20);
+    const tasaUSD      = cifUSD * (s4.tasaEstadisticaPct != null ? s4.tasaEstadisticaPct : 0.03);
+    const despachoUSD  = cifUSD * 0.08;
+    const landedUSD = fob + fleteUSD + seguroUSD + arancelesUSD + tasaUSD + despachoUSD + empaqueUSD;
+    const landedARS = landedUSD * tc;
+    const baseARS   = (cifUSD + arancelesUSD + tasaUSD) * tc;
+    const ivaImpARS   = baseARS * (s4.ivaImportPct != null ? s4.ivaImportPct : 0.21);
+    const ivaAdicARS  = baseARS * (s4.ivaAdicionalPct != null ? s4.ivaAdicionalPct : 0.20);
+    const comisionARS = venta * (s4.comisionPct != null ? s4.comisionPct : 0.15);
+    const ivaDebito   = venta - (venta / 1.21);
+    const ivaARS      = Math.max(0, ivaDebito - ivaImpARS);
+    const iibbARS     = venta * 0.03;
+    const canalML = (typeof mrData !== 'undefined' && mrData && mrData.canal === 'mercadolibre');
+    const logisticaARS = canalML ? mrTarifaLogisticaARS(venta, s4.modalidad || 'flex') : 0;
+    const margenARS = venta - landedARS - comisionARS - ivaARS - iibbARS - logisticaARS;
+    return {
+      margenARS,
+      margenPct: venta > 0 ? (margenARS / venta) * 100 : 0,
+      landedARS, ivaImpARS, ivaAdicARS,
+      capitalUnitarioARS: landedARS + ivaImpARS + ivaAdicARS
+    };
+  }
+  window.mrMargenCon = mrMargenCon;
+
+  // Biseccion sobre una variable monotona. Devuelve null si el quiebre no
+  // existe dentro del rango: preferimos no mostrar el numero antes que
+  // mostrar uno inventado.
+  function bisecar(f, lo, hi, iter){
+    const fLo = f(lo), fHi = f(hi);
+    if (!isFinite(fLo) || !isFinite(fHi)) return null;
+    if ((fLo > 0) === (fHi > 0)) return null;   // no hay cruce por cero
+    let a = lo, b = hi;
+    for (let k = 0; k < (iter || 60); k++){
+      const m = (a + b) / 2;
+      const fm = f(m);
+      if ((fm > 0) === (f(a) > 0)) a = m; else b = m;
+    }
+    return (a + b) / 2;
+  }
+
+  // ------------------------------------------------------------------
+  // 6.b ESCENARIOS DE QUIEBRE
+  // ------------------------------------------------------------------
+  function escenariosDeQuiebre(md){
+    const s4 = md && md.step4;
+    if (!s4) return null;
+    const s2 = md.step2 || {};
+    const out = { dolar:null, precio:null, ventas:null };
+
+    // --- Dolar de quiebre: a que tc el margen llega a 0 ---
+    if (s4.margenARS > 0){
+      const tcQ = bisecar(t => mrMargenCon(s4, {tc:t}).margenARS, s4.tc, s4.tc * 12);
+      if (tcQ){
+        out.dolar = {
+          valor: Math.round(tcQ),
+          hoy: Math.round(s4.tc),
+          aguantePct: Math.round(((tcQ - s4.tc) / s4.tc) * 100)
+        };
+      }
+    } else {
+      out.dolar = { valor:null, hoy: Math.round(s4.tc), aguantePct: null,
+        nota: 'Ya perdes plata al dolar de hoy: no hay margen de aguante que calcular.' };
+    }
+
+    // --- Precio de quiebre: a que precio de venta el margen llega a 0 ---
+    if (s4.venta > 0){
+      const pQ = bisecar(v => mrMargenCon(s4, {venta:v}).margenARS, Math.max(1, s4.venta*0.02), s4.venta * 6);
+      if (pQ){
+        // Referencia de competencia: solo si la muestra alcanza. Con muestra
+        // insuficiente no hay precio de mercado con el cual comparar.
+        const refComp = (!s2.muestraInsuficiente && s2.precioPromedioARS) ? s2.precioPromedioARS : null;
+        out.precio = {
+          valor: Math.round(pQ),
+          tuyo: Math.round(s4.venta),
+          competencia: refComp ? Math.round(refComp) : null,
+          bajoCompetenciaPct: refComp ? Math.round(((refComp - pQ) / refComp) * 100) : null
+        };
+      }
+    }
+
+    // --- Ventas minimas para cubrir el costo de oportunidad del capital ---
+    const diasCap = window.__getCostoFinDays ? window.__getCostoFinDays() : 0;
+    const tasaMes = window.__getCostoFinMonthlyPct ? window.__getCostoFinMonthlyPct() : 0;
+    const inversionARS = s4.inversionARS || 0;
+    if (tasaMes > 0 && inversionARS > 0){
+      const costoMensualARS = inversionARS * tasaMes;
+      const costoCicloARS   = inversionARS * (diasCap/30) * tasaMes;
+      if (s4.margenARS > 0){
+        out.ventas = {
+          uds: Math.ceil(costoMensualARS / s4.margenARS),
+          costoMensualARS: Math.round(costoMensualARS),
+          costoCicloARS: Math.round(costoCicloARS),
+          diasCap, tasaMesPct: +(tasaMes*100).toFixed(1),
+          inversionARS: Math.round(inversionARS),
+          actuales: s4.ventas || 0
+        };
+      } else {
+        out.ventas = { uds:null, costoMensualARS: Math.round(costoMensualARS),
+          costoCicloARS: Math.round(costoCicloARS), diasCap, tasaMesPct:+(tasaMes*100).toFixed(1),
+          inversionARS: Math.round(inversionARS), actuales: s4.ventas || 0,
+          nota: 'Con margen negativo no hay volumen que lo arregle: vender mas unidades pierde mas plata.' };
+      }
+    }
+    return out;
+  }
+  window.escenariosDeQuiebre = escenariosDeQuiebre;
+
+  // ------------------------------------------------------------------
+  // 6.a EVALUACION DE VIABILIDAD
+  // Cada senal lleva el numero real que la disparo. Si el dato no esta, la
+  // senal no se emite.
+  // ------------------------------------------------------------------
+  function evaluarViabilidad(md){
+    const aFavor = [], enContra = [], criticos = [];
+    const s1 = (md && md.step1) || {};
+    const s2 = (md && md.step2) || {};
+    const s3 = (md && md.step3) || null;
+    const s4 = (md && md.step4) || null;
+    if (!s4) return { aFavor, enContra, criticos };
+
+    const nf = new Intl.NumberFormat('es-AR');
+    const ars = n => 'ARS ' + nf.format(Math.round(n));
+    const F = (texto, dato) => ({ texto, dato, peso:'fuerte' });
+    const M = (texto, dato) => ({ texto, dato, peso:'medio' });
+    const C = (texto, dato) => ({ texto, dato, peso:'critico' });
+
+    const margenPct = s4.margenPct;
+    const margenARS = s4.margenARS;
+
+    // ---------- MARGEN ----------
+    if (margenPct >= 40) aFavor.push(F('Margen neto de '+margenPct+'%, comodo para absorber desvios', margenPct+'% ('+ars(margenARS)+' por unidad)'));
+    else if (margenPct >= 30) aFavor.push(M('Margen de '+margenPct+'%, trabajable pero sin colchon', margenPct+'% ('+ars(margenARS)+' por unidad)'));
+
+    if (margenPct < 0){
+      // Con margen negativo la regla del <25% es redundante: se emite la que
+      // dice el numero exacto que se pierde.
+      criticos.push(C('Perdes '+ars(Math.abs(margenARS))+' por unidad al precio de venta que cargaste', margenPct+'% de margen'));
+    } else if (margenPct < 25){
+      criticos.push(C('Margen de '+margenPct+'%: un desvio del dolar del 10% te lo come entero', margenPct+'% ('+ars(margenARS)+' por unidad)'));
+    }
+
+    // ---------- VALOR / PESO ----------
+    // Sin peso cargado esta senal NO se emite: no se infiere el peso.
+    const pesoEl = document.getElementById('mrPesoKg');
+    const pesoKg = pesoEl ? parseFloat(pesoEl.value) : NaN;
+    if (isFinite(pesoKg) && pesoKg > 0 && s4.fob > 0){
+      const valorPorKg = s4.fob / pesoKg;
+      const fletePctFob = s4.tc ? ((s4.fleteARS / s4.tc) / s4.fob) * 100 : null;
+      // Con el modo de envio en "auto" el flete es un 15% plano sobre FOB: no
+      // depende del peso, asi que hay que decir que ese porcentaje es una
+      // estimacion y no el flete real de este producto.
+      const modoEnvio = (document.getElementById('mrShipMode')||{}).value || 'auto';
+      const fleteEstimado = modoEnvio === 'auto';
+      const fletePctTxt = fletePctFob != null ? Math.round(fletePctFob)+'%' : 'n/d';
+      const fleteNota = fleteEstimado
+        ? ' El flete es la estimacion plana del 15% s/FOB: eleg&#237; el modo de env&#237;o para calcularlo por kilo.' : '';
+      if (valorPorKg >= 40){
+        aFavor.push(F('Buena relacion valor/peso: el flete pesa solo '+fletePctTxt+' del FOB.'+fleteNota,
+          valorPorKg.toFixed(1)+' USD/kg (FOB USD '+s4.fob.toFixed(2)+' / '+pesoKg+' kg)'));
+      } else if (valorPorKg < 15){
+        criticos.push(C('El flete se come el '+fletePctTxt+' del FOB. Producto barato y pesado: no aguanta el costo logistico.'+fleteNota,
+          valorPorKg.toFixed(1)+' USD/kg (FOB USD '+s4.fob.toFixed(2)+' / '+pesoKg+' kg)'));
+      }
+    }
+
+    // ---------- ROTACION ----------
+    const ventasMes = s4.ventas || 0;
+    if (ventasMes > 0){
+      if (ventasMes >= 100) aFavor.push(F('Rotacion alta: los top venden '+ventasMes+' uds/mes', ventasMes+' uds/mes'));
+      else if (ventasMes < 20) enContra.push(F('Los top venden '+ventasMes+' uds/mes: el volumen no justifica inmovilizar capital', ventasMes+' uds/mes'));
+    }
+
+    // ---------- RECUPERO DEL CAPITAL ----------
+    const inversionARS = s4.inversionARS || 0;
+    if (inversionARS > 0 && s4.ingresoMensualARS > 0){
+      const ratio = s4.ingresoMensualARS / inversionARS;
+      if (ratio >= 0.15){
+        const meses = Math.max(1, Math.round(inversionARS / s4.ingresoMensualARS));
+        aFavor.push(F('Recuperas el capital en ~'+meses+' '+(meses===1?'mes':'meses'),
+          ars(s4.ingresoMensualARS)+'/mes sobre '+ars(inversionARS)+' invertidos ('+Math.round(ratio*100)+'%/mes)'));
+      }
+    }
+
+    // ---------- COMPETENCIA (solo con muestra suficiente) ----------
+    if (!s2.muestraInsuficiente && s2.precioMinARS > 0 && s2.precioMaxARS > 0){
+      const dispersionPct = ((s2.precioMaxARS - s2.precioMinARS) / s2.precioMinARS) * 100;
+      const datoDisp = Math.round(dispersionPct)+'% ('+ars(s2.precioMinARS)+' a '+ars(s2.precioMaxARS)+', '+(s2.muestra||0)+' publicaciones)';
+      if (dispersionPct > 40){
+        aFavor.push(M('Precios dispersos: hay lugar para posicionarse sin pelear por precio', datoDisp));
+      } else if (dispersionPct < 15){
+        criticos.push(C('Todos los precios pegados dentro del '+Math.round(dispersionPct)+'%. Es guerra de precios: el unico diferencial que queda es bajar el margen', datoDisp));
+      }
+    }
+    if (!s2.muestraInsuficiente && s2.envioGratisPct != null){
+      if (s2.envioGratisPct < 50) aFavor.push(M('Menos de la mitad ofrece envio gratis: el envio todavia no es tabla rasa', s2.envioGratisPct+'% de '+(s2.envioGratisTotal||0)+' publicaciones'));
+      else if (s2.envioGratisPct > 80) enContra.push(F('El '+s2.envioGratisPct+'% ofrece envio gratis: ese costo ya esta adentro del precio de todos', s2.envioGratisPct+'% de '+(s2.envioGratisTotal||0)+' publicaciones'));
+    }
+    if (!s2.muestraInsuficiente && Array.isArray(s2.competitors) && s2.competitors.length){
+      const conVentas = s2.competitors.filter(c => (c.soldQty||0) > 0).length;
+      if (conVentas > 0 && conVentas <= 5) aFavor.push(F('Pocos vendedores reales compitiendo', conVentas+' vendedores con ventas > 0'));
+    }
+    if (s2.saturacion === 'muy saturado' || (s2.sellersEstimados != null && s2.sellersEstimados > 30)){
+      const d = s2.sellersEstimados != null ? s2.sellersEstimados+' vendedores' : 'saturacion: '+s2.saturacion;
+      enContra.push(F((s2.sellersEstimados!=null?s2.sellersEstimados:'Muchos')+' vendedores activos: se decide por precio, no por producto', d));
+    }
+
+    // ---------- TIKTOK ----------
+    const scDef = s4.scDef;
+    if (s3 && !s3.omitido && scDef >= 70){
+      aFavor.push(M('Traccion de contenido: '+nf.format(s3.views||0)+' vistas promedio y contenido en Argentina',
+        scDef+'/100 &#8212; '+(s3.scoreMotivo||'')));
+    }
+    if (!s3 || s3.omitido){
+      enContra.push(M('No mediste traccion de contenido', 'paso de TikTok salteado'));
+    }
+
+    // ---------- DEMANDA ----------
+    const fuenteDemanda = s1.fuenteDemanda || 'estimacion-ia';
+    if (s1.tendencia === 'subiendo' && fuenteDemanda === 'google-trends'){
+      aFavor.push(F('Demanda creciente medida', 'Google Trends 12m, score '+(s1.demandaScore||'n/d')+'/100'));
+    }
+    if (fuenteDemanda !== 'google-trends'){
+      const cd = C('No tenes dato de demanda medido. Estas decidiendo sobre una estimacion',
+        'fuente: estimacion de IA' + (s1.trendsMotivo ? ' (' + s1.trendsMotivo + ')' : ''));
+      cd.clave = 'sin-demanda-medida';   // no se sabe, no es que este mal
+      criticos.push(cd);
+    }
+
+    // ---------- MUESTRA DE COMPETENCIA ----------
+    if (s2.muestraInsuficiente){
+      const nM = s2.muestra || 0;
+      const cm = C('Solo '+nM+' '+(nM===1?'publicacion':'publicaciones')+' de referencia. No sabes a que precio se vende de verdad',
+        nM+' de un minimo de 8');
+      cm.clave = 'muestra-insuficiente';  // no se sabe, no es que este mal
+      criticos.push(cm);
+    }
+
+    // ---------- CAPITAL ----------
+    const capitalUSD = parseFloat(md.capital) || 0;
+    if (capitalUSD > 0 && inversionARS > 0 && s4.tc){
+      const capitalARS = capitalUSD * s4.tc;
+      const pct = (inversionARS / capitalARS) * 100;
+      if (inversionARS > capitalARS * 0.5){
+        criticos.push(C('Este SKU te consume el '+Math.round(pct)+'% de tu capital. Un solo producto no deberia pasar del 30-40%',
+          ars(inversionARS)+' de '+ars(capitalARS)+' disponibles'));
+      }
+    }
+
+    // ---------- BREAKEVEN ----------
+    if (s4.breakevenDias > 120){
+      enContra.push(F('Tardas '+s4.breakevenDias+' dias en recuperar la inversion, y el ciclo China&#8594;gondola ya son 60-90 dias. Estas poniendo plata a 6 meses',
+        s4.breakevenDias+' dias ('+(s4.breakevenUds||0)+' uds a '+(s4.ventas||0)+' uds/mes)'));
+    }
+
+    return { aFavor, enContra, criticos };
+  }
+  window.evaluarViabilidad = evaluarViabilidad;
+
+  // ------------------------------------------------------------------
+  // 6.d Calidad de datos: 4 chips. Verde = medido, ambar = estimado,
+  // rojo = sin dato.
+  // ------------------------------------------------------------------
+  function calidadDeDatos(md){
+    const s1 = (md && md.step1) || {};
+    const s2 = (md && md.step2) || {};
+    const s3 = (md && md.step3) || null;
+    const s4 = (md && md.step4) || {};
+    const chips = [];
+    chips.push(s1.fuenteDemanda === 'google-trends'
+      ? { t:'Demanda', c:'verde', d:'Google Trends, 12 meses medidos' }
+      : { t:'Demanda', c:'ambar', d:'Estimacion de IA, no es un dato medido' });
+    if (s2.fuente === 'no-disponible' || s2.muestra === 0) chips.push({ t:'Competencia', c:'rojo', d:'Sin datos de MercadoLibre' });
+    else if (s2.muestraInsuficiente) chips.push({ t:'Competencia', c:'ambar', d:'Muestra de '+(s2.muestra||0)+' de un minimo de 8' });
+    else chips.push({ t:'Competencia', c:'verde', d:(s2.muestra||0)+' publicaciones reales de MeLi' });
+    if (!s3 || s3.omitido) chips.push({ t:'TikTok', c:'rojo', d:'Paso salteado, sin medir' });
+    else if (!s3.views) chips.push({ t:'TikTok', c:'ambar', d:'Sin numero de vistas cargado' });
+    else chips.push({ t:'TikTok', c:'verde', d:new Intl.NumberFormat('es-AR').format(s3.views)+' vistas cargadas' });
+    const dol = window.__mrDolar || null;
+    if (dol && dol.ok && !dol.manual) chips.push({ t:'Tipo de cambio', c:'verde', d:(dol.tipoLabel||'')+' de dolarapi.com' });
+    else if (dol && dol.manual) chips.push({ t:'Tipo de cambio', c:'ambar', d:'Cargado a mano: $'+new Intl.NumberFormat('es-AR').format(Math.round(s4.tc||0)) });
+    else chips.push({ t:'Tipo de cambio', c:'rojo', d:'No pude traer la cotizacion' });
+    return chips;
+  }
+  window.calidadDeDatos = calidadDeDatos;
+
+  // ------------------------------------------------------------------
+  // 6.c VEREDICTO. La regla la decide este codigo, no la IA.
+  // ------------------------------------------------------------------
+  function veredictoDe(md, senales){
+    const s1 = (md && md.step1) || {};
+    const s2 = (md && md.step2) || {};
+    const sinDemanda = (s1.fuenteDemanda || 'estimacion-ia') !== 'google-trends';
+    const sinMuestra = !!s2.muestraInsuficiente;
+
+    // Los dos criticos que son "no se sabe" y no "esta mal". Si los unicos
+    // criticos son esos dos, no se puede emitir veredicto: falta el dato.
+    const CLAVES_DE_DATO = ['sin-demanda-medida','muestra-insuficiente'];
+    const criticosDeDato = senales.criticos.filter(c => CLAVES_DE_DATO.indexOf(c.clave) !== -1).length;
+    const criticosReales = senales.criticos.length - criticosDeDato;
+
+    const fuertesContra = senales.enContra.filter(x => x.peso === 'fuerte').length;
+    const aFavorTotal   = senales.aFavor.length;
+
+    // 6.f Los dos riesgos que se tildan a mano bloquean el verde.
+    const cert  = document.getElementById('mrvChkCert');
+    const marca = document.getElementById('mrvChkMarca');
+    const riesgosSinTildar = [];
+    if (!cert  || !cert.checked)  riesgosSinTildar.push('verificar si necesita certificacion (seguridad electrica, ENACOM, ANMAT, juguetes)');
+    if (!marca || !marca.checked) riesgosSinTildar.push('verificar que no sea marca registrada ni replica');
+
+    let clave, titulo, sub, condiciones = [];
+
+    if (sinDemanda && sinMuestra && criticosReales === 0){
+      clave = 'gris'; titulo = 'DATOS INSUFICIENTES';
+      sub = 'No emito veredicto: no tengo ni demanda medida ni muestra de competencia. Lo que falta y como conseguirlo esta abajo.';
+      condiciones = [
+        'Demanda: Google Trends no responde desde el servidor. Consultala vos en trends.google.com filtrando Argentina, ultimos 12 meses, y compara contra un producto que ya vendas.',
+        'Competencia: entra al listado de MercadoLibre del producto y anota precio y vendidos de las primeras 10 publicaciones. Con menos de 8 no hay precio de referencia.'
+      ];
+    } else if (senales.criticos.length >= 1){
+      clave = 'no'; titulo = 'NO CONVIENE';
+      sub = senales.criticos.length + (senales.criticos.length === 1 ? ' senal critica en contra.' : ' senales criticas en contra.') + ' Cualquiera de ellas alcanza para no poner la plata.';
+    } else if (fuertesContra >= 2 && fuertesContra > aFavorTotal){
+      clave = 'cond'; titulo = 'CONVIENE SOLO SI...';
+      sub = fuertesContra + ' senales fuertes en contra contra ' + aFavorTotal + ' a favor. Para darlo vuelta tendria que pasar esto:';
+      condiciones = condicionesParaDarloVuelta(md, senales);
+    } else if (riesgosSinTildar.length){
+      clave = 'cond'; titulo = 'CONVIENE SOLO SI...';
+      sub = 'Los numeros dan, pero quedan riesgos regulatorios sin verificar. Antes de pagar el FOB:';
+      condiciones = riesgosSinTildar;
+    } else {
+      clave = 'si'; titulo = 'CONVIENE';
+      sub = aFavorTotal + ' senales a favor' + (senales.enContra.length ? ', con ' + senales.enContra.length + ' en contra que igual tenes que mirar.' : '.');
+    }
+
+    // El verde nunca sale con riesgos sin tildar (6.f).
+    if (clave === 'si' && riesgosSinTildar.length){
+      clave = 'cond'; titulo = 'CONVIENE SOLO SI...';
+      sub = 'Los numeros dan, pero quedan riesgos regulatorios sin verificar. Antes de pagar el FOB:';
+      condiciones = riesgosSinTildar;
+    }
+    return { clave, titulo, sub, condiciones, riesgosSinTildar, fuertesContra, aFavorTotal };
+  }
+  window.veredictoDe = veredictoDe;
+
+  // Que tendria que cambiar, en numeros, para dar vuelta un "conviene solo si".
+  function condicionesParaDarloVuelta(md, senales){
+    const out = [];
+    const s4 = md.step4 || {};
+    senales.enContra.filter(x => x.peso === 'fuerte').forEach(function(x){
+      if (/uds\/mes: el volumen/.test(x.texto)) out.push('Que la rotacion real llegue a 20+ uds/mes (hoy ' + (s4.ventas||0) + '). Verificalo mirando "vendidos" de los top listings dos semanas seguidas.');
+      else if (/envio gratis/.test(x.texto)) out.push('Que puedas absorber el envio gratis sin bajar del margen actual, o vender por un canal donde el envio lo pague el comprador.');
+      else if (/vendedores activos/.test(x.texto)) out.push('Que tengas un diferencial que no sea precio (kit, garantia, variante que no esta): con esta cantidad de vendedores se compite por precio.');
+      else if (/dias en recuperar/.test(x.texto)) out.push('Que bajes el ciclo de recupero abajo de 120 dias: menos unidades por compra, o mas rotacion.');
+      else if (/traccion de contenido/.test(x.texto)) out.push('Que midas TikTok: busca el producto, ordena por mas vistos y anota el promedio de vistas de los 3 primeros.');
+      else out.push('Que se revierta: ' + x.texto);
+    });
+    return out;
+  }
+
+  // ------------------------------------------------------------------
+  // 6.d RENDER
+  // ------------------------------------------------------------------
+  function itemHTML(x, esCritico){
+    const cls = esCritico ? 'mrv-item mrv-item-critico'
+              : (x.peso === 'fuerte' ? 'mrv-item mrv-item-fuerte' : 'mrv-item mrv-item-medio');
+    const tag = esCritico ? '<span class="mrv-crit-tag">CR&#205;TICO</span>' : '';
+    return '<div class="'+cls+'">'+tag+x.texto+
+           '<span class="mrv-dato"><b>'+x.dato+'</b></span></div>';
+  }
+
+  function renderDecision(md){
+    md = md || (typeof mrData !== 'undefined' ? mrData : null);
+    const box = document.getElementById('mrvDecision');
+    if (!box || !md || !md.step4) return null;
+
+    const senales = evaluarViabilidad(md);
+    const quiebre = escenariosDeQuiebre(md);
+    const chips   = calidadDeDatos(md);
+    const ver     = veredictoDe(md, senales);
+    md.decision = { senales, quiebre, chips, veredicto: ver };
+
+    box.style.display = 'block';
+    // El veredicto viejo (dos oraciones de la IA arriba del gauge) queda
+    // reemplazado por este bloque.
+    const viejo = document.getElementById('mrVeredictoBox');
+    if (viejo) viejo.style.display = 'none';
+
+    const vBox = document.getElementById('mrvVeredicto');
+    vBox.className = 'mrv-veredicto mrv-v-' + ver.clave;
+    document.getElementById('mrvVeredictoTitle').textContent = ver.titulo;
+    let subHTML = ver.sub;
+    if (ver.condiciones && ver.condiciones.length){
+      subHTML += '<ul style="text-align:left;margin:10px auto 0;max-width:640px;padding-left:18px">' +
+        ver.condiciones.map(c => '<li style="margin-bottom:6px">'+c+'</li>').join('') + '</ul>';
+    }
+    document.getElementById('mrvVeredictoSub').innerHTML = subHTML;
+
+    // Las criticas van primero y con borde rojo.
+    const contraHTML = senales.criticos.map(x => itemHTML(x, true)).join('') +
+                       senales.enContra.map(x => itemHTML(x, false)).join('');
+    document.getElementById('mrvEnContra').innerHTML = contraHTML ||
+      '<div class="mrv-vacio">Ninguna senal en contra con los datos que hay.</div>';
+    document.getElementById('mrvAFavor').innerHTML =
+      senales.aFavor.map(x => itemHTML(x, false)).join('') ||
+      '<div class="mrv-vacio">Ninguna senal a favor con los datos que hay.</div>';
+
+    // --- Escenarios de quiebre ---
+    const nf = new Intl.NumberFormat('es-AR');
+    const grid = document.getElementById('mrvQuiebreGrid');
+    const cajas = [];
+    if (quiebre && quiebre.dolar){
+      const d = quiebre.dolar;
+      cajas.push(d.valor
+        ? '<div class="mrv-qbox"><div class="mrv-qlabel">D&#243;lar de quiebre</div><div class="mrv-qval">$'+nf.format(d.valor)+'</div>'+
+          '<div class="mrv-qtext">Dej&#225;s de ganar plata si el d&#243;lar llega a <b>$'+nf.format(d.valor)+'</b> (hoy $'+nf.format(d.hoy)+', son <b>'+d.aguantePct+'%</b> de margen de aguante).</div></div>'
+        : '<div class="mrv-qbox"><div class="mrv-qlabel">D&#243;lar de quiebre</div><div class="mrv-qval mrv-q-bad">&#8212;</div><div class="mrv-qtext">'+(d.nota||'')+'</div></div>');
+    }
+    if (quiebre && quiebre.precio){
+      const p = quiebre.precio;
+      const comp = p.competencia
+        ? ' Hoy la competencia est&#225; en <b>ARS '+nf.format(p.competencia)+'</b>'+(p.bajoCompetenciaPct!=null?' ('+p.bajoCompetenciaPct+'% por encima de tu piso)':'')+'.'
+        : ' No tengo precio de competencia confiable con el que comparar (muestra insuficiente).';
+      cajas.push('<div class="mrv-qbox"><div class="mrv-qlabel">Precio de quiebre</div><div class="mrv-qval">ARS '+nf.format(p.valor)+'</div>'+
+        '<div class="mrv-qtext">Si la competencia baja a <b>ARS '+nf.format(p.valor)+'</b> ya no te da. Vos cargaste ARS '+nf.format(p.tuyo)+'.'+comp+'</div></div>');
+    }
+    if (quiebre && quiebre.ventas){
+      const v = quiebre.ventas;
+      cajas.push(v.uds
+        ? '<div class="mrv-qbox"><div class="mrv-qlabel">Ventas m&#237;nimas</div><div class="mrv-qval">'+nf.format(v.uds)+' uds/mes</div>'+
+          '<div class="mrv-qtext">Necesit&#225;s vender al menos <b>'+nf.format(v.uds)+' uds/mes</b> para que valga la pena vs dejar la plata quieta. El capital inmovilizado ('+ 'ARS '+nf.format(v.inversionARS)+', '+v.diasCap+' d&#237;as al '+v.tasaMesPct+'%/mes) cuesta ARS '+nf.format(v.costoMensualARS)+' por mes.'+
+          (v.actuales?' Hoy estim&#225;s '+nf.format(v.actuales)+' uds/mes.':'')+'</div></div>'
+        : '<div class="mrv-qbox"><div class="mrv-qlabel">Ventas m&#237;nimas</div><div class="mrv-qval mrv-q-bad">&#8212;</div><div class="mrv-qtext">'+(v.nota||'')+'</div></div>');
+    }
+    grid.innerHTML = cajas.join('') || '<div class="mrv-vacio">Faltan datos para calcular los escenarios de quiebre.</div>';
+
+    // --- Nota de los riesgos tildables ---
+    const nota = document.getElementById('mrvRiesgosNota');
+    if (nota){
+      nota.innerHTML = ver.riesgosSinTildar.length
+        ? '<b>'+ver.riesgosSinTildar.length+'</b> sin verificar: mientras queden sin tildar, el veredicto m&#225;ximo posible es "CONVIENE SOLO SI".'
+        : '<span style="color:#27ae60">Los dos verificados.</span>';
+    }
+
+    // --- Chips de calidad de datos ---
+    document.getElementById('mrvChips').innerHTML = chips.map(c =>
+      '<div class="mrv-chip mrv-chip-'+c.c+'"><span class="mrv-chip-t">'+c.t+'</span><span class="mrv-chip-d">'+c.d+'</span></div>'
+    ).join('');
+
+    return md.decision;
+  }
+  window.renderMRDecision = renderDecision;
+
+  // Tildar un riesgo recalcula el veredicto en el acto.
+  document.addEventListener('change', function(ev){
+    const t = ev.target;
+    if (!t || (t.id !== 'mrvChkCert' && t.id !== 'mrvChkMarca')) return;
+    if (typeof mrData !== 'undefined' && mrData && mrData.step4) renderDecision(mrData);
+  }, true);
+
+  // El veredicto viejo de v9 (una recomendacion basada solo en el margen)
+  // contradecia al bloque nuevo. Se neutraliza: la decision es una sola.
+  window.__v9render = function(){ try{ const e=document.querySelector('.v9-reco'); if(e) e.remove(); }catch(_){} };
+})();
+
+/* ---- bloque 22 ---- */
+/* ===== Tipo de cambio real =====
+   El input arrancaba con value="1250" hardcodeado en el HTML. Con el oficial
+   arriba de 1500 eso subvaluaba el costo en ARS y devolvia un margen inflado.
+   Ahora la cotizacion se pide a /api/market?dolar=1 (el server consulta
+   dolarapi, asi no hay CORS) y se completa con el tipo elegido, MEP por
+   defecto. Si el usuario lo pisa a mano, no se vuelve a tocar.
+   ===================================================================== */
+(function(){
+  var TIPO_LABEL = { mayorista:'Mayorista', oficial:'Oficial', mep:'MEP', ccl:'CCL', tarjeta:'Tarjeta' };
+  var estado = { cotizaciones:null, manual:false, tipo:'mep', ok:false };
+  window.__mrDolar = { ok:false, manual:false, tipoLabel:'' };
+
+  function nf(n){ return new Intl.NumberFormat('es-AR').format(n); }
+
+  function fechaCorta(iso){
+    if (!iso) return null;
+    try {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return null;
+      var dd = String(d.getDate()).padStart(2,'0');
+      var mm = String(d.getMonth()+1).padStart(2,'0');
+      var hh = String(d.getHours()).padStart(2,'0');
+      var mi = String(d.getMinutes()).padStart(2,'0');
+      return dd+'/'+mm+' '+hh+':'+mi;
+    } catch(e){ return null; }
+  }
+
+  function pintarHint(){
+    var hint = document.getElementById('mrDolarHint');
+    if (!hint) return;
+    var c = estado.cotizaciones;
+    if (estado.manual){
+      var inp = document.getElementById('mrTipoCambio');
+      var v = inp ? parseFloat(inp.value) : NaN;
+      hint.innerHTML = '<b style="color:#e0a020">Valor cargado a mano</b>' + (isFinite(v) ? ': $'+nf(Math.round(v)) : '') +
+        ' &#183; no lo vuelvo a sobrescribir';
+      window.__mrDolar = { ok:true, manual:true, tipoLabel:'manual' };
+      return;
+    }
+    if (!c || !c.ok){
+      hint.innerHTML = '<b style="color:#e05a4a">No pude traer la cotizaci&#243;n</b>' +
+        (c && c.error ? ' ('+c.error+')' : '') + ' &#183; carg&#225; el tipo de cambio a mano';
+      window.__mrDolar = { ok:false, manual:false, tipoLabel:'' };
+      return;
+    }
+    var val = c[estado.tipo];
+    var f = fechaCorta(c.fecha);
+    hint.innerHTML = (val != null)
+      ? '<b>'+TIPO_LABEL[estado.tipo]+' $'+nf(val)+'</b> &#183; actualizado '+(f||'sin fecha')+' &#183; editable'
+        + (c.vencido ? ' &#183; <span style="color:#e0a020">cotizaci&#243;n vieja, dolarapi no responde</span>' : '')
+      : '<b style="color:#e0a020">Sin cotizaci&#243;n para '+TIPO_LABEL[estado.tipo]+'</b> &#183; eleg&#237; otro tipo o cargalo a mano';
+    window.__mrDolar = { ok: val != null, manual:false, tipoLabel: TIPO_LABEL[estado.tipo] };
+  }
+
+  function aplicar(){
+    if (estado.manual) { pintarHint(); return; }
+    var inp = document.getElementById('mrTipoCambio');
+    var c = estado.cotizaciones;
+    if (inp && c && c.ok && c[estado.tipo] != null){
+      inp.dataset.auto = '1';               // marca: lo escribio el sistema
+      inp.value = String(c[estado.tipo]);
+      if (typeof mrData !== 'undefined' && mrData) mrData.tc = c[estado.tipo];
+      delete inp.dataset.auto;
+    }
+    pintarHint();
+  }
+
+  async function cargar(){
+    var hint = document.getElementById('mrDolarHint');
+    if (hint && !estado.manual) hint.textContent = 'Consultando cotización...';
+    try {
+      var res = await fetch('/api/market?dolar=1');
+      var c = await res.json();
+      estado.cotizaciones = c;
+      estado.ok = !!(c && c.ok);
+      if (c && c.porDefecto && TIPO_LABEL[c.porDefecto]) {
+        var sel = document.getElementById('mrDolarTipo');
+        if (sel && !sel.dataset.tocado) { sel.value = c.porDefecto; estado.tipo = c.porDefecto; }
+      }
+    } catch(e){
+      estado.cotizaciones = { ok:false, error:'no pude consultar /api/market?dolar=1' };
+      estado.ok = false;
+    }
+    aplicar();
+  }
+  window.__mrCargarDolar = cargar;
+
+  function init(){
+    var sel = document.getElementById('mrDolarTipo');
+    var inp = document.getElementById('mrTipoCambio');
+    if (!sel || !inp || sel.__dolarBound) return;
+    sel.__dolarBound = true;
+    estado.tipo = sel.value || 'mep';
+
+    sel.addEventListener('change', function(){
+      sel.dataset.tocado = '1';
+      estado.tipo = sel.value;
+      // Elegir un tipo distinto es pedir ese valor: vuelve a tomar el
+      // automatico aunque antes lo hubiera pisado a mano.
+      estado.manual = false;
+      aplicar();
+    });
+
+    // Si el usuario escribe el valor, manda el suyo y no se sobrescribe mas.
+    inp.addEventListener('input', function(){
+      if (inp.dataset.auto) return;
+      estado.manual = true;
+      pintarHint();
+    });
+
+    cargar();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+  setTimeout(init, 500);
+})();

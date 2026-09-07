@@ -363,8 +363,30 @@ export async function catalogSearch(product, token, opts) {
     fuente: 'meli-catalogo',
     total,
     results,
-    categoryName: (catalogo[0] && (catalogo[0].domain_id || '').split('-').pop()) || ''
+    // domain_id.split('-').pop() devolvia "PROJECTORS": el slug interno, en
+    // ingles. Ademas de mostrarse mal, rompia el regex de comision del front
+    // (no matcheaba "electronica" y aplicaba 15% en vez de 16,5%). El nombre
+    // real de la categoria, en castellano, lo da domain_discovery.
+    categoryName: await nombreDeCategoria(product, token, catalogo[0])
   };
+}
+
+// Nombre de la categoria en castellano, como lo llama MercadoLibre Argentina.
+// Si domain_discovery no responde se devuelve cadena vacia: el front sabe
+// mostrar "sin dato", y es preferible a un slug en ingles que despues se usa
+// para elegir la comision.
+export async function nombreDeCategoria(product, token, productoCatalogo) {
+  try {
+    const q = encodeURIComponent(product);
+    const dom = await fetchJson(MELI_API + '/sites/MLA/domain_discovery/search?limit=1&q=' + q, token, 3500);
+    const d0 = dom.ok && Array.isArray(dom.json) && dom.json[0] ? dom.json[0] : null;
+    const n = d0 && (d0.category_name || d0.domain_name);
+    if (n) return String(n);
+  } catch (_) {}
+  // Respaldo: el nombre del producto de catalogo dice mas que el slug del
+  // domain_id, pero nunca se devuelve el slug en ingles.
+  const nombre = productoCatalogo && productoCatalogo.name;
+  return nombre ? String(nombre) : '';
 }
 
 // Segunda via de precios reales, para cuando el catalogo no los da.
@@ -476,11 +498,16 @@ export async function publicIdsSearch(product, token, opts) {
   const conTodas = items.filter(it => { const t = norm(it.title); return palabras.every(w => t.includes(w)); });
   const elegidos = conTodas.length >= 3 ? conTodas : items;
 
+  // El listado es ahora la via principal, asi que su categoryName es el que
+  // termina eligiendo la comision de MeLi en el front. Si el HTML no la trae,
+  // se pide a domain_discovery en vez de devolver vacio.
+  const categoria = html.categoria || await nombreDeCategoria(product, token, null);
+
   return {
     fuente: 'meli-listado+items',
     total: html.total || null,
     muestra: elegidos.length,
-    categoryName: html.categoria || '',
+    categoryName: categoria || '',
     results: elegidos.map(it => ({
       id: it.id,
       title: it.title,
@@ -810,10 +837,16 @@ export async function buscarPublicaciones(product, token, opts) {
       return { pendiente: true, results: [], fuente: 'preparando' };
     }
   };
-  // El orden es de mejor a peor dato (el catalogo trae total de publicaciones,
-  // el listado tambien, los destacados no) y no se altera: lo unico que se
-  // recuerda es cual esta muerta, para no reintentarla por cada producto.
-  const orden = ['catalogo', 'destacados', 'listado', 'proveedor'];
+  // El orden va de mejor a peor DATO REAL, no de mejor a peor total.
+  //
+  // El catalogo iba primero porque traia paging.total, pero ese total cuenta
+  // productos de catalogo, no publicaciones, y sus "competidores" salen de
+  // /products/{id}/items: sin nickname, sin reputacion y con sold_quantity 0.
+  // Medido en produccion daba muestra de 1, precioMin = precioMax y vendedores
+  // "N/A". El listado publico saca los IDs del HTML y los hidrata con
+  // /items?ids=, que si trae precio, vendedor, vendidos y envio reales: ese es
+  // el dato que sirve para decidir una compra, asi que va primero.
+  const orden = ['listado', 'destacados', 'catalogo', 'proveedor'];
   for (const nombre of orden) {
     const fallos = _viaEstado.fallos[nombre] || 0;
     // Se saltea la via que ya fallo dos veces, siempre que otra este andando.
