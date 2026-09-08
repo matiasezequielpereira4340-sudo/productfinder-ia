@@ -254,6 +254,41 @@ se reinicia en cada cold start, o sea que no sería un tope.
 Cubre las corridas de MercadoLibre y también las de `_fuentes.js` (TikTok Shop,
 Google Trends): es la misma cuenta de Apify.
 
+### Quién puede llegar a la vía paga, y quién no
+
+No es un tope por request: es una exclusión. La decisión de fondo es **qué tipo
+de consulta merece pagar**.
+
+| Camino | ¿Puede pagar? | Por qué |
+|---|---|---|
+| Market Reader (`stepCompetencia`, `exploracion`, `testBusqueda`) | Sí, con sesión | El usuario pidió evaluar **ese** producto |
+| Radar, saturación de un candidato puntual | Sí, con sesión | Idem: un producto, pedido explícitamente |
+| `/api/analyze` (buscador de oportunidades) | **Nunca** | Es un barrido: el usuario pidió ver un nicho, no evaluar 12 productos |
+
+`/api/analyze` pasa `sinPago: true` y eso **saca `proveedor` de la lista de vías
+entera** — no es un guard adentro de la vía, la vía no está. Es imposible por
+diseño, no por disciplina. Hay un segundo freno redundante adentro de la vía por
+si alguien vuelve a meterla en la lista sin mirar.
+
+La aritmética que lo justifica: un barrido de 12 productos podía costar hasta
+**USD 2,30**, mientras el Market Reader paga **USD 0,19** por el único producto
+que la persona está evaluando de verdad. Con la exclusión, el tope de 30 pasa a
+ser 30 productos analizados en serio, no dos barridos y medio.
+
+Lo que `/api/analyze` **sí** sigue haciendo gratis: leer el caché y cosechar una
+corrida ya pagada por el Market Reader. Eso no arranca nada.
+
+Cuando no hay dato, la tarjeta lo dice con todas las letras y ofrece el camino
+bueno, en vez de mostrar un "A validar" pelado que se lee como si el sistema
+hubiera mirado el mercado:
+
+> **Competencia sin datos:** MercadoLibre no permite consultarla gratis.
+> Analizá el producto en el Market Reader para traer las publicaciones reales.
+
+(TikTok Shop y Google Trends en `_fuentes.js` son otra cosa: ahí el actor no es
+la última vía, es la **única** fuente. Siguen pagando, con sesión y contra el
+mismo tope.)
+
 ### Variables de entorno
 
 | Variable | Default | Qué hace |
@@ -307,6 +342,21 @@ Ojo con `run_estado` de `busquedas_cache`: es el estado que devolvió Apify **al
 crear** la corrida (casi siempre `READY`, o sea encolada) y nunca se actualizó.
 No dice si después corrió. Eso lo contesta `corrida.arrancoDeVerdad` /
 `computeUnits` / `costo_usd` de este endpoint.
+
+### Pista pendiente: `mercadolibre.com.ar/ofertas?q=`
+
+Medido el 8/9/2026 en el diagnóstico `?catalogo=`: de las cuatro URLs públicas
+que se prueban, tres devuelven el muro anti-bot (`ids: 0`, `muro: true`) y
+**`/ofertas?q=` no** — devolvió 634 KB y 48 IDs.
+
+Pero de 5 de esos IDs hidratados con `/items?ids=` volvieron **0**. La sospecha
+es que la página de ofertas **ignora el `q=`** y devuelve la grilla genérica de
+ofertas del día: o sea, otra trampa de resultados de rescate, con la forma
+exacta que ya conocemos (muchos IDs, ninguno del producto).
+
+No se siguió. Si algún día se retoma, lo primero a probar es si los 48 IDs
+cambian al cambiar el `q=`. Si no cambian, está confirmado que la página lo
+ignora y la pista se cierra.
 
 ### Prueba
 

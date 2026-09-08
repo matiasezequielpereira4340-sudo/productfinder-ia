@@ -8,7 +8,7 @@
 // ============================================================
 
 import { resolveUserId, buscarPublicaciones, anthropicHeaders } from './_meli.js';
-import { esCliente, haySesion, tokenDe } from './_sesion.js';
+import { esCliente, tokenDe } from './_sesion.js';
 import { cotizacionDolar, tipoDeCambio, DOLAR_TIPO_DEFAULT } from './_dolar.js';
 
 const USD_ARS_FALLBACK = 1510;
@@ -1041,13 +1041,22 @@ async function meliSearch(query, token, costoTope, opts){
     // publico + /items?ids=. Antes esto tenia su propia copia contra
     // /products/{id}/items, que hoy devuelve 404, asi que el recomendador
     // mostraba todo como estimado aun con la cuenta conectada.
-    // Sin sesion NO se llega a la via paga: /api/analyze es publico y evalua 12
-    // productos por consulta, o sea que sin este freno una sola visita anonima
-    // podia arrancar 12 corridas pagas.
+    //
+    // sinPago: ESTE BARRIDO NO PAGA NUNCA. No es un tope, es una exclusion.
+    //
+    // El usuario no pidio evaluar estos 12 productos: pidio ver un nicho. Un
+    // barrido exploratorio que puede costar USD 2,30 mientras el Market Reader
+    // paga USD 0,19 por el unico producto que la persona esta evaluando de
+    // verdad, esta al reves. Medido: las 5 corridas del 5/9 salieron de aca,
+    // con timestamps a 2 segundos entre si (Promise.all de a 5).
+    //
+    // Lo que SI sigue haciendo gratis: leer el cache y cosechar una corrida ya
+    // pagada por el Market Reader. Eso no arranca nada.
     const r = await buscarPublicaciones(query, token, {
       budgetMs: 5000, maxIds: 25,
-      puedeGastar: !!o.puedeGastar, origen: 'analyze'
+      sinPago: true, origen: 'analyze'
     });
+    if (r && r.sinPago) return { sinPago: true, precios: [], sellers: null, total: null };
     if(!r || !r.results || !r.results.length) return null;
 
     const precios = r.results.map(function(x){ return x.price; })
@@ -1208,9 +1217,6 @@ export default async function handler(req, res) {
     let usdArs = parseFloat(process.env.USD_ARS) || USD_ARS_FALLBACK;
     const _tc = await tipoDeCambio(DOLAR_TIPO_DEFAULT);
     if (_tc.valor != null) usdArs = _tc.valor;
-    // La via paga solo para usuarios con sesion. El resto sigue viendo lo que
-    // devuelven las vias gratuitas, igual que antes.
-    const conSesion = haySesion(tokenDe(req));
     const tk = await getMeliToken(user_id);
     const token = tk && tk.token ? tk.token : null;
     const tokenExpired = tk && tk.expired ? true : false;
@@ -1222,7 +1228,7 @@ export default async function handler(req, res) {
       const evals = await Promise.all(batch.map(async (prod) => {
         const costoUnitUSD = (prod.costoMin + prod.costoMax)/2;
         const costoPuestoARS = costoPuestoARS_(costoUnitUSD, prod.pesoG, usdArs);
-        const data = await meliSearch(prod.q, token, costoPuestoARS, { puedeGastar: conSesion });
+        const data = await meliSearch(prod.q, token, costoPuestoARS);
         function _satFromTotal(t){ if(t==null) return null; if(t < 2000) return 'Baja'; if(t < 5000) return 'Media'; if(t < 9000) return 'Alta'; return 'Muy alta'; }
         if (data && data.precios.length && data.total == null) {
           // Precio real pero sin total de publicaciones: MercadoLibre no lo
@@ -1258,10 +1264,16 @@ export default async function handler(req, res) {
             totalResultados: total, competencia: total, costoEstimadoUSD: [prod.costoMin, prod.costoMax], costoPuestoARS: costoPuestoARS,
             margen: sEst.margenPct, demanda: _nivel(sEst.demScore), saturacion: sat, riesgo: riesgo, score: sc };
         }
+        // Sin datos de competencia. Se dice por que, en vez de mostrar un
+        // "Estimado" pelado que el usuario lee como si el sistema hubiera
+        // mirado algo. Y se lo manda al Market Reader, que es donde el dato
+        // real si se puede traer.
         return { nombre: prod.nombre, query: prod.q, nota: prod.nota, pesoG: prod.pesoG,
           fuente: 'Estimado', precioVentaARS: null, sellers: null, totalResultados: null, competencia: null,
           costoEstimadoUSD: [prod.costoMin, prod.costoMax], costoPuestoARS: costoPuestoARS,
-          margen: null, demanda: 'A validar', saturacion: 'A validar', riesgo: 'A validar', score: null };
+          margen: null, demanda: 'A validar', saturacion: 'A validar', riesgo: 'A validar', score: null,
+          competenciaSinDatos: true,
+          competenciaMotivo: 'MercadoLibre no permite consultarla gratis. Analiza el producto en el Market Reader para traer las publicaciones reales.' };
       }));
       productos.push.apply(productos, evals);
     }

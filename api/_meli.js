@@ -1323,6 +1323,16 @@ export async function buscarPublicaciones(product, token, opts) {
       // responde lo que se pregunto.
       if (site !== 'MLA') return null;
 
+      // ---- FRENO 0: barrido masivo. -------------------------------------
+      // Redundante con el orden de arriba, a proposito. Si alguna vez alguien
+      // vuelve a meter 'proveedor' en la lista sin mirar, esto sigue frenando.
+      if (o.sinPago) {
+        return {
+          sinPago: true, results: [], fuente: 'sin-datos-gratis',
+          aviso: 'Competencia sin datos: MercadoLibre no permite consultarla gratis.'
+        };
+      }
+
       // ---- FRENO 1: sesion. ----------------------------------------------
       // El gate va SOLO sobre esta via, no sobre el endpoint. Las tres vias
       // gratuitas siguen abiertas para cualquiera: el demo publico de la
@@ -1411,7 +1421,15 @@ export async function buscarPublicaciones(product, token, opts) {
   // "N/A". El listado publico saca los IDs del HTML y los hidrata con
   // /items?ids=, que si trae precio, vendedor, vendidos y envio reales: ese es
   // el dato que sirve para decidir una compra, asi que va primero.
-  const orden = ['listado', 'destacados', 'catalogo', 'proveedor'];
+  //
+  // opts.sinPago saca la via paga de la lista ENTERA. No es un guard adentro de
+  // la via: es que la via no esta. La diferencia importa: un barrido masivo
+  // como /api/analyze evalua 12 productos por consulta, y ahi la unica garantia
+  // que sirve es que sea imposible por diseño llegar a pagar, no que alguien se
+  // acuerde de pasar el flag correcto.
+  const orden = o.sinPago
+    ? ['listado', 'destacados', 'catalogo']
+    : ['listado', 'destacados', 'catalogo', 'proveedor'];
   const est = viaEstado(site);
   for (const nombre of orden) {
     // Se acabo el presupuesto: se devuelve "sin tiempo", que aguas arriba es
@@ -1444,7 +1462,7 @@ export async function buscarPublicaciones(product, token, opts) {
       // de la via: la via anda, lo que pasa es que no se la deja gastar. Si se
       // contaran como falla, dos frenos seguidos la marcarian como muerta y
       // quedaria salteada aun cuando el usuario se loguee.
-      if (r && (r.requiereSesion || r.topeAlcanzado)) { est.fallos[nombre] = 0; return r; }
+      if (r && (r.requiereSesion || r.topeAlcanzado || r.sinPago)) { est.fallos[nombre] = 0; return r; }
       // Corte por tiempo: no es culpa de la via, no se la penaliza.
       if (r && r.sinTiempo) return r;
       est.fallos[nombre] = fallos + 1;
@@ -1455,6 +1473,15 @@ export async function buscarPublicaciones(product, token, opts) {
                     '" (' + site + '): ' + String((e && e.message) || e).slice(0, 200));
       est.fallos[nombre] = fallos + 1;
     }
+  }
+  // Barrido masivo sin via paga: ninguna gratuita contesto. Devolver null seria
+  // "no pude consultar" a secas; con el flag se puede decir POR QUE y mandar al
+  // usuario al Market Reader, que es donde el dato si se trae.
+  if (o.sinPago) {
+    return {
+      sinPago: true, results: [], fuente: 'sin-datos-gratis',
+      aviso: 'Competencia sin datos: MercadoLibre no permite consultarla gratis.'
+    };
   }
   return null;
 }
@@ -1630,6 +1657,7 @@ export async function contarPublicaciones(product, token, site, opts) {
   // Frenos de gasto: no se pudo consultar, y el motivo no es de MercadoLibre.
   // Va como ok:false / publicaciones:null, o sea "no pude consultar", jamas
   // como cero publicaciones.
+  if (r.sinPago) return { ...vacio, sinPago: true, motivo: r.aviso || 'esta consulta no usa la via paga' };
   if (r.requiereSesion) return { ...vacio, requiereSesion: true, motivo: r.aviso || 'hace falta iniciar sesion para esta consulta' };
   if (r.topeAlcanzado) return { ...vacio, topeAlcanzado: true, gasto: r.gasto || null, motivo: r.aviso || 'tope diario de busquedas pagas alcanzado' };
 

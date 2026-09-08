@@ -635,7 +635,18 @@ function renderResults(data){
     const margen = p.margen != null ? (p.margen+'%') : '\u2014';
         const sellers = (p.competencia != null ? nf.format(p.competencia) + ' pub.' : (p.sellers != null ? nf.format(p.sellers) + ' pub.' : '\u2014'));
     const fuenteTag = real ? '<span class="tag-real" title="Precio y competencia obtenidos en vivo de MercadoLibre"><svg class="ic" aria-hidden="true"><use href="#i-dot"></use></svg> Dato real ML</span>' : '<span class="tag-est" title="Sin precio real: conecta MercadoLibre para activarlo"><svg class="ic" aria-hidden="true"><use href="#i-dot"></use></svg> Estimado</span>';
-    return '<div class="product-card '+(p.topPick?'top-pick':'')+'">'+(p.topPick ? '<span class="top-badge"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> TOP PICK</span>' : '')+'<div class="product-name">'+p.nombre+'</div><div style="margin-bottom:10px">'+fuenteTag+' <span class="tag-info" title="Por que es apto para regimen de importacion">'+p.nota+'</span></div>'+(real ? '<div class="score-row"><span>Score</span><strong>'+p.score+'/100</strong></div><div class="score-bar"><div class="score-fill" style="width:'+scorePct+'%"></div></div>' : '')+'<div class="product-stats"><div class="stat"><span class="stat-l" title="Precio promedio de venta en MercadoLibre">Precio venta</span><span class="stat-v">'+precio+'</span></div><div class="stat"><span class="stat-l" title="Costo estimado del producto puesto en Argentina (FOB China + logistica + impuestos)">Costo est.</span><span class="stat-v">'+costo+'</span></div><div class="stat"><span class="stat-l" title="Ganancia sobre el costo estimado">Margen</span><span class="stat-v">'+margen+'</span></div><div class="stat"><span class="stat-l" title="Publicaciones activas compitiendo en MercadoLibre (dato real)">Competencia</span><span class="stat-v">'+sellers+'</span></div><div class="stat"><span class="stat-l" title="Nivel de demanda del producto">Demanda</span><span class="stat-v">'+p.demanda+'</span></div><div class="stat"><span class="stat-l" title="Cuan saturado esta el mercado. Baja = mejor oportunidad">Saturacion</span><span class="stat-v">'+p.saturacion+'</span></div></div><div class="risk-line risk-'+String(p.riesgo).toLowerCase().replace(/[^a-z]/g,'')+'">Riesgo: '+p.riesgo+'</div></div>';
+    // El buscador de oportunidades es un barrido y NO paga por traer
+    // publicaciones. Cuando las vias gratuitas no dan, se dice por que y se
+    // manda al Market Reader, que es donde el dato real si se trae. Antes esto
+    // salia como "A validar" pelado y se leia como si el sistema hubiera
+    // mirado el mercado y no hubiera encontrado nada.
+    const sinComp = p.competenciaSinDatos
+      ? '<div class="pf-sin-comp" style="margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);font-size:.78rem;line-height:1.45;color:var(--text-dim)">'+
+        '<strong style="color:var(--text)">Competencia sin datos:</strong> MercadoLibre no permite consultarla gratis. '+
+        'Analiz&aacute; el producto en el <a href="#" class="pf-ir-mr" data-q="'+String(p.query||p.nombre||'').replace(/"/g,'&quot;')+'">Market Reader</a> para traer las publicaciones reales.'+
+        '</div>'
+      : '';
+    return '<div class="product-card '+(p.topPick?'top-pick':'')+'">'+(p.topPick ? '<span class="top-badge"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> TOP PICK</span>' : '')+'<div class="product-name">'+p.nombre+'</div><div style="margin-bottom:10px">'+fuenteTag+' <span class="tag-info" title="Por que es apto para regimen de importacion">'+p.nota+'</span></div>'+(real ? '<div class="score-row"><span>Score</span><strong>'+p.score+'/100</strong></div><div class="score-bar"><div class="score-fill" style="width:'+scorePct+'%"></div></div>' : '')+'<div class="product-stats"><div class="stat"><span class="stat-l" title="Precio promedio de venta en MercadoLibre">Precio venta</span><span class="stat-v">'+precio+'</span></div><div class="stat"><span class="stat-l" title="Costo estimado del producto puesto en Argentina (FOB China + logistica + impuestos)">Costo est.</span><span class="stat-v">'+costo+'</span></div><div class="stat"><span class="stat-l" title="Ganancia sobre el costo estimado">Margen</span><span class="stat-v">'+margen+'</span></div><div class="stat"><span class="stat-l" title="Publicaciones activas compitiendo en MercadoLibre (dato real)">Competencia</span><span class="stat-v">'+sellers+'</span></div><div class="stat"><span class="stat-l" title="Nivel de demanda del producto">Demanda</span><span class="stat-v">'+p.demanda+'</span></div><div class="stat"><span class="stat-l" title="Cuan saturado esta el mercado. Baja = mejor oportunidad">Saturacion</span><span class="stat-v">'+p.saturacion+'</span></div></div><div class="risk-line risk-'+String(p.riesgo).toLowerCase().replace(/[^a-z]/g,'')+'">Riesgo: '+p.riesgo+'</div>'+sinComp+'</div>';
   }).join('');
   // El servidor manda solo los productos que corresponden. Si sobran, dibujamos
   // el candado con tarjetas vacias: ya no hay datos reales escondidos en el DOM.
@@ -658,6 +669,20 @@ function renderResults(data){
       '</div>';
   }
   grid.innerHTML = banner + cards + candado;
+  // El link "Market Reader" arranca el flujo con ese producto ya escrito, para
+  // que el usuario no tenga que volver a tipearlo.
+  Array.prototype.forEach.call(grid.querySelectorAll('.pf-ir-mr'), function(a){
+    a.style.color = 'var(--gold)'; a.style.fontWeight = '700';
+    a.onclick = function(ev){
+      ev.preventDefault();
+      var q = this.getAttribute('data-q') || '';
+      try{
+        if(typeof showMarket === 'function') showMarket();
+        var inp = document.getElementById('mrProductInput');
+        if(inp){ inp.value = q; inp.focus(); }
+      }catch(e){}
+    };
+  });
   var _cb = document.getElementById('pfCandadoBtn');
   if(_cb) _cb.addEventListener('click', function(){
     var cs = document.querySelector('.contact-section');

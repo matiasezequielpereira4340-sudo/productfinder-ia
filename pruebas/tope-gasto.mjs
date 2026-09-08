@@ -221,6 +221,36 @@ chequear('trae precios reales', !!(libre && (libre.results||[]).some(x => x.pric
 chequear('NO se toco Apify', apifyArranques === 0, 'llamadas=' + apifyArranques);
 chequear('NO se reservo cupo', filas.length === 0, 'filas=' + filas.length);
 
+console.log('\n== 12. sinPago: un barrido masivo no puede pagar ni con sesion ==');
+// Todo bloqueado: la unica via que podria contestar es la paga.
+filas = []; seq = 1; apifyArranques = 0;
+globalThis.fetch = (url, init) => {
+  const s = String(url);
+  // El contador lo lleva el servidor falso; aca solo se desvia.
+  if (s.startsWith('https://api.apify.com/')) return fetchReal('http://127.0.0.1:' + PUERTO + '/apify/acts/x', init);
+  if (s.startsWith('https://api.mercadolibre.com/')) return Promise.resolve(new Response('{}', { status: 403 }));
+  if (/mercadolibre\.com\.ar|mercadolivre|listado\./.test(s)) return Promise.resolve(new Response('<html>bloqueado</html>', { status: 200 }));
+  if (s.startsWith('http://127.0.0.1')) return fetchReal(url, init);
+  return Promise.resolve(new Response('{}', { status: 404 }));
+};
+const est12 = meli.viaDeBusquedaUsada('MLA');
+for (const k of Object.keys(est12.porSitio)) delete est12.porSitio[k];
+
+// puedeGastar TRUE (hay sesion) y aun asi sinPago tiene que ganar.
+let bar = await meli.buscarPublicaciones('barrido masivo producto 1', 'tok', {
+  puedeGastar: true, sinPago: true, sinCache: true });
+chequear('devuelve sinPago', !!(bar && bar.sinPago), bar && bar.fuente);
+chequear('NO arranco corrida aunque haya sesion', apifyArranques === 0, 'arranques=' + apifyArranques);
+chequear('NO reservo cupo', filas.length === 0, 'filas=' + filas.length);
+chequear('el aviso explica que no se puede gratis', /no permite consultarla gratis/i.test((bar && bar.aviso) || ''), bar && bar.aviso);
+
+// Control: el MISMO caso sin sinPago si arranca. Prueba que lo que freno fue
+// el flag y no que la cadena estuviera rota.
+for (const k of Object.keys(est12.porSitio)) delete est12.porSitio[k];
+bar = await meli.buscarPublicaciones('barrido masivo producto 2', 'tok', {
+  puedeGastar: true, sinCache: true });
+chequear('control: sin el flag SI arranca', apifyArranques === 1 && !!(bar && bar.pendiente), 'arranques=' + apifyArranques + ' fuente=' + (bar && bar.fuente));
+
 console.log('\n' + (fallos ? 'FALLARON ' + fallos + ' chequeos' : 'TODOS LOS CHEQUEOS PASARON'));
 srv.close();
 process.exit(fallos ? 1 : 0);
