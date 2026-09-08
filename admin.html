@@ -151,6 +151,28 @@
           </div>
         </div>
 
+        <!-- Gasto del proveedor pago (Apify) -->
+        <div class="section">
+          <div class="section-title">
+            <span>Gasto de MercadoLibre (Apify)</span>
+            <span style="color:#555;font-size:12px;text-transform:none;font-weight:400">Solo lectura. Ninguno de estos botones gasta plata.</span>
+          </div>
+          <div style="padding:12px 0;display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" onclick="verGasto()">Cuanto se gasto hoy</button>
+            <button type="button" onclick="verPendientes(false)">Corridas sin cosechar</button>
+            <button type="button" onclick="verPendientes(true)">Cosechar las que terminaron</button>
+          </div>
+          <div id="gastoOut" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;word-break:break-word;background:#0f0f0f;color:#ddd;border-radius:8px;padding:12px;max-height:60vh;overflow:auto">Toca un boton.</div>
+          <div style="margin-top:8px;font-size:12px;color:#777;line-height:1.5">
+            <b>Corridas sin cosechar</b> pregunta a Apify que paso con cada corrida paga anotada:
+            <code>arrancoDeVerdad</code> y <code>computeUnits</code> dicen si consumio credito
+            (computeUnits en 0 y sin arrancar = no se pago nada), y <code>dataset.existe</code>
+            dice si todavia se puede recuperar lo que trajo.
+            <b>Cosechar</b> ademas guarda las que ya terminaron. Leer una corrida y un dataset ya
+            producido es gratis: nada de esto arranca corridas nuevas.
+          </div>
+        </div>
+
         <!-- Lista clientes -->
         <div class="section">
           <div class="section-title">
@@ -192,6 +214,51 @@
   const role = localStorage.getItem('pf_role');
   if (role !== 'admin') {
     window.location.replace('/login.html');
+  }
+
+  // Diagnosticos de gasto. Van con adminFetch, o sea con la ADMIN_KEY que ya
+  // esta guardada en este navegador: no hay que escribir ningun comando ni
+  // pegar la clave en una URL.
+  function pintarGasto(txt){ var el=document.getElementById('gastoOut'); if(el) el.textContent = txt; }
+
+  async function verGasto(){
+    pintarGasto('Consultando...');
+    try{
+      var res = await adminFetch('/api/market?gasto=1&n=50');
+      var j = await res.json();
+      if(!res.ok){ pintarGasto('Error ' + res.status + ': ' + (j && j.error || '')); return; }
+      var linea = 'Dia ' + j.dia + ' (' + j.zona + ')\n' +
+        'Usadas hoy: ' + j.usadas + ' de ' + j.tope + '   |   Quedan: ' + j.restantes + '\n' +
+        'Se reinicia: ' + (j.reinicio ? new Date(j.reinicio).toLocaleString('es-AR') : '-') + '\n' +
+        (j.contadorOk ? '' : 'OJO: no pude contar (' + j.contadorError + '). Con el contador caido NO se gasta.\n') +
+        '\nPor termino:\n' + JSON.stringify(j.porTermino || {}, null, 2) +
+        '\n\nTotal estimado en la muestra: USD ' + j.totalUsdEnLaMuestra +
+        '\n\nUltimas corridas:\n' + JSON.stringify(j.corridas || [], null, 2);
+      pintarGasto(linea);
+    }catch(e){ pintarGasto('Fallo: ' + (e && e.message || e)); }
+  }
+
+  async function verPendientes(cosechar){
+    pintarGasto(cosechar ? 'Cosechando...' : 'Consultando Apify...');
+    try{
+      var res = await adminFetch('/api/market?pendientes=1&n=30' + (cosechar ? '&cosechar=1' : ''));
+      var j = await res.json();
+      if(!res.ok){ pintarGasto('Error ' + res.status + ': ' + (j && j.error || '')); return; }
+      var resumen = '';
+      if (Array.isArray(j.corridas)) {
+        var pagadas = 0, gratis = 0, conDataset = 0;
+        j.corridas.forEach(function(c){
+          var cu = c.corrida && c.corrida.computeUnits;
+          if (cu != null && cu > 0) pagadas++; else gratis++;
+          if (c.dataset && c.dataset.existe) conDataset++;
+        });
+        resumen = 'Corridas revisadas: ' + j.corridas.length + '\n' +
+          'Consumieron credito (computeUnits > 0): ' + pagadas + '\n' +
+          'NO consumieron credito: ' + gratis + '\n' +
+          'Con dataset todavia disponible: ' + conDataset + '\n\n';
+      }
+      pintarGasto(resumen + JSON.stringify(j, null, 2));
+    }catch(e){ pintarGasto('Fallo: ' + (e && e.message || e)); }
   }
 
   function logout() {

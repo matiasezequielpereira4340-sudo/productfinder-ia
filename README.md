@@ -318,6 +318,18 @@ pregunta real: en qué se fue la plata.
 `test-busqueda`, `analyze`, `radar:saturacion`, `diag:catalogo`, `diag:probe`,
 `fuente:tiktok`.
 
+### Cómo mirarlo sin escribir comandos
+
+Los tres diagnósticos de solo lectura (`?gasto=1`, `?pendientes=1`,
+`?relevancia=1`) aceptan **dos** credenciales: la `ADMIN_KEY` por header
+`x-admin-key`, o la **sesión de admin normal de la app**. Ninguno arranca
+corridas.
+
+Por eso hay una sección **"Gasto de MercadoLibre (Apify)"** en `/admin.html`
+con tres botones: cuánto se gastó hoy, corridas sin cosechar, y cosechar las
+que terminaron. Usa la clave que el panel ya tiene guardada en ese navegador,
+así que no hay que escribir ningún comando ni meter la clave en una URL.
+
 ### Corridas pagas sin cosechar (retención)
 
 Una corrida sólo se cosecha si alguien vuelve a buscar el mismo término. Si

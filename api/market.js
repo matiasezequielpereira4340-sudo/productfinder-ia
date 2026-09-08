@@ -7,6 +7,16 @@ import { anthropicHeaders, buscarPublicaciones, contarPublicaciones, relevanciaP
 import { haySesion, esAdmin, tokenDe, pedirSesion } from './_sesion.js';
 import { cotizacionDolar, DOLAR_TIPOS, DOLAR_TIPO_DEFAULT } from './_dolar.js';
 
+// Los diagnosticos de SOLO LECTURA (no arrancan corridas, no gastan) aceptan
+// dos credenciales: la ADMIN_KEY por header, o la sesion de admin normal de la
+// app. La segunda existe para que se puedan mirar desde el panel /admin.html
+// sin tener que pegar una clave secreta a mano, ni menos meterla en una URL.
+function admitido(req) {
+  const clave = req.headers['x-admin-key'] || (req.query && req.query.key);
+  if (process.env.ADMIN_KEY && clave === process.env.ADMIN_KEY) return true;
+  return esAdmin(tokenDe(req));
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -28,10 +38,7 @@ export default async function handler(req, res) {
     // los umbrales con consultas REALES en vez de con titulos supuestos.
     // Protegido con ADMIN_KEY: expone que busca la gente.
     if (req.query && req.query.relevancia) {
-      const clave = req.headers['x-admin-key'] || (req.query && req.query.key);
-      if (!process.env.ADMIN_KEY || clave !== process.env.ADMIN_KEY) {
-        return res.status(401).json({ error: 'No autorizado' });
-      }
+      if (!admitido(req)) return res.status(401).json({ error: 'No autorizado' });
       const n = Math.min(200, Math.max(1, parseInt(req.query.n, 10) || 50));
       const filas = leerRelevanciaLog(n);
       // Resumen para ver de una si los umbrales estan bien puestos.
@@ -60,10 +67,7 @@ export default async function handler(req, res) {
     // Apify ni a Supabase. Protegido con ADMIN_KEY: expone los terminos que
     // busca la gente y el gasto de la cuenta.
     if (req.query && req.query.gasto) {
-      const clave = req.headers['x-admin-key'] || (req.query && req.query.key);
-      if (!process.env.ADMIN_KEY || clave !== process.env.ADMIN_KEY) {
-        return res.status(401).json({ error: 'No autorizado' });
-      }
+      if (!admitido(req)) return res.status(401).json({ error: 'No autorizado' });
       const gas = await import('./_gasto.js');
       const r = await gas.resumenGasto(req.query.n);
       return res.status(200).json({ ok: true, ...r });
@@ -83,10 +87,7 @@ export default async function handler(req, res) {
     // termino, asi que una que termina cuando nadie mira se pierde aunque se
     // haya pagado. Nada de esto arranca corridas nuevas: no cuesta plata.
     if (req.query && req.query.pendientes) {
-      const clave = req.headers['x-admin-key'] || (req.query && req.query.key);
-      if (!process.env.ADMIN_KEY || clave !== process.env.ADMIN_KEY) {
-        return res.status(401).json({ error: 'No autorizado' });
-      }
+      if (!admitido(req)) return res.status(401).json({ error: 'No autorizado' });
       const bus = await import('./_buscador.js');
       const { ok, error, filas } = await corridasPendientes(req.query.n);
       if (!ok) return res.status(200).json({ ok: false, error });
