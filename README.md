@@ -447,9 +447,28 @@ pagaba y se perdía. Medido: de 13 corridas pagas, **5 habían quedado sin
 levantar** (4 de Google Trends y 1 de TikTok Shop, que el barrido salteaba por
 no ser de MercadoLibre — ahora las levanta también).
 
-El cron se autentica con `CRON_SECRET` si está cargada en Vercel; si no, con el
-user-agent que manda Vercel, que es falsificable. Se banca porque el barrido no
-arranca corridas ni gasta. Cargar `CRON_SECRET` lo cierra del todo.
+### `CRON_SECRET`: un secreto para los dos crons
+
+`esCron()` y `esCronVerificado()` viven en `api/_sesion.js` para que los dos
+crons compartan la misma variable. Hay que cargarla **una sola vez**:
+
+> Vercel → proyecto `productfinder-ia` → **Settings → Environment Variables** →
+> **Add New**. Name: `CRON_SECRET`. Value: cualquier texto largo y al azar
+> (40+ caracteres). Environment: **Production**. Guardar y **redeploy**.
+
+Qué cambia al cargarla:
+
+| Endpoint | Sin `CRON_SECRET` | Con `CRON_SECRET` |
+|---|---|---|
+| `/api/market?cosechar=1` (barrido) | user-agent del cron — débil, pero no gasta nada | sólo el secreto |
+| `/api/meli-refresh?all=1` (tokens) | user-agent del cron | **sólo el secreto** |
+
+El cierre de `meli-refresh` es **escalonado a propósito**: si exigiera el
+secreto antes de que exista, el cron diario empezaría a dar 401 en silencio y
+los `refresh_token` de los clientes caducarían por no usarse — peor que el
+agujero que se cierra. Mientras la variable no esté, vale el user-agent; en
+cuanto esté, el user-agent solo deja de alcanzar, sin tocar código. La respuesta
+del endpoint informa en qué modo está, en el campo `proteccion`.
 
 **`CORRIDA_VIGENTE_HORAS`** (default **168**, o sea 7 días) reemplaza a la
 ventana de 15 minutos que había antes. Medido: los datasets de Apify siguen
@@ -508,13 +527,69 @@ la búsqueda aparece en los títulos devueltos.
 
 | Constante | Valor | Cómo se eligió |
 |---|---|---|
-| `RELEVANCIA_UMBRAL_ALTO` | `0.35` | Fixture. Los casos reales de la calibración cayeron entre 0.42 y 0.55, el de rescate en 0.00. Hay aire, pero el techo es el número menos validado de los tres. |
-| `RELEVANCIA_UMBRAL_BAJO` | `0.15` | Fixture, elegido deliberadamente bajo (ver asimetría, abajo). |
+| `RELEVANCIA_UMBRAL_ALTO` | `0.40` | **Ya no es fixture.** Calibrado el 8/9/2026 contra 693 títulos reales (ver abajo). |
+| `RELEVANCIA_UMBRAL_BAJO` | `0.15` | **Ya no es fixture.** Mismo origen. Se dejó bajo a propósito (ver asimetría, abajo). |
 | `PESOS_POSICION` | `[1.0, 0.6, 0.3]` | Fixture. Corrige el sesgo por largo de consulta; medido, lo reduce pero no lo elimina del todo. |
 | Mínimo de muestra | `8` publicaciones | Heurística, nunca medida. |
 
 Los tres se pueden pisar por variable de entorno: `RELEVANCIA_UMBRAL_ALTO`,
 `RELEVANCIA_UMBRAL_BAJO`.
+
+### Cómo se calibraron los umbrales contra datos reales
+
+Las corridas pagas dejaron **693 títulos reales de MercadoLibre Argentina** en
+`busquedas_cache`, repartidos en 18 términos. Eso da los positivos. El problema
+era conseguir **negativos**: con sólo positivos no se puede elegir un umbral.
+
+La solución fue gratis: **correr cada término contra los títulos de los otros
+17**. Eso es exactamente lo que hace MercadoLibre cuando sirve resultados de
+rescate — publicaciones reales que no son lo que se buscó. 18 positivos y **306
+negativos reales**, sin gastar una corrida.
+
+```
+POSITIVOS (18)    min 0.2630   p25 0.7182   mediana 1.0000
+NEGATIVOS (306)   mediana 0.0000   p95 0.1030   p99 0.3750   max 0.6458
+                  81% de los negativos da exactamente 0.0000
+```
+
+Barrido de umbrales sobre esos datos:
+
+| alto | positivos correctos | negativos que pasan como "existe" | de esos, errores genuinos |
+|---|---|---|---|
+| 0.25 | 18/18 | 8 | 5 |
+| 0.35 (anterior) | 17/18 | 6 | 3 |
+| **0.40 (actual)** | **17/18** | **3** | **0** |
+| 0.50 | 15/18 | 3 | 0 |
+
+Con 0.35 pasaban tres cruces que comparten **una sola palabra genérica**
+(`bomba solar` contra títulos de `boyero solar`, `parasol auto` contra
+`rastreador gps auto` y al revés), los tres en 0.3750. Con 0.40 caen y no se
+pierde ningún positivo. Los tres que quedan arriba de 0.40 son pares que **sí**
+son el mismo producto con otro nombre (`rastreador gps auto` /
+`rastreador veicular`, `boyero` / `electrificador de alambrados`).
+
+`bajo` se quedó en 0.15: el positivo real más bajo es 0.2630, y subirlo a 0.20
+recortaría el margen justo contra el error caro.
+
+**Cero falsos `noExiste` en los 18 positivos.** El error que importa no apareció
+ni una vez.
+
+### Pendiente: verificar que el traductor elija la palabra del MERCADO
+
+El único positivo que no llega a `existe` es `electrificador de alambrados`
+(0.2630), y no es un problema de umbral: MercadoLibre devuelve publicaciones que
+dicen **"boyero"**, que es como se le llama al mismo aparato en Argentina.
+`boyero solar` da 1.0000; `electrificador de alambrados`, 0.2630. Mismo
+producto, mismo mercado, distinta palabra.
+
+El riesgo no es del scoring, es de **`nombrarProductos()`**: traduce títulos
+chinos o ingleses al castellano, y si elige la palabra *correcta* en vez de la
+palabra que usa el mercado, el producto puntúa bajo y parece menos presente de
+lo que está.
+
+Hay con qué verificarlo y no cuesta nada: los 693 títulos reales que ya están en
+`busquedas_cache` son un corpus del vocabulario real de MercadoLibre Argentina.
+**No hecho.**
 
 **La asimetría es deliberada.** Los dos errores no cuestan lo mismo:
 

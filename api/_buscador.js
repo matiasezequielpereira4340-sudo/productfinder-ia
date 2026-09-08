@@ -338,6 +338,55 @@ export async function estadoCorrida(runId, opts) {
   }
 }
 
+// El log de una corrida. Es texto plano y puede ser largo, asi que se devuelven
+// las ultimas lineas, que es donde esta el error. Leerlo es gratis.
+export async function logDeCorrida(runId, opts) {
+  const token = process.env.APIFY_TOKEN;
+  if (!token || !runId) return null;
+  const o = opts || {};
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), o.timeoutMs || 10000);
+  try {
+    const r = await fetch('https://api.apify.com/v2/logs/' + encodeURIComponent(runId) +
+      '?token=' + encodeURIComponent(token), { signal: ctrl.signal });
+    if (!r.ok) return { error: 'Apify ' + r.status };
+    const texto = await r.text();
+    const lineas = texto.split(/\r?\n/).filter(l => l.trim());
+    return {
+      lineas_totales: lineas.length,
+      // Las lineas que nombran un error van primero: en un log de 400 lineas el
+      // motivo puede no estar en las ultimas.
+      errores: lineas.filter(l => /error|fail|denied|blocked|captcha|429|403|timeout|exceed/i.test(l))
+                     .slice(-8).map(l => l.slice(0, 300)),
+      ultimas: lineas.slice(-12).map(l => l.slice(0, 300))
+    };
+  } catch (e) {
+    return { error: String((e && e.message) || e).slice(0, 160) };
+  } finally { clearTimeout(t); }
+}
+
+// El input con el que se arranco una corrida. Vive en su key-value store, y
+// leerlo es gratis. Sirve para separar "el actor no anda" de "le mandamos los
+// campos mal", que se arreglan de manera distinta.
+export async function inputDeCorrida(storeId) {
+  const token = process.env.APIFY_TOKEN;
+  if (!token || !storeId) return null;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const r = await fetch('https://api.apify.com/v2/key-value-stores/' +
+        encodeURIComponent(storeId) + '/records/INPUT?token=' + encodeURIComponent(token),
+        { signal: ctrl.signal });
+      if (!r.ok) return { error: 'Apify ' + r.status };
+      const texto = await r.text();
+      try { return JSON.parse(texto); } catch (_) { return { crudo: texto.slice(0, 400) }; }
+    } finally { clearTimeout(t); }
+  } catch (e) {
+    return { error: String((e && e.message) || e).slice(0, 160) };
+  }
+}
+
 // Ficha completa de una corrida, para saber si se PAGO y si el dataset todavia
 // existe. Leer esto no cuesta nada: no arranca ninguna corrida.
 //
@@ -361,6 +410,7 @@ export async function detalleDeCorrida(runId, datasetId) {
       salida.corridaExiste = true;
       salida.corrida = {
         estado: d.status || null,
+        actor: d.actId || null,
         creada: d.startedAt || null,
         arrancoDeVerdad: !!d.startedAt,
         termino: d.finishedAt || null,
@@ -370,9 +420,22 @@ export async function detalleDeCorrida(runId, datasetId) {
         computeUnits: st.computeUnits != null ? st.computeUnits : null,
         items_producidos: st.outputItemCount != null ? st.outputItemCount : null,
         costo_usd: d.usageTotalUsd != null ? d.usageTotalUsd : null,
-        dataset: d.defaultDatasetId || null
+        dataset: d.defaultDatasetId || null,
+        // Por que fallo. Apify lo deja aca y en el log.
+        mensaje: d.statusMessage ? String(d.statusMessage).slice(0, 400) : null,
+        exitCode: d.exitCode != null ? d.exitCode : null
       };
       if (!datasetId && d.defaultDatasetId) datasetId = d.defaultDatasetId;
+
+      // Para una corrida que fallo, statusMessage casi nunca alcanza: el motivo
+      // real esta en el log. Traerlo es lectura, no cuesta una corrida nueva.
+      if (d.status && d.status !== 'SUCCEEDED' && d.status !== 'RUNNING' && d.status !== 'READY') {
+        salida.log = await logDeCorrida(runId);
+        // Y el input que se le mando. Sin esto no se puede distinguir "el actor
+        // esta roto" de "le mandamos mal los campos", que son arreglos
+        // completamente distintos. Tambien es lectura.
+        salida.input_enviado = await inputDeCorrida(d.defaultKeyValueStoreId);
+      }
     }
   } catch (e) {
     salida.corrida = { error: String((e && e.message) || e).slice(0, 160) };

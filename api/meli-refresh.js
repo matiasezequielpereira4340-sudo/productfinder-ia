@@ -9,6 +9,7 @@
 // mantiene vivo para que la conexion no se caiga sola.
 
 import { cors, getTokenRow, listTokenRows, refreshWithToken, saveTokenRow } from './_meli.js';
+import { esAdmin, tokenDe, esCron, esCronVerificado } from './_sesion.js';
 
 // Compatibilidad: el resto del codigo espera que tire si no hay token.
 export async function getValidToken(userId) {
@@ -51,10 +52,41 @@ export default async function handler(req, res) {
     if (!(req.query && req.query.all)) {
       return res.status(400).json({ error: 'Usa POST con user_id, o GET ?all=1' });
     }
+    // Este endpoint rota los tokens OAuth de MercadoLibre de TODAS las cuentas
+    // conectadas. Estaba abierto: cualquiera con la URL podia golpearlo en loop
+    // y hacer rotar tokens sin parar hasta comerse los limites de la API de
+    // MeLi, o dejar cuentas sin conexion.
+    //
+    // El cierre es ESCALONADO, y no por prolijidad: si se exigiera CRON_SECRET
+    // antes de que la variable exista, el cron diario empezaria a dar 401 en
+    // silencio y los refresh_token de los clientes caducarian por no usarse.
+    // Eso es peor que el agujero que se esta cerrando.
+    //
+    //   sin CRON_SECRET cargada -> vale el user-agent del cron de Vercel.
+    //                              Debil (se falsifica), pero ya no lo abre
+    //                              cualquiera que pegue la URL en el navegador.
+    //   con CRON_SECRET cargada -> SOLO el secreto. El user-agent deja de
+    //                              alcanzar automaticamente, sin tocar codigo.
+    //
+    // El administrador entra siempre, para poder forzar una renovacion a mano.
+    const clave = req.headers['x-admin-key'] || (req.query && req.query.key);
+    const admin = (process.env.ADMIN_KEY && clave === process.env.ADMIN_KEY) || esAdmin(tokenDe(req));
+    const conSecreto = !!process.env.CRON_SECRET;
+    const pasa = admin || (conSecreto ? esCronVerificado(req) : esCron(req));
+    if (!pasa) {
+      return res.status(401).json({
+        error: 'No autorizado',
+        detalle: conSecreto
+          ? 'Renovar todas las cuentas necesita CRON_SECRET o sesion de administrador.'
+          : 'Renovar todas las cuentas necesita sesion de administrador. Carga CRON_SECRET en Vercel para cerrarlo del todo.'
+      });
+    }
     try {
       const cuentas = await refrescarTodos();
       return res.status(200).json({
         success: true,
+        // Para poder verificar desde afuera si el cierre esta completo o a medias.
+        proteccion: conSecreto ? 'CRON_SECRET' : 'user-agent (debil: carga CRON_SECRET en Vercel)',
         total: cuentas.length,
         renovadas: cuentas.filter(c => c.ok).length,
         cuentas

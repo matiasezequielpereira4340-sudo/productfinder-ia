@@ -91,6 +91,29 @@ export function pedirSesion(res, motivo) {
   });
 }
 
+// Los crons de Vercel no tienen sesion ni ADMIN_KEY. Vercel manda
+// "Authorization: Bearer $CRON_SECRET" cuando esa variable esta cargada, y
+// siempre un user-agent propio.
+//
+// Se aceptan las dos, con esta diferencia: el secreto es PRUEBA, el user-agent
+// es apenas un indicio (se puede falsificar). Cada endpoint decide si con el
+// indicio le alcanza segun lo que habilite. Cargar CRON_SECRET en Vercel cierra
+// los dos crons de una.
+export function esCron(req) {
+  const auth = String((req && req.headers && req.headers.authorization) || '');
+  if (process.env.CRON_SECRET && auth === 'Bearer ' + process.env.CRON_SECRET) return true;
+  const ua = String((req && req.headers && req.headers['user-agent']) || '');
+  return /vercel-cron/i.test(ua);
+}
+
+// Igual que esCron pero SOLO acepta el secreto. Para lo que no puede quedar
+// abierto ni aunque alguien falsifique el user-agent.
+export function esCronVerificado(req) {
+  if (!process.env.CRON_SECRET) return false;
+  const auth = String((req && req.headers && req.headers.authorization) || '');
+  return auth === 'Bearer ' + process.env.CRON_SECRET;
+}
+
 // Toma el token del header Authorization o del body, lo que venga.
 export function tokenDe(req) {
   const h = (req.headers && (req.headers.authorization || req.headers.Authorization)) || '';

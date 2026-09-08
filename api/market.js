@@ -4,7 +4,9 @@
 // armado del informe.
 
 import { anthropicHeaders, buscarPublicaciones, contarPublicaciones, relevanciaPorTitulo, leerRelevanciaLog, registrarRelevancia, flushRelevancia, corridasPendientes, cosecharPendientes, estadoEscrituraRelevancia, palabrasSignificativas, RELEVANCIA_UMBRAL_ALTO, RELEVANCIA_UMBRAL_BAJO, SITIOS, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
-import { haySesion, esAdmin, tokenDe, pedirSesion } from './_sesion.js';
+import { haySesion, esAdmin, tokenDe, pedirSesion, esCron } from './_sesion.js';
+// esCron vive en _sesion.js para que este endpoint y meli-refresh compartan el
+// MISMO secreto: dos crons, una sola variable que cargar en Vercel.
 import { cotizacionDolar, DOLAR_TIPOS, DOLAR_TIPO_DEFAULT } from './_dolar.js';
 
 // Los diagnosticos de SOLO LECTURA (no arrancan corridas, no gastan) aceptan
@@ -17,20 +19,6 @@ function admitido(req) {
   return esAdmin(tokenDe(req));
 }
 
-// El cron de Vercel no tiene sesion ni ADMIN_KEY. Manda "Authorization: Bearer
-// $CRON_SECRET" cuando esa variable esta cargada, y siempre un user-agent
-// propio. Se aceptan las dos, con esta diferencia: el secreto es prueba, el
-// user-agent es solo un indicio (se puede falsificar).
-//
-// Se banca que se falsifique porque lo unico que habilita es el barrido de
-// cosecha, que NO arranca corridas y no gasta: leer un dataset ya producido es
-// gratis. Aun asi, cargar CRON_SECRET en Vercel lo cierra del todo.
-function esCron(req) {
-  const auth = String((req.headers && req.headers.authorization) || '');
-  if (process.env.CRON_SECRET && auth === 'Bearer ' + process.env.CRON_SECRET) return true;
-  const ua = String((req.headers && req.headers['user-agent']) || '');
-  return /vercel-cron/i.test(ua);
-}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');

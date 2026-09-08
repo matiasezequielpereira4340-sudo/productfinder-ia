@@ -373,7 +373,33 @@ export function sitio(id) {
 //                       auditar despues.
 // Por eso el piso es bajo y hay una banda intermedia: en la duda no se afirma
 // ausencia, se admite que no se sabe.
-export const RELEVANCIA_UMBRAL_ALTO = Number(process.env.RELEVANCIA_UMBRAL_ALTO || 0.35);
+//
+// CALIBRADOS CONTRA DATOS REALES (8/9/2026). Hasta esta fecha los dos numeros
+// salian de fixtures escritos a mano. Ahora salen de 693 titulos reales de
+// MercadoLibre Argentina, traidos por el proveedor pago:
+//
+//   18 positivos  (cada termino contra SUS titulos): min 0.2630, mediana 1.0000
+//   306 negativos (cada termino contra los titulos de los otros 17, que es
+//                  exactamente lo que devuelve MeLi cuando sirve rescate):
+//                  mediana 0.0000, p95 0.1030, p99 0.3750, max 0.6458.
+//                  81% da exactamente 0.
+//
+// ALTO 0.35 -> 0.40. Con 0.35 pasaban como "existe" tres cruces que comparten
+// UNA sola palabra generica ("bomba solar" contra titulos de "boyero solar",
+// "parasol auto" contra "rastreador gps auto" y al reves), las tres en 0.3750.
+// Con 0.40 esos tres caen y NO se pierde ningun positivo: siguen siendo 17 de
+// 18. Los unicos cruces que quedan arriba de 0.40 son pares que de verdad son
+// el mismo producto con otro nombre (rastreador gps auto / rastreador veicular,
+// boyero / electrificador de alambrados), o sea que dar alto ahi es correcto.
+//
+// BAJO se queda en 0.15. El positivo real mas bajo es 0.2630, asi que subirlo
+// a 0.20 recortaria el margen justo contra el error caro (ver asimetria arriba).
+//
+// El unico positivo que no llega a "existe" es "electrificador de alambrados"
+// (0.2630), y no es problema de umbral: MeLi devuelve publicaciones que dicen
+// "boyero", que es como se le llama al mismo aparato en Argentina. Eso se
+// arregla con sinonimos, no moviendo el numero.
+export const RELEVANCIA_UMBRAL_ALTO = Number(process.env.RELEVANCIA_UMBRAL_ALTO || 0.40);
 export const RELEVANCIA_UMBRAL_BAJO = Number(process.env.RELEVANCIA_UMBRAL_BAJO || 0.15);
 // Nombre viejo, para no romper import existentes.
 export const RELEVANCIA_MINIMA = RELEVANCIA_UMBRAL_BAJO;

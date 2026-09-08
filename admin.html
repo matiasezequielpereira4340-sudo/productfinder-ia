@@ -256,6 +256,31 @@
       if (j.cosecha) {
         resumen += 'COSECHA: ' + j.cosecha.cosechadas + ' de ' + j.cosecha.revisadas + ' guardadas.\n\n';
       }
+      // Las corridas que fallaron, con el motivo arriba de todo. Una corrida
+      // que falla se paga igual, asi que el motivo es lo primero que hay que ver.
+      var fallidas = (j.corridas || []).filter(function(c){
+        return c.corrida && c.corrida.estado && c.corrida.estado !== 'SUCCEEDED';
+      });
+      if (fallidas.length) {
+        resumen += '--- ' + fallidas.length + ' CORRIDAS FALLIDAS (se pagaron igual) ---\n';
+        fallidas.forEach(function(c){
+          resumen += '\n' + c.termino + '  [' + c.corrida.estado + ']  actor: ' + (c.corrida.actor || '?') +
+                     '  USD ' + (c.corrida.costo_usd != null ? c.corrida.costo_usd : '?') + '\n';
+          if (c.corrida.mensaje) resumen += '  mensaje: ' + c.corrida.mensaje + '\n';
+          if (c.corrida.exitCode != null) resumen += '  exitCode: ' + c.corrida.exitCode + '\n';
+          if (c.input_enviado) resumen += '  input enviado: ' + JSON.stringify(c.input_enviado) + '\n';
+          if (c.log && c.log.errores && c.log.errores.length) {
+            resumen += '  lineas de error del log:\n';
+            c.log.errores.forEach(function(l){ resumen += '    ' + l + '\n'; });
+          }
+          if (c.log && c.log.ultimas && c.log.ultimas.length) {
+            resumen += '  ultimas lineas del log:\n';
+            c.log.ultimas.forEach(function(l){ resumen += '    ' + l + '\n'; });
+          }
+          if (c.log && c.log.error) resumen += '  (no pude leer el log: ' + c.log.error + ')\n';
+        });
+        resumen += '\n';
+      }
       pintarGasto(resumen + JSON.stringify(j, null, 2));
     }catch(e){ pintarGasto('Fallo: ' + (e && e.message || e)); }
   }
