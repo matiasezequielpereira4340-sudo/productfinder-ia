@@ -81,17 +81,32 @@ export function topeDiario() {
   return Number.isFinite(n) && n >= 0 ? n : 30;
 }
 
-// Precios del actor devcake~mercadolibre-scraper, tomados de su propia ficha:
-// USD 0.004 por item con pagina de detalle (enrichDetailPage) contra USD 0.001
-// por el resultado pelado. Es una ESTIMACION del costo, no la factura: sirve
-// para saber por donde se fue la plata, no para conciliar con Apify.
+// Precios del actor devcake~mercadolibre-scraper: USD 0.004 por item con
+// pagina de detalle (enrichDetailPage) contra USD 0.001 por el resultado
+// pelado.
+//
+// Y un costo de ARRANQUE, que la ficha del actor no dice y que se descubrio
+// midiendo. Cinco corridas reales de 48 items enriquecidos, cobradas por Apify:
+//
+//   sliders discos ejercicio core   USD 0.22805
+//   fortalecedor mano grip          USD 0.23605
+//   rinonera running deportiva      USD 0.22405
+//   rodillo masajeador muscular     USD 0.24005
+//   cinta kinesiologica deportiva   USD 0.23205
+//                                   promedio 0.23205
+//
+// 48 x 0.004 = 0.192. La diferencia, 0.040, es fija por corrida: es lo que
+// cuesta levantar el actor, corra 1 item o 48. Sin ese termino la estimacion
+// subestimaba un 17% cada corrida, y el error crece cuanto mas chicas son.
 const COSTO_ITEM_ENRIQUECIDO = Number(process.env.APIFY_COSTO_ITEM_ENRIQUECIDO || 0.004);
 const COSTO_ITEM_PELADO = Number(process.env.APIFY_COSTO_ITEM_PELADO || 0.001);
+const COSTO_ARRANQUE = Number(process.env.APIFY_COSTO_ARRANQUE || 0.04);
 
 export function costoEstimado(items, enriquecido) {
   const n = Math.max(0, parseInt(items, 10) || 0);
   const unit = enriquecido ? COSTO_ITEM_ENRIQUECIDO : COSTO_ITEM_PELADO;
-  return Number((n * unit).toFixed(4));
+  // Una corrida sin items igual se pago: el arranque no se descuenta.
+  return Number((COSTO_ARRANQUE + n * unit).toFixed(4));
 }
 
 // Cuantas corridas se gastaron hoy. Devuelve { ok, usadas }.
@@ -245,8 +260,12 @@ export async function resumenGasto(n) {
     contadorOk: conteo.ok,
     contadorError: conteo.ok ? null : conteo.error,
     reinicio: proximoReinicio(),
-    precios: { item_enriquecido_usd: COSTO_ITEM_ENRIQUECIDO, item_pelado_usd: COSTO_ITEM_PELADO },
-    nota: 'costo_estimado es una estimacion a partir del precio por item del actor, no la factura de Apify.'
+    precios: { arranque_usd: COSTO_ARRANQUE,
+               item_enriquecido_usd: COSTO_ITEM_ENRIQUECIDO,
+               item_pelado_usd: COSTO_ITEM_PELADO },
+    nota: 'costo_estimado = arranque + items x precio por item. Calibrado contra 5 corridas reales ' +
+          'de 48 items enriquecidos (0.224 a 0.240, promedio 0.232). Sigue siendo una estimacion, ' +
+          'no la factura: el costo real de una corrida esta en ?pendientes=1 -> corrida.costo_usd.'
   };
   const { url, key, ok } = supa();
   if (!ok) { salida.error = 'falta SUPABASE_SERVICE_KEY'; salida.corridas = []; return salida; }

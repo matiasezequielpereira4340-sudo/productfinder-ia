@@ -17,6 +17,21 @@ function admitido(req) {
   return esAdmin(tokenDe(req));
 }
 
+// El cron de Vercel no tiene sesion ni ADMIN_KEY. Manda "Authorization: Bearer
+// $CRON_SECRET" cuando esa variable esta cargada, y siempre un user-agent
+// propio. Se aceptan las dos, con esta diferencia: el secreto es prueba, el
+// user-agent es solo un indicio (se puede falsificar).
+//
+// Se banca que se falsifique porque lo unico que habilita es el barrido de
+// cosecha, que NO arranca corridas y no gasta: leer un dataset ya producido es
+// gratis. Aun asi, cargar CRON_SECRET en Vercel lo cierra del todo.
+function esCron(req) {
+  const auth = String((req.headers && req.headers.authorization) || '');
+  if (process.env.CRON_SECRET && auth === 'Bearer ' + process.env.CRON_SECRET) return true;
+  const ua = String((req.headers && req.headers['user-agent']) || '');
+  return /vercel-cron/i.test(ua);
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -71,6 +86,24 @@ export default async function handler(req, res) {
       const gas = await import('./_gasto.js');
       const r = await gas.resumenGasto(req.query.n);
       return res.status(200).json({ ok: true, ...r });
+    }
+
+    // ?cosechar=1 -> barrido automatico. Lo llama el cron diario.
+    //
+    // Por que existe: hasta ahora una corrida solo se cosechaba si alguien
+    // volvia a buscar el MISMO termino. La que terminaba cuando el usuario ya
+    // se habia ido se pagaba y se perdia. Medido: de 13 corridas pagas, 5
+    // habian quedado sin levantar. Con esto ninguna se pierde por olvido.
+    //
+    // No arranca corridas: leer un dataset ya producido no cuesta nada.
+    if (req.query && req.query.cosechar && !req.query.pendientes) {
+      if (!admitido(req) && !esCron(req)) return res.status(401).json({ error: 'No autorizado' });
+      const tok = await getMeliAccessToken();
+      const r = await cosecharPendientes(tok, { limite: req.query.n || 40 });
+      // Se loguea para que quede en los logs de Vercel: el cron corre sin que
+      // nadie mire la respuesta.
+      console.log('[cosecha] barrido: ' + (r.cosechadas || 0) + ' de ' + (r.revisadas || 0) + ' recuperadas');
+      return res.status(200).json({ ok: !!r.ok, ...r });
     }
 
     // ?pendientes=1 -> que paso con cada corrida paga que quedo anotada y sin

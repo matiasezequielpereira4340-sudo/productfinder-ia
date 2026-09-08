@@ -60,7 +60,11 @@ export function costoEstimado(fuente, items) {
 // cache -> cosechar corrida pendiente -> arrancar una nueva.
 // Devuelve {pendiente:true} mientras corre; el frontend reintenta.
 // ------------------------------------------------------------
-const VIGENCIA_CORRIDA_MS = 15 * 60 * 1000;
+// Mismo criterio que corridaVigente() en _meli.js: los datasets de Apify viven
+// mucho mas que 15 minutos (medido: un mes), y una corrida que termina cuando
+// el usuario ya se fue se pago igual. Se comparte la env para no tener dos
+// ventanas distintas.
+const VIGENCIA_CORRIDA_MS = Math.max(1, Number(process.env.CORRIDA_VIGENTE_HORAS || 168)) * 3600 * 1000;
 
 async function filaCache(clave) {
   try {
@@ -212,6 +216,43 @@ export async function corridaCacheada(cfg) {
 function paisDeUrl(u) {
   const m = String(u || '').match(/shop\.tiktok\.com\/([a-z]{2})\//i);
   return m ? m[1].toUpperCase() : null;
+}
+
+// Levanta una corrida ya pagada de TikTok Shop o Google Trends que quedo sin
+// cosechar. Lo llama cosecharPendientes() de _meli.js, que barre TODA la tabla
+// sin depender de que alguien vuelva a pedir el mismo termino.
+//
+// No arranca nada: leer el estado de una corrida y su dataset es gratis.
+export async function cosecharFilaPendiente(fila) {
+  if (!fila || !fila.run_id) return { estado: 'sin-run-id' };
+  // Cada fuente guarda las filas con su propia forma, asi que hay que
+  // normalizar con la funcion que corresponde o el dato queda inservible.
+  const normalizadores = {
+    'tiktok-shop': normalizarTikTok,
+    'tiktok-shop-br': normalizarTikTok,
+    'google-trends': normalizarTrend,
+    'prueba-sin-detalle': f => (f && typeof f === 'object') ? f : null
+  };
+  const normalizar = normalizadores[fila.fuente];
+  if (!normalizar) return { estado: 'fuente-desconocida', nota: 'no se como normalizar "' + fila.fuente + '"' };
+
+  const est = await estadoCorrida(fila.run_id);
+  if (est.estado === 'RUNNING' || est.estado === 'READY') return { estado: 'todavia-corriendo' };
+  if (est.estado !== 'SUCCEEDED') {
+    const motivo = await motivoDeFalla(fila.run_id);
+    // Una corrida FAILED se pago igual: hay que poder verlo, no taparlo.
+    return { estado: 'fallo', estado_corrida: est.estado, nota: motivo || null };
+  }
+  const crudo = await itemsDeCorrida(est.datasetId || fila.dataset_id, { limite: 60 });
+  const items = (crudo || []).map(normalizar).filter(Boolean);
+  if (!items.length) {
+    await guardarFila(fila.termino, { fuente: fila.fuente, resultados: [], run_id: null,
+      dataset_id: null, run_estado: 'VACIA' });
+    return { estado: 'vacia' };
+  }
+  await guardarFila(fila.termino, { fuente: fila.fuente, resultados: items, run_id: null,
+    dataset_id: null, run_estado: 'SUCCEEDED' });
+  return { estado: 'cosechada', publicaciones: items.length };
 }
 
 export function normalizarTikTok(f) {

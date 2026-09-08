@@ -14,6 +14,8 @@ let seq = 1;
 let apifyArranques = 0;
 let apifyAbortos = 0;
 let cacheEscribible = true;
+let pendientes = [];    // filas que devuelve busquedas_cache con run_id
+let guardados = [];     // lo que se escribio de vuelta
 
 const srv = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x');
@@ -28,12 +30,31 @@ const srv = http.createServer(async (req, res) => {
     return res.end(JSON.stringify({ data: { id: 'run_' + apifyArranques, defaultDatasetId: 'ds_' + apifyArranques, status: 'RUNNING' } }));
   }
   if (u.pathname.includes('/abort')) { apifyAbortos++; res.writeHead(200); return res.end('{}'); }
+  if (/\/apify\/(v2\/)?actor-runs\/[^/]+$/.test(u.pathname)) {
+    res.writeHead(200, {'content-type':'application/json'});
+    return res.end(JSON.stringify({ data: { id:'x', status:'SUCCEEDED', defaultDatasetId:'ds1',
+      startedAt:'2026-09-05T19:08:00Z', finishedAt:'2026-09-05T19:09:00Z',
+      usageTotalUsd: 0.232, stats:{ computeUnits: 0.02, outputItemCount: 2, durationMillis: 60000 } } }));
+  }
+  if (/\/apify\/(v2\/)?datasets\/[^/]+\/items/.test(u.pathname)) {
+    res.writeHead(200, {'content-type':'application/json'});
+    // Forma cruda de TikTok Shop, que es la que tiene que normalizar _fuentes.
+    return res.end(JSON.stringify([
+      { title:'Mini Projector 1080p', product_link:'https://shop.tiktok.com/us/1', sold_count:120, price:'$49.9' },
+      { title:'Portable Projector HD', product_link:'https://shop.tiktok.com/us/2', sold_count:80, price:'$39.9' }
+    ]));
+  }
 
   // ---- Supabase falso ----
   if (u.pathname === '/rest/v1/busquedas_cache') {
     if (req.method === 'HEAD') { res.writeHead(cacheEscribible ? 200 : 401); return res.end(); }
-    if (req.method === 'POST') { res.writeHead(cacheEscribible ? 201 : 401); return res.end(cacheEscribible ? '' : 'denied'); }
-    res.writeHead(200, {'content-type':'application/json'}); return res.end('[]');
+    if (req.method === 'POST') {
+      if (!cacheEscribible) { res.writeHead(401); return res.end('denied'); }
+      try { guardados.push(JSON.parse(body)); } catch (_) {}
+      res.writeHead(201); return res.end('');
+    }
+    res.writeHead(200, {'content-type':'application/json'});
+    return res.end(JSON.stringify(pendientes));
   }
   if (u.pathname === '/rest/v1/apify_gasto') {
     if (req.method === 'HEAD') {
@@ -172,10 +193,21 @@ r = await meli.buscarPublicaciones('produto brasileiro', 'tok', { site: 'MLB', p
 chequear('no arranca corrida para MLB', apifyArranques === 0, 'arranques=' + apifyArranques);
 chequear('no reserva cupo para MLB', filas.length === 0);
 
-console.log('\n== 9. Estimacion de costo ==');
-chequear('48 items enriquecidos = 0.192 USD', gasto.costoEstimado(48, true) === 0.192, String(gasto.costoEstimado(48, true)));
-chequear('48 items pelados = 0.048 USD', gasto.costoEstimado(48, false) === 0.048, String(gasto.costoEstimado(48, false)));
-chequear('los dos juntos = 0.24 USD (lo aprobado)', Number((gasto.costoEstimado(48,true)+gasto.costoEstimado(48,false)).toFixed(3)) === 0.24);
+console.log('\n== 9. Estimacion de costo, calibrada contra 5 corridas reales ==');
+// Medido en la factura de Apify: 0.22405, 0.22805, 0.23205, 0.23605, 0.24005
+// por 48 items enriquecidos. Promedio 0.23205. 48 x 0.004 = 0.192, o sea que
+// hay 0.040 de costo de arranque que la ficha del actor no menciona.
+const REALES = [0.22405, 0.22805, 0.23205, 0.23605, 0.24005];
+const promedioReal = REALES.reduce((a,b)=>a+b,0) / REALES.length;
+const est48 = gasto.costoEstimado(48, true);
+chequear('48 enriquecidos cae dentro del rango medido', est48 >= REALES[0] && est48 <= REALES[4], String(est48));
+chequear('y clava el promedio real (0.232)', Math.abs(est48 - promedioReal) < 0.0005,
+         'estimado ' + est48 + ' vs real ' + promedioReal.toFixed(5));
+chequear('48 pelados = 0.088 USD', gasto.costoEstimado(48, false) === 0.088, String(gasto.costoEstimado(48, false)));
+chequear('una corrida de 0 items igual cuesta el arranque', gasto.costoEstimado(0, true) === 0.04,
+         String(gasto.costoEstimado(0, true)));
+// La vieja formula sin arranque subestimaba: hay que ver que ya no pase.
+chequear('la estimacion NO subestima como antes (0.192)', est48 > 0.192, String(est48));
 
 console.log('\n== 10. Resumen de auditoria por termino ==');
 filas = []; seq = 1;
@@ -250,6 +282,48 @@ for (const k of Object.keys(est12.porSitio)) delete est12.porSitio[k];
 bar = await meli.buscarPublicaciones('barrido masivo producto 2', 'tok', {
   puedeGastar: true, sinCache: true });
 chequear('control: sin el flag SI arranca', apifyArranques === 1 && !!(bar && bar.pendiente), 'arranques=' + apifyArranques + ' fuente=' + (bar && bar.fuente));
+
+console.log('\n== 13. El barrido de cosecha levanta TikTok/Trends, no solo MercadoLibre ==');
+// Antes cosecharPendientes se salteaba todo lo que no fuera proveedor-apify y
+// las dejaba pagas y sin levantar: medido en produccion, 5 de 13.
+filas = []; seq = 1; guardados = []; cacheEscribible = true; apifyArranques = 0;
+// El test 12 dejo un stub que manda TODO api.apify.com al arranque del actor.
+// Aca hace falta enrutar por path: estado de corrida y dataset son endpoints
+// distintos, y confundirlos hacia leer "RUNNING" donde el mock decia SUCCEEDED.
+globalThis.fetch = (url, init) => {
+  const s = String(url);
+  if (s.startsWith('https://api.apify.com/')) {
+    return fetchReal('http://127.0.0.1:' + PUERTO + '/apify' + new URL(s).pathname, init);
+  }
+  if (s.startsWith('http://127.0.0.1')) return fetchReal(url, init);
+  return Promise.resolve(new Response('{}', { status: 403 }));
+};
+pendientes = [
+  { termino:'tiktok::mini projetor', fuente:'tiktok-shop', run_id:'r1', dataset_id:'ds1',
+    run_estado:'READY', run_desde:'2026-09-01T15:13:53Z', resultados:[] },
+  { termino:'ya guardada', fuente:'proveedor-apify', run_id:'r2', dataset_id:'ds2',
+    run_estado:'SUCCEEDED', run_desde:'2026-09-01T15:00:00Z', resultados:[{id:'MLA1'}] }
+];
+const barrido = await meli.cosecharPendientes('tok', { limite: 10 });
+chequear('el barrido corrio', !!(barrido && barrido.ok), JSON.stringify(barrido && barrido.detalle));
+const tk = (barrido.detalle||[]).find(d => d.fuente === 'tiktok-shop');
+chequear('la fila de TikTok ya no se saltea como "otra-fuente"', !!tk && tk.estado !== 'otra-fuente',
+         tk && tk.estado);
+chequear('se cosecho y guardo con publicaciones', !!tk && tk.estado === 'cosechada' && tk.publicaciones > 0,
+         JSON.stringify(tk));
+chequear('la fila que ya tenia resultados no se vuelve a tocar',
+         (barrido.detalle||[]).some(d => d.estado === 'ya-cosechada'));
+const escrito = guardados.find(g => g.termino === 'tiktok::mini projetor');
+chequear('se escribio de vuelta en busquedas_cache con run_id en null',
+         !!escrito && escrito.run_id === null && Array.isArray(escrito.resultados) && escrito.resultados.length === 2,
+         escrito ? ('n=' + escrito.resultados.length + ' run_id=' + escrito.run_id) : 'no se escribio');
+chequear('NO arranco ninguna corrida nueva', apifyArranques === 0, 'arranques=' + apifyArranques);
+
+console.log('\n== 14. La ventana de vigencia ya no es de 15 minutos ==');
+// Los datasets de Apify viven un mes; con 15 minutos, una corrida que terminaba
+// cuando el usuario ya se habia ido quedaba pagada y fuera de alcance.
+const horas = Number(process.env.CORRIDA_VIGENTE_HORAS || 168);
+chequear('el default son 168 horas (7 dias), no 15 minutos', horas === 168, horas + 'h');
 
 console.log('\n' + (fallos ? 'FALLARON ' + fallos + ' chequeos' : 'TODOS LOS CHEQUEOS PASARON'));
 srv.close();

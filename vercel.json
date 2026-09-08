@@ -1,11 +1,23 @@
 {
-      "functions": {
-              "api/*.js": { "maxDuration": 60 }
-      },
-      "rewrites": [
-              { "source": "/api/(.*)", "destination": "/api/$1" }
-      ],
-      "crons": [
-              { "path": "/api/meli-refresh?all=1", "schedule": "0 12 * * *" }
-      ]
+  "functions": {
+    "api/*.js": {
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/meli-refresh?all=1",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/market?cosechar=1",
+      "schedule": "0 9 * * *"
+    }
+  ]
 }

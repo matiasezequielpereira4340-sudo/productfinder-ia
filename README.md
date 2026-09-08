@@ -382,6 +382,44 @@ con tres botones: cuánto se gastó hoy, corridas sin cosechar, y cosechar las
 que terminaron. Usa la clave que el panel ya tiene guardada en ese navegador,
 así que no hay que escribir ningún comando ni meter la clave en una URL.
 
+### Enriquecimiento: por qué NO se apaga
+
+`enrichDetailPage` cuesta 4x. La pregunta era si el resultado pelado alcanza.
+Medido sobre 48 filas crudas con `enrichment_status: "not_requested"`:
+
+| Campo | Sin enriquecer | Enriquecido |
+|---|---|---|
+| título, precio, `category_id` | 48/48 | ✅ |
+| `free_shipping` | 46/48 | ✅ |
+| nickname del vendedor | **27/48 (56%)** | 44–48 de 46–48 (~96%) |
+| tienda oficial, rating | 27/48, 24/48 | ✅ |
+| **`sold_quantity`** | **0/48** | 12–45 por corrida |
+| **stock, reputación, nº de opiniones** | **0/48** | — |
+
+Se probaron los 8 nombres que la app acepta para "vendidos"
+(`soldQuantity`, `sold_quantity`, `sold`, `sales`, `quantitySold`, `vendidos`,
+`sold_quantity_text`, `soldQuantityText`): **ninguno aparece**. No es un
+problema de parseo.
+
+Conclusión: el resultado pelado **alcanza para competencia** (precio, categoría,
+envío, cuántos vendedores distintos) y **no alcanza para rotación**, que es
+exactamente lo que mide `sold_quantity`. Apagarlo ahorra un 62% (USD 0,088
+contra 0,232 por 48 items) a cambio de perder la mitad de lo que el Market
+Reader existe para decir. Por eso `APIFY_ENRIQUECER` queda prendido.
+
+### Costo real de una corrida
+
+La ficha del actor cobra por item, pero hay además un **costo de arranque fijo**
+que no está documentado. Cinco corridas reales de 48 items enriquecidos,
+según la factura de Apify: 0,22405 / 0,22805 / 0,23205 / 0,23605 / 0,24005 —
+promedio **0,23205**. 48 × 0,004 = 0,192, así que el arranque son **USD 0,040**
+por corrida, corra 1 item o 48.
+
+`costoEstimado()` es `arranque + items × unitario`. Sin ese término subestimaba
+un 17% cada corrida, y el error crece cuanto más chicas son. Una corrida que
+falla y no produce nada **igual cuesta el arranque** (medido: una corrida de
+Google Trends terminó FAILED con 0 items y consumió crédito igual).
+
 ### Corridas pagas sin cosechar (retención)
 
 Una corrida sólo se cosecha si alguien vuelve a buscar el mismo término. Si
@@ -401,6 +439,23 @@ curl -s -H "x-admin-key: $ADMIN_KEY" \
 
 Ninguna de las dos arranca corridas: leer el estado de una corrida y un dataset
 ya producido es gratis.
+
+**El barrido corre solo.** Un cron diario (9:00 UTC) llama a
+`/api/market?cosechar=1`. Antes, una corrida sólo se cosechaba si alguien volvía
+a buscar el mismo término: la que terminaba cuando el usuario ya se había ido se
+pagaba y se perdía. Medido: de 13 corridas pagas, **5 habían quedado sin
+levantar** (4 de Google Trends y 1 de TikTok Shop, que el barrido salteaba por
+no ser de MercadoLibre — ahora las levanta también).
+
+El cron se autentica con `CRON_SECRET` si está cargada en Vercel; si no, con el
+user-agent que manda Vercel, que es falsificable. Se banca porque el barrido no
+arranca corridas ni gasta. Cargar `CRON_SECRET` lo cierra del todo.
+
+**`CORRIDA_VIGENTE_HORAS`** (default **168**, o sea 7 días) reemplaza a la
+ventana de 15 minutos que había antes. Medido: los datasets de Apify siguen
+vivos un mes después (13 de 13 corridas del 1 al 5 de septiembre tenían su
+dataset disponible el 8 de octubre). Subirla no arriesga nada: si la corrida
+falló, la cosecha devuelve null y el flujo arranca otra.
 
 Ojo con `run_estado` de `busquedas_cache`: es el estado que devolvió Apify **al
 crear** la corrida (casi siempre `READY`, o sea encolada) y nunca se actualizó.

@@ -1081,11 +1081,23 @@ async function leerCache(product, site) {
   };
 }
 
-// Una corrida arrancada hace mas de 15 minutos se da por perdida.
+// Cuanto tiempo se sigue intentando cosechar una corrida ya arrancada.
+//
+// Estaba en 15 minutos y era absurdamente corto. Medido: los datasets de Apify
+// siguen vivos un mes despues (13 de 13 corridas del 1 al 5 de septiembre
+// tenian su dataset disponible el 8 de octubre). Con la ventana de 15 minutos,
+// una corrida que terminaba cuando el usuario ya se habia ido quedaba fuera de
+// alcance para siempre: se pagaba y no se cosechaba nunca.
+//
+// Subir la ventana no arriesga nada: si la corrida fallo, cosecharCorrida
+// devuelve null y el flujo sigue de largo y arranca otra. Lo unico que agrega
+// es una consulta de estado, que es gratis.
+const VIGENCIA_CORRIDA_MS = Math.max(1, Number(process.env.CORRIDA_VIGENTE_HORAS || 168)) * 3600 * 1000;
+
 function corridaVigente(fila) {
   if (!fila || !fila.run_id) return false;
   const desde = fila.run_desde ? new Date(fila.run_desde).getTime() : 0;
-  return !!desde && (Date.now() - desde) < 15 * 60 * 1000;
+  return !!desde && (Date.now() - desde) < VIGENCIA_CORRIDA_MS;
 }
 
 // Registra la corrida paga recien arrancada. La firma lleva site igual que
@@ -1265,10 +1277,19 @@ export async function cosecharPendientes(token, opts) {
     // Ya tiene resultados guardados: no hay nada que cosechar.
     const yaTiene = Array.isArray(f.resultados) && f.resultados.length > 0;
     if (yaTiene) { detalle.push({ termino: f.termino, run_id: f.run_id, estado: 'ya-cosechada' }); continue; }
-    // Solo las de MercadoLibre: las de TikTok y Trends las arma _fuentes.js con
-    // su propio formato.
+    // TikTok Shop y Google Trends tienen su propio formato de fila, asi que los
+    // cosecha _fuentes.js. Antes se los salteaba con "otra-fuente" y quedaban
+    // corridas pagas sin levantar: medido, 5 de 13.
     if (f.fuente !== 'proveedor-apify') {
-      detalle.push({ termino: f.termino, run_id: f.run_id, estado: 'otra-fuente', fuente: f.fuente });
+      try {
+        const fu = await import('./_fuentes.js');
+        const r2 = await fu.cosecharFilaPendiente(f);
+        detalle.push({ termino: f.termino, run_id: f.run_id, fuente: f.fuente, ...r2 });
+        if (r2 && r2.estado === 'cosechada') cosechadas++;
+      } catch (e) {
+        detalle.push({ termino: f.termino, run_id: f.run_id, fuente: f.fuente,
+                       estado: 'error', nota: String((e && e.message) || e).slice(0, 160) });
+      }
       continue;
     }
     const r = await cosecharCorrida(f.termino, f, token, 'MLA');
