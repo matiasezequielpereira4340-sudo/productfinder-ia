@@ -89,20 +89,45 @@ export default async function handler(req, res) {
     if (req.query && req.query.pendientes) {
       if (!admitido(req)) return res.status(401).json({ error: 'No autorizado' });
       const bus = await import('./_buscador.js');
-      const { ok, error, filas } = await corridasPendientes(req.query.n);
+      const { ok, error, filas } = await corridasPendientes(req.query.n || 15);
       if (!ok) return res.status(200).json({ ok: false, error });
+      // Son DOS llamadas a Apify por fila (la corrida y su dataset). En serie,
+      // 30 filas son 60 requests dentro de un lambda de 60 s: se pasa. De a 5
+      // en paralelo entra con margen y no le pega de mas a la API.
       const corridas = [];
-      for (const f of filas) {
-        const d = await bus.detalleDeCorrida(f.run_id, f.dataset_id);
-        corridas.push({
+      for (let i = 0; i < filas.length; i += 5) {
+        const tanda = filas.slice(i, i + 5);
+        const parte = await Promise.all(tanda.map(async (f) => ({
           termino: f.termino, fuente: f.fuente,
           arrancada_el: f.run_desde,
           estado_guardado: f.run_estado,
           resultados_guardados: Array.isArray(f.resultados) ? f.resultados.length : 0,
-          ...d
-        });
+          ...(await bus.detalleDeCorrida(f.run_id, f.dataset_id))
+        })));
+        corridas.push(...parte);
       }
-      const salida = { ok: true, total: corridas.length, corridas };
+      // El resumen que contesta la pregunta de una, sin leer el JSON entero.
+      // Si consumieron 0 en TODAS, el desperdicio fue de tiempo y no de plata:
+      // eso cambia la conclusion, asi que se dice explicito.
+      let conCredito = 0, sinCredito = 0, conDataset = 0, usdTotal = 0;
+      for (const c of corridas) {
+        const cu = c.corrida && c.corrida.computeUnits;
+        if (cu != null && cu > 0) conCredito++; else sinCredito++;
+        if (c.dataset && c.dataset.existe) conDataset++;
+        if (c.corrida && typeof c.corrida.costo_usd === 'number') usdTotal += c.corrida.costo_usd;
+      }
+      const veredicto = corridas.length === 0
+        ? 'no hay corridas anotadas para revisar'
+        : (conCredito === 0
+            ? 'NINGUNA consumio credito: se crearon pero nunca se ejecutaron. El desperdicio fue de tiempo, no de plata.'
+            : conCredito + ' de ' + corridas.length + ' consumieron credito, por USD ' + usdTotal.toFixed(4) +
+              ' estimados segun Apify.');
+      const salida = {
+        ok: true, total: corridas.length,
+        resumen: { conCredito, sinCredito, conDatasetDisponible: conDataset,
+                   usdSegunApify: Number(usdTotal.toFixed(4)), veredicto },
+        corridas
+      };
       if (req.query.cosechar) {
         const tok = await getMeliAccessToken();
         salida.cosecha = await cosecharPendientes(tok, { limite: req.query.n });

@@ -245,17 +245,16 @@
       var j = await res.json();
       if(!res.ok){ pintarGasto('Error ' + res.status + ': ' + (j && j.error || '')); return; }
       var resumen = '';
-      if (Array.isArray(j.corridas)) {
-        var pagadas = 0, gratis = 0, conDataset = 0;
-        j.corridas.forEach(function(c){
-          var cu = c.corrida && c.corrida.computeUnits;
-          if (cu != null && cu > 0) pagadas++; else gratis++;
-          if (c.dataset && c.dataset.existe) conDataset++;
-        });
-        resumen = 'Corridas revisadas: ' + j.corridas.length + '\n' +
-          'Consumieron credito (computeUnits > 0): ' + pagadas + '\n' +
-          'NO consumieron credito: ' + gratis + '\n' +
-          'Con dataset todavia disponible: ' + conDataset + '\n\n';
+      if (j.resumen) {
+        resumen = 'Corridas revisadas: ' + j.total + '\n' +
+          'Consumieron credito (computeUnits > 0): ' + j.resumen.conCredito + '\n' +
+          'NO consumieron credito: ' + j.resumen.sinCredito + '\n' +
+          'Con dataset todavia disponible: ' + j.resumen.conDatasetDisponible + '\n' +
+          'Costo segun Apify: USD ' + j.resumen.usdSegunApify + '\n\n' +
+          '>> ' + j.resumen.veredicto + '\n\n';
+      }
+      if (j.cosecha) {
+        resumen += 'COSECHA: ' + j.cosecha.cosechadas + ' de ' + j.cosecha.revisadas + ' guardadas.\n\n';
       }
       pintarGasto(resumen + JSON.stringify(j, null, 2));
     }catch(e){ pintarGasto('Fallo: ' + (e && e.message || e)); }
