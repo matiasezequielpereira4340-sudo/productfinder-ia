@@ -146,6 +146,16 @@ function showApp(){showScreen('appScreen');setHash('productfinder');try{window.s
 function showMenu(){showScreen('menuScreen');setHash('menu');try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}}
 function showMarket(){showScreen('marketScreen');setHash('market');try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}}
 
+// La via paga de MercadoLibre (Apify) esta detras del login: sin este header,
+// el server no la habilita y el Market Reader se queda en las vias gratuitas,
+// que hoy estan todas bloqueadas por MeLi. O sea que faltando esto el paso de
+// competencia no trae nada NI SIQUIERA para un usuario logueado.
+function mrCabeceras(){
+  var c = {'Content-Type':'application/json'};
+  try{ var t = localStorage.getItem('pf_token'); if(t) c['Authorization'] = 'Bearer ' + t; }catch(e){}
+  return c;
+}
+window.mrCabeceras = mrCabeceras;
 function doGuest(){currentRole='guest';sessionExpiry=null;localStorage.setItem('pf_user','Invitado');localStorage.setItem('pf_role','guest');localStorage.removeItem('pf_premium');localStorage.removeItem('pf_expiry');localStorage.removeItem('pf_token');showScreen('menuScreen');setupTopbar('Invitado');var ab=document.getElementById('btnAdminPanel');if(ab)ab.style.display='none';var ex=document.getElementById('topbarExpiry');if(ex)ex.style.display='none';} function doLogout(){
   try{ localStorage.removeItem('pf_token'); }catch(e){}
   currentRole=null;sessionExpiry=null;analysisResults=null;mrData={};mrCurrentProduct='';
@@ -812,7 +822,7 @@ function toggleHistory(){
       card.style.display='block';
       card.innerHTML='<div style="color:#9a9a9a;padding:14px;text-align:center"> Leyendo el producto desde la fuente original...</div>';
       try{
-        const res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'productUrl',url})});
+        const res=await fetch('/api/market',{method:'POST',headers:mrCabeceras(),body:JSON.stringify({step:'productUrl',url})});
         const r=await res.json();
         if(!res.ok||r.error){
           card.style.display='none';
@@ -1032,7 +1042,7 @@ function resetMRGuidedStep(n){
 }
 async function runMRStep1(product){
   try{
-    const res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'demanda',product})});
+    const res=await fetch('/api/market',{method:'POST',headers:mrCabeceras(),body:JSON.stringify({step:'demanda',product})});
     const r=await res.json();
     if(!res.ok) throw new Error(r.error||'Error en step demanda');
     mrData.step1=r;
@@ -1074,7 +1084,7 @@ function mrFuenteLabel(f){
 
 async function runMRStep2(product){
   try{
-    const res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'competencia',product})});
+    const res=await fetch('/api/market',{method:'POST',headers:mrCabeceras(),body:JSON.stringify({step:'competencia',product})});
     const r=await res.json();
     if(!res.ok) throw new Error(r.error||'Error en step competencia');
     mrData.step2=r;
@@ -1099,6 +1109,26 @@ async function runMRStep2(product){
       return;
     }
     MR_PREPARANDO.producto=null; MR_PREPARANDO.intentos=0; clearTimeout(MR_PREPARANDO.timer);
+    // Frenos de gasto. Se separan de 'no-disponible' porque no son lo mismo:
+    // ahi MercadoLibre no respondio; aca no se lo consulto, y el usuario puede
+    // hacer algo al respecto. Decirle "no disponible" seria echarle la culpa a
+    // MeLi de una decision nuestra.
+    if(r && r.fuente==='requiere-sesion'){
+      document.getElementById('mrStep2Body').innerHTML=
+        '<div class="mr-row"><span class="mr-row-label">'+(r.aviso||'Para traer publicaciones reales de MercadoLibre necesitas iniciar sesion.')+'</span></div>'+
+        '<div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">Traer publicaciones reales de MercadoLibre tiene un costo por busqueda, asi que esa parte queda detras del login. El resto del Market Reader sigue funcionando igual.</div>'+
+        '<div style="margin-top:10px"><a class="btn-secondary" href="login.html">Iniciar sesion</a></div>';
+      return;
+    }
+    if(r && r.fuente==='tope-diario'){
+      const g = r.gasto||{};
+      let cuando='';
+      if(g.reinicio){ try{ cuando=' Se habilita de nuevo el '+new Date(g.reinicio).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'.'; }catch(_){} }
+      document.getElementById('mrStep2Body').innerHTML=
+        '<div class="mr-row"><span class="mr-row-label">'+(r.aviso||'Se alcanzo el tope diario de busquedas pagas.')+cuando+'</span></div>'+
+        '<div style="margin-top:8px;font-size:.82rem;opacity:.75">No es un error: es un freno puesto a proposito para que la cuenta no se gaste sola. Los productos ya consultados antes siguen saliendo al instante.</div>';
+      return;
+    }
     if(r && r.fuente==='no-disponible'){
       document.getElementById('mrStep2Body').innerHTML='<div class="mr-row"><span class="mr-row-label" style="color:var(--text-dim)">'+(r.aviso||'Datos de Mercado Libre no disponibles ahora.')+'</span></div><div style="margin-top:8px;font-size:.82rem;opacity:.75">No muestro datos estimados para no inventar numeros. Prob&#225; nuevamente m&#225;s tarde o peg&#225; un link de un listado de MeLi para leer datos reales del producto.</div>';
       return;
@@ -1446,7 +1476,7 @@ async function runMRFinalAnalysis(){
         : '') +
       'Los 3 parrafos tienen que desarrollar el POR QUE del veredicto: que riesgo concreto corre la plata, que tendria que pasar para que salga bien y que para que salga mal. Mencionando UNICAMENTE las senales que te pase.\n'+
       'Los 3 proximos pasos son concretos y acordes al veredicto (por ejemplo, si es CONVIENE SOLO SI: que hay que verificar antes de pagar el FOB, como MOQ real, muestra fisica, certificacion, posicion NCM).';
-    const res=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'final',customPrompt:prompt,prompt})});
+    const res=await fetch('/api/market',{method:'POST',headers:mrCabeceras(),body:JSON.stringify({step:'final',customPrompt:prompt,prompt})});
     const r=await res.json();
     if(!res.ok) throw new Error(r.error||'Error en analisis final');
     renderAnalisisIA(r,decision);
@@ -3312,7 +3342,9 @@ function goHome(){
       : { t:'Demanda', c:'ambar', d:'Estimacion de IA, no es un dato medido' });
     // Un cero confirmado ES un dato medido. "Sin datos" se reserva para cuando
     // MercadoLibre no dejo consultar: son cosas distintas.
-    if (s2.consultaFallida || s2.fuente === 'no-disponible') chips.push({ t:'Competencia', c:'rojo', d:'No pude consultar MercadoLibre' });
+    if (s2.fuente === 'requiere-sesion') chips.push({ t:'Competencia', c:'rojo', d:'Sin medir: hace falta iniciar sesion' });
+    else if (s2.fuente === 'tope-diario') chips.push({ t:'Competencia', c:'rojo', d:'Sin medir: tope diario de busquedas pagas' });
+    else if (s2.consultaFallida || s2.fuente === 'no-disponible') chips.push({ t:'Competencia', c:'rojo', d:'No pude consultar MercadoLibre' });
     else if (s2.sinComparable && s2.muestra === 0) chips.push({ t:'Competencia', c:'verde', d:'Medido: 0 publicaciones en MeLi Argentina' });
     else if (s2.sinComparable) chips.push({ t:'Competencia', c:'ambar', d:'Sin comparable: solo '+(s2.muestra||0)+' publicaci'+((s2.muestra===1)?'on':'ones')+' en MeLi' });
     else if (s2.muestraInsuficiente) chips.push({ t:'Competencia', c:'ambar', d:'Muestra de '+(s2.muestra||0)+' de un minimo de 8' });
@@ -4058,7 +4090,7 @@ function goHome(){
     mrData.regionPendiente = true;
 
     var pedir = function(step){
-      return fetch('/api/market', { method:'POST', headers:{'Content-Type':'application/json'},
+      return fetch('/api/market', { method:'POST', headers: mrCabeceras(),
         body: JSON.stringify({ step: step, product: product }) })
         .then(function(res){ return res.json().then(function(j){ if(!res.ok) throw new Error(j.error||('Error en '+step)); return j; }); });
     };
@@ -4210,7 +4242,7 @@ function goHome(){
     var out = document.getElementById('mrTestBusquedaOut');
     if (out) out.innerHTML = '<span style="color:var(--text-dim)">Buscando "' + termino + '" en MercadoLibre...</span>';
     try{
-      var res = await fetch('/api/market', { method:'POST', headers:{'Content-Type':'application/json'},
+      var res = await fetch('/api/market', { method:'POST', headers: mrCabeceras(),
         body: JSON.stringify({ step:'testBusqueda', product: termino }) });
       var r = await res.json();
       if (!res.ok) throw new Error(r.error || 'Error en el test de busqueda');

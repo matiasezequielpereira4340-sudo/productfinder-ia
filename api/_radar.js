@@ -805,8 +805,14 @@ export async function infoCategoria(id, token) {
   };
 }
 
-export async function saturacionMLA(keyword, token) {
-  const r = await buscarPublicaciones(keyword, token, { budgetMs: 6000, maxIds: 48 });
+export async function saturacionMLA(keyword, token, opts) {
+  const o = opts || {};
+  // puedeGastar habilita la via paga. Lo decide quien llama: aca no se sabe si
+  // hay sesion. Por defecto NO se gasta.
+  const r = await buscarPublicaciones(keyword, token, {
+    budgetMs: 6000, maxIds: 48,
+    puedeGastar: !!o.puedeGastar, origen: o.origen || 'radar:saturacion'
+  });
   if (!r) return null;
   if (r.pendiente) return { pendiente: true };
   const precios = (r.results || []).map(x => x.price).filter(p => typeof p === 'number' && p > 0);

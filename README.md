@@ -219,6 +219,81 @@ productfinder-ia/
 
 ---
 
+## Freno de gasto del proveedor pago (Apify)
+
+Las tres vías gratuitas de MercadoLibre están caídas (medido en producción:
+`/sites/MLA/search` 403, `/highlights` 403, `/products/{id}/items` 404, y el
+listado público devuelve el muro anti-bot). Consecuencia: **hoy casi toda
+búsqueda nueva termina arrancando una corrida paga de Apify.** Hasta septiembre
+de 2026 eso corría sin ningún tope.
+
+Hay dos frenos, y los dos actúan **antes** de arrancar la corrida:
+
+**1. Gate de sesión.** Sólo sobre la vía paga, no sobre el endpoint. Sin sesión
+el Market Reader sigue funcionando con las vías gratuitas y la demo pública del
+hero (`?demo=`) no se toca — nunca pasó por ahí. Sin sesión, la vía paga
+devuelve `fuente: 'requiere-sesion'` con un aviso, no un error.
+
+El front tiene que mandar el token: `mrCabeceras()` en `app.js` agrega
+`Authorization: Bearer <pf_token>` a todos los POST de `/api/market`. Sin ese
+header el usuario logueado no llega a la vía paga.
+
+**2. Tope diario global.** Contador en Supabase (tabla `apify_gasto`), **no en
+memoria**: Vercel mata y levanta lambdas todo el tiempo y un contador en memoria
+se reinicia en cada cold start, o sea que no sería un tope.
+
+- Día calendario **America/Argentina/Buenos_Aires**, no UTC. Con UTC el corte
+  caería a las 21:00 hora de Buenos Aires.
+- Se **reserva** el cupo antes de arrancar, no se anota después: si se contara
+  después, dos requests simultáneos leerían el mismo número y pasarían los dos.
+- Si la corrida no arranca (error de Apify, no se pudo registrar en
+  `busquedas_cache`), la reserva se anula y deja de contar.
+- Si el contador no se puede consultar, **no se gasta**. Un freno que se abre
+  cuando falla no es un freno.
+
+Cubre las corridas de MercadoLibre y también las de `_fuentes.js` (TikTok Shop,
+Google Trends): es la misma cuenta de Apify.
+
+### Variables de entorno
+
+| Variable | Default | Qué hace |
+|---|---|---|
+| `APIFY_MAX_RUNS_DIA` | `30` | Corridas pagas por día calendario argentino |
+| `APIFY_COSTO_ITEM_ENRIQUECIDO` | `0.004` | USD por item con `enrichDetailPage` |
+| `APIFY_COSTO_ITEM_PELADO` | `0.001` | USD por item sin página de detalle |
+| `APIFY_ENRIQUECER` | prendido | `0` apaga `enrichDetailPage` (4x más barato) |
+| `MELI_MARGEN_TOKEN_SEG` | `600` | Con menos de esto de vida, el token de MeLi se renueva |
+
+`costo_estimado` es una **estimación** (items × precio por item del actor), no la
+factura de Apify. Sirve para saber por dónde se fue la plata, no para conciliar.
+
+### Auditoría
+
+```bash
+curl -s -H "x-admin-key: $ADMIN_KEY" \
+  "https://productfinder-ia.vercel.app/api/market?gasto=1&n=50" | jq
+```
+
+Devuelve: día argentino en curso, tope, usadas, restantes, cuándo se reinicia,
+el detalle de cada corrida (término, timestamp, `run_id`, si iba enriquecida,
+costo estimado, `origen`) y el resumen agrupado **por término**, que es la
+pregunta real: en qué se fue la plata.
+
+`origen` dice qué camino la disparó: `market:competencia`, `exploracion`,
+`test-busqueda`, `analyze`, `radar:saturacion`, `diag:catalogo`, `diag:probe`,
+`fuente:tiktok`.
+
+### Prueba
+
+```bash
+npm run test:gasto
+```
+
+Levanta un Supabase falso y un Apify falso en localhost y hace correr el código
+real: gate de sesión, tope, liberación del cupo cuando la corrida no arranca,
+freno cerrado cuando no se puede contar, y la regresión de que **sin sesión las
+vías gratuitas siguen andando**.
+
 ## Constantes calibradas contra fixtures, no contra datos reales
 
 Esta sección existe porque dentro de tres meses nadie se va a acordar de cuáles

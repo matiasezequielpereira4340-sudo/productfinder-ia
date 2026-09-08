@@ -231,16 +231,26 @@ export async function refreshWithToken(refreshToken) {
   return data;
 }
 
-// Token vigente de un usuario. Renueva si vence en menos de 5 minutos.
+// Margen con el que se renueva el token antes de que venza.
+//
+// Estaba en 5 minutos y no alcanza. Una corrida del proveedor tarda mas de 50 s
+// en arrancar y se cosecha en la consulta SIGUIENTE, con la hidratacion de
+// items despues: un token con 6 minutos de vida pasaba el filtro y se moria en
+// el medio. Y una corrida que se pierde por token vencido ya se pago.
+const MARGEN_TOKEN_MS = Math.max(60, parseInt(process.env.MELI_MARGEN_TOKEN_SEG || '600', 10)) * 1000;
+
+// Token vigente de un usuario. Renueva si le queda menos que MARGEN_TOKEN_MS.
 // Devuelve el token o null; nunca tira, para que un endpoint pueda seguir
 // con datos parciales. El motivo queda en .motivo del objeto devuelto.
 export async function getUserToken(userId) {
+  let row = null;
   try {
-    const row = await getTokenRow(userId);
+    row = await getTokenRow(userId);
     if (!row) return { token: null, motivo: 'sin_conexion' };
     const venceMs = row.expires_at ? new Date(row.expires_at).getTime() : 0;
-    if (venceMs && venceMs - Date.now() > 5 * 60 * 1000) {
-      return { token: row.access_token, motivo: 'ok', meli_user_id: row.meli_user_id };
+    if (venceMs && venceMs - Date.now() > MARGEN_TOKEN_MS) {
+      return { token: row.access_token, motivo: 'ok', meli_user_id: row.meli_user_id,
+               venceEn: Math.round((venceMs - Date.now()) / 1000) };
     }
     const data = await refreshWithToken(row.refresh_token);
     await saveTokenRow({
@@ -250,9 +260,22 @@ export async function getUserToken(userId) {
       refresh_token: data.refresh_token,
       expires_in: data.expires_in || 21600
     });
-    return { token: data.access_token, motivo: 'refrescado', meli_user_id: row.meli_user_id || data.user_id };
+    return { token: data.access_token, motivo: 'refrescado', meli_user_id: row.meli_user_id || data.user_id,
+             venceEn: data.expires_in || 21600 };
   } catch (e) {
-    return { token: null, motivo: 'error', error: String((e && e.message) || e).slice(0, 300) };
+    const detalle = String((e && e.message) || e).slice(0, 300);
+    // El refresh fallo. Si el token guardado TODAVIA no vencio, se usa igual:
+    // antes se devolvia null y se perdia un token que servia, que es como se
+    // pierde una cosecha ya pagada por un error transitorio de MeLi.
+    const venceMs = row && row.expires_at ? new Date(row.expires_at).getTime() : 0;
+    if (row && row.access_token && venceMs > Date.now() + 30 * 1000) {
+      console.warn('[meli] el refresh fallo (' + detalle + ') pero el token vigente sirve ' +
+                   Math.round((venceMs - Date.now()) / 1000) + ' s mas: se usa ese.');
+      return { token: row.access_token, motivo: 'refresh_fallo_token_vigente', error: detalle,
+               meli_user_id: row.meli_user_id, venceEn: Math.round((venceMs - Date.now()) / 1000) };
+    }
+    console.error('[meli] no hay token utilizable para ' + userId + ': ' + detalle);
+    return { token: null, motivo: 'error', error: detalle };
   }
 }
 
@@ -1240,7 +1263,21 @@ export async function buscarPublicaciones(product, token, opts) {
       // no aplica: se devuelve null en vez de pagar una corrida que no
       // responde lo que se pregunto.
       if (site !== 'MLA') return null;
+
+      // ---- FRENO 1: sesion. ----------------------------------------------
+      // El gate va SOLO sobre esta via, no sobre el endpoint. Las tres vias
+      // gratuitas siguen abiertas para cualquiera: el demo publico de la
+      // portada tiene que seguir funcionando igual que siempre. Lo unico que
+      // se cierra es lo que cuesta plata.
+      if (!o.puedeGastar) {
+        return {
+          requiereSesion: true, results: [], fuente: 'requiere-sesion',
+          aviso: 'Para traer publicaciones reales de MercadoLibre necesitas iniciar sesion.'
+        };
+      }
+
       const mod = await import('./_buscador.js');
+      const gas = await import('./_gasto.js');
 
       // ANTES de gastar: si no se va a poder registrar la corrida, no se
       // arranca. Una corrida que no queda anotada se paga igual y no se puede
@@ -1251,17 +1288,59 @@ export async function buscarPublicaciones(product, token, opts) {
         return null;
       }
 
-      const corrida = await mod.arrancarCorrida(product, { maxItems: o.maxIds || 48 });
+      // ---- FRENO 2: tope diario. -----------------------------------------
+      // Se RESERVA el cupo antes de arrancar, no se anota despues: si se
+      // contara despues, dos requests simultaneos leerian el mismo numero y
+      // pasarian los dos. La reserva ya ocupa lugar en el contador.
+      const items = mod.itemsPorCorrida(o.maxIds || 48);
+      const cupo = await gas.reservarCorrida({
+        termino: product, site, items,
+        enriquecido: mod.enriquecer(),
+        origen: o.origen || 'busqueda'
+      });
+      if (!cupo.ok) {
+        // Nunca un error generico: el usuario tiene que entender que paso y
+        // cuando se le habilita de nuevo.
+        const reinicio = cupo.reinicio;
+        const aviso = cupo.motivo === 'tope'
+          ? ('Se alcanzo el tope diario de busquedas pagas en MercadoLibre (' +
+             cupo.usadas + ' de ' + cupo.tope + ' usadas hoy). Se reinicia a la ' +
+             'medianoche de Argentina.')
+          : ('No puedo verificar cuantas busquedas pagas se usaron hoy, asi que ' +
+             'freno el gasto por las dudas. Volve a intentar en un rato.');
+        console.warn('[gasto] corrida frenada para "' + product + '": ' + cupo.motivo +
+                     ' (usadas ' + cupo.usadas + '/' + cupo.tope + ')');
+        return {
+          topeAlcanzado: true, results: [], fuente: 'tope-diario', aviso,
+          gasto: { usadas: cupo.usadas, tope: cupo.tope, reinicio, motivo: cupo.motivo }
+        };
+      }
+
+      let corrida;
+      try {
+        corrida = await mod.arrancarCorrida(product, { maxItems: o.maxIds || 48 });
+      } catch (e) {
+        // No arranco: se libera el cupo. Si no, un error de Apify consumiria
+        // corridas del dia sin haber traido nada.
+        await gas.anularReserva(cupo.id, 'no arranco: ' + String((e && e.message) || e).slice(0, 150));
+        throw e;
+      }
+      await gas.anotarArranque(cupo.id, corrida);
 
       // Y despues de arrancar: si igual no se pudo anotar, se aborta para
       // cortar el gasto en vez de dejarla corriendo a ciegas.
       const anotada = await guardarPendiente(product, corrida, site);
       if (!anotada) {
         await mod.abortarCorrida(corrida && corrida.runId);
+        await gas.anularReserva(cupo.id, 'abortada: no se pudo registrar en busquedas_cache');
         throw new Error('corrida ' + (corrida && corrida.runId) +
                         ' arrancada pero no registrada: se aborto para no gastar de gusto');
       }
-      return { pendiente: true, results: [], fuente: 'preparando', runId: corrida.runId };
+      return {
+        pendiente: true, results: [], fuente: 'preparando', runId: corrida.runId,
+        gasto: { usadas: cupo.usadas, tope: cupo.tope, restantes: cupo.restantes,
+                 costoEstimadoUsd: cupo.costoEstimado }
+      };
     }
   };
   // El orden va de mejor a peor DATO REAL, no de mejor a peor total.
@@ -1302,6 +1381,11 @@ export async function buscarPublicaciones(product, token, opts) {
       // largo, la via siguiente devolveria las mismas de rescate y el dato se
       // perderia.
       if (r && r.relevanciaCero) { est.fallos[nombre] = 0; return r; }
+      // Frenos de gasto (sin sesion, o tope diario alcanzado). No son fallas
+      // de la via: la via anda, lo que pasa es que no se la deja gastar. Si se
+      // contaran como falla, dos frenos seguidos la marcarian como muerta y
+      // quedaria salteada aun cuando el usuario se loguee.
+      if (r && (r.requiereSesion || r.topeAlcanzado)) { est.fallos[nombre] = 0; return r; }
       // Corte por tiempo: no es culpa de la via, no se la penaliza.
       if (r && r.sinTiempo) return r;
       est.fallos[nombre] = fallos + 1;
@@ -1471,7 +1555,11 @@ export async function contarPublicaciones(product, token, site, opts) {
       deadline: o.deadline,
       budgetMs: o.budgetMs || 6000,
       maxIds: o.maxIds || 40,
-      sinCache: !!o.sinCache
+      sinCache: !!o.sinCache,
+      // Sin esto, el conteo por sitio se saltearia el gate de sesion y el
+      // tope diario: la via paga es la misma.
+      puedeGastar: !!o.puedeGastar,
+      origen: o.origen || 'conteo'
     });
   } catch (e) {
     return { ...vacio, motivo: 'error consultando ' + st.id + ': ' + String((e && e.message) || e).slice(0, 120) };
@@ -1480,6 +1568,11 @@ export async function contarPublicaciones(product, token, site, opts) {
   if (!r) return { ...vacio, motivo: 'MercadoLibre ' + st.pais + ' no respondio (bloqueo o sin resultados legibles)' };
   if (r.sinTiempo) return { ...vacio, sinTiempo: true, motivo: 'no alcanzo el tiempo para consultar ' + st.pais };
   if (r.pendiente) return { ...vacio, motivo: 'la busqueda todavia se esta preparando' };
+  // Frenos de gasto: no se pudo consultar, y el motivo no es de MercadoLibre.
+  // Va como ok:false / publicaciones:null, o sea "no pude consultar", jamas
+  // como cero publicaciones.
+  if (r.requiereSesion) return { ...vacio, requiereSesion: true, motivo: r.aviso || 'hace falta iniciar sesion para esta consulta' };
+  if (r.topeAlcanzado) return { ...vacio, topeAlcanzado: true, gasto: r.gasto || null, motivo: r.aviso || 'tope diario de busquedas pagas alcanzado' };
 
   const results = Array.isArray(r.results) ? r.results : [];
   const rel = r.relevancia || null;

@@ -168,8 +168,25 @@ export async function corridaCacheada(cfg) {
   }
 
   // 3. Arrancar. Esto es lo unico que cuesta.
+  //
+  // El tope diario es de la CUENTA de Apify, no de una fuente: TikTok Shop y
+  // Google Trends salen de la misma billetera que las busquedas de MeLi. Si
+  // no contaran aca, el tope se podria esquivar por este lado.
+  const gas = await import('./_gasto.js');
+  const cupo = await gas.reservarCorrida({
+    termino: clave, site: cfg.fuente || 'fuente', items: 0,
+    enriquecido: false, origen: 'fuente:' + (cfg.fuente || 'desconocida')
+  });
+  if (!cupo.ok) {
+    return { error: cupo.motivo === 'tope'
+      ? ('Se alcanzo el tope diario de consultas pagas (' + cupo.usadas + ' de ' + cupo.tope +
+         '). Se reinicia a la medianoche de Argentina.')
+      : 'No puedo verificar cuanto se gasto hoy, asi que freno el gasto por las dudas.',
+      topeAlcanzado: true, gasto: { usadas: cupo.usadas, tope: cupo.tope, reinicio: cupo.reinicio } };
+  }
   try {
     const corrida = await arrancarCorrida(null, { actor, input, timeoutMs: 12000 });
+    await gas.anotarArranque(cupo.id, corrida);
     await guardarFila(clave, {
       fuente: cfg.fuente, resultados: [], run_id: corrida.runId,
       dataset_id: corrida.datasetId || null, run_estado: corrida.estado || 'RUNNING',
@@ -177,6 +194,7 @@ export async function corridaCacheada(cfg) {
     });
     return { pendiente: true, arrancada: true };
   } catch (e) {
+    await gas.anularReserva(cupo.id, 'no arranco: ' + String((e && e.message) || e).slice(0, 150));
     return { error: String((e && e.message) || e).slice(0, 200) };
   }
 }

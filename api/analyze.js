@@ -8,7 +8,7 @@
 // ============================================================
 
 import { resolveUserId, buscarPublicaciones, anthropicHeaders } from './_meli.js';
-import { esCliente, tokenDe } from './_sesion.js';
+import { esCliente, haySesion, tokenDe } from './_sesion.js';
 import { cotizacionDolar, tipoDeCambio, DOLAR_TIPO_DEFAULT } from './_dolar.js';
 
 const USD_ARS_FALLBACK = 1510;
@@ -1033,14 +1033,21 @@ async function getMeliToken(userIdEntrada){
   }catch(e){ return null; }
 }
 
-async function meliSearch(query, token, costoTope){
+async function meliSearch(query, token, costoTope, opts){
   if(!token) return null;
+  const o = opts || {};
   try{
     // Misma cadena que usa el analizador: catalogo -> destacados -> listado
     // publico + /items?ids=. Antes esto tenia su propia copia contra
     // /products/{id}/items, que hoy devuelve 404, asi que el recomendador
     // mostraba todo como estimado aun con la cuenta conectada.
-    const r = await buscarPublicaciones(query, token, { budgetMs: 5000, maxIds: 25 });
+    // Sin sesion NO se llega a la via paga: /api/analyze es publico y evalua 12
+    // productos por consulta, o sea que sin este freno una sola visita anonima
+    // podia arrancar 12 corridas pagas.
+    const r = await buscarPublicaciones(query, token, {
+      budgetMs: 5000, maxIds: 25,
+      puedeGastar: !!o.puedeGastar, origen: 'analyze'
+    });
     if(!r || !r.results || !r.results.length) return null;
 
     const precios = r.results.map(function(x){ return x.price; })
@@ -1201,6 +1208,9 @@ export default async function handler(req, res) {
     let usdArs = parseFloat(process.env.USD_ARS) || USD_ARS_FALLBACK;
     const _tc = await tipoDeCambio(DOLAR_TIPO_DEFAULT);
     if (_tc.valor != null) usdArs = _tc.valor;
+    // La via paga solo para usuarios con sesion. El resto sigue viendo lo que
+    // devuelven las vias gratuitas, igual que antes.
+    const conSesion = haySesion(tokenDe(req));
     const tk = await getMeliToken(user_id);
     const token = tk && tk.token ? tk.token : null;
     const tokenExpired = tk && tk.expired ? true : false;
@@ -1212,7 +1222,7 @@ export default async function handler(req, res) {
       const evals = await Promise.all(batch.map(async (prod) => {
         const costoUnitUSD = (prod.costoMin + prod.costoMax)/2;
         const costoPuestoARS = costoPuestoARS_(costoUnitUSD, prod.pesoG, usdArs);
-        const data = await meliSearch(prod.q, token, costoPuestoARS);
+        const data = await meliSearch(prod.q, token, costoPuestoARS, { puedeGastar: conSesion });
         function _satFromTotal(t){ if(t==null) return null; if(t < 2000) return 'Baja'; if(t < 5000) return 'Media'; if(t < 9000) return 'Alta'; return 'Muy alta'; }
         if (data && data.precios.length && data.total == null) {
           // Precio real pero sin total de publicaciones: MercadoLibre no lo

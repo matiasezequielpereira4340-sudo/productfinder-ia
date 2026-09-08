@@ -55,6 +55,20 @@ export default async function handler(req, res) {
       });
     }
 
+    // ?gasto=1 -> en que se fue la plata del proveedor pago, por termino.
+    // Existe para poder contestar "cuanto gaste hoy y en que" sin entrar a
+    // Apify ni a Supabase. Protegido con ADMIN_KEY: expone los terminos que
+    // busca la gente y el gasto de la cuenta.
+    if (req.query && req.query.gasto) {
+      const clave = req.headers['x-admin-key'] || (req.query && req.query.key);
+      if (!process.env.ADMIN_KEY || clave !== process.env.ADMIN_KEY) {
+        return res.status(401).json({ error: 'No autorizado' });
+      }
+      const gas = await import('./_gasto.js');
+      const r = await gas.resumenGasto(req.query.n);
+      return res.status(200).json({ ok: true, ...r });
+    }
+
     // ?dolar=1 -> cotizaciones del dolar para el formulario del Market Reader.
     // Se consulta desde el server para no depender del CORS de dolarapi, y se
     // cachea 30 minutos en _dolar.js. El front lo pide una vez al abrir la
@@ -237,7 +251,9 @@ export default async function handler(req, res) {
       // Medir la saturacion de un candidato puntual.
       if (typeof req.query.saturacion === 'string' && req.query.saturacion.length > 1) {
         const kw = req.query.saturacion.slice(0, 60);
-        const mla = await radar.saturacionMLA(kw, tok);
+        // Este camino ya paso por el guard de haySesion de arriba (saturacion
+        // esta en gastaCreditos), asi que aca la sesion esta verificada.
+        const mla = await radar.saturacionMLA(kw, tok, { puedeGastar: true, origen: 'radar:saturacion' });
         if (!mla) {
           return res.status(200).json({ ok: true, keyword: kw, estado: 'sin-datos',
             aviso: 'No pude medir la saturación de este producto en MercadoLibre Argentina.' });
@@ -588,7 +604,9 @@ export default async function handler(req, res) {
           }
         }
 
-        const final = await safeMeliSearch(termino);
+        // Solo el admin puede hacer que un diagnostico gaste una corrida.
+        // Hasta ahora ?catalogo= arrancaba el actor para cualquiera con la URL.
+        const final = await safeMeliSearch(termino, { puedeGastar: esAdmin(tokenDe(req)), origen: 'diag:catalogo' });
         paso.resultado_final = final
           ? { fuente: final.fuente, resultados: (final.results || []).length, total: final.total }
           : 'no-disponible';
@@ -658,7 +676,8 @@ export default async function handler(req, res) {
           } catch (e) { estado.endpoints[nombre] = 'excepcion'; }
         }
         // Que devuelve hoy la cadena completa de busqueda, con precios.
-        const r = await safeMeliSearch(termino);
+        // Idem ?catalogo=: sin admin, este diagnostico no gasta.
+        const r = await safeMeliSearch(termino, { puedeGastar: esAdmin(tokenDe(req)), origen: 'diag:probe' });
         const precios = r ? (r.results || []).map(x => x && x.price).filter(p => typeof p === 'number' && p > 0) : [];
         estado.probe = r
           ? { termino, fuente: r.fuente, resultados: (r.results || []).length, con_precio: precios.length, total: r.total || 0 }
@@ -672,6 +691,11 @@ export default async function handler(req, res) {
   const { step, product, url, customPrompt } = req.body || {};
     if (!step) return res.status(400).json({ error: 'step requerido' });
 
+  // Contexto de la consulta. puedeGastar habilita SOLO la via paga de Apify:
+  // sin sesion el Market Reader sigue andando con las vias gratuitas, que es
+  // lo que necesita el demo publico de la portada.
+  const ctx = { puedeGastar: haySesion(tokenDe(req)), origen: 'market:' + step };
+
   if (step === 'productUrl') {
     if (!url || typeof url !== 'string') return res.status(400).json({ error: 'url requerida' });
     let cleanUrl = url.trim();
@@ -680,17 +704,17 @@ export default async function handler(req, res) {
     catch (e) { return res.status(400).json({ error: 'No se pudo leer el link', detalle: String(e && e.message || e) }); }
   }
   if (step === 'demanda') {
-    try { return res.status(200).json(await stepDemanda(product)); }
+    try { return res.status(200).json(await stepDemanda(product, ctx)); }
     catch (e) { return res.status(500).json({ error: 'Fallo demanda', detalle: String(e && e.message || e) }); }
   }
   if (step === 'competencia') {
     // El flush va ANTES de responder: si se responde primero, Vercel congela
     // el proceso y el insert no sale nunca.
-    try { const r = await stepCompetencia(product); await flushRelevancia(); return res.status(200).json(r); }
+    try { const r = await stepCompetencia(product, ctx); await flushRelevancia(); return res.status(200).json(r); }
     catch (e) { return res.status(500).json({ error: 'Fallo competencia', detalle: String(e && e.message || e) }); }
   }
   if (step === 'exploracion') {
-    try { const r = await stepExploracion(product); await flushRelevancia(); return res.status(200).json(r); }
+    try { const r = await stepExploracion(product, ctx); await flushRelevancia(); return res.status(200).json(r); }
     catch (e) { return res.status(500).json({ error: 'Fallo exploracion', detalle: String(e && e.message || e) }); }
   }
   if (step === 'region') {
@@ -698,7 +722,7 @@ export default async function handler(req, res) {
     catch (e) { return res.status(500).json({ error: 'Fallo region', detalle: String(e && e.message || e) }); }
   }
   if (step === 'testBusqueda') {
-    try { const r = await stepTestBusqueda(product); await flushRelevancia(); return res.status(200).json(r); }
+    try { const r = await stepTestBusqueda(product, ctx); await flushRelevancia(); return res.status(200).json(r); }
     catch (e) { return res.status(500).json({ error: 'Fallo test de busqueda', detalle: String(e && e.message || e) }); }
   }
   if (step === 'final') {
@@ -708,9 +732,9 @@ export default async function handler(req, res) {
   return res.status(400).json({ error: 'step invalido' });
 }
 
-async function stepDemanda(product) {
+async function stepDemanda(product, ctx) {
   if (!product) throw new Error('product requerido');
-  const meli = await safeMeliSearch(product);
+  const meli = await safeMeliSearch(product, ctx);
   const trends = await safeGoogleTrends(product);
   const hayTrends = !!(trends && trends.monthlyData && trends.monthlyData.length === 12);
   // De donde sale la curva de demanda. Google bloquea las IPs de datacenter,
@@ -746,9 +770,9 @@ async function stepDemanda(product) {
   return j;
 }
 
-async function stepCompetencia(product) {
+async function stepCompetencia(product, ctx) {
   if (!product) throw new Error('product requerido');
-  const meli = await safeMeliSearch(product);
+  const meli = await safeMeliSearch(product, ctx);
   // Este es el paso que mas se usa, y hasta ahora era el UNICO que no
   // registraba: registrarRelevancia() vivia solo adentro de contarPublicaciones(),
   // que stepCompetencia no usa. Por eso la tabla quedaba vacia aunque el
@@ -765,6 +789,28 @@ async function stepCompetencia(product) {
       precioPromedioARS: null, totalResults: null, categoryName: '', saturacion: null,
       competenciaScore: null, competitors: [],
       aviso: 'Estoy trayendo los datos de MercadoLibre para este producto. La primera vez tarda dos o tres minutos; despues queda guardado y sale al instante.' };
+  }
+  // Freno de gasto: NO se consulto. Esto es consultaFallida, no sinComparable.
+  // La diferencia importa mas que ninguna otra en este archivo: "no hay
+  // comparable" es un veredicto sobre el mercado y dispara el modo sin
+  // comparable; "no consulte" es un estado del sistema. Confundirlos le diria
+  // al usuario que su producto no tiene mercado cuando lo unico que pasa es
+  // que no inicio sesion.
+  if (meli && meli.requiereSesion) {
+    return { fuente: 'requiere-sesion', requiereSesion: true,
+      muestraInsuficiente: true, muestra: 0, sinComparable: false, consultaFallida: true,
+      sellersEstimados: null, precioMinARS: null, precioMaxARS: null, precioPromedioARS: null,
+      totalResults: null, categoryName: '', saturacion: null, competenciaScore: null,
+      competitors: [], envioGratisPct: null,
+      aviso: meli.aviso || 'Para traer publicaciones reales de MercadoLibre necesitas iniciar sesion.' };
+  }
+  if (meli && meli.topeAlcanzado) {
+    return { fuente: 'tope-diario', topeAlcanzado: true, gasto: meli.gasto || null,
+      muestraInsuficiente: true, muestra: 0, sinComparable: false, consultaFallida: true,
+      sellersEstimados: null, precioMinARS: null, precioMaxARS: null, precioPromedioARS: null,
+      totalResults: null, categoryName: '', saturacion: null, competenciaScore: null,
+      competitors: [], envioGratisPct: null,
+      aviso: meli.aviso || 'Se alcanzo el tope diario de busquedas pagas en MercadoLibre.' };
   }
   // Cero CONFIRMADO: se entro al listado publico y no hay ninguna publicacion.
   // Es un dato, y es el que dispara el modo "sin comparable". Distinto del
@@ -942,8 +988,9 @@ async function stepCompetencia(product) {
 const PRESUPUESTO_MS = Number(process.env.MARKET_PRESUPUESTO_MS || 40000);
 
 // 8.b: categoria madre, y el conteo de Argentina.
-async function stepExploracion(product) {
+async function stepExploracion(product, ctx) {
   if (!product) throw new Error('product requerido');
+  const puedeGastar = !!(ctx && ctx.puedeGastar);
   const deadline = Date.now() + PRESUPUESTO_MS;
   const tok = await getMeliAccessToken();
   const radar = await import('./_radar.js');
@@ -962,7 +1009,7 @@ async function stepExploracion(product) {
                        motivo: 'no alcanzo el tiempo para consultarlo' });
       continue;
     }
-    const c = await contarPublicaciones(t, tok, 'MLA', { budgetMs: 5000, maxIds: 30, deadline });
+    const c = await contarPublicaciones(t, tok, 'MLA', { budgetMs: 5000, maxIds: 30, deadline, puedeGastar, origen: 'exploracion' });
     escalones.push({ termino: t, ok: c.ok, estado: c.estado, publicaciones: c.publicaciones,
                      muestra: c.muestra, relevantes: c.relevantes, ratio: c.ratio,
                      sinTiempo: !!c.sinTiempo, motivo: c.motivo });
@@ -980,7 +1027,7 @@ async function stepExploracion(product) {
     }
   }
 
-  const mla = await contarPublicaciones(product, tok, 'MLA', { budgetMs: 5000, maxIds: 30, deadline });
+  const mla = await contarPublicaciones(product, tok, 'MLA', { budgetMs: 5000, maxIds: 30, deadline, puedeGastar, origen: 'exploracion' });
 
   // "Ni siquiera la categoria generica existe" solo se puede afirmar si TODOS
   // los escalones se consultaron bien Y todos dieron cero. Si alguno quedo
@@ -1066,10 +1113,13 @@ async function stepRegion(product) {
 
 // 8.e: el test de busqueda. Se corre con las palabras que escribe el usuario,
 // no con el nombre tecnico del proveedor.
-async function stepTestBusqueda(product) {
+async function stepTestBusqueda(product, ctx) {
   if (!product || !String(product).trim()) throw new Error('product requerido');
   const tok = await getMeliAccessToken();
-  const c = await contarPublicaciones(String(product).trim(), tok, 'MLA', { budgetMs: 6000, maxIds: 30 });
+  const c = await contarPublicaciones(String(product).trim(), tok, 'MLA', {
+    budgetMs: 6000, maxIds: 30,
+    puedeGastar: !!(ctx && ctx.puedeGastar), origen: 'test-busqueda'
+  });
   // Lo que cuenta son las publicaciones que HABLAN del termino, no las que
   // MercadoLibre devuelve: para un termino que nadie busca devuelve rescate.
   const encontradas = c.ok ? (c.relevantes != null ? c.relevantes : c.muestra) : null;
@@ -1195,7 +1245,12 @@ async function getMeliAccessToken() {
   } catch (_) { return null; }
 }
 
-async function safeMeliSearch(product) {
+// ctx.puedeGastar decide si la cadena de busqueda puede llegar a la via PAGA.
+// Va como parametro y no como variable de modulo a proposito: un lambda de
+// Vercel puede atender dos requests a la vez, y una variable de modulo le
+// prestaria la sesion de uno al otro.
+async function safeMeliSearch(product, ctx) {
+  const c = ctx || {};
   const q = encodeURIComponent(product);
   const url = "https://api.mercadolibre.com/sites/MLA/search?q=" + q + "&limit=20";
   const tok = await getMeliAccessToken();
@@ -1218,9 +1273,19 @@ async function safeMeliSearch(product) {
   //    proveedor externo. Recuerda cual responde para no reintentar las muertas.
   if (tok) {
     try {
-      const r = await buscarPublicaciones(product, tok, { budgetMs: 6000 });
+      const r = await buscarPublicaciones(product, tok, {
+        budgetMs: 6000,
+        puedeGastar: !!c.puedeGastar,
+        origen: c.origen || 'market'
+      });
       if (r && r.pendiente) return r;
       if (r && r.results.length) return r;
+      // Frenos de gasto: hay que devolverlos tal cual. Si se siguiera de largo
+      // terminarian en el "no-disponible" del final, que significa "MercadoLibre
+      // no respondio" -- una mentira: MercadoLibre no se consulto porque el
+      // sistema decidio no gastar, y el usuario tiene derecho a saberlo.
+      if (r && r.requiereSesion) return r;
+      if (r && r.topeAlcanzado) return r;
       // Cero confirmado: se entro al listado publico y no hay publicaciones.
       // Es un dato y hay que devolverlo. Si se sigue de largo, termina en el
       // "no-disponible" de abajo, que significa "no pude consultar": lo

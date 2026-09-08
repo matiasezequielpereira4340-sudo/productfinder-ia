@@ -247,6 +247,11 @@ function minimoItems(pedido) {
   return Math.max(minimo, pedido || 0);
 }
 
+// Cuantos items va a pedir realmente una corrida. Lo necesita el contador de
+// gasto para estimar el costo ANTES de arrancarla: si lo calculara por su
+// cuenta, el dia que cambie APIFY_MIN_ITEMS las dos cuentas se desincronizan.
+export function itemsPorCorrida(pedido) { return minimoItems(pedido); }
+
 // Arranca la corrida y devuelve el id. No espera a que termine.
 // Aborta una corrida ya arrancada. Existe para no dejar corriendo (y pagando)
 // una corrida que no se va a poder cosechar porque no se pudo registrar el
