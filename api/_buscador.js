@@ -338,6 +338,70 @@ export async function estadoCorrida(runId, opts) {
   }
 }
 
+// Ficha completa de una corrida, para saber si se PAGO y si el dataset todavia
+// existe. Leer esto no cuesta nada: no arranca ninguna corrida.
+//
+// La distincion que importa: run_estado en busquedas_cache es el estado que
+// Apify devolvio al CREARLA (casi siempre READY = encolada). Nunca se
+// actualizo, asi que no dice si despues corrio. Eso hay que preguntarlo.
+export async function detalleDeCorrida(runId, datasetId) {
+  const token = process.env.APIFY_TOKEN;
+  if (!token) return { runId, error: 'APIFY_TOKEN no configurado' };
+  if (!runId) return { runId: null, error: 'sin runId' };
+  const salida = { runId, datasetId: datasetId || null };
+  try {
+    const r = await apifyGet('/actor-runs/' + encodeURIComponent(runId), 10000);
+    if (!r.ok) {
+      salida.corrida = { error: 'Apify ' + r.status };
+      // 404 aca significa que Apify ya no tiene ni el registro de la corrida.
+      salida.corridaExiste = r.status !== 404;
+    } else {
+      const d = (r.json && r.json.data) || {};
+      const st = d.stats || {};
+      salida.corridaExiste = true;
+      salida.corrida = {
+        estado: d.status || null,
+        creada: d.startedAt || null,
+        arrancoDeVerdad: !!d.startedAt,
+        termino: d.finishedAt || null,
+        duracion_s: (st.durationMillis != null) ? Math.round(st.durationMillis / 1000) : null,
+        // computeUnits > 0 es la prueba de que la corrida CONSUMIO credito.
+        // Si es 0 o null y nunca arranco, no se pago nada.
+        computeUnits: st.computeUnits != null ? st.computeUnits : null,
+        items_producidos: st.outputItemCount != null ? st.outputItemCount : null,
+        costo_usd: d.usageTotalUsd != null ? d.usageTotalUsd : null,
+        dataset: d.defaultDatasetId || null
+      };
+      if (!datasetId && d.defaultDatasetId) datasetId = d.defaultDatasetId;
+    }
+  } catch (e) {
+    salida.corrida = { error: String((e && e.message) || e).slice(0, 160) };
+  }
+  if (datasetId) {
+    try {
+      const m = await apifyGet('/datasets/' + encodeURIComponent(datasetId), 10000);
+      if (!m.ok) {
+        // 404 = el dataset ya no esta. Con la retencion del plan vencida, lo
+        // que se pago ese dia ya no se puede recuperar.
+        salida.dataset = { existe: false, status: m.status };
+      } else {
+        const d = (m.json && m.json.data) || {};
+        salida.dataset = {
+          existe: true,
+          items: d.itemCount != null ? d.itemCount : null,
+          creado: d.createdAt || null,
+          modificado: d.modifiedAt || null
+        };
+      }
+    } catch (e) {
+      salida.dataset = { existe: null, error: String((e && e.message) || e).slice(0, 160) };
+    }
+  } else {
+    salida.dataset = { existe: null, motivo: 'sin dataset_id' };
+  }
+  return salida;
+}
+
 // Filas ya normalizadas de una corrida terminada.
 export async function itemsDeCorrida(datasetId, opts) {
   const token = process.env.APIFY_TOKEN;

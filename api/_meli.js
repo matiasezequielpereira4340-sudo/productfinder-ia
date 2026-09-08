@@ -1226,6 +1226,65 @@ async function guardarCache(product, r, site) {
   }
 }
 
+// Corridas pagas que quedaron anotadas y sin cosechar. Una corrida sin cosechar
+// es plata ya gastada esperando a que alguien vuelva a buscar el mismo termino:
+// si nadie lo hace antes de que venza la retencion del dataset, se perdio.
+export async function corridasPendientes(limite) {
+  const { url, key, ok } = supa();
+  if (!ok) return { ok: false, error: 'falta SUPABASE_SERVICE_KEY', filas: [] };
+  const n = Math.min(100, Math.max(1, parseInt(limite, 10) || 30));
+  try {
+    const r = await fetch(url + '/rest/v1/busquedas_cache' +
+      '?select=termino,fuente,run_id,dataset_id,run_estado,run_desde,resultados' +
+      '&run_id=not.is.null&order=run_desde.desc&limit=' + n,
+      { headers: { apikey: key, Authorization: 'Bearer ' + key } });
+    if (!r.ok) {
+      const cuerpo = await r.text().catch(() => '');
+      return { ok: false, error: 'HTTP ' + r.status + ' ' + cuerpo.slice(0, 200), filas: [] };
+    }
+    const filas = await r.json().catch(() => []);
+    return { ok: true, filas: Array.isArray(filas) ? filas : [] };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e).slice(0, 200), filas: [] };
+  }
+}
+
+// RETENCION. El problema no es recuperar lo viejo: es que una corrida que
+// termina cuando ya nadie esta mirando no se cosecha nunca, porque la cosecha
+// solo pasa si alguien vuelve a buscar el mismo termino. Esto barre todas las
+// pendientes y guarda las que ya terminaron, sin depender de eso.
+//
+// No arranca ninguna corrida: leer un dataset ya producido es gratis.
+export async function cosecharPendientes(token, opts) {
+  const o = opts || {};
+  const { filas, ok, error } = await corridasPendientes(o.limite || 30);
+  if (!ok) return { ok: false, error, cosechadas: 0, detalle: [] };
+  const detalle = [];
+  let cosechadas = 0;
+  for (const f of filas) {
+    // Ya tiene resultados guardados: no hay nada que cosechar.
+    const yaTiene = Array.isArray(f.resultados) && f.resultados.length > 0;
+    if (yaTiene) { detalle.push({ termino: f.termino, run_id: f.run_id, estado: 'ya-cosechada' }); continue; }
+    // Solo las de MercadoLibre: las de TikTok y Trends las arma _fuentes.js con
+    // su propio formato.
+    if (f.fuente !== 'proveedor-apify') {
+      detalle.push({ termino: f.termino, run_id: f.run_id, estado: 'otra-fuente', fuente: f.fuente });
+      continue;
+    }
+    const r = await cosecharCorrida(f.termino, f, token, 'MLA');
+    if (r && r.results && r.results.length) {
+      cosechadas++;
+      detalle.push({ termino: f.termino, run_id: f.run_id, estado: 'cosechada', publicaciones: r.results.length });
+    } else if (r && r.pendiente) {
+      detalle.push({ termino: f.termino, run_id: f.run_id, estado: 'todavia-corriendo' });
+    } else {
+      detalle.push({ termino: f.termino, run_id: f.run_id, estado: 'sin-datos',
+                     nota: 'la corrida no terminó bien o el dataset ya no está' });
+    }
+  }
+  return { ok: true, revisadas: filas.length, cosechadas, detalle };
+}
+
 export async function buscarPublicaciones(product, token, opts) {
   if (!token || !product) return null;
   const o = opts || {};

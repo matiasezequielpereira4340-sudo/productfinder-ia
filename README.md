@@ -283,6 +283,31 @@ pregunta real: en qué se fue la plata.
 `test-busqueda`, `analyze`, `radar:saturacion`, `diag:catalogo`, `diag:probe`,
 `fuente:tiktok`.
 
+### Corridas pagas sin cosechar (retención)
+
+Una corrida sólo se cosecha si alguien vuelve a buscar el mismo término. Si
+termina cuando ya nadie está mirando, se pagó y se pierde cuando vence la
+retención del dataset. Para verlo y arreglarlo:
+
+```bash
+# Qué pasó con cada corrida anotada: ¿arrancó de verdad y consumió crédito?
+# ¿el dataset todavía existe?
+curl -s -H "x-admin-key: $ADMIN_KEY" \
+  "https://productfinder-ia.vercel.app/api/market?pendientes=1&n=30" | jq
+
+# Lo mismo, y además guarda las que ya terminaron
+curl -s -H "x-admin-key: $ADMIN_KEY" \
+  "https://productfinder-ia.vercel.app/api/market?pendientes=1&cosechar=1" | jq
+```
+
+Ninguna de las dos arranca corridas: leer el estado de una corrida y un dataset
+ya producido es gratis.
+
+Ojo con `run_estado` de `busquedas_cache`: es el estado que devolvió Apify **al
+crear** la corrida (casi siempre `READY`, o sea encolada) y nunca se actualizó.
+No dice si después corrió. Eso lo contesta `corrida.arrancoDeVerdad` /
+`computeUnits` / `costo_usd` de este endpoint.
+
 ### Prueba
 
 ```bash

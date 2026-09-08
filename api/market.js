@@ -3,7 +3,7 @@
 // Datos de MercadoLibre (catalogo con token de usuario) + Anthropic para el
 // armado del informe.
 
-import { anthropicHeaders, buscarPublicaciones, contarPublicaciones, relevanciaPorTitulo, leerRelevanciaLog, registrarRelevancia, flushRelevancia, estadoEscrituraRelevancia, palabrasSignificativas, RELEVANCIA_UMBRAL_ALTO, RELEVANCIA_UMBRAL_BAJO, SITIOS, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
+import { anthropicHeaders, buscarPublicaciones, contarPublicaciones, relevanciaPorTitulo, leerRelevanciaLog, registrarRelevancia, flushRelevancia, corridasPendientes, cosecharPendientes, estadoEscrituraRelevancia, palabrasSignificativas, RELEVANCIA_UMBRAL_ALTO, RELEVANCIA_UMBRAL_BAJO, SITIOS, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
 import { haySesion, esAdmin, tokenDe, pedirSesion } from './_sesion.js';
 import { cotizacionDolar, DOLAR_TIPOS, DOLAR_TIPO_DEFAULT } from './_dolar.js';
 
@@ -67,6 +67,46 @@ export default async function handler(req, res) {
       const gas = await import('./_gasto.js');
       const r = await gas.resumenGasto(req.query.n);
       return res.status(200).json({ ok: true, ...r });
+    }
+
+    // ?pendientes=1 -> que paso con cada corrida paga que quedo anotada y sin
+    // cosechar. Contesta las dos preguntas que importan sobre plata ya gastada:
+    //   1) la corrida ARRANCO y consumio credito, o quedo encolada y no costo?
+    //      -> corrida.arrancoDeVerdad, computeUnits, costo_usd
+    //   2) el dataset todavia existe, o vencio la retencion del plan?
+    //      -> dataset.existe, dataset.items
+    // Ojo: run_estado en busquedas_cache es el estado al CREARLA (casi siempre
+    // READY = encolada) y nunca se actualizo, asi que no sirve para esto.
+    //
+    // Con &cosechar=1 ademas guarda las que ya terminaron. Eso es la RETENCION:
+    // hoy una corrida solo se cosecha si alguien vuelve a buscar el mismo
+    // termino, asi que una que termina cuando nadie mira se pierde aunque se
+    // haya pagado. Nada de esto arranca corridas nuevas: no cuesta plata.
+    if (req.query && req.query.pendientes) {
+      const clave = req.headers['x-admin-key'] || (req.query && req.query.key);
+      if (!process.env.ADMIN_KEY || clave !== process.env.ADMIN_KEY) {
+        return res.status(401).json({ error: 'No autorizado' });
+      }
+      const bus = await import('./_buscador.js');
+      const { ok, error, filas } = await corridasPendientes(req.query.n);
+      if (!ok) return res.status(200).json({ ok: false, error });
+      const corridas = [];
+      for (const f of filas) {
+        const d = await bus.detalleDeCorrida(f.run_id, f.dataset_id);
+        corridas.push({
+          termino: f.termino, fuente: f.fuente,
+          arrancada_el: f.run_desde,
+          estado_guardado: f.run_estado,
+          resultados_guardados: Array.isArray(f.resultados) ? f.resultados.length : 0,
+          ...d
+        });
+      }
+      const salida = { ok: true, total: corridas.length, corridas };
+      if (req.query.cosechar) {
+        const tok = await getMeliAccessToken();
+        salida.cosecha = await cosecharPendientes(tok, { limite: req.query.n });
+      }
+      return res.status(200).json(salida);
     }
 
     // ?dolar=1 -> cotizaciones del dolar para el formulario del Market Reader.
