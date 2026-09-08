@@ -293,6 +293,9 @@ export async function cosecharFilaPendiente(fila) {
     'tiktok-shop': normalizarTikTok,
     'tiktok-shop-br': normalizarTikTok,
     'google-trends': normalizarTrend,
+    // La serie se guarda cruda a proposito (ver serieAMeses): si el barrido la
+    // normalizara con otra funcion, el dato original se perderia.
+    'google-trends-serie': f => (f && typeof f === 'object') ? f : null,
     'prueba-sin-detalle': f => (f && typeof f === 'object') ? f : null
   };
   const normalizar = normalizadores[fila.fuente];
@@ -461,6 +464,142 @@ export async function googleTrends(keyword, opts) {
     },
     normalizar: normalizarTrend
   });
+}
+
+// ------------------------------------------------------------
+// Serie de interes en el tiempo (la curva de 12 meses)
+// ------------------------------------------------------------
+// Esto es lo que el bloque "Tendencia de demanda" del Market Reader necesitaba
+// desde el principio, y es de donde se podia sacar todo este tiempo.
+//
+// El mismo actor que ya se usa para busquedas relacionadas acepta
+// interest_over_time, y devuelve UNA fila por keyword con la linea de tiempo
+// completa adentro. El comentario viejo del codigo decia "decenas de filas" y
+// por eso se lo excluia: estaba mal. Con 10 filas gratis por corrida, la serie
+// sale menos que las 20 filas de related_queries que se piden para el Radar.
+//
+// Va en su propia clave de cache: es OTRO dato, no la misma consulta con otro
+// campo. Compartir cajon con related_queries serviria la respuesta equivocada.
+export async function serieDeTendencia(termino, geoPais) {
+  const q = String(termino || '').trim().slice(0, 60);
+  if (!q) return { error: 'falta el termino' };
+  const geo = (geoPais || 'AR').toUpperCase();
+  return corridaCacheada({
+    clave: 'gtrends-serie::' + geo + '::' + q.toLowerCase(),
+    fuente: 'google-trends-serie',
+    actor: ACTOR_TRENDS(),
+    limite: 5,
+    input: {
+      keywords: [q],
+      geo,
+      timeframe: 'today 12-m',
+      dataTypes: ['interest_over_time'],
+      // Una fila por keyword. El tope existe igual por si el actor cambia de
+      // formato: no se descubre un costo nuevo en produccion.
+      maxResults: 5
+    },
+    // Se guarda la fila CRUDA. Todavia no esta verificado contra una corrida
+    // real como se llaman los campos del timeline, asi que normalizar aca
+    // seria adivinar y perder el dato original.
+    normalizar: f => (f && typeof f === 'object') ? f : null
+  });
+}
+
+// Convierte la fila cruda del actor en la misma forma que ya devuelve
+// safeGoogleTrends: { monthlyData: [{mes, valor}], values: [12 numeros] }.
+//
+// Es deliberadamente tolerante con los nombres de campo. La ficha del actor
+// dice "timeline completo de valores 0 a 100 con fecha" pero no publica el
+// nombre exacto de la clave, y adivinar mal en silencio produciria una curva
+// inventada. Si no reconoce la forma, devuelve que campos vinieron en vez de
+// improvisar un resultado.
+const MESES_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+export function serieAMeses(fila) {
+  if (!fila || typeof fila !== 'object') return { error: 'fila vacia' };
+
+  // 1. Encontrar el array de puntos, se llame como se llame.
+  const candidatas = ['timeline', 'interest_over_time', 'interestOverTime', 'values',
+                      'data', 'points', 'series', 'timelineData', 'timeline_data'];
+  let puntos = null, clave = null;
+  for (const k of candidatas) {
+    if (Array.isArray(fila[k]) && fila[k].length) { puntos = fila[k]; clave = k; break; }
+  }
+  // Ultimo recurso: cualquier array de objetos con algo que parezca fecha y valor.
+  if (!puntos) {
+    for (const k of Object.keys(fila)) {
+      const v = fila[k];
+      if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0] !== null) {
+        const cs = Object.keys(v[0]).join(' ').toLowerCase();
+        if (/date|time|fecha/.test(cs) && /value|valor|interest/.test(cs)) { puntos = v; clave = k; break; }
+      }
+    }
+  }
+  if (!puntos) {
+    return { error: 'no encontre la serie en la fila del actor',
+             campos: Object.keys(fila), muestra: JSON.stringify(fila).slice(0, 600) };
+  }
+
+  // 2. Sacar fecha y valor de cada punto.
+  const porMes = {};
+  let leidos = 0;
+  for (const p of puntos) {
+    if (p == null) continue;
+    let fechaBruta = null, valor = null;
+    if (typeof p === 'object') {
+      for (const k of ['date', 'time', 'fecha', 'formattedTime', 'formatted_time', 'timestamp']) {
+        if (p[k] != null && p[k] !== '') { fechaBruta = p[k]; break; }
+      }
+      for (const k of ['value', 'valor', 'interest', 'count', 'v']) {
+        if (p[k] != null) { valor = Array.isArray(p[k]) ? p[k][0] : p[k]; break; }
+      }
+    }
+    if (fechaBruta == null || valor == null) continue;
+    // Epoch en segundos o en milisegundos, o una fecha ISO.
+    let d;
+    if (typeof fechaBruta === 'number' || /^\d+$/.test(String(fechaBruta))) {
+      const n = Number(fechaBruta);
+      d = new Date(n > 1e12 ? n : n * 1000);
+    } else {
+      d = new Date(String(fechaBruta));
+    }
+    if (isNaN(d.getTime())) continue;
+    const num = Number(valor);
+    if (!isFinite(num)) continue;
+    const k = d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
+    if (!porMes[k]) porMes[k] = [];
+    porMes[k].push(num);
+    leidos++;
+  }
+  if (!leidos) {
+    return { error: 'encontre la serie en "' + clave + '" pero no pude leer fecha+valor de ningun punto',
+             campoSerie: clave, puntos: puntos.length,
+             muestraPunto: JSON.stringify(puntos[0]).slice(0, 300) };
+  }
+
+  const claves = Object.keys(porMes).sort();
+  const ultimos12 = claves.slice(-12);
+  if (ultimos12.length < 12) {
+    return { error: 'la serie trajo ' + ultimos12.length + ' meses de 12',
+             campoSerie: clave, meses: ultimos12.length, puntosLeidos: leidos };
+  }
+  const monthlyData = ultimos12.map(k => {
+    const mes = MESES_ES[parseInt(k.split('-')[1], 10) - 1];
+    const arr = porMes[k];
+    return { mes, valor: Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) };
+  });
+  return {
+    monthlyData,
+    values: monthlyData.map(x => x.valor),
+    campoSerie: clave,
+    puntosLeidos: leidos,
+    // Lo que el actor dice de la serie, si lo trae. Sirve para contrastar.
+    resumenDelActor: {
+      promedio: fila.averageValue != null ? fila.averageValue : (fila.average_value != null ? fila.average_value : null),
+      pico: fila.peakValue != null ? fila.peakValue : (fila.peak_value != null ? fila.peak_value : null),
+      ultimo: fila.latestValue != null ? fila.latestValue : (fila.latest_value != null ? fila.latest_value : null)
+    }
+  };
 }
 
 // ------------------------------------------------------------

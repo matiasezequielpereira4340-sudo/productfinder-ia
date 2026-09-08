@@ -466,10 +466,28 @@ arranque, que es uno o dos minutos antes). Pasados `TRENDS_ESPERA_REINTENTO_SEG`
 contra un Google que sigue bloqueando es tirar plata. El reintento pasa por el
 mismo tope diario que cualquier otra corrida.
 
-**Pendiente, no hecho:** el actor acepta `interest_over_time` en `dataTypes`
-—que es la serie temporal que el Market Reader necesita— y produce **1 fila por
-keyword** con toda la línea de tiempo adentro, no una fila por fecha. Hoy se
-pide sólo `related_queries`. Ver la nota en `_fuentes.js`.
+**La curva ahora tiene una segunda vía.** `serieDeTendencia()` pide
+`dataTypes: ['interest_over_time']` al mismo actor — 1 fila por keyword con
+toda la línea de tiempo adentro. `stepDemanda` la usa **sólo cuando el scrape
+directo falló** y **sólo con sesión**, porque cuesta ~USD 0,017 y cuenta contra
+el tope diario. `fuenteDemanda` pasa a `'google-trends'` únicamente si la serie
+llegó de verdad; si no, sigue siendo estimación de IA con el badge que lo dice.
+`trendsVia` distingue `scrape-directo` de `proveedor-apify`.
+
+La corrida tarda más que un request, así que la primera vez ese análisis sale
+estimado y el siguiente del mismo producto ya trae la curva desde el caché.
+
+Va en su propia clave (`gtrends-serie::AR::<término>`): es otro dato, no la
+misma consulta con otro campo.
+
+**El parser no adivina.** La ficha del actor no publica cómo se llaman los
+campos del timeline, así que `serieAMeses()` prueba varios nombres, y **cuando
+no reconoce la forma devuelve el error y los campos que vinieron, nunca una
+curva**. Una curva inventada sería el peor resultado posible: se mostraría como
+dato medido. `npm run test:serie` fija ese comportamiento.
+
+Para ver la fila cruda del actor: `/admin.html` → **"Probar curva de Google
+Trends"**, o `GET /api/market?serie=<término>` con `ADMIN_KEY`.
 
 ### Corridas pagas sin cosechar (retención)
 
@@ -497,6 +515,22 @@ a buscar el mismo término: la que terminaba cuando el usuario ya se había ido 
 pagaba y se perdía. Medido: de 13 corridas pagas, **5 habían quedado sin
 levantar** (4 de Google Trends y 1 de TikTok Shop, que el barrido salteaba por
 no ser de MercadoLibre — ahora las levanta también).
+
+### Cómo verificar si `CRON_SECRET` está activo
+
+Sin leer el texto de ningún error:
+
+```bash
+curl -s https://productfinder-ia.vercel.app/api/market | jq .cron_protegido
+# false -> no está cargada EN ESTE DEPLOY
+# true  -> los dos crons exigen el secreto
+```
+
+`?gasto=1` devuelve lo mismo en `cronProtegido`, con una nota explicando qué
+implica, y `/admin.html` lo muestra en "Cuánto se gastó hoy".
+
+**Si lo cargaste y sigue en `false`, falta el Redeploy**: Vercel no aplica
+variables nuevas al deploy que ya está corriendo.
 
 ### `CRON_SECRET`: un secreto para los dos crons
 

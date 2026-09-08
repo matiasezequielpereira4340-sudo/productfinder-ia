@@ -161,6 +161,7 @@
             <button class="btn btn-yellow" type="button" onclick="verGasto()">Cu&aacute;nto se gast&oacute; hoy</button>
             <button class="btn btn-ghost" type="button" onclick="verPendientes(false)">Corridas sin cosechar</button>
             <button class="btn btn-ghost" type="button" onclick="verPendientes(true)">Cosechar las que terminaron</button>
+            <button class="btn btn-ghost" type="button" onclick="probarSerie()" style="border-color:#7f5d00;color:#FFE600">Probar curva de Google Trends (gasta ~USD 0,017)</button>
           </div>
           <div id="gastoOut" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;word-break:break-word;background:#0f0f0f;color:#ddd;border-radius:8px;padding:12px;max-height:60vh;overflow:auto">Toca un boton.</div>
           <div style="margin-top:8px;font-size:12px;color:#777;line-height:1.5">
@@ -231,10 +232,57 @@
         'Usadas hoy: ' + j.usadas + ' de ' + j.tope + '   |   Quedan: ' + j.restantes + '\n' +
         'Se reinicia: ' + (j.reinicio ? new Date(j.reinicio).toLocaleString('es-AR') : '-') + '\n' +
         (j.contadorOk ? '' : 'OJO: no pude contar (' + j.contadorError + '). Con el contador caido NO se gasta.\n') +
+        'CRON_SECRET activo: ' + (j.cronProtegido ? 'SI' : 'NO') + '\n' +
+        (j.cronNota ? '  ' + j.cronNota + '\n' : '') +
         '\nPor termino:\n' + JSON.stringify(j.porTermino || {}, null, 2) +
         '\n\nTotal estimado en la muestra: USD ' + j.totalUsdEnLaMuestra +
         '\n\nUltimas corridas:\n' + JSON.stringify(j.corridas || [], null, 2);
       pintarGasto(linea);
+    }catch(e){ pintarGasto('Fallo: ' + (e && e.message || e)); }
+  }
+
+  // Unico boton de esta seccion que GASTA. Arranca una corrida del actor de
+  // Google Trends pidiendo la serie de 12 meses, y muestra la fila CRUDA que
+  // devuelve: los nombres de los campos del timeline no estan documentados y
+  // hay que verlos una vez para saber si el parser los lee bien.
+  async function probarSerie(){
+    var t = prompt('Termino para probar la curva de Google Trends.\n\nArranca una corrida y cuesta ~USD 0,017. Si el termino ya se consulto antes, sale del cache y no cuesta nada.', 'mordedor bebe');
+    if (t === null) return;
+    t = String(t).trim();
+    if (!t) return;
+    pintarGasto('Pidiendo la serie de "' + t + '"...');
+    try{
+      var res = await adminFetch('/api/market?serie=' + encodeURIComponent(t));
+      var j = await res.json();
+      if(!res.ok){ pintarGasto('Error ' + res.status + ': ' + (j && j.error || '')); return; }
+      var txt = '';
+      if (j.estado === 'preparando') {
+        txt = 'La corrida arranco. Google Trends tarda un rato.\n' +
+              'Volve a tocar este boton con el MISMO termino en un minuto: sale del cache y NO se paga de nuevo.\n\n';
+        if (j.reintentoEn_s) txt += 'Se reintenta sola en ' + j.reintentoEn_s + ' segundos (Google la bloqueo).\n\n';
+        pintarGasto(txt + JSON.stringify(j, null, 2));
+        return;
+      }
+      txt = 'Termino: ' + j.termino + (j.desdeCache ? '   (del cache, no se pago)' : '   (corrida nueva)') + '\n';
+      txt += 'Filas devueltas: ' + j.filas_devueltas + '\n';
+      txt += 'Campos de la fila: ' + (j.campos_de_la_fila || []).join(', ') + '\n\n';
+      if (j.serie && j.serie.error) {
+        txt += 'NO PUDE LEER LA CURVA: ' + j.serie.error + '\n';
+        txt += '(esto es lo que hay que mandarle a Claude para arreglar el parser)\n\n';
+      } else if (j.serie) {
+        txt += 'CURVA DE 12 MESES (campo "' + j.serie.campoSerie + '", ' + j.serie.puntosLeidos + ' puntos leidos):\n';
+        (j.serie.monthlyData || []).forEach(function(m){
+          var barra = new Array(Math.max(1, Math.round(m.valor / 3))).join('#');
+          txt += '  ' + m.mes + '  ' + String(m.valor).padStart(3) + '  ' + barra + '\n';
+        });
+        if (j.serie.resumenDelActor) {
+          txt += '\nLo que dice el propio actor: promedio ' + j.serie.resumenDelActor.promedio +
+                 ', pico ' + j.serie.resumenDelActor.pico +
+                 ', ultimo ' + j.serie.resumenDelActor.ultimo + '\n';
+        }
+      }
+      txt += '\n--- FILA CRUDA DEL ACTOR ---\n' + JSON.stringify(j.fila_cruda, null, 2);
+      pintarGasto(txt);
     }catch(e){ pintarGasto('Fallo: ' + (e && e.message || e)); }
   }
 

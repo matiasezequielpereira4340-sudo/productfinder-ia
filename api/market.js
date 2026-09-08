@@ -34,7 +34,13 @@ export default async function handler(req, res) {
       meli_client_creds_present: !!((process.env.MELI_CLIENT_ID || process.env.MELI_APP_ID) &&
                                     (process.env.MELI_CLIENT_SECRET || process.env.MELI_SECRET_KEY)),
       anthropic_present: !!process.env.ANTHROPIC_API_KEY,
-      demo_user: process.env.MELI_DEMO_USER_ID || 'matypereira'
+      demo_user: process.env.MELI_DEMO_USER_ID || 'matypereira',
+      // Se puede verificar de un vistazo, sin leer el texto de un error.
+      // false = la variable no esta cargada EN ESTE DEPLOY: en Vercel una
+      // variable nueva no la toma el deploy que ya esta corriendo, hace falta
+      // redeploy. Expone si esta configurada, nunca su valor, igual que los
+      // otros booleanos de arriba.
+      cron_protegido: !!process.env.CRON_SECRET
     };
 
     // ?relevancia=1 -> las ultimas mediciones de relevancia, para recalibrar
@@ -73,7 +79,46 @@ export default async function handler(req, res) {
       if (!admitido(req)) return res.status(401).json({ error: 'No autorizado' });
       const gas = await import('./_gasto.js');
       const r = await gas.resumenGasto(req.query.n);
-      return res.status(200).json({ ok: true, ...r });
+      const cronProtegido = !!process.env.CRON_SECRET;
+      return res.status(200).json({
+        ok: true,
+        cronProtegido,
+        cronNota: cronProtegido
+          ? 'Los dos crons exigen CRON_SECRET.'
+          : 'CRON_SECRET NO esta cargada en este deploy. Los crons entran con el user-agent de Vercel, que se puede falsificar. Si la cargaste recien, falta el Redeploy: Vercel no aplica variables nuevas al deploy que ya esta corriendo.',
+        ...r
+      });
+    }
+
+    // ?serie=<termino> -> la curva de 12 meses del proveedor, y la fila CRUDA
+    // que devolvio el actor. Existe para poder verificar de una vez como se
+    // llaman los campos del timeline, que la ficha del actor no publica: sin
+    // eso el parser estaria adivinando.
+    //
+    // GASTA: arranca una corrida (~USD 0.017) si el termino no esta cacheado.
+    // Por eso pide admin, no sesion comun.
+    if (req.query && typeof req.query.serie === 'string' && req.query.serie.length > 1) {
+      if (!admitido(req)) return res.status(401).json({ error: 'No autorizado' });
+      const termino = req.query.serie.slice(0, 60);
+      const fu = await import('./_fuentes.js');
+      const r = await fu.serieDeTendencia(termino, (req.query.geo || 'AR'));
+      if (r && r.pendiente) {
+        return res.status(200).json({ ok: true, termino, estado: 'preparando',
+          reintentoEn_s: r.reintentoEn_s || null, aviso: r.aviso ||
+          'La corrida arranco. Volve a llamar en un minuto y la serie sale del cache, sin pagar de nuevo.' });
+      }
+      if (r && r.error) return res.status(200).json({ ok: false, termino, error: r.error, ...r });
+      const fila = (r.items && r.items[0]) || null;
+      const serie = fila ? fu.serieAMeses(fila) : { error: 'el actor no devolvio filas' };
+      return res.status(200).json({
+        ok: !serie.error, termino,
+        desdeCache: !!r.desdeCache,
+        filas_devueltas: (r.items || []).length,
+        // Lo crudo, sin interpretar. Es el punto de todo este endpoint.
+        campos_de_la_fila: fila ? Object.keys(fila) : [],
+        fila_cruda: fila,
+        serie
+      });
     }
 
     // ?cosechar=1 -> barrido automatico. Lo llama el cron diario.
@@ -822,12 +867,24 @@ export default async function handler(req, res) {
 async function stepDemanda(product, ctx) {
   if (!product) throw new Error('product requerido');
   const meli = await safeMeliSearch(product, ctx);
-  const trends = await safeGoogleTrends(product);
+  let trends = await safeGoogleTrends(product);
+  // Google bloquea las IPs de datacenter, asi que el scrape directo falla casi
+  // siempre desde Vercel. Cuando eso pasa se prueba el actor de Apify, que
+  // corre desde IPs residenciales y devuelve la MISMA serie. Es la unica via
+  // que puede dar un dato medido en vez de una estimacion.
+  //
+  // Solo con sesion: cuesta ~1,7 centavos por termino nuevo y cuenta contra el
+  // tope diario, igual que las corridas de MercadoLibre.
+  if (!trends && ctx && ctx.puedeGastar) {
+    trends = await serieViaProveedor(product);
+  }
   const hayTrends = !!(trends && trends.monthlyData && trends.monthlyData.length === 12);
   // De donde sale la curva de demanda. Google bloquea las IPs de datacenter,
   // asi que desde Vercel safeGoogleTrends devuelve null casi siempre: cuando
   // eso pasa los 12 meses y el score los estima el modelo, y el front lo tiene
   // que decir con todas las letras en vez de mostrarlo como dato medido.
+  // 'google-trends' solo si la serie llego DE VERDAD, venga del scrape directo
+  // o del proveedor. Si no llego, es estimacion y el badge lo dice.
   const fuenteDemanda = hayTrends ? 'google-trends' : 'estimacion-ia';
   const totalMeli = meli && meli.total != null ? meli.total : 'sin dato';
   const catName = meli && meli.categoryName ? meli.categoryName : 'sin dato';
@@ -854,7 +911,45 @@ async function stepDemanda(product, ctx) {
   j.rangoFechas = j.monthlyData[0].label + ' - ' + j.monthlyData[11].label;
   j.fuenteDemanda = fuenteDemanda;
   j.trendsMotivo = hayTrends ? null : (_ultimoMotivoTrends || 'Google Trends no respondio');
+  // De cual de las dos vias salio la curva. Sin esto, "google-trends" no
+  // distingue entre el scrape gratis y una corrida paga.
+  if (hayTrends) j.trendsVia = trends.via || 'scrape-directo';
   return j;
+}
+
+// La serie de 12 meses pedida al proveedor pago. Devuelve la MISMA forma que
+// safeGoogleTrends para que stepDemanda no tenga que saber de donde vino.
+//
+// La corrida tarda mas de lo que dura un request, asi que la primera vez
+// contesta null con el motivo "se esta trayendo": ese analisis sale con
+// estimacion de IA y el siguiente ya tiene el dato real desde el cache. No se
+// espera adentro del request ni se muestra una curva a medias.
+async function serieViaProveedor(product) {
+  try {
+    const fu = await import('./_fuentes.js');
+    const r = await fu.serieDeTendencia(product, 'AR');
+    if (r && r.pendiente) {
+      _ultimoMotivoTrends = r.aviso ||
+        'Se esta trayendo la serie de Google Trends. En el proximo analisis de este producto ya sale medida.';
+      return null;
+    }
+    if (r && r.error) { _ultimoMotivoTrends = String(r.error).slice(0, 200); return null; }
+    const fila = (r && r.items && r.items[0]) || null;
+    if (!fila) { _ultimoMotivoTrends = 'el proveedor no devolvio la serie'; return null; }
+    const serie = fu.serieAMeses(fila);
+    if (serie.error) {
+      // El actor contesto pero con una forma que no se reconoce. Se dice cual
+      // es, en vez de inventar una curva.
+      console.error('[trends] no pude leer la serie del proveedor: ' + serie.error +
+                    ' | campos: ' + JSON.stringify(serie.campos || serie.campoSerie || null));
+      _ultimoMotivoTrends = 'el proveedor devolvio la serie en un formato que no reconozco';
+      return null;
+    }
+    return { monthlyData: serie.monthlyData, values: serie.values, via: 'proveedor-apify' };
+  } catch (e) {
+    _ultimoMotivoTrends = 'fallo la consulta de la serie: ' + String((e && e.message) || e).slice(0, 140);
+    return null;
+  }
 }
 
 async function stepCompetencia(product, ctx) {
