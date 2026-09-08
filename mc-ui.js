@@ -536,6 +536,61 @@
       '<button class="mc-toggle" id="mcToggle" type="button" aria-label="Abrir menú" aria-expanded="false">' + ic("i-menu") + "</button>";
   }
 
+  // Navegacion dentro de index sin depender del evento hashchange.
+  //
+  // El bug: showMenu() deja la URL en .../#menu apenas carga la home. Estando
+  // ahi, un clic en la marca (href="#menu") apunta al MISMO hash que el actual.
+  // El navegador no navega y no dispara hashchange, y como toda la navegacion
+  // entre pantallas colgaba de ese evento, el clic quedaba muerto. Pasaba igual
+  // en el celular porque es comportamiento estandar del navegador, no un tema
+  // de CSS ni de tamaño de toque. Lo mismo con cualquier item del nav cuyo hash
+  // coincidiera con la pantalla en la que ya estabas.
+  //
+  // La solucion no es cambiar el href: es no depender del hash. Se llama
+  // directo a la funcion del SPA. El href se deja como esta para que el link
+  // siga siendo un link de verdad (clic derecho, abrir en pestaña nueva, y
+  // funcionar si el JS no cargo).
+  // Devuelve el NOMBRE de la funcion, no la funcion. La referencia se resuelve
+  // recien en el clic: si se capturara al enlazar, el nav se quedaria con una
+  // version vieja de showMarket si algo la reemplaza despues de cargar.
+  function nombreDeHash(href) {
+    var i = String(href || "").indexOf("#");
+    var h = i === -1 ? "" : href.slice(i + 1).toLowerCase();
+    if (h === "market" || h === "mercado") return "showMarket";
+    if (h === "productfinder" || h === "app" || h === "recomendador") return "showApp";
+    if (h === "menu" || h === "inicio" || h === "hub") return "showMenu";
+    return null;
+  }
+
+  function conectarNavegacionSPA(raiz) {
+    Array.prototype.forEach.call(raiz.querySelectorAll('a[href*="#"]'), function (a) {
+      var href = a.getAttribute("href") || "";
+      // Los <use href="#i-algo"> de los iconos no son links; y un href que
+      // apunta a otra pagina con hash tiene que navegar normal.
+      if (href.charAt(0) !== "#") return;
+      var nombre = nombreDeHash(href);
+      if (!nombre) return;
+      a.addEventListener("click", function (ev) {
+        // Un clic con Ctrl/Cmd/medio es "abrir en pestaña nueva": no se toca.
+        if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) return;
+        var fn = window[nombre];
+        // Si la funcion no existe (JS a medio cargar), se deja que el link haga
+        // lo suyo en vez de comerse el clic.
+        if (typeof fn !== "function") return;
+        ev.preventDefault();
+        // Con preventDefault el menu movil ya no se cierra solo al navegar.
+        var menu = document.getElementById("mcMenu");
+        if (menu) menu.classList.remove("show");
+        var toggle = document.getElementById("mcToggle");
+        if (toggle) toggle.setAttribute("aria-expanded", "false");
+        Array.prototype.forEach.call(raiz.querySelectorAll(".mc-item.is-open"), function (it) {
+          it.classList.remove("is-open");
+        });
+        fn();
+      });
+    });
+  }
+
   function initNav() {
     var host = document.querySelector("[data-mc-nav]");
     if (!host) return;                       // pagina sin nav (login)
@@ -553,6 +608,7 @@
       Array.prototype.forEach.call(header.querySelectorAll('a[href*="index.html#"]'), function (a) {
         a.setAttribute("href", a.getAttribute("href").replace(/^.*index\.html/, ""));
       });
+      conectarNavegacionSPA(header);
     }
 
     // Menu movil
@@ -682,9 +738,20 @@
     closePalette();
     if (/^https?:\/\//.test(href)) {
       window.open(href, "_blank", "noopener");
-    } else {
-      window.location.href = href;
+      return;
     }
+    // Mismo bug que en el nav: estando en index con #market, hacer
+    // location.href = "/index.html#market" no navega ni dispara nada. Si el
+    // destino es una pantalla del SPA y ya estamos en index, se llama a la
+    // funcion directo.
+    var enIndex = /(^|\/)index\.html$/.test(location.pathname) || location.pathname === "/";
+    var destinoEsIndex = /^\/?(index\.html)?#/.test(href);
+    if (enIndex && destinoEsIndex) {
+      var nombre = nombreDeHash(href);
+      var fn = nombre && window[nombre];
+      if (typeof fn === "function") { fn(); return; }
+    }
+    window.location.href = href;
   }
 
   function moveActive(delta) {

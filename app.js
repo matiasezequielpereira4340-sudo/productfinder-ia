@@ -123,25 +123,78 @@ function showScreen(id){
     document.getElementById(id).classList.add('active');
     var navWrap=document.getElementById('mcNavWrap');
     if(navWrap) navWrap.style.display=(id==='loginScreen'||id==='registerScreen')?'none':'';
-    var navMap={menuScreen:'mcNavInicio',marketScreen:'mcNavBuscador',appScreen:'mcNavRecomendador'};
-    document.querySelectorAll('#mcNavInicio,#mcNavBuscador,#mcNavRecomendador').forEach(function(a){a.classList.remove('active');});
-    var activeNavId=navMap[id];
-    if(activeNavId){var navEl=document.getElementById(activeNavId); if(navEl) navEl.classList.add('active');}
+    // Resaltado del item activo en el nav. Antes esto buscaba #mcNavInicio,
+    // #mcNavBuscador y #mcNavRecomendador, que NO existen en ningun HTML: son
+    // restos de un nav viejo. O sea que el resaltado nunca se movia y el menu
+    // seguia marcando "Inicio" aunque estuvieras en el Buscador. El nav real lo
+    // arma mc-ui.js y marca con data-mc-key + clase .active.
+    var navMap={menuScreen:'inicio',marketScreen:'market',appScreen:'productfinder'};
+    var claveActiva=navMap[id];
+    document.querySelectorAll('#mcNav [data-mc-key]').forEach(function(a){
+      a.classList.toggle('active', !!claveActiva && a.getAttribute('data-mc-key')===claveActiva);
+    });
+    // El desplegable padre ("Importación") tambien se marca si su hijo esta activo.
+    document.querySelectorAll('#mcNav .mc-item > button.mc-link').forEach(function(b){
+      var hijoActivo=!!b.parentNode.querySelector('[data-mc-key].active');
+      b.classList.toggle('active', hijoActivo);
+    });
   }
   var reduced=false;
   try{ reduced=window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
   if(!reduced && document.startViewTransition){ document.startViewTransition(apply); }
   else { apply(); }
 }
-function setHash(h){try{history.replaceState(null,'','#'+h);}catch(e){}}
+// El hash se ESCRIBE con pushState, no con replaceState.
+//
+// Con replaceState el boton Atras no volvia entre pantallas: te sacaba del
+// sitio, porque cada cambio de pantalla pisaba la misma entrada del historial
+// en vez de agregar una. En el celular eso es peor todavia, porque Atras es el
+// gesto principal de navegacion.
+//
+// Dos excepciones, las dos por la misma razon (no ensuciar el historial):
+//   - Si el hash destino es IGUAL al actual, no se toca nada. Esto ademas es lo
+//     que evita que routeFromHash(), al reaccionar a un popstate, empuje otra
+//     entrada y multiplique el historial a cada Atras.
+//   - Si la URL todavia no tiene hash, se usa replaceState. Ese es el caso de
+//     "recien cargo la pagina": si se empujara, entrar al sitio ya te dejaria
+//     una entrada basura antes de haber navegado a ningun lado.
+function setHash(h){
+  try{
+    var actual=(location.hash||'').replace('#','').toLowerCase();
+    if(actual===String(h).toLowerCase()) return;
+    if(!actual) history.replaceState(null,'','#'+h);
+    else history.pushState(null,'','#'+h);
+  }catch(e){}
+}
+
+// Que pantalla corresponde a cada hash. Se usa tanto para rutear como para
+// saber, desde el nav, a que funcion hay que llamar.
+function pantallaDeHash(h){
+  h=String(h||'').replace('#','').toLowerCase();
+  if(h==='market'||h==='mercado') return 'marketScreen';
+  if(h==='productfinder'||h==='app'||h==='recomendador') return 'appScreen';
+  if(h==='menu'||h==='inicio'||h==='hub'||h==='') return 'menuScreen';
+  return null;
+}
+window.pantallaDeHash=pantallaDeHash;
+
 function routeFromHash(){
   var h=(location.hash||'').replace('#','').toLowerCase();
-  if(h==='market'||h==='mercado'){showMarket();return true;}
-  if(h==='productfinder'||h==='app'||h==='recomendador'){showApp();return true;}
-  if(h==='menu'||h==='inicio'||h==='hub'){showMenu();return true;}
+  var destino=pantallaDeHash(h);
+  if(!destino || h==='') return false;
+  // Si ya estamos ahi no se rehace nada. Atras dispara popstate Y hashchange
+  // en el mismo gesto: sin esto la pantalla se pintaria dos veces.
+  var actual=document.querySelector('.screen.active');
+  if(actual && actual.id===destino) return true;
+  if(destino==='marketScreen'){showMarket();return true;}
+  if(destino==='appScreen'){showApp();return true;}
+  if(destino==='menuScreen'){showMenu();return true;}
   return false;
 }
 window.addEventListener('hashchange',function(){routeFromHash();});
+// pushState no dispara hashchange, asi que sin popstate el boton Atras cambiaba
+// la URL y dejaba la pantalla anterior puesta.
+window.addEventListener('popstate',function(){routeFromHash();});
 function showApp(){showScreen('appScreen');setHash('productfinder');try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}}
 function showMenu(){showScreen('menuScreen');setHash('menu');try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}}
 function showMarket(){showScreen('marketScreen');setHash('market');try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}}
@@ -3059,7 +3112,14 @@ function goHome(){
   try{ if(typeof showMenu==='function'){ showMenu(); } else { showScreen('menuScreen'); } }catch(e){}
   try{ window.scrollTo({top:0,behavior:'smooth'}); }catch(e){ window.scrollTo(0,0); }
 }
-(function(){ if(location.hash==='#menu'){ setTimeout(function(){ try{ var m=document.querySelector('.mc-menu'); if(m) m.classList.add('show'); }catch(e){} }, 300); } })();
+// QUITADO: un IIFE que, si la URL tenia #menu, abria SOLO el menu del nav a los
+// 300 ms de cargar. Como showMenu() deja la home en #menu apenas entra, en
+// celular eso significaba que entrar al sitio te abria el menu desplegado
+// encima de todo: medido en 360x800, el menu ocupaba 734 px de 800 y el hub
+// quedaba tapado. El usuario nunca veia la portada, tocaba cosas sobre un
+// overlay que se habia abierto solo, y de ahi la sensacion de que "no me
+// redirecciona a la herramienta". El menu se abre cuando el usuario lo pide,
+// no al entrar.
 
 /* ---- bloque 21 ---- */
 /* ===== Bloque de decision: por que SI / por que NO =====

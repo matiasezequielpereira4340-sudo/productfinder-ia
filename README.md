@@ -219,6 +219,53 @@ productfinder-ia/
 
 ---
 
+## Navegación: por qué el nav no depende del evento `hashchange`
+
+Un clic en un link cuyo hash es **igual al actual** no navega y **no dispara
+`hashchange`**. Como toda la navegación entre pantallas colgaba de ese evento,
+esos clics quedaban muertos: parado en `#menu` (donde `showMenu()` deja la home
+apenas carga), tocar el logo no hacía nada; parado en `#market`, tocar "Buscador
+de oportunidades" tampoco. Es comportamiento estándar del navegador, así que
+pasaba igual en celular.
+
+La solución no es cambiar el `href`, es **no depender del hash**: `mc-ui.js`
+engancha un `click` que hace `preventDefault()` y llama directo a
+`showMenu()` / `showMarket()` / `showApp()`. El `href` se deja como está para
+que el link siga siendo un link de verdad (clic derecho, abrir en pestaña
+nueva, y funcionar si el JS no cargó). El handler se aplica **sólo dentro de
+index**: en las subpáginas `/index.html#menu` tiene que navegar normal.
+
+La referencia a la función se resuelve **en el clic**, no al enganchar: si se
+capturara al enganchar, el nav se quedaría con una versión vieja si algo la
+reemplaza después de cargar.
+
+Además:
+
+- `setHash()` usa **`pushState`**, no `replaceState`. Con `replaceState` el
+  botón Atrás no volvía entre pantallas: te sacaba del sitio, porque cada
+  cambio pisaba la misma entrada del historial. En celular eso es peor, porque
+  Atrás es el gesto principal. Dos excepciones: si el hash destino es igual al
+  actual no se toca nada, y si la URL todavía no tiene hash se usa
+  `replaceState` (así entrar al sitio no deja una entrada basura).
+- Se escucha **`popstate`** además de `hashchange`: `pushState` no dispara
+  `hashchange`, así que sin eso Atrás cambiaba la URL y dejaba la pantalla
+  anterior puesta. `routeFromHash()` no rehace nada si ya estás en la pantalla
+  destino, porque Atrás dispara los dos eventos en el mismo gesto.
+
+### Prueba
+
+```bash
+npm run test:nav          # escritorio 1280x900
+npm run test:nav:movil    # 360x800
+```
+
+Levanta su propio servidor estático y maneja Chromium. **La aserción que
+importa es que el clic INVOQUE la función de navegación**, no que termines en
+la pantalla correcta: cuando el hash destino es igual al actual ya estás en la
+pantalla correcta, así que ese chequeo pasa igual con el clic muerto. Y "scrolleó
+al tope" tampoco sirve: el navegador scrollea al tope solo por ser un link a un
+fragmento inexistente, haya o no JavaScript.
+
 ## Freno de gasto del proveedor pago (Apify)
 
 Las tres vías gratuitas de MercadoLibre están caídas (medido en producción:

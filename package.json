@@ -4,7 +4,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test:gasto": "node pruebas/tope-gasto.mjs"
+    "test:gasto": "node pruebas/tope-gasto.mjs",
+    "test:nav": "node pruebas/navegacion.mjs",
+    "test:nav:movil": "W=360 H=800 node pruebas/navegacion.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
