@@ -420,6 +420,22 @@ un 17% cada corrida, y el error crece cuanto más chicas son. Una corrida que
 falla y no produce nada **igual cuesta el arranque** (medido: una corrida de
 Google Trends terminó FAILED con 0 items y consumió crédito igual).
 
+### Anotado, sin tocar: 4 cuentas de MercadoLibre no pueden renovar su token
+
+De las 11 cuentas conectadas, **4 fallan al renovar y nadie se entera**, porque
+el cron falla en silencio. Dos causas:
+
+- **2 cuentas** no tienen `refresh_token` guardado.
+- **2 cuentas** devuelven `the client_id does not match the original`: las
+  credenciales de la app de MeLi cambiaron **después** de que esas cuentas se
+  conectaron, así que sus tokens no se pueden renovar nunca más.
+
+Las cuatro hay que reconectarlas a mano. Son clientes que creen tener
+MercadoLibre conectado y no lo tienen. **No es un problema de código, es de
+cuentas.** Cuáles son se ve en `/admin.html` (columna MeLi) o llamando
+`/api/meli-refresh?all=1` con sesión de administrador — acá no se listan porque
+este repositorio es público.
+
 ### Google Trends: por qué la curva de demanda es estimada
 
 Hay **dos** caminos distintos, y sólo uno alimenta el Market Reader:
