@@ -2,9 +2,16 @@
 // Se corre con: npm run test:nav        (escritorio)
 //               npm run test:nav:movil  (360x800)
 //
-// Levanta su propio servidor estatico y maneja Chromium. Necesita
-// playwright-core y un Chromium instalado (PLAYWRIGHT_CHROMIUM apunta al
-// binario; por defecto usa el de /opt/pw-browsers).
+// Levanta su propio servidor estatico y maneja Chromium.
+//
+// playwright-core NO es dependencia del proyecto a proposito: es una
+// herramienta de prueba de 14 MB y este repo versiona node_modules, o sea que
+// meterla ahi la manda a produccion. Antes de correr el test:
+//
+//   npm i --no-save playwright-core
+//
+// El Chromium se toma de PLAYWRIGHT_CHROMIUM, y por defecto del que ya viene
+// instalado en /opt/pw-browsers.
 //
 // Prueba de navegacion del nav compartido.
 //

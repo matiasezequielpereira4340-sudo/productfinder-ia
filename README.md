@@ -255,11 +255,16 @@ Además:
 ### Prueba
 
 ```bash
-npm run test:nav          # escritorio 1280x900
-npm run test:nav:movil    # 360x800
+npm i --no-save playwright-core   # una sola vez; ver nota abajo
+npm run test:nav                  # escritorio 1280x900
+npm run test:nav:movil            # 360x800
 ```
 
-Levanta su propio servidor estático y maneja Chromium. **La aserción que
+`playwright-core` **no** es dependencia del proyecto a propósito: son 14 MB de
+herramienta de prueba y este repo versiona `node_modules`, así que agregarla la
+mandaría a producción. Por eso va con `--no-save` y fuera del árbol commiteado.
+
+El test levanta su propio servidor estático y maneja Chromium. **La aserción que
 importa es que el clic INVOQUE la función de navegación**, no que termines en
 la pantalla correcta: cuando el hash destino es igual al actual ya estás en la
 pantalla correcta, así que ese chequeo pasa igual con el clic muerto. Y "scrolleó
