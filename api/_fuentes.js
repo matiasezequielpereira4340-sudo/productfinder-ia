@@ -128,6 +128,17 @@ async function motivoDeFalla(runId) {
   } catch (_) { return null; }
 }
 
+// El error que devuelve el actor de Trends cuando Google lo corta:
+//   "No data returned for any requested type (related_queries: 0). Google
+//    likely rate-limited this run after all retries. This is temporary -
+//    try again in 2-3 minutes..."
+function esRateLimit(motivo) {
+  return /rate.?limit|too many requests|429|try again in \d/i.test(String(motivo || ''));
+}
+const ESPERANDO = 'RATE_LIMIT_ESPERANDO';
+const REINTENTADO = 'RATE_LIMIT_REINTENTADO';
+const ESPERA_REINTENTO_MS = Math.max(30, Number(process.env.TRENDS_ESPERA_REINTENTO_SEG || 180)) * 1000;
+
 export async function corridaCacheada(cfg) {
   const { actor, input, normalizar, limite } = cfg;
   const clave = claveConActor(cfg.clave, actor);
@@ -166,6 +177,46 @@ export async function corridaCacheada(cfg) {
       // "FAILED" a secas no alcanza para arreglar nada: hay que ver que dijo
       // Apify. El motivo esta en la corrida, y leerlo es gratis.
       const motivo = await motivoDeFalla(fila.run_id);
+
+      // Google rate-limitea al actor de Trends y el propio error dice que es
+      // temporal ("try again in 2-3 minutes"). Medido: 4 de 4 corridas de ese
+      // actor terminaron asi. A ~1,7 centavos el arranque, un reintento sale
+      // mucho menos que perder el dato.
+      //
+      // UN solo reintento, no un loop: la fila queda marcada y el segundo
+      // fracaso ya no reintenta. Sin esta marca, cada clic del usuario
+      // arrancaria una corrida nueva contra un Google que sigue bloqueando.
+      if (esRateLimit(motivo)) {
+        // Ya se reintento una vez y volvio a fallar: se corta aca. Un tercer
+        // arranque contra un Google que sigue bloqueando es tirar plata.
+        if (fila.run_estado === REINTENTADO) {
+          return { error: 'Google bloqueo las consultas automaticas dos veces seguidas. ' +
+            'No es un problema de la app: el proveedor no puede leer Google Trends ahora mismo.',
+            estado_corrida: est.estado, rateLimit: true, reintentado: true };
+        }
+        // Primera vez que se ve la falla: se anota el MOMENTO DE LA FALLA, no
+        // el del arranque. run_desde traia cuando empezo la corrida, y entre
+        // eso y el fallo pasan uno o dos minutos: la espera de 3 minutos que
+        // pide el propio error de Google quedaria corta.
+        if (fila.run_estado !== ESPERANDO) {
+          await guardarFila(clave, { fuente: cfg.fuente, run_estado: ESPERANDO,
+            run_desde: new Date().toISOString() });
+          return { pendiente: true, reintentoEn_s: Math.round(ESPERA_REINTENTO_MS / 1000),
+            aviso: 'Google bloqueo la consulta. Se reintenta sola en ' +
+                   Math.round(ESPERA_REINTENTO_MS / 1000) + ' segundos.' };
+        }
+        const desdeFalla = Date.now() - (fila.run_desde ? new Date(fila.run_desde).getTime() : 0);
+        if (desdeFalla < ESPERA_REINTENTO_MS) {
+          const faltan = Math.ceil((ESPERA_REINTENTO_MS - desdeFalla) / 1000);
+          return { pendiente: true, reintentoEn_s: faltan,
+            aviso: 'Google bloqueo la consulta. Se reintenta sola en ' + faltan + ' segundos.' };
+        }
+        // Paso la espera: se marca ANTES de arrancar, para que dos requests
+        // simultaneos no disparen dos reintentos.
+        await guardarFila(clave, { fuente: cfg.fuente, run_estado: REINTENTADO });
+        console.warn('[trends] reintento unico para "' + clave + '" tras rate limit de Google');
+        return arrancarYRegistrar(cfg, clave, actor, input, { reintento: true });
+      }
       return { error: 'La consulta anterior termino en ' + est.estado +
         (motivo ? ': ' + motivo : ''), estado_corrida: est.estado };
     }
@@ -176,10 +227,19 @@ export async function corridaCacheada(cfg) {
   // El tope diario es de la CUENTA de Apify, no de una fuente: TikTok Shop y
   // Google Trends salen de la misma billetera que las busquedas de MeLi. Si
   // no contaran aca, el tope se podria esquivar por este lado.
+  return arrancarYRegistrar(cfg, clave, actor, input, {});
+}
+
+// Arranca una corrida pasando por el tope diario y dejandola anotada. Esta
+// extraido para que el reintento por rate limit use EXACTAMENTE el mismo
+// camino: si fuera una copia, el reintento se saltearia el tope de gasto.
+async function arrancarYRegistrar(cfg, clave, actor, input, opts) {
+  const o = opts || {};
   const gas = await import('./_gasto.js');
   const cupo = await gas.reservarCorrida({
     termino: clave, site: cfg.fuente || 'fuente', items: 0,
-    enriquecido: false, origen: 'fuente:' + (cfg.fuente || 'desconocida')
+    enriquecido: false,
+    origen: 'fuente:' + (cfg.fuente || 'desconocida') + (o.reintento ? ':reintento' : '')
   });
   if (!cupo.ok) {
     return { error: cupo.motivo === 'tope'
@@ -193,10 +253,12 @@ export async function corridaCacheada(cfg) {
     await gas.anotarArranque(cupo.id, corrida);
     await guardarFila(clave, {
       fuente: cfg.fuente, resultados: [], run_id: corrida.runId,
-      dataset_id: corrida.datasetId || null, run_estado: corrida.estado || 'RUNNING',
+      dataset_id: corrida.datasetId || null,
+      // El reintento conserva la marca: si vuelve a fallar, no hay un tercero.
+      run_estado: o.reintento ? REINTENTADO : (corrida.estado || 'RUNNING'),
       run_desde: new Date().toISOString()
     });
-    return { pendiente: true, arrancada: true };
+    return { pendiente: true, arrancada: true, reintento: !!o.reintento };
   } catch (e) {
     await gas.anularReserva(cupo.id, 'no arranco: ' + String((e && e.message) || e).slice(0, 150));
     return { error: String((e && e.message) || e).slice(0, 200) };
@@ -372,8 +434,24 @@ export async function googleTrends(keyword, opts) {
     // consulta con el default sale $2,50, o sea todo el credito del mes en un
     // solo click. Se acota a mano y el tope viaja en el costo estimado.
     //
-    // dataTypes trae interest_over_time y related_queries. Solo interesa el
-    // segundo: la serie de tiempo son decenas de filas que se cobran igual.
+    // PENDIENTE, y es la razon por la que el Market Reader nunca tuvo curva de
+    // demanda medida:
+    //
+    // Este comentario decia "la serie de tiempo son decenas de filas que se
+    // cobran igual" y por eso se pedia solo related_queries. Esta MAL. Segun la
+    // ficha del actor, interest_over_time devuelve UNA fila por keyword, con
+    // toda la linea de tiempo adentro (mas averageValue, peakValue,
+    // latestValue). Una fila, no decenas. Y las primeras 10 filas de cada
+    // corrida son gratis, asi que pedir la serie sale menos que las 20 filas de
+    // related_queries que se piden hoy.
+    //
+    // O sea que la serie de 12 meses que el bloque de demanda necesita se podia
+    // traer de aca todo este tiempo, mas barato, y no se hizo por una
+    // suposicion sobre el formato de salida que nadie verifico.
+    //
+    // No se cambia todavia porque quien consume esto es el Radar, que usa
+    // related_queries: agregar interest_over_time es sumar un consumidor nuevo
+    // (el bloque de demanda del Market Reader), no cambiarle la fuente a este.
     input: {
       keywords: [q],
       geo,

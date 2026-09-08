@@ -420,6 +420,41 @@ un 17% cada corrida, y el error crece cuanto más chicas son. Una corrida que
 falla y no produce nada **igual cuesta el arranque** (medido: una corrida de
 Google Trends terminó FAILED con 0 items y consumió crédito igual).
 
+### Google Trends: por qué la curva de demanda es estimada
+
+Hay **dos** caminos distintos, y sólo uno alimenta el Market Reader:
+
+| Camino | Quién lo usa | Estado |
+|---|---|---|
+| `safeGoogleTrends()` en `market.js` — scrapea `trends.google.com` **directo desde Vercel** | Market Reader, bloque de demanda | Google devuelve 429: bloquea IPs de datacenter |
+| `consultarTrends()` en `_fuentes.js` — actor de Apify | Radar, búsquedas relacionadas | 4 de 4 corridas en FAILED por rate limit de Google |
+
+Los dos fallan por la misma razón de fondo (Google bloquea automatización) pero
+**son código separado**: que el actor de Apify falle no es lo que hace caer al
+Market Reader en estimación de IA. El bloque de demanda nunca llamó al actor.
+
+El error que devuelve el actor, textual:
+
+> `No data returned for any requested type (related_queries: 0). Google likely
+> rate-limited this run after all retries. This is temporary - try again in 2-3
+> minutes, change geo to US, or reduce dataTypes.`
+
+El input está bien armado (`geo: AR`, `timeframe: 'today 12-m'`, `dataTypes`,
+`maxResults`). No es un bug de integración.
+
+**Reintento único.** Cuando una corrida falla con firma de rate limit, la fila
+queda en `RATE_LIMIT_ESPERANDO` con el momento **de la falla** (no el del
+arranque, que es uno o dos minutos antes). Pasados `TRENDS_ESPERA_REINTENTO_SEG`
+(default 180) se arranca **una** corrida más y la fila pasa a
+`RATE_LIMIT_REINTENTADO`. Si esa también falla, se corta: un tercer arranque
+contra un Google que sigue bloqueando es tirar plata. El reintento pasa por el
+mismo tope diario que cualquier otra corrida.
+
+**Pendiente, no hecho:** el actor acepta `interest_over_time` en `dataTypes`
+—que es la serie temporal que el Market Reader necesita— y produce **1 fila por
+keyword** con toda la línea de tiempo adentro, no una fila por fecha. Hoy se
+pide sólo `related_queries`. Ver la nota en `_fuentes.js`.
+
 ### Corridas pagas sin cosechar (retención)
 
 Una corrida sólo se cosecha si alguien vuelve a buscar el mismo término. Si
@@ -462,6 +497,12 @@ Qué cambia al cargarla:
 |---|---|---|
 | `/api/market?cosechar=1` (barrido) | user-agent del cron — débil, pero no gasta nada | sólo el secreto |
 | `/api/meli-refresh?all=1` (tokens) | user-agent del cron | **sólo el secreto** |
+
+`/api/meli-refresh?all=1` estaba **abierto**: un endpoint sin credencial que
+rotaba los tokens OAuth de todas las cuentas conectadas y devolvía los mails de
+los clientes. No es teórico — se comprobó por accidente: un request de prueba
+desde afuera, sin ninguna credencial, rotó los tokens de 11 cuentas reales y
+devolvió sus emails.
 
 El cierre de `meli-refresh` es **escalonado a propósito**: si exigiera el
 secreto antes de que exista, el cron diario empezaría a dar 401 en silencio y

@@ -1132,8 +1132,11 @@ async function runMRStep1(product){
     //    12 meses los estimo el modelo: se dice, con un badge visible, en vez
     //    de mostrarlos como dato medido.
     const esEstimacion=r.fuenteDemanda!=='google-trends';
+    // "Google Trends no disponible" no explicaba nada: el usuario podia pensar
+    // que era una falla nuestra pasajera. La causa es concreta y no va a
+    // cambiar sola, asi que se dice en criollo y en una linea.
     const badgeFuente=esEstimacion
-      ? `<div class="mr-badge-estimacion">Estimaci&#243;n de IA &#8212; Google Trends no disponible. No es un dato medido.${r.trendsMotivo?`<div style="font-weight:400;font-size:.78rem;margin-top:4px;opacity:.85">Motivo: ${r.trendsMotivo}</div>`:''}</div>`
+      ? `<div class="mr-badge-estimacion">Google bloquea las consultas autom&#225;ticas. Este n&#250;mero es una estimaci&#243;n de IA, no un dato medido.${r.trendsMotivo?`<div style="font-weight:400;font-size:.78rem;margin-top:4px;opacity:.85">Detalle t&#233;cnico: ${r.trendsMotivo}</div>`:''}</div>`
       : `<div style="margin:10px 0"><span class="mr-tag tag-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Google Trends Argentina, 12 meses medidos</span></div>`;
     document.getElementById('mrStep1Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Tendencia en Argentina</span><span class="mr-row-value"><span class="mr-tag ${tendColor}">${tendIcon} ${r.tendencia}</span></span></div><div class="mr-row"><span class="mr-row-label">Nivel de demanda</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">${r.nivelDemanda||'--'}</span></div><div class="mr-row"><span class="mr-row-label">Temporalidad</span><span class="mr-row-value">${r.temporalidad||'--'}</span></div><div class="mr-row"><span class="mr-row-label">Score de demanda</span><span class="mr-row-value">${r.demandaScore||'--'}/100</span></div><div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.aviso?r.aviso+' ':''}${r.descripcion||''}</div><div style="margin-top:8px">${tags}</div>${badgeFuente}${monthlyRows}`;
   }catch(e){
@@ -3369,7 +3372,8 @@ function goHome(){
     }
     if (fuenteDemanda !== 'google-trends'){
       const cd = C('No tenes dato de demanda medido. Estas decidiendo sobre una estimacion',
-        'fuente: estimacion de IA' + (s1.trendsMotivo ? ' (' + s1.trendsMotivo + ')' : ''));
+        'Google bloquea las consultas automaticas, asi que la curva la estimo la IA' +
+        (s1.trendsMotivo ? ' (' + s1.trendsMotivo + ')' : ''));
       cd.clave = 'sin-demanda-medida';   // no se sabe, no es que este mal
       criticos.push(cd);
     }
