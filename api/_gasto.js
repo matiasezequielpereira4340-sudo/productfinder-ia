@@ -76,9 +76,133 @@ export function proximoReinicio(fecha) {
   return new Date(y + '-' + mm + '-' + dd + 'T00:00:00' + offsetAr(fecha)).toISOString();
 }
 
+// ------------------------------------------------------------
+// El tope que manda es el MENSUAL, no el diario.
+// ------------------------------------------------------------
+// Apify factura y bloquea por CICLO MENSUAL, asi que un tope diario no protege
+// nada: el techo real de la cuenta es el credito del mes.
+//
+// Cuenta free: USD 5 por mes. Una busqueda de MercadoLibre medida cuesta
+// USD 0,232 (48 items enriquecidos, promedio de 5 corridas reales). O sea unas
+// 21 busquedas nuevas POR MES.
+//
+// El default es 18 y no 21 a proposito: deja margen para el costo de arranque
+// y para las corridas que fallan y cobran igual (medido: 4 de Google Trends
+// terminaron FAILED con 0 items y consumieron credito).
+//
+// El tope diario sigue existiendo como cinturon contra un pico en un solo dia,
+// pero baja de 30 a 3: 30 por dia eran USD 6,90 diarios, unos USD 207 al mes,
+// cuarenta veces el presupuesto. Un tope por encima del techo real de la cuenta
+// no es un tope.
+export function topeMensual() {
+  const n = parseInt(process.env.APIFY_MAX_RUNS_MES || '18', 10);
+  return Number.isFinite(n) && n >= 0 ? n : 18;
+}
+
 export function topeDiario() {
-  const n = parseInt(process.env.APIFY_MAX_RUNS_DIA || '30', 10);
-  return Number.isFinite(n) && n >= 0 ? n : 30;
+  const n = parseInt(process.env.APIFY_MAX_RUNS_DIA || '3', 10);
+  return Number.isFinite(n) && n >= 0 ? n : 3;
+}
+
+// Cuando arranca y termina el ciclo de facturacion de Apify.
+//
+// El ciclo casi nunca empieza el dia 1: depende de cuando se creo la cuenta.
+// Apify lo expone en /v2/users/me, y leerlo es gratis. Si no lo expone, o no
+// hay token, se cae al mes calendario argentino y se DICE que es una
+// suposicion, para no dar por cierta una fecha de reinicio que no es.
+let _ciclo = null;
+export async function cicloApify() {
+  if (_ciclo && Date.now() < _ciclo.leidoHasta) return _ciclo.datos;
+  const salida = mesCalendarioAr();
+  const token = process.env.APIFY_TOKEN;
+  if (token) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 6000);
+      try {
+        const r = await fetch('https://api.apify.com/v2/users/me?token=' + encodeURIComponent(token),
+          { signal: ctrl.signal });
+        if (r.ok) {
+          const j = await r.json().catch(() => null);
+          const d = (j && j.data) || {};
+          // El nombre exacto del campo no esta documentado de forma estable, asi
+          // que se busca cualquiera que hable de ciclo/periodo con fecha. Si no
+          // aparece ninguno, se sigue con el mes calendario en vez de inventar.
+          const plano = {};
+          const aplanar = (o, pre) => {
+            for (const k of Object.keys(o || {})) {
+              const v = o[k];
+              if (v && typeof v === 'object' && !Array.isArray(v)) aplanar(v, pre + k + '.');
+              else plano[pre + k] = v;
+            }
+          };
+          aplanar(d, '');
+          let desde = null, hasta = null;
+          for (const k of Object.keys(plano)) {
+            const val = plano[k];
+            if (typeof val !== 'string' || !/\d{4}-\d{2}-\d{2}/.test(val)) continue;
+            if (/cycle.*start|start.*cycle|period.*start|current.*period.*start/i.test(k)) desde = val;
+            if (/cycle.*end|end.*cycle|period.*end|current.*period.*end/i.test(k)) hasta = val;
+          }
+          if (desde) {
+            salida.desde = new Date(desde).toISOString();
+            salida.hasta = hasta ? new Date(hasta).toISOString() : null;
+            salida.fuente = 'apify';
+            salida.nota = null;
+          } else {
+            salida.camposVistos = Object.keys(plano).filter(k => /cycle|period|usage|plan/i.test(k)).slice(0, 25);
+          }
+        }
+      } finally { clearTimeout(t); }
+    } catch (_) { /* se sigue con el mes calendario */ }
+  }
+  _ciclo = { datos: salida, leidoHasta: Date.now() + 6 * 3600 * 1000 };
+  return salida;
+}
+
+function mesCalendarioAr() {
+  const hoy = diaAr();                       // YYYY-MM-DD en Buenos Aires
+  const [a, m] = hoy.split('-').map(Number);
+  const off = offsetAr();
+  const dosDig = (x) => String(x).padStart(2, '0');
+  const inicio = a + '-' + dosDig(m) + '-01T00:00:00' + off;
+  const sigA = m === 12 ? a + 1 : a, sigM = m === 12 ? 1 : m + 1;
+  const fin = sigA + '-' + dosDig(sigM) + '-01T00:00:00' + off;
+  return {
+    desde: new Date(inicio).toISOString(),
+    hasta: new Date(fin).toISOString(),
+    fuente: 'mes-calendario-ar',
+    nota: 'SUPUESTO: el ciclo de Apify casi nunca arranca el dia 1. Esta fecha es el mes calendario argentino, no la fecha real de reinicio de la cuenta.'
+  };
+}
+
+// Cuantas corridas se gastaron en el ciclo en curso.
+export async function corridasDelCiclo() {
+  const { url, key, ok } = supa();
+  if (!ok) return { ok: false, usadas: null, error: 'falta SUPABASE_SERVICE_KEY' };
+  const ciclo = await cicloApify();
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 4000);
+    try {
+      const r = await fetch(url + '/rest/v1/apify_gasto?select=id' +
+                            '&ts=gte.' + encodeURIComponent(ciclo.desde) +
+                            '&estado=neq.anulada',
+        { method: 'HEAD', signal: ctrl.signal,
+          headers: headers(key, { Prefer: 'count=exact', Range: '0-0' }) });
+      if (!r.ok) {
+        console.error('[gasto] no pude contar las corridas del ciclo: HTTP ' + r.status);
+        return { ok: false, usadas: null, error: 'HTTP ' + r.status, ciclo };
+      }
+      const total = parseInt(String(r.headers.get('content-range') || '').split('/')[1], 10);
+      if (!Number.isFinite(total)) return { ok: false, usadas: null, error: 'sin conteo', ciclo };
+      return { ok: true, usadas: total, ciclo };
+    } finally { clearTimeout(t); }
+  } catch (e) {
+    const detalle = String((e && e.message) || e).slice(0, 160);
+    console.error('[gasto] error contando el ciclo: ' + detalle);
+    return { ok: false, usadas: null, error: detalle, ciclo };
+  }
 }
 
 // Precios del actor devcake~mercadolibre-scraper: USD 0.004 por item con
@@ -153,11 +277,26 @@ export async function corridasDeHoy(fecha) {
 //   'sin-cuenta'-> no se puede consultar el contador (se frena por las dudas)
 export async function reservarCorrida(datos) {
   const d = datos || {};
+  const topeMes = topeMensual();
   const tope = topeDiario();
+
+  // 1. EL TOPE QUE MANDA: el del ciclo. Apify bloquea por mes, no por dia.
+  const mes = await corridasDelCiclo();
+  if (!mes.ok) {
+    return { ok: false, motivo: 'sin-cuenta', tope, topeMes, usadas: null, usadasMes: null,
+             error: mes.error, ciclo: mes.ciclo, reinicio: proximoReinicio() };
+  }
+  if (mes.usadas >= topeMes) {
+    return { ok: false, motivo: 'tope-mes', topeMes, usadasMes: mes.usadas,
+             restantesMes: 0, ciclo: mes.ciclo,
+             reinicioCiclo: mes.ciclo && mes.ciclo.hasta, tope, reinicio: proximoReinicio() };
+  }
+
+  // 2. Cinturon diario: evita quemar el mes entero en una tarde.
   const conteo = await corridasDeHoy();
   if (!conteo.ok) {
     return {
-      ok: false, motivo: 'sin-cuenta', tope, usadas: null,
+      ok: false, motivo: 'sin-cuenta', tope, topeMes, usadas: null, usadasMes: mes.usadas,
       error: conteo.error,
       reinicio: proximoReinicio()
     };
@@ -165,6 +304,7 @@ export async function reservarCorrida(datos) {
   if (conteo.usadas >= tope) {
     return {
       ok: false, motivo: 'tope', tope, usadas: conteo.usadas,
+      topeMes, usadasMes: mes.usadas, restantesMes: topeMes - mes.usadas,
       reinicio: proximoReinicio()
     };
   }
@@ -200,7 +340,9 @@ export async function reservarCorrida(datos) {
       console.error('[gasto] la reserva para "' + fila.termino + '" no devolvio id');
       return { ok: false, motivo: 'sin-cuenta', tope, usadas: conteo.usadas, error: 'reserva sin id', reinicio: proximoReinicio() };
     }
-    return { ok: true, id, tope, usadas: conteo.usadas + 1, restantes: tope - conteo.usadas - 1, costoEstimado: fila.costo_estimado };
+    return { ok: true, id, tope, usadas: conteo.usadas + 1, restantes: tope - conteo.usadas - 1,
+             topeMes, usadasMes: mes.usadas + 1, restantesMes: topeMes - mes.usadas - 1,
+             ciclo: mes.ciclo, costoEstimado: fila.costo_estimado };
   } catch (e) {
     const detalle = String((e && e.message) || e).slice(0, 160);
     console.error('[gasto] error reservando cupo para "' + fila.termino + '": ' + detalle);
@@ -251,7 +393,20 @@ export async function resumenGasto(n) {
   const tope = topeDiario();
   const conteo = await corridasDeHoy();
   const limite = Math.min(200, Math.max(1, parseInt(n, 10) || 50));
+  const mes = await corridasDelCiclo();
+  const topeMes = topeMensual();
   const salida = {
+    // Lo del CICLO va primero: es el techo real de la cuenta.
+    ciclo: {
+      tope: topeMes,
+      usadas: mes.ok ? mes.usadas : null,
+      restantes: mes.ok ? Math.max(0, topeMes - mes.usadas) : null,
+      desde: mes.ciclo && mes.ciclo.desde,
+      reinicio: mes.ciclo && mes.ciclo.hasta,
+      fuenteDeLaFecha: mes.ciclo && mes.ciclo.fuente,
+      nota: mes.ciclo && mes.ciclo.nota,
+      camposVistosEnApify: mes.ciclo && mes.ciclo.camposVistos
+    },
     dia: diaAr(),
     zona: TZ,
     tope,

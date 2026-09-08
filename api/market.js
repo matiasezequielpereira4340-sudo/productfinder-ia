@@ -90,6 +90,46 @@ export default async function handler(req, res) {
       });
     }
 
+    // ?cupo=1 -> cuantas busquedas nuevas quedan este mes. Lo consulta el Market
+    // Reader ANTES de que el usuario toque el boton: con ~18 por mes, enterarse
+    // de que no quedan DESPUES de gastarlas no sirve de nada.
+    //
+    // Con &producto=<x> ademas dice si ese producto ya esta en cache. Si lo
+    // esta, el front no pide confirmacion: no se gasta nada.
+    //
+    // Necesita sesion (no admin): lo usa el usuario logueado. No expone
+    // terminos de otros ni el detalle del gasto, solo el saldo.
+    if (req.query && req.query.cupo) {
+      if (!haySesion(tokenDe(req))) return pedirSesion(res, 'Necesito que inicies sesion para ver tu saldo de busquedas.');
+      const gas = await import('./_gasto.js');
+      const mes = await gas.corridasDelCiclo();
+      const topeMes = gas.topeMensual();
+      const salida = {
+        ok: true,
+        topeMes,
+        usadasMes: mes.ok ? mes.usadas : null,
+        restantesMes: mes.ok ? Math.max(0, topeMes - mes.usadas) : null,
+        contadorOk: mes.ok,
+        reinicio: mes.ciclo && mes.ciclo.hasta,
+        // Si la fecha es el mes calendario y no la que informa Apify, se dice:
+        // el ciclo de una cuenta casi nunca arranca el dia 1.
+        fechaEsSupuesta: !!(mes.ciclo && mes.ciclo.fuente === 'mes-calendario-ar'),
+        topeDia: gas.topeDiario()
+      };
+      const prod = typeof req.query.producto === 'string' ? req.query.producto.trim().slice(0, 80) : '';
+      if (prod) {
+        const fila = await filaDeCache(prod);
+        const guardado = fila && Array.isArray(fila.resultados) && fila.resultados.length
+          ? fila.created_at : null;
+        salida.producto = prod;
+        salida.enCache = !!guardado;
+        salida.guardadoEn = guardado;
+        // Lo unico que el front necesita para decidir si preguntar o no.
+        salida.gastaUnaBusqueda = !guardado;
+      }
+      return res.status(200).json(salida);
+    }
+
     // ?serie=<termino> -> la curva de 12 meses del proveedor, y la fila CRUDA
     // que devolvio el actor. Existe para poder verificar de una vez como se
     // llaman los campos del timeline, que la ficha del actor no publica: sin
@@ -827,6 +867,10 @@ export default async function handler(req, res) {
   // sin sesion el Market Reader sigue andando con las vias gratuitas, que es
   // lo que necesita el demo publico de la portada.
   const ctx = { puedeGastar: haySesion(tokenDe(req)), origen: 'market:' + step };
+  // refrescar=true lo manda el boton "actualizar" del front. Saltea el cache y
+  // gasta una busqueda, y por eso NUNCA se activa solo: la decision de gastar
+  // es del usuario.
+  if (req.body && req.body.refrescar) ctx.sinCache = true;
 
   if (step === 'productUrl') {
     if (!url || typeof url !== 'string') return res.status(400).json({ error: 'url requerida' });
@@ -875,7 +919,19 @@ async function stepDemanda(product, ctx) {
   //
   // Solo con sesion: cuesta ~1,7 centavos por termino nuevo y cuenta contra el
   // tope diario, igual que las corridas de MercadoLibre.
-  if (!trends && ctx && ctx.puedeGastar) {
+  //
+  // APAGADA POR DEFECTO (TRENDS_SERIE_ACTIVA=1 la prende).
+  //
+  // Tal como la deje, esto disparaba una corrida en CADA analisis con sesion,
+  // sin que nadie la pidiera: el scrape directo falla siempre, asi que la
+  // condicion "si fallo" se cumple siempre. Con el plan free de Apify el
+  // presupuesto son ~18 busquedas por MES, o sea que cada analisis costaria 2
+  // corridas (competencia + tendencia) y el mes alcanzaria para 9 productos en
+  // vez de 18. Un gasto automatico que el usuario no pidio.
+  //
+  // El codigo queda entero para prenderlo de una cuando reinicie el ciclo y se
+  // pueda probar con UNA sola consulta.
+  if (!trends && ctx && ctx.puedeGastar && serieDeTendenciaActiva()) {
     trends = await serieViaProveedor(product);
   }
   const hayTrends = !!(trends && trends.monthlyData && trends.monthlyData.length === 12);
@@ -924,6 +980,13 @@ async function stepDemanda(product, ctx) {
 // contesta null con el motivo "se esta trayendo": ese analisis sale con
 // estimacion de IA y el siguiente ya tiene el dato real desde el cache. No se
 // espera adentro del request ni se muestra una curva a medias.
+// La curva por el proveedor esta implementada y APAGADA. Prenderla cuesta una
+// corrida por producto nuevo, y con 18 al mes eso se nota.
+function serieDeTendenciaActiva() {
+  const v = String(process.env.TRENDS_SERIE_ACTIVA || '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'si';
+}
+
 async function serieViaProveedor(product) {
   try {
     const fu = await import('./_fuentes.js');
@@ -1131,6 +1194,10 @@ async function stepCompetencia(product, ctx) {
       competitors,
       envioGratisCount: conEnvioGratis, envioGratisTotal: results.length,
       envioGratisPct: Math.round((conEnvioGratis/results.length)*100),
+      // De cuando es el dato. Con 30 dias de cache, mostrar un precio de hace
+      // tres semanas sin decirlo seria hacerlo pasar por actual.
+      desdeCache: !!meli.desdeCache,
+      guardadoEn: meli.guardadoEn || null,
       aviso: esCatalogo
         ? 'Este numero sale del catalogo de MercadoLibre: son productos de catalogo, no publicaciones activas. Por eso no calculo saturacion.'
         : (total == null ? 'MercadoLibre no expone el total de publicaciones por esta via: el precio y los competidores son reales, la saturacion no se puede calcular.' : null)
@@ -1458,6 +1525,7 @@ async function safeMeliSearch(product, ctx) {
       const r = await buscarPublicaciones(product, tok, {
         budgetMs: 6000,
         puedeGastar: !!c.puedeGastar,
+        sinCache: !!c.sinCache,
         origen: c.origen || 'market'
       });
       if (r && r.pendiente) return r;

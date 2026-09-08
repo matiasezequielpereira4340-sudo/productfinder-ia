@@ -197,7 +197,9 @@ window.addEventListener('hashchange',function(){routeFromHash();});
 window.addEventListener('popstate',function(){routeFromHash();});
 function showApp(){showScreen('appScreen');setHash('productfinder');try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}}
 function showMenu(){showScreen('menuScreen');setHash('menu');try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}}
-function showMarket(){showScreen('marketScreen');setHash('market');try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}}
+function showMarket(){showScreen('marketScreen');setHash('market');try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}
+  // El saldo se muestra al entrar, no cuando ya se gasto.
+  try{ if(typeof mrPintarCupo==='function') mrPintarCupo(); }catch(e){}}
 
 // La via paga de MercadoLibre (Apify) esta detras del login: sin este header,
 // el server no la habilita y el Market Reader se queda en las vias gratuitas,
@@ -1078,9 +1080,95 @@ function toggleHistory(){
 
     function mrLoadingHTML(txt){return `<div class="mr-loading"><div class="dot-anim"><span></span><span></span><span></span></div><span>${txt}</span></div>`;}
 
+// ---- Saldo de busquedas del mes -------------------------------------------
+// Con el plan free de Apify el presupuesto real son ~18 busquedas nuevas POR
+// MES. Enterarse de que no quedan DESPUES de gastarlas no sirve: el saldo se
+// muestra ANTES, al lado del boton, y se pregunta antes de gastar una.
+var __mrCupo = null;
+
+async function mrCupo(producto){
+  try{
+    var url='/api/market?cupo=1' + (producto ? '&producto='+encodeURIComponent(producto) : '');
+    var res=await fetch(url,{headers:mrCabeceras()});
+    if(res.status===401) return null;          // invitado: no hay saldo que mostrar
+    var j=await res.json();
+    return (j && j.ok) ? j : null;
+  }catch(e){ return null; }
+}
+
+function mrFecha(iso){
+  try{ return new Date(iso).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+  catch(e){ return null; }
+}
+
+async function mrPintarCupo(){
+  var el=document.getElementById('mrCupo');
+  if(!el) return;
+  var c=await mrCupo();
+  __mrCupo=c;
+  if(!c){ el.innerHTML=''; return; }
+  if(!c.contadorOk){
+    el.innerHTML='<span style="color:var(--gold)">No puedo leer tu saldo de b&#250;squedas ahora. Por las dudas no se gasta nada hasta que pueda.</span>';
+    return;
+  }
+  var n=c.restantesMes;
+  var color = n<=0 ? 'var(--red)' : (n<=3 ? 'var(--gold)' : 'var(--text-dim)');
+  var cuando = c.reinicio ? (' Se renueva el '+mrFecha(c.reinicio)+(c.fechaEsSupuesta?' (estimado)':'')+'.') : '';
+  el.innerHTML = n>0
+    ? '<span style="color:'+color+'">Te quedan <b>'+n+'</b> b&#250;squedas nuevas este mes.</span>'+
+      '<span style="opacity:.7">'+cuando+' Los productos que ya consultaste no gastan.</span>'
+    : '<span style="color:var(--red)">Te quedaste sin b&#250;squedas nuevas este mes.</span>'+
+      '<span style="opacity:.7">'+cuando+' Pod&#233;s seguir viendo los productos ya consultados.</span>';
+}
+window.mrPintarCupo=mrPintarCupo;
+
+// Traer el dato fresco a proposito. Es la UNICA forma de que se saltee el
+// cache: nunca pasa solo.
+async function mrRefrescarCompetencia(){
+  var product = mrCurrentProduct;
+  if(!product) return;
+  var c = await mrCupo(product);
+  if(c && c.restantesMes<=0){
+    alert('Te quedaste sin b\u00fasquedas nuevas este mes.' +
+          (c.reinicio ? '\n\nSe renueva el ' + mrFecha(c.reinicio) + (c.fechaEsSupuesta?' (estimado).':'.') : ''));
+    return;
+  }
+  if(!confirm('Traer el dato actualizado de "' + product + '" usa 1 de tus ' +
+              ((c&&c.restantesMes)!=null?c.restantesMes:'?') + ' b\u00fasquedas del mes.\n\n\u00bfSeguimos?')) return;
+  var cuerpo=document.getElementById('mrStep2Body');
+  if(cuerpo) cuerpo.innerHTML='<div class="mr-loading"><div class="dot-anim"><span></span><span></span><span></span></div><span>Actualizando la competencia...</span></div>';
+  try{
+    var res=await fetch('/api/market',{method:'POST',headers:mrCabeceras(),
+      body:JSON.stringify({step:'competencia',product:product,refrescar:true})});
+    var r=await res.json();
+    if(!res.ok) throw new Error(r.error||'no pude actualizar');
+    if(typeof runMRStep2==='function'){ await runMRStep2(product); }
+  }catch(e){
+    if(cuerpo) cuerpo.innerHTML='<span style="color:var(--red);font-size:.82rem">No pude actualizar: '+(e&&e.message||e)+'</span>';
+  }
+  mrPintarCupo();
+}
+window.mrRefrescarCompetencia=mrRefrescarCompetencia;
+
 async function startMRAnalysis(){
   const product=document.getElementById('mrProductInput').value.trim();
   if(!product){alert('Ingres&#225; un producto para analizar');return;}
+
+  // Confirmacion ANTES de gastar, y solo si de verdad gasta. Si el producto ya
+  // esta guardado no se pregunta nada: no cuesta.
+  var cupo=await mrCupo(product);
+  if(cupo && cupo.gastaUnaBusqueda){
+    if(cupo.restantesMes<=0){
+      alert('Te quedaste sin b\u00fasquedas nuevas este mes (' + cupo.usadasMes + ' de ' + cupo.topeMes + ').\n\n' +
+            (cupo.reinicio ? 'Se renueva el ' + mrFecha(cupo.reinicio) + (cupo.fechaEsSupuesta ? ' (fecha estimada).' : '.') + '\n\n' : '') +
+            'Hasta entonces pod\u00e9s analizar productos que ya consultaste antes: esos no gastan.');
+      return;
+    }
+    var seguir=confirm('Esta consulta usa 1 de tus ' + cupo.restantesMes + ' b\u00fasquedas del mes.\n\n' +
+                       '"' + product + '" no est\u00e1 guardado todav\u00eda, as\u00ed que hay que traerlo de MercadoLibre.\n\n' +
+                       '\u00bfSeguimos?');
+    if(!seguir) return;
+  }
   mrCurrentProduct=product;
   // Sin tipo de cambio no se calcula nada: antes caia en 1250 hardcodeado y
   // el margen salia inflado sin que nadie se enterara.
@@ -1271,7 +1359,19 @@ async function runMRStep2(product){
       return;
     }
 
-    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers &#250;nicos reales</span><span class="mr-row-value">${r.sellersEstimados}</span></div><div class="mr-row"><span class="mr-row-label">Publicaciones en la muestra</span><span class="mr-row-value">${r.muestra||compData.length}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios reales</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio real</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">ARS ${fmt(r.precioPromedioARS)}</span></div>${relInfo}${r.envioGratisPct!=null?`<div class="mr-row"><span class="mr-row-label">Ofrecen env&#237;o gratis</span><span class="mr-row-value">${r.envioGratisPct}% (${r.envioGratisCount||0} de ${r.envioGratisTotal||0})</span></div>`:''}${catInfo}${extraInfo}${satInfo}<div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.aviso?r.aviso+' ':''}${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)"><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> Oportunidad: ${r.oportunidad}</div>`:''}${pieFuente}${tablaComp}`;
+    // De cuando es el dato. El cache dura 30 dias porque cada consulta nueva
+    // gasta una de las ~18 del mes; el precio de hace tres semanas sirve, pero
+    // solo si se dice que es de hace tres semanas.
+    let avisoCache='';
+    if(r.desdeCache && r.guardadoEn){
+      const dias=Math.floor((Date.now()-new Date(r.guardadoEn).getTime())/86400000);
+      const cuando = dias<1 ? 'hoy' : (dias===1 ? 'ayer' : 'hace '+dias+' d\u00edas');
+      avisoCache='<div style="margin-top:10px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);font-size:.8rem;color:var(--text-dim)">'+
+        'Dato consultado <b>'+cuando+'</b>. No gast&#243; ninguna b&#250;squeda. '+
+        '<button class="btn-secondary" style="margin-left:6px;padding:4px 10px;font-size:.78rem" onclick="mrRefrescarCompetencia()">Actualizar (usa 1 b&#250;squeda)</button>'+
+        '</div>';
+    }
+    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers &#250;nicos reales</span><span class="mr-row-value">${r.sellersEstimados}</span></div><div class="mr-row"><span class="mr-row-label">Publicaciones en la muestra</span><span class="mr-row-value">${r.muestra||compData.length}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios reales</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio real</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">ARS ${fmt(r.precioPromedioARS)}</span></div>${relInfo}${r.envioGratisPct!=null?`<div class="mr-row"><span class="mr-row-label">Ofrecen env&#237;o gratis</span><span class="mr-row-value">${r.envioGratisPct}% (${r.envioGratisCount||0} de ${r.envioGratisTotal||0})</span></div>`:''}${catInfo}${extraInfo}${satInfo}<div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.aviso?r.aviso+' ':''}${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)"><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> Oportunidad: ${r.oportunidad}</div>`:''}${pieFuente}${avisoCache}${tablaComp}`;
   }catch(e){
     document.getElementById('mrStep2Body').innerHTML='<span style="color:var(--red);font-size:.82rem">Error al analizar MeLi. Continu&#225; con los pasos guiados.</span>';
     mrData.step2={fuente:'no-disponible',muestraInsuficiente:true,muestra:0,sellersEstimados:null,precioMinARS:null,precioMaxARS:null,precioPromedioARS:null,competenciaScore:null,saturacion:null,envioGratisPct:null,competitors:[]};

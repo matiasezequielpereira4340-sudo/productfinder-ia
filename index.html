@@ -316,6 +316,9 @@
         <input type="text" id="mrProductInput" placeholder="Ej: auriculares inal&#225;mbricos, collar GPS para mascotas..." onkeydown="if(event.key==='Enter')startMRAnalysis()"/>
         <button class="btn-mr-analyze" id="btnMRAnalyze" onclick="startMRAnalysis()">Analizar</button>
       </div>
+      <!-- Saldo de busquedas del mes. Lo llena mrPintarCupo() al abrir la
+           pantalla y despues de cada analisis. Vacio para invitados. -->
+      <div id="mrCupo" style="font-size:.82rem;color:var(--text-dim);margin:6px 2px 0;min-height:18px"></div>
       <div class="mr-params" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
         <div class="mr-param"><label for="mrCapital">Capital disponible</label><select id="mrCapital"><option value="3000">Menos de USD 3.000</option><option value="10000" selected>USD 3.000 &#8211; 10.000</option><option value="30000">USD 10.000 &#8211; 30.000</option><option value="50000">M&#225;s de USD 30.000</option></select></div>
         <div class="mr-param"><label for="mrCanal">Canal de venta</label><select id="mrCanal"><option value="mercadolibre" selected>Mercado Libre</option><option value="tiendanube">Tienda Nube</option><option value="mayorista">Mayorista</option><option value="local">Local f&#237;sico</option></select></div>

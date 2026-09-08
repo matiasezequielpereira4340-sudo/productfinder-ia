@@ -1066,9 +1066,20 @@ function claveDeBusqueda(product, site) {
 // pagaba de nuevo. Una semana es razonable: como esta repartida la venta de un
 // rubro no cambia de un dia para el otro, y la fecha de la medicion se muestra
 // para que se sepa de cuando es.
+// 30 dias, no 7.
+//
+// Con el plan free de Apify el presupuesto real son ~18 busquedas nuevas POR
+// MES, asi que el cache no es una optimizacion: es la palanca que decide
+// cuantos productos distintos se pueden mirar con el mismo credito. Con 7 dias,
+// volver a mirar un producto del mes pasado cuesta una de las 18.
+//
+// La competencia de un producto en MercadoLibre no cambia de una semana a la
+// otra lo suficiente como para justificar pagarla de nuevo. Y el dato viejo no
+// se disfraza: la respuesta lleva guardadoEn y la pantalla dice de cuando es,
+// con un boton explicito para actualizarlo. Gastar es decision del usuario.
 function horasDeCache() {
-  const h = parseFloat(process.env.BUSQUEDA_CACHE_HORAS || '168');
-  return isFinite(h) && h >= 0 ? h : 168;
+  const h = parseFloat(process.env.BUSQUEDA_CACHE_HORAS || '720');
+  return isFinite(h) && h >= 0 ? h : 720;
 }
 
 // Expuesta para el diagnostico: deja ver la corrida pendiente sin arrancar una.
@@ -1332,6 +1343,36 @@ export async function cosecharPendientes(token, opts) {
   return { ok: true, revisadas: filas.length, cosechadas, detalle };
 }
 
+// El texto que ve el usuario cuando no se puede gastar. Se arma en un solo
+// lugar para que diga siempre lo mismo, y siempre incluya cuando se reinicia.
+function avisoDeCupo(cupo) {
+  const fmt = (iso) => {
+    if (!iso) return null;
+    try {
+      return new Date(iso).toLocaleDateString('es-AR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        timeZone: 'America/Argentina/Buenos_Aires'
+      });
+    } catch (_) { return null; }
+  };
+  if (cupo.motivo === 'tope-mes') {
+    const fecha = fmt(cupo.reinicioCiclo || (cupo.ciclo && cupo.ciclo.hasta));
+    const supuesta = cupo.ciclo && cupo.ciclo.fuente === 'mes-calendario-ar';
+    return 'Tu cuenta de Apify se quedo sin credito del mes (' + cupo.usadasMes +
+      ' de ' + cupo.topeMes + ' busquedas usadas). Se reinicia' +
+      (fecha ? ' el ' + fecha + (supuesta ? ' (fecha estimada)' : '') : ' al empezar el proximo ciclo') +
+      '. Hasta entonces puedo mostrarte lo que ya esta guardado, pero no traer productos nuevos.';
+  }
+  if (cupo.motivo === 'tope') {
+    return 'Llegaste al tope de ' + cupo.tope + ' busquedas nuevas por dia (te quedan ' +
+      (cupo.restantesMes != null ? cupo.restantesMes : '?') + ' en el mes). ' +
+      'Se habilita de nuevo a la medianoche. Es un freno puesto a proposito para ' +
+      'que el credito del mes no se vaya en una sola tarde.';
+  }
+  return 'No puedo verificar cuantas busquedas se usaron este mes, asi que freno ' +
+    'el gasto por las dudas. Volve a intentar en un rato.';
+}
+
 export async function buscarPublicaciones(product, token, opts) {
   if (!token || !product) return null;
   const o = opts || {};
@@ -1416,19 +1457,22 @@ export async function buscarPublicaciones(product, token, opts) {
       });
       if (!cupo.ok) {
         // Nunca un error generico: el usuario tiene que entender que paso y
-        // cuando se le habilita de nuevo.
-        const reinicio = cupo.reinicio;
-        const aviso = cupo.motivo === 'tope'
-          ? ('Se alcanzo el tope diario de busquedas pagas en MercadoLibre (' +
-             cupo.usadas + ' de ' + cupo.tope + ' usadas hoy). Se reinicia a la ' +
-             'medianoche de Argentina.')
-          : ('No puedo verificar cuantas busquedas pagas se usaron hoy, asi que ' +
-             'freno el gasto por las dudas. Volve a intentar en un rato.');
+        // cuando se le habilita de nuevo. Con el plan free el bloqueo del mes
+        // va a pasar seguido, asi que ese mensaje es el que mas se va a leer.
+        const aviso = avisoDeCupo(cupo);
         console.warn('[gasto] corrida frenada para "' + product + '": ' + cupo.motivo +
-                     ' (usadas ' + cupo.usadas + '/' + cupo.tope + ')');
+                     ' (mes ' + cupo.usadasMes + '/' + cupo.topeMes +
+                     ', dia ' + cupo.usadas + '/' + cupo.tope + ')');
         return {
           topeAlcanzado: true, results: [], fuente: 'tope-diario', aviso,
-          gasto: { usadas: cupo.usadas, tope: cupo.tope, reinicio, motivo: cupo.motivo }
+          gasto: {
+            motivo: cupo.motivo,
+            usadas: cupo.usadas, tope: cupo.tope, reinicio: cupo.reinicio,
+            usadasMes: cupo.usadasMes, topeMes: cupo.topeMes,
+            restantesMes: cupo.restantesMes,
+            reinicioCiclo: cupo.reinicioCiclo || (cupo.ciclo && cupo.ciclo.hasta),
+            fechaEsSupuesta: !!(cupo.ciclo && cupo.ciclo.fuente === 'mes-calendario-ar')
+          }
         };
       }
 

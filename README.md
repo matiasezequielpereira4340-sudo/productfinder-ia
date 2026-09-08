@@ -306,6 +306,29 @@ se reinicia en cada cold start, o sea que no sería un tope.
 Cubre las corridas de MercadoLibre y también las de `_fuentes.js` (TikTok Shop,
 Google Trends): es la misma cuenta de Apify.
 
+### De dónde puede salir una corrida paga (auditado 8/9/2026)
+
+Con ~18 búsquedas por mes, cada punto que arranca una corrida sin que el usuario
+la haya pedido es un problema. Barrido completo del repo — sólo dos funciones
+gastan (`arrancarCorrida` en `_meli.js` y en `_fuentes.js`), y todo lo demás
+llega por ahí:
+
+| Punto | Lo dispara | ¿Acción humana deliberada? | Corridas |
+|---|---|---|---|
+| `stepCompetencia` | botón "Analizar" | sí, y ahora **con confirmación previa** | 1 por producto nuevo |
+| `stepExploracion` | paso 5 del flujo guiado | **parcial** — un click recorre **3 términos + el producto** | **hasta 4** ⚠️ |
+| `stepDemanda` → curva de Trends | cada análisis | **NO era deliberado** — apagado, ver abajo | 0 |
+| `stepTestBusqueda` | botón de test | sí | 1 |
+| `?radar=&saturacion=` / `&tiktok=` / `&gtrends=` | clicks del Radar | sí | 1 c/u |
+| `?serie=` / `?barato=` | botones del panel admin | sí | 1 |
+| Reintento por rate limit | automático tras un fallo de Trends | no, pero está acotado a **uno** | +1 |
+| `/api/analyze` | — | **no llega**: `sinPago` | 0 |
+| Cron `?cosechar=1` | diario | **no arranca nada**, sólo lee | 0 |
+
+**`stepExploracion` es el que más gasta y no está tocado.** `terminosProgresivos()`
+devuelve 3 términos y después se consulta el producto: un solo click puede
+consumir 4 de las 18 del mes. No se cambió sin decidirlo.
+
 ### Quién puede llegar a la vía paga, y quién no
 
 No es un tope por request: es una exclusión. La decisión de fondo es **qué tipo
@@ -341,11 +364,36 @@ hubiera mirado el mercado:
 la última vía, es la **única** fuente. Siguen pagando, con sesión y contra el
 mismo tope.)
 
+### El presupuesto real: ~18 búsquedas POR MES
+
+Apify factura y **bloquea por ciclo mensual**, así que un tope diario no protege
+nada. Con la cuenta free:
+
+```
+credito free            USD 5 por mes
+costo medido            USD 0,232 por busqueda (48 items enriquecidos)
+                        -> ~21 busquedas nuevas AL MES
+tope configurado        18   (margen para el arranque y para las corridas
+                              que fallan y cobran igual)
+```
+
+El tope diario existía en **30**, o sea USD 6,90 por día ≈ **USD 207 al mes**:
+cuarenta veces el techo de la cuenta. Un tope por encima del techo real no es un
+tope. Ahora el que manda es el mensual (`APIFY_MAX_RUNS_MES`) y el diario queda
+como cinturón contra un pico en una sola tarde (`APIFY_MAX_RUNS_DIA`, **3**).
+
+La fecha de reinicio se le pregunta a Apify (`/v2/users/me`, gratis). Si la
+cuenta no la expone, se cae al mes calendario argentino y **se marca como
+estimada** — el ciclo de una cuenta casi nunca arranca el día 1.
+
 ### Variables de entorno
 
 | Variable | Default | Qué hace |
 |---|---|---|
-| `APIFY_MAX_RUNS_DIA` | `30` | Corridas pagas por día calendario argentino |
+| `APIFY_MAX_RUNS_MES` | `18` | **El tope que manda.** Corridas pagas por ciclo de Apify |
+| `APIFY_MAX_RUNS_DIA` | `3` | Cinturón: corridas por día calendario argentino |
+| `BUSQUEDA_CACHE_HORAS` | `720` | 30 días. El caché es la palanca que decide cuántos productos distintos entran en el mismo crédito |
+| `TRENDS_SERIE_ACTIVA` | apagado | `1` prende la curva de demanda por el proveedor. Cuesta 1 corrida por producto nuevo |
 | `APIFY_COSTO_ITEM_ENRIQUECIDO` | `0.004` | USD por item con `enrichDetailPage` |
 | `APIFY_COSTO_ITEM_PELADO` | `0.001` | USD por item sin página de detalle |
 | `APIFY_ENRIQUECER` | prendido | `0` apaga `enrichDetailPage` (4x más barato) |

@@ -59,8 +59,17 @@ const srv = http.createServer(async (req, res) => {
   if (u.pathname === '/rest/v1/apify_gasto') {
     if (req.method === 'HEAD') {
       if (process.env.SUPA_CAIDO === '1') { res.writeHead(500); return res.end(); }
-      const dia = (u.searchParams.get('dia') || '').replace('eq.', '');
-      const n = filas.filter(f => f.dia === dia && f.estado !== 'anulada').length;
+      const activas = filas.filter(f => f.estado !== 'anulada');
+      let n;
+      if (u.searchParams.has('dia')) {
+        // Conteo del DIA (cinturon).
+        const dia = (u.searchParams.get('dia') || '').replace('eq.', '');
+        n = activas.filter(f => f.dia === dia).length;
+      } else {
+        // Conteo del CICLO: ts >= inicio. Es el tope que manda.
+        const desde = (u.searchParams.get('ts') || '').replace('gte.', '');
+        n = activas.filter(f => !desde || String(f.ts) >= desde).length;
+      }
       res.writeHead(200, { 'content-range': '0-0/' + n }); return res.end();
     }
     if (req.method === 'POST') {
@@ -147,7 +156,7 @@ const antes = apifyArranques;
 r = await meli.buscarPublicaciones('termino 4', 'tok', { puedeGastar: true, sinCache: true });
 chequear('devuelve topeAlcanzado', !!(r && r.topeAlcanzado), r && r.fuente);
 chequear('NO arranco corrida nueva', apifyArranques === antes, 'arranques=' + apifyArranques);
-chequear('el aviso dice cuantas se usaron', /3 de 3/.test((r && r.aviso) || ''), r && r.aviso);
+chequear('el aviso dice el tope diario y lo que queda en el mes', /tope de 3 busquedas nuevas por dia/.test((r && r.aviso) || ''), r && r.aviso);
 chequear('el aviso dice cuando se reinicia', /medianoche/i.test((r && r.aviso) || ''));
 chequear('no es un error generico', !/error/i.test((r && r.aviso) || ''));
 
@@ -282,6 +291,40 @@ for (const k of Object.keys(est12.porSitio)) delete est12.porSitio[k];
 bar = await meli.buscarPublicaciones('barrido masivo producto 2', 'tok', {
   puedeGastar: true, sinCache: true });
 chequear('control: sin el flag SI arranca', apifyArranques === 1 && !!(bar && bar.pendiente), 'arranques=' + apifyArranques + ' fuente=' + (bar && bar.fuente));
+
+console.log('\n== 12.b El tope que manda es el MENSUAL, no el diario ==');
+// Con el plan free de Apify el presupuesto son ~18 busquedas POR MES. Un tope
+// diario de 30 eran USD 207 al mes: cuarenta veces el techo real de la cuenta.
+process.env.APIFY_MAX_RUNS_MES = '4';
+process.env.APIFY_MAX_RUNS_DIA = '99';   // el diario NO tiene que frenar aca
+filas = []; seq = 1; apifyArranques = 0;
+const est13 = meli.viaDeBusquedaUsada('MLA');
+for (const k of Object.keys(est13.porSitio)) delete est13.porSitio[k];
+globalThis.fetch = (url, init) => {
+  const s = String(url);
+  if (s.startsWith('https://api.apify.com/v2/acts/')) return fetchReal('http://127.0.0.1:' + PUERTO + '/apify/acts/x', init);
+  if (s.startsWith('https://api.apify.com/')) return Promise.resolve(new Response('{}', { status: 403 }));
+  if (s.startsWith('https://api.mercadolibre.com/')) return Promise.resolve(new Response('{}', { status: 403 }));
+  if (/mercadolibre\.com\.ar|mercadolivre|listado\./.test(s)) return Promise.resolve(new Response('<html>bloqueado</html>', { status: 200 }));
+  if (s.startsWith('http://127.0.0.1')) return fetchReal(url, init);
+  return Promise.resolve(new Response('{}', { status: 404 }));
+};
+for (let i = 1; i <= 4; i++) {
+  for (const k of Object.keys(est13.porSitio)) delete est13.porSitio[k];
+  await meli.buscarPublicaciones('producto del mes ' + i, 'tok', { puedeGastar: true, sinCache: true });
+}
+chequear('las 4 del mes arrancaron', apifyArranques === 4, 'arranques=' + apifyArranques);
+for (const k of Object.keys(est13.porSitio)) delete est13.porSitio[k];
+const quinta = await meli.buscarPublicaciones('producto del mes 5', 'tok', { puedeGastar: true, sinCache: true });
+chequear('la 5a NO arranca aunque el tope diario sea 99', apifyArranques === 4, 'arranques=' + apifyArranques);
+chequear('el motivo es el tope del MES', !!(quinta && quinta.gasto && quinta.gasto.motivo === 'tope-mes'),
+         JSON.stringify(quinta && quinta.gasto));
+chequear('el aviso habla de credito del mes, no del dia', /credito del mes/i.test((quinta && quinta.aviso) || ''),
+         quinta && quinta.aviso);
+chequear('el aviso dice que se puede ver lo guardado', /ya esta guardado/i.test((quinta && quinta.aviso) || ''));
+chequear('el aviso dice cuando se reinicia', /Se reinicia/i.test((quinta && quinta.aviso) || ''));
+process.env.APIFY_MAX_RUNS_MES = '999';
+process.env.APIFY_MAX_RUNS_DIA = '3';
 
 console.log('\n== 13. El barrido de cosecha levanta TikTok/Trends, no solo MercadoLibre ==');
 // Antes cosecharPendientes se salteaba todo lo que no fuera proveedor-apify y
