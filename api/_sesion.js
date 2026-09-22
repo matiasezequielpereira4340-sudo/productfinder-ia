@@ -114,6 +114,14 @@ export function esCronVerificado(req) {
   return auth === 'Bearer ' + process.env.CRON_SECRET;
 }
 
+// La regla unica para los crons: con CRON_SECRET cargada vale SOLO el
+// secreto; sin ella, el user-agent (cierre escalonado, ver meli-refresh.js).
+// Antes market?cosechar=1 usaba esCron a secas y seguia aceptando el
+// user-agent aunque el secreto ya estuviera cargado.
+export function cronAdmitido(req) {
+  return process.env.CRON_SECRET ? esCronVerificado(req) : esCron(req);
+}
+
 // Toma el token del header Authorization o del body, lo que venga.
 export function tokenDe(req) {
   const h = (req.headers && (req.headers.authorization || req.headers.Authorization)) || '';

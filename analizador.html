@@ -262,17 +262,27 @@
     sin_sesion: {
       titulo: 'Primero inici\u00e1 sesi\u00f3n',
       texto: 'El analizador es gratis, pero MercadoLibre ya no deja consultar publicaciones sin una cuenta. Entr\u00e1 con tu usuario y despu\u00e9s conect\u00e1s MeLi en un clic.',
-      boton: 'Iniciar sesi\u00f3n', href: 'login.html'
+      boton: 'Iniciar sesi\u00f3n', href: 'login.html?next=analizador'
     },
     sin_meli: {
       titulo: 'Conect\u00e1 tu cuenta de MercadoLibre',
       texto: 'MercadoLibre ya no deja leer publicaciones sin una cuenta conectada. Conect\u00e1 la tuya (es gratis, no publicamos nada por vos) y volv\u00e9 a pegar el link.',
-      boton: 'Conectar mi cuenta de MercadoLibre', href: 'meli-connect.html'
+      boton: 'Conectar mi cuenta de MercadoLibre', href: 'meli-connect.html?next=analizador'
+    },
+    sesion_vieja: {
+      titulo: 'Volv\u00e9 a entrar',
+      texto: 'Tu sesi\u00f3n es de antes de una actualizaci\u00f3n. Volv\u00e9 a entrar para usar el Analizador.',
+      boton: 'Iniciar sesi\u00f3n', href: 'login.html?next=analizador'
+    },
+    sesion_vencida: {
+      titulo: 'Tu sesi\u00f3n venci\u00f3',
+      texto: 'Pas\u00f3 mucho tiempo desde que entraste. Volv\u00e9 a entrar para usar el Analizador.',
+      boton: 'Iniciar sesi\u00f3n', href: 'login.html?next=analizador'
     },
     meli_rechazo: {
       titulo: 'MercadoLibre rechaz\u00f3 la consulta',
       texto: 'La conexi\u00f3n con tu cuenta de MercadoLibre venci\u00f3 o fue revocada. Volv\u00e9 a conectarla y prob\u00e1 de nuevo.',
-      boton: 'Conectar mi cuenta de MercadoLibre', href: 'meli-connect.html'
+      boton: 'Conectar mi cuenta de MercadoLibre', href: 'meli-connect.html?next=analizador'
     }
   };
   function mostrarAviso(codigo, mensaje){
@@ -284,8 +294,22 @@
     box.scrollIntoView({ behavior:'smooth', block:'center' });
     return true;
   }
+  // Sin pf_token: si hay un usuario guardado es una sesion de antes de que el
+  // login guardara la sesion firmada; si no, nunca entro.
+  function codigoSinSesion(){
+    var u = ''; try{ u = localStorage.getItem('pf_user') || ''; }catch(e){}
+    return (u && !/^invitado$/i.test(u)) ? 'sesion_vieja' : 'sin_sesion';
+  }
+  // El servidor dijo sin_sesion aunque mandamos token: vencio o es invalido.
+  function avisoDeRespuesta(codigo){
+    if(codigo === 'sin_sesion' && sesionToken()){
+      try{ localStorage.removeItem('pf_token'); }catch(e){}
+      return mostrarAviso('sesion_vencida');
+    }
+    return mostrarAviso(codigo);
+  }
   function ocultarAviso(){ $('avisoCuenta').className = 'aviso-cuenta'; }
-  window.__mcAviso = { mostrar: mostrarAviso, ocultar: ocultarAviso, cabeceras: cabeceras };
+  window.__mcAviso = { mostrar: mostrarAviso, ocultar: ocultarAviso, cabeceras: cabeceras, sinSesion: codigoSinSesion, deRespuesta: avisoDeRespuesta };
 
   function setLoading(on){ $('loading').className = on ? 'loading on' : 'loading'; $('go').disabled = on; }
   function showError(msg){ $('error').className='error-box on'; $('error').textContent = msg; }
@@ -296,7 +320,7 @@
     if(!url){ showError('Pega primero el link de la publicación.'); return; }
     clearError();
     $('results').className='results'; $('results').innerHTML='';
-    if(!sesionToken()){ mostrarAviso('sin_sesion'); return; }
+    if(!sesionToken()){ mostrarAviso(codigoSinSesion()); return; }
     ocultarAviso();
     setLoading(true);
     try{
@@ -306,7 +330,7 @@
       });
       var data = await r.json();
       setLoading(false);
-      if(data && AVISOS[data.codigo]){ mostrarAviso(data.codigo); return; }
+      if(data && AVISOS[data.codigo]){ avisoDeRespuesta(data.codigo); return; }
       if(!r.ok || data.error){ showError(data.error || 'No se pudo analizar la publicación.'); return; }
       render(data);
     }catch(e){
@@ -405,7 +429,7 @@
 
   $('go').addEventListener('click', analizar);
   // Sin sesion se avisa de entrada, en vez de dejar pegar un link que va a fallar.
-  if(!sesionToken()) mostrarAviso('sin_sesion');
+  if(!sesionToken()) mostrarAviso(codigoSinSesion());
   $('url').addEventListener('keydown', function(e){ if(e.key==='Enter') analizar(); });
 </script>
 <script>(function(){var t=document.getElementById('mnavToggle'),n=document.getElementById('mnav');if(t&&n){t.addEventListener('click',function(){n.classList.toggle('show');});}})();</script>
@@ -423,7 +447,7 @@
     if(t) t.addEventListener('click', function(){ var m=document.getElementById('mcMenu'); if(m) m.classList.toggle('show'); });
     var lo = document.getElementById('mcLogout');
     if(lo) lo.addEventListener('click', function(){
-      try{ ['pf_user','pf_role','pf_expiry'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
+      try{ ['pf_user','pf_role','pf_expiry','pf_token','pf_premium'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
       window.location.href = 'index.html';
     });
     // El globo de asesoria lo maneja mc-ui.js, una sola vez para toda la
@@ -442,7 +466,7 @@
     var textoOriginal = btn.textContent;
     var av = window.__mcAviso;
     var tieneSesion = false; try{ tieneSesion = !!localStorage.getItem('pf_token'); }catch(e){}
-    if(!tieneSesion){ if(av) av.mostrar('sin_sesion'); return; }
+    if(!tieneSesion){ if(av) av.mostrar(av.sinSesion()); return; }
     btn.disabled = true;
     btn.textContent = 'Buscando una publicaci\u00f3n\u2026';
     try{
@@ -452,7 +476,7 @@
       });
       var d = await r.json();
       if(d && (d.codigo === 'sin_sesion' || d.codigo === 'sin_meli' || d.codigo === 'meli_rechazo') && av){
-        av.mostrar(d.codigo);
+        av.deRespuesta(d.codigo);
         btn.textContent = textoOriginal;
         btn.disabled = false;
         return;

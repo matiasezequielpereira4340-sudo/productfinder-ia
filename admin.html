@@ -608,7 +608,7 @@
     if(t) t.addEventListener('click', function(){ var m=document.getElementById('mcMenu'); if(m) m.classList.toggle('show'); });
     var lo = document.getElementById('mcLogout');
     if(lo) lo.addEventListener('click', function(){
-      try{ ['pf_user','pf_role','pf_expiry'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
+      try{ ['pf_user','pf_role','pf_expiry','pf_token','pf_premium'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
       window.location.href = 'index.html';
     });
     // El globo de asesoria lo maneja mc-ui.js, una sola vez para toda la

@@ -4,8 +4,8 @@
 // armado del informe.
 
 import { anthropicHeaders, buscarPublicaciones, contarPublicaciones, relevanciaPorTitulo, leerRelevanciaLog, registrarRelevancia, flushRelevancia, corridasPendientes, cosecharPendientes, estadoEscrituraRelevancia, palabrasSignificativas, RELEVANCIA_UMBRAL_ALTO, RELEVANCIA_UMBRAL_BAJO, SITIOS, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
-import { haySesion, esAdmin, tokenDe, pedirSesion, esCron } from './_sesion.js';
-// esCron vive en _sesion.js para que este endpoint y meli-refresh compartan el
+import { haySesion, esAdmin, tokenDe, pedirSesion, cronAdmitido } from './_sesion.js';
+// cronAdmitido vive en _sesion.js para que este endpoint y meli-refresh compartan el
 // MISMO secreto: dos crons, una sola variable que cargar en Vercel.
 import { cotizacionDolar, DOLAR_TIPOS, DOLAR_TIPO_DEFAULT } from './_dolar.js';
 
@@ -170,7 +170,7 @@ export default async function handler(req, res) {
     //
     // No arranca corridas: leer un dataset ya producido no cuesta nada.
     if (req.query && req.query.cosechar && !req.query.pendientes) {
-      if (!admitido(req) && !esCron(req)) return res.status(401).json({ error: 'No autorizado' });
+      if (!admitido(req) && !cronAdmitido(req)) return res.status(401).json({ error: 'No autorizado' });
       const tok = await getMeliAccessToken();
       const r = await cosecharPendientes(tok, { limite: req.query.n || 40 });
       // Se loguea para que quede en los logs de Vercel: el cron corre sin que

@@ -335,10 +335,40 @@
 
   const detalle = params.get('detalle');
 
+  // A donde volver despues del OAuth. MercadoLibre siempre vuelve a esta
+  // pagina (meli-callback redirige aca), asi que el destino se guarda antes
+  // de salir. Lista cerrada de paginas internas: nunca una URL armada en el
+  // link, para que esto no sirva de open redirect.
+  const VUELTAS = { 'analizador': { url: '/analizador.html', nombre: 'el Analizador' } };
+  const VUELTA_VIDA_MS = 30 * 60 * 1000;
+  const pedidoVuelta = params.get('next');
+  if (pedidoVuelta && Object.prototype.hasOwnProperty.call(VUELTAS, pedidoVuelta)) {
+    try { localStorage.setItem('pf_volver', JSON.stringify({ d: pedidoVuelta, t: Date.now() })); } catch (e) {}
+  }
+  function leerVuelta() {
+    try {
+      const v = JSON.parse(localStorage.getItem('pf_volver') || 'null');
+      if (!v || !Object.prototype.hasOwnProperty.call(VUELTAS, v.d)) return null;
+      if (typeof v.t !== 'number' || Date.now() - v.t > VUELTA_VIDA_MS) { localStorage.removeItem('pf_volver'); return null; }
+      return VUELTAS[v.d];
+    } catch (e) { return null; }
+  }
+
   if (success === '1') {
     document.getElementById('card').className = 'card state-success';
     document.getElementById('successState').style.display = 'block';
     document.getElementById('meliUserId').textContent = meliUser || 'Conectado';
+    const vuelta = leerVuelta();
+    if (vuelta) {
+      try { localStorage.removeItem('pf_volver'); } catch (e) {}
+      const badge = document.getElementById('meliUserBadge');
+      const aviso = document.createElement('p');
+      aviso.className = 'success-sub';
+      aviso.innerHTML = 'Te llevo de vuelta a ' + vuelta.nombre + '&hellip; ' +
+        '<a href="' + vuelta.url + '" style="color:#FFE600;font-weight:700;text-decoration:underline">Ir ahora</a>';
+      if (badge && badge.parentNode) badge.parentNode.insertBefore(aviso, badge.nextSibling);
+      setTimeout(function () { window.location.replace(vuelta.url); }, 1800);
+    }
   } else if (error) {
     document.getElementById('card').className = 'card state-error';
     document.getElementById('errorState').style.display = 'block';
@@ -361,8 +391,11 @@
     // la clave con la que después el dashboard y el recomendador buscan tu
     // conexión. Sin sesión, la cuenta quedaba guardada con el ID numérico de
     // MeLi y la app nunca la volvía a encontrar.
+    // Tambien hace falta la sesion firmada (pf_token): sin ella las
+    // herramientas que usan tu cuenta de MeLi te piden entrar de nuevo.
     const userId = localStorage.getItem('pf_user');
-    if (!userId || userId === 'invitado' || userId === 'default') {
+    const sesion = localStorage.getItem('pf_token');
+    if (!userId || /^invitado$/i.test(userId) || userId === 'default' || !sesion) {
       window.location.href = '/login.html?next=meli-connect';
       return;
     }
@@ -404,7 +437,7 @@
     if(t) t.addEventListener('click', function(){ var m=document.getElementById('mcMenu'); if(m) m.classList.toggle('show'); });
     var lo = document.getElementById('mcLogout');
     if(lo) lo.addEventListener('click', function(){
-      try{ ['pf_user','pf_role','pf_expiry'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
+      try{ ['pf_user','pf_role','pf_expiry','pf_token','pf_premium'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
       window.location.href = 'index.html';
     });
     // El globo de asesoria lo maneja mc-ui.js, una sola vez para toda la

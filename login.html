@@ -84,16 +84,33 @@
 </div>
 
 <script>
-  // Si ya esta logueado, redirigir
+  // Destinos permitidos para ?next=. Lista cerrada: nunca se redirige a una
+  // URL que venga armada en el link (open redirect).
+  const DESTINOS = { 'analizador': '/analizador.html', 'meli-connect': '/meli-connect.html' };
+  const nextParam = new URLSearchParams(window.location.search).get('next');
+  const destinoNext = Object.prototype.hasOwnProperty.call(DESTINOS, nextParam) ? DESTINOS[nextParam] : null;
+
+  // Si ya esta logueado, redirigir. Hace falta la sesion firmada (pf_token):
+  // quien tiene pf_user de antes pero no el token tiene que ver el formulario
+  // y volver a entrar, si no el Analizador lo mandaba aca y de aca lo
+  // sacabamos sin dejarlo loguear (loop).
   const savedUser = localStorage.getItem('pf_user');
   const savedRole = localStorage.getItem('pf_role');
-  if (savedUser && savedRole) {
-    if (savedRole === 'admin') {
+  const savedToken = localStorage.getItem('pf_token');
+  const esInvitado = !savedUser || /^invitado$/i.test(savedUser) || savedRole === 'guest';
+  if (savedUser && savedRole && savedToken && !esInvitado) {
+    if (destinoNext) {
+      window.location.replace(destinoNext);
+    } else if (savedRole === 'admin') {
       window.location.replace('/admin.html');
-} else {
+    } else {
       checkMeliAndRedirect(savedUser);
-}
-}
+    }
+  } else if (savedUser && !esInvitado) {
+    // Sesion vieja: se precarga el usuario para que solo ponga la clave.
+    const campoUser = document.getElementById('user');
+    if (campoUser && !campoUser.value) campoUser.value = savedUser;
+  }
 
   document.getElementById('pass').addEventListener('keydown', e => {
     if (e.key === 'Enter') doLogin();
@@ -137,15 +154,20 @@
       // Guardar sesion
       localStorage.setItem('pf_user', user);
       localStorage.setItem('pf_role', data.role);
+      localStorage.setItem('pf_premium', (data.premium || data.role === 'admin') ? '1' : '0');
+      // La sesion firmada por el servidor. Sin esto, los endpoints protegidos
+      // (Analizador, comisiones reales) tratan a la persona como no logueada.
+      if (data.token) localStorage.setItem('pf_token', data.token); else localStorage.removeItem('pf_token');
       if (data.expiryDays && data.createdAt) {
         const expiry = new Date(new Date(data.createdAt).getTime() + data.expiryDays * 86400000).toISOString();
         localStorage.setItem('pf_expiry', expiry);
+      } else {
+        localStorage.removeItem('pf_expiry');
       }
 
-      // Si vino de "Conectar MercadoLibre", volver ahi despues de loguear.
-      const next = new URLSearchParams(window.location.search).get('next');
-      if (next === 'meli-connect') {
-        window.location.replace('/meli-connect.html');
+      // Si vino de una herramienta (?next=analizador | meli-connect), volver ahi.
+      if (destinoNext) {
+        window.location.replace(destinoNext);
         return;
       }
 

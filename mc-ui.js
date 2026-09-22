@@ -657,7 +657,7 @@
     });
     logoutBtn.addEventListener("click", function () {
       if (esIndex && typeof window.doLogout === "function") { window.doLogout(); return; }
-      try { ["pf_user", "pf_role", "pf_expiry", "pf_premium"].forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
+      try { ["pf_user", "pf_role", "pf_expiry", "pf_premium", "pf_token"].forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
       window.location.href = "/index.html";
     });
   }

@@ -214,7 +214,7 @@ window.mrCabeceras = mrCabeceras;
 function doGuest(){currentRole='guest';sessionExpiry=null;localStorage.setItem('pf_user','Invitado');localStorage.setItem('pf_role','guest');localStorage.removeItem('pf_premium');localStorage.removeItem('pf_expiry');localStorage.removeItem('pf_token');showScreen('menuScreen');setupTopbar('Invitado');var ab=document.getElementById('btnAdminPanel');if(ab)ab.style.display='none';var ex=document.getElementById('topbarExpiry');if(ex)ex.style.display='none';} function doLogout(){
   try{ localStorage.removeItem('pf_token'); }catch(e){}
   currentRole=null;sessionExpiry=null;analysisResults=null;mrData={};mrCurrentProduct='';
-  localStorage.removeItem('pf_user');localStorage.removeItem('pf_role');localStorage.removeItem('pf_expiry');
+  localStorage.removeItem('pf_user');localStorage.removeItem('pf_role');localStorage.removeItem('pf_expiry');localStorage.removeItem('pf_premium');
   document.getElementById('loginUser').value='';
   document.getElementById('loginPass').value='';
   document.getElementById('loginError').textContent='';

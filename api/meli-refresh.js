@@ -9,7 +9,7 @@
 // mantiene vivo para que la conexion no se caiga sola.
 
 import { cors, getTokenRow, listTokenRows, refreshWithToken, saveTokenRow } from './_meli.js';
-import { esAdmin, tokenDe, esCron, esCronVerificado } from './_sesion.js';
+import { esAdmin, tokenDe, cronAdmitido } from './_sesion.js';
 
 // Compatibilidad: el resto del codigo espera que tire si no hay token.
 export async function getValidToken(userId) {
@@ -72,7 +72,7 @@ export default async function handler(req, res) {
     const clave = req.headers['x-admin-key'] || (req.query && req.query.key);
     const admin = (process.env.ADMIN_KEY && clave === process.env.ADMIN_KEY) || esAdmin(tokenDe(req));
     const conSecreto = !!process.env.CRON_SECRET;
-    const pasa = admin || (conSecreto ? esCronVerificado(req) : esCron(req));
+    const pasa = admin || cronAdmitido(req);
     if (!pasa) {
       return res.status(401).json({
         error: 'No autorizado',
