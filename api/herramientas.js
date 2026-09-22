@@ -9,6 +9,9 @@
 //   (default / cualquier otro) -> Analizador de publicaciones (Funcionalidad 2)
 // ============================================================
 
+import { leerToken, tokenDe } from './_sesion.js';
+import { getUserToken, fetchJson, MELI_API } from './_meli.js';
+
 export default async function handler(req, res) {
   var accion = (req.body && req.body.accion) ? String(req.body.accion) : '';
   if (accion === 'comisiones') {
@@ -41,6 +44,12 @@ export default async function handler(req, res) {
 //
 // FUERA DE ALCANCE v1: visitas y tasa de conversion (solo las ve
 // el dueno de la publicacion via OAuth -> fase 2).
+//
+// Desde septiembre 2026 MercadoLibre rechaza con 403 las consultas sin token
+// (/items da "blocked_by: PolicyAgent"). Por eso cada consulta viaja con el
+// token OAuth DEL VISITANTE: la herramienta sigue siendo gratis, pero pide
+// sesion iniciada y la cuenta de MeLi conectada. Nunca se usa la cuenta del
+// dueno de la app como respaldo.
 // ============================================================
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://qglieqpcmmffgxijbysb.supabase.co';
@@ -49,10 +58,35 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 const CACHE_HOURS = 12;   // no repetir llamadas a MeLi para el mismo item antes de esto
 const RECHECK_DAYS = 30;  // a los N dias mostramos "mejoraste?"
 
+// El usuario sale SOLO de la sesion firmada por el servidor. El userId que
+// manda el navegador (pf_user en localStorage) se puede falsificar, y con el
+// se elegiria el token de MeLi de otra persona.
+function usuarioDeSesion(req) {
+  const s = leerToken(tokenDe(req));
+  return s && s.user ? s.user : null;
+}
+
+// Token de MeLi del visitante. Devuelve { token, meliUserId } o token null.
+async function tokenDelVisitante(user) {
+  if (!user) return { token: null };
+  try {
+    const t = await getUserToken(user);
+    return { token: (t && t.token) || null, meliUserId: (t && t.meli_user_id) || null };
+  } catch (_) {
+    return { token: null };
+  }
+}
+
+const MSJ_SIN_SESION = 'Para analizar una publicaci\u00f3n ten\u00e9s que iniciar sesi\u00f3n. Es gratis.';
+const MSJ_SIN_MELI = 'MercadoLibre ya no deja consultar publicaciones sin una cuenta conectada. Conect\u00e1 tu cuenta de MercadoLibre (es gratis) y volv\u00e9 a probar.';
+const MSJ_RECHAZO = 'MercadoLibre rechaz\u00f3 la consulta con tu cuenta. Reconect\u00e1 tu cuenta de MercadoLibre y prob\u00e1 de nuevo.';
+const MSJ_NO_EXISTE = 'Esa publicaci\u00f3n no existe o est\u00e1 finalizada. Revis\u00e1 que el link sea el correcto.';
+const MSJ_CAIDO = 'MercadoLibre no respondi\u00f3. Prob\u00e1 de nuevo en un rato.';
+
 async function handleAnalisis(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
@@ -64,19 +98,31 @@ async function handleAnalisis(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { url, userId, forceRefresh } = req.body || {};
+      const { url, forceRefresh } = req.body || {};
       if (!url || typeof url !== 'string') return res.status(400).json({ error: 'url requerida' });
+
+      const user = usuarioDeSesion(req);
+      if (!user) return res.status(401).json({ ok: false, error: MSJ_SIN_SESION, codigo: 'sin_sesion' });
+
+      const { token } = await tokenDelVisitante(user);
+      if (!token) return res.status(401).json({ ok: false, error: MSJ_SIN_MELI, codigo: 'sin_meli' });
 
       const itemId = await extractItemId(url.trim());
       if (!itemId) return res.status(400).json({ error: 'No pude reconocer el ID de la publicación en ese link. Copia y pega el link completo de la publicación (el que dice MLA-...).' });
 
       if (!forceRefresh) {
         const cached = await getCachedAnalysis(itemId, CACHE_HOURS);
-        if (cached) return res.status(200).json({ ok: true, cached: true, ...cached });
+        // La cache es compartida por item: no se le muestra a nadie quien
+        // lo analizo antes.
+        if (cached) return res.status(200).json({ ok: true, cached: true, ...cached, userId: null });
       }
 
-      const report = await buildReport(itemId, url.trim(), userId);
-      if (report.error) return res.status(422).json(report);
+      const report = await buildReport(itemId, url.trim(), user, token);
+      if (report.error) {
+        const http = report.httpStatus || 422;
+        delete report.httpStatus;
+        return res.status(http).json({ ok: false, ...report });
+      }
 
       await saveAnalysis(report);
       return res.status(200).json({ ok: true, cached: false, ...report });
@@ -111,29 +157,38 @@ async function extractItemId(rawUrl) {
 }
 
 // ------------------------------------------------------------
-// 2) Traer datos oficiales (API publica, sin OAuth)
+// 2) Traer datos oficiales (API de MeLi con el token del visitante)
 // ------------------------------------------------------------
-async function fetchJSON(url) {
-  try {
-    const r = await fetch(url, { headers: { Accept: 'application/json' } });
-    if (!r.ok) return null;
-    return await r.json();
-  } catch (_) { return null; }
+// Antes devolvia null ante CUALQUIER error, y un 403 por falta de token se
+// mostraba como "no encontre la publicacion". Ahora se devuelve el status
+// para poder decir la verdad.
+async function fetchJSON(url, token, timeoutMs) {
+  const r = await fetchJson(url, token, timeoutMs || 6000);
+  return { ok: r.ok, status: r.status, data: r.json };
 }
 
-async function buildReport(itemId, inputUrl, userId) {
-  const item = await fetchJSON('https://api.mercadolibre.com/items/' + itemId);
-  if (!item || item.error || item.status === 404) {
-    return { error: 'No encontre esa publicación. Puede que el link este mal, o que la publicación este pausada o finalizada.', itemId };
-  }
+// El error de la consulta principal (/items/{id}), en criollo y sin mentir.
+function errorDeItem(status, itemId) {
+  if (status === 404) return { error: MSJ_NO_EXISTE, codigo: 'no_existe', itemId, httpStatus: 404 };
+  if (status === 401 || status === 403) return { error: MSJ_RECHAZO, codigo: 'meli_rechazo', itemId, httpStatus: 401 };
+  return { error: MSJ_CAIDO, codigo: 'meli_caido', itemId, httpStatus: 502 };
+}
 
+async function buildReport(itemId, inputUrl, userId, token) {
+  const r = await fetchJSON(MELI_API + '/items/' + itemId, token);
+  const item = r.ok ? r.data : null;
+  if (!r.ok || !item || item.error) return errorDeItem(r.ok ? 502 : r.status, itemId);
+
+  // Las consultas secundarias pueden fallar sin romper el informe: cada
+  // evaluador ya sabe decir "no se pudo leer".
+  const soloDatos = p => p.then(x => (x.ok ? x.data : null));
   const [descData, sellerData, catAttrs] = await Promise.all([
-    fetchJSON('https://api.mercadolibre.com/items/' + itemId + '/description'),
-    item.seller_id ? fetchJSON('https://api.mercadolibre.com/users/' + item.seller_id) : Promise.resolve(null),
-    item.category_id ? fetchJSON('https://api.mercadolibre.com/categories/' + item.category_id + '/attributes') : Promise.resolve(null)
+    soloDatos(fetchJSON(MELI_API + '/items/' + itemId + '/description', token)),
+    item.seller_id ? soloDatos(fetchJSON(MELI_API + '/users/' + item.seller_id, token)) : Promise.resolve(null),
+    item.category_id ? soloDatos(fetchJSON(MELI_API + '/categories/' + item.category_id + '/attributes', token)) : Promise.resolve(null)
   ]);
 
-  const top = await fetchTopListings(item.category_id, itemId);
+  const top = await fetchTopListings(item.category_id, itemId, token);
 
   const secciones = {
     titulo: evalTitulo(item, top),
@@ -210,12 +265,36 @@ function buildResumen(secciones, scoreTotal) {
   return { veredicto, prioridades };
 }
 
-async function fetchTopListings(categoryId, ownItemId) {
-  if (!categoryId) return { items: [], comparacion: null };
-  const j = await fetchJSON('https://api.mercadolibre.com/sites/MLA/search?category=' + encodeURIComponent(categoryId) + '&limit=6');
-  if (!j || !Array.isArray(j.results)) return { items: [], comparacion: null };
+// /sites/MLA/search esta cerrado a terceros (403 aun con token). El top de la
+// categoria sale de los destacados de MeLi (/highlights) y el detalle de cada
+// uno de /items?ids=, igual que en market.js. Si algo falla, el informe sale
+// igual sin la comparativa.
+async function highlightIds(categoryId, token) {
+  const hl = await fetchJSON(MELI_API + '/highlights/MLA/category/' + encodeURIComponent(categoryId), token, 4000);
+  const cont = (hl.ok && hl.data && Array.isArray(hl.data.content)) ? hl.data.content : [];
+  return cont.filter(c => c && c.id && (!c.type || c.type === 'ITEM')).map(c => c.id);
+}
 
-  const items = j.results.filter(r => r.id !== ownItemId).slice(0, 5);
+async function itemsPorIds(ids, token) {
+  if (!ids.length) return [];
+  const it = await fetchJSON(MELI_API + '/items?ids=' + ids.slice(0, 20).join(',') +
+    '&attributes=id,title,price,sold_quantity,shipping,permalink,status', token, 5000);
+  const filas = (it.ok && Array.isArray(it.data)) ? it.data : [];
+  return filas
+    .filter(f => f && (f.code == null || f.code === 200))
+    .map(f => f.body || f)
+    .filter(b => b && b.id);
+}
+
+async function fetchTopListings(categoryId, ownItemId, token) {
+  if (!categoryId || !token) return { items: [], comparacion: null };
+  let candidatos = [];
+  try {
+    const ids = (await highlightIds(categoryId, token)).filter(id => id !== ownItemId).slice(0, 6);
+    candidatos = await itemsPorIds(ids, token);
+  } catch (_) { candidatos = []; }
+
+  const items = candidatos.filter(r => r.id !== ownItemId).slice(0, 5);
   if (!items.length) return { items: [], comparacion: null };
 
   const avgTitleLen = Math.round(items.reduce((a, r) => a + ((r.title || '').length), 0) / items.length);
@@ -513,10 +592,11 @@ async function saveAnalysis(report) {
 // MercadoLibre publica la comision real en /sites/MLA/listing_prices, que
 // devuelve, para un precio dado, el cargo de cada tipo de publicacion.
 //
-// El endpoint necesita token, asi que se consulta desde el servidor. Si no
-// hay token o MeLi cambia el formato, se devuelve ok:false y el front sigue
-// usando los valores manuales, avisando que son manuales. Nunca se inventa
-// un porcentaje y se lo presenta como dato de MercadoLibre.
+// El endpoint necesita token: se usa el del usuario de la sesion firmada.
+// Sin sesion o sin cuenta de MeLi conectada se devuelve ok:false con
+// motivo 'sin_meli' y el front sigue con los valores manuales, avisando que
+// son estimados. Nunca se inventa un porcentaje y se lo presenta como dato
+// de MercadoLibre.
 async function handleComisiones(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
@@ -527,18 +607,22 @@ async function handleComisiones(req, res) {
   const categoria = (req.body && req.body.categoria) ? String(req.body.categoria).slice(0, 20) : null;
 
   try {
-    const { getUserToken } = await import('./_meli.js');
-    let tok = null;
-    try { const t = await getUserToken(null); tok = t && t.token; } catch (e) {}
+    const user = usuarioDeSesion(req);
+    const { token: tok } = await tokenDelVisitante(user);
+    if (!tok) {
+      return res.status(200).json({ ok: false, motivo: 'sin_meli', sinSesion: !user,
+        detalle: user ? 'Tu cuenta de MercadoLibre no est\u00e1 conectada.' : 'No hay sesi\u00f3n iniciada.' });
+    }
 
-    let url = 'https://api.mercadolibre.com/sites/MLA/listing_prices?price=' + precio;
+    let url = MELI_API + '/sites/MLA/listing_prices?price=' + precio;
     if (categoria) url += '&category_id=' + encodeURIComponent(categoria);
 
-    const r = await fetch(url, { headers: tok ? { Authorization: 'Bearer ' + tok, Accept: 'application/json' } : { Accept: 'application/json' } });
+    const r = await fetchJSON(url, tok);
     if (!r.ok) {
-      return res.status(200).json({ ok: false, motivo: 'MercadoLibre no respondio (' + r.status + ')' });
+      const rechazo = r.status === 401 || r.status === 403;
+      return res.status(200).json({ ok: false, motivo: rechazo ? 'meli_rechazo' : 'MercadoLibre no respondio (' + r.status + ')' });
     }
-    const datos = await r.json();
+    const datos = r.data;
     const lista = Array.isArray(datos) ? datos : [datos];
 
     // El formato documentado trae sale_fee_details.percentage_fee. Si algun
@@ -594,27 +678,81 @@ async function handleComisiones(req, res) {
 async function handleEjemplo(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const sinSuerte = {
     ok: false,
     error: 'No pudimos traer una publicaci\u00f3n de ejemplo ahora mismo. Peg\u00e1 el link de cualquier publicaci\u00f3n de MercadoLibre y funciona igual.'
   };
+
+  // Sin token MeLi contesta 403 a todo: no tiene sentido buscar.
+  const user = usuarioDeSesion(req);
+  if (!user) return res.status(401).json({ ok: false, error: MSJ_SIN_SESION, codigo: 'sin_sesion' });
+  const { token, meliUserId } = await tokenDelVisitante(user);
+  if (!token) return res.status(401).json({ ok: false, error: MSJ_SIN_MELI, codigo: 'sin_meli' });
+
   try {
     const termino = (req.body && req.body.termino) ? String(req.body.termino).slice(0, 60) : 'auriculares bluetooth';
-    const j = await fetchJSON('https://api.mercadolibre.com/sites/MLA/search?q=' + encodeURIComponent(termino) + '&limit=5');
-    const cand = (j && Array.isArray(j.results) ? j.results : []).find(function (x) { return x && (x.permalink || x.id); });
+    const cand = await buscarEjemplo(termino, token, meliUserId);
     if (!cand) return res.status(200).json(sinSuerte);
     return res.status(200).json({
       ok: true,
       url: cand.permalink || ('https://articulo.mercadolibre.com.ar/' + String(cand.id).replace(/^MLA/, 'MLA-')),
       titulo: cand.title || '',
-      nota: 'Es una publicaci\u00f3n real de otro vendedor, tra\u00edda de MercadoLibre reci\u00e9n.'
+      nota: cand.propia
+        ? 'Es una de tus publicaciones activas, tra\u00edda de MercadoLibre reci\u00e9n.'
+        : 'Es una publicaci\u00f3n real de otro vendedor, tra\u00edda de MercadoLibre reci\u00e9n.'
     });
   } catch (e) {
     return res.status(200).json(sinSuerte);
   }
+}
+
+// Tres caminos sin /sites/MLA/search, en paralelo para no comerse el tiempo
+// de la funcion, y se queda con el primero que haya dado algo en este orden:
+//   1) destacados de la categoria del termino (/highlights)
+//   2) ganador del buy box de un producto de catalogo (/products/search)
+//   3) una publicacion activa del propio visitante
+async function buscarEjemplo(termino, token, meliUserId) {
+  const q = encodeURIComponent(termino);
+
+  const porDestacados = (async () => {
+    const dom = await fetchJSON(MELI_API + '/sites/MLA/domain_discovery/search?limit=1&q=' + q, token, 3500);
+    const cat = dom.ok && Array.isArray(dom.data) && dom.data[0] && dom.data[0].category_id;
+    if (!cat) return null;
+    const ids = (await highlightIds(cat, token)).slice(0, 5);
+    const vivos = (await itemsPorIds(ids, token)).filter(b => !b.status || b.status === 'active');
+    return vivos[0] || null;
+  })().catch(() => null);
+
+  const porCatalogo = (async () => {
+    const busq = await fetchJSON(MELI_API + '/products/search?status=active&site_id=MLA&limit=3&q=' + q, token, 3500);
+    const lista = (busq.ok && busq.data && Array.isArray(busq.data.results)) ? busq.data.results : [];
+    for (const p of lista.slice(0, 3)) {
+      const pid = p && (p.id || p.catalog_product_id);
+      if (!pid) continue;
+      const det = await fetchJSON(MELI_API + '/products/' + encodeURIComponent(pid), token, 3000);
+      const ganador = det.ok && det.data && det.data.buy_box_winner;
+      if (ganador && ganador.item_id) {
+        const vivos = await itemsPorIds([ganador.item_id], token);
+        if (vivos[0]) return vivos[0];
+      }
+    }
+    return null;
+  })().catch(() => null);
+
+  const porPropias = (async () => {
+    if (!meliUserId) return null;
+    const mias = await fetchJSON(MELI_API + '/users/' + encodeURIComponent(meliUserId) + '/items/search?status=active&limit=1', token, 3500);
+    const id = mias.ok && mias.data && Array.isArray(mias.data.results) && mias.data.results[0];
+    if (!id) return null;
+    const vivos = await itemsPorIds([id], token);
+    return vivos[0] ? Object.assign({ propia: true }, vivos[0]) : null;
+  })().catch(() => null);
+
+  const [a, b, c] = await Promise.all([porDestacados, porCatalogo, porPropias]);
+  return a || b || c || null;
 }
 
 // Funcionalidad 3: Calculadora Flex vs Full

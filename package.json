@@ -7,7 +7,8 @@
     "test:gasto": "node pruebas/tope-gasto.mjs",
     "test:nav": "node pruebas/navegacion.mjs",
     "test:nav:movil": "W=360 H=800 node pruebas/navegacion.mjs",
-    "test:serie": "node pruebas/serie-tendencia.mjs"
+    "test:serie": "node pruebas/serie-tendencia.mjs",
+    "test:analizador": "node pruebas/analizador.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
