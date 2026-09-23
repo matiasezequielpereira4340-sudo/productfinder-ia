@@ -51,7 +51,9 @@ const TIPOS_IMAGEN = ['image/jpeg', 'image/png', 'image/webp'];
 
 // 3: descripcion con estado (leida/vacia/no_se_pudo_leer) y capturas parciales sin
 // penalizar. Subir la version invalida la cache de informes hechos con el bug.
-const VERSION_INFORME = 3;
+// 4: secciones sin datos que no se mencionan en el resumen y descripcion por
+// snapshot / sin confundir un 200 sin texto con "vacia".
+const VERSION_INFORME = 4;
 export const SECCIONES = ['titulo', 'fotos', 'descripcion', 'atributos', 'envio', 'precio', 'condicion', 'reputacion'];
 const ETIQUETAS = { titulo: 'Título', fotos: 'Fotos', descripcion: 'Descripción', atributos: 'Ficha técnica',
   envio: 'Envío', precio: 'Precio', condicion: 'Condición', reputacion: 'Reputación' };
@@ -258,7 +260,7 @@ async function fetchTexto(url, opciones, timeoutMs) {
 }
 
 // a) API oficial con el token del visitante.
-async function leerPorApi(itemId, token) {
+async function leerPorApi(itemId, token, meliUserId) {
   const r = await fetchJson(MELI_API + '/items/' + itemId, token, 6000);
   if (!r.ok || !r.json || r.json.error) return { ok: false, status: r.status };
   const item = r.json;
@@ -296,6 +298,10 @@ async function leerPorApi(itemId, token) {
     reputacionVendedor: rep ? { nivel: rep.level_id || null, mercadoLider: rep.power_seller_status || null,
       calificacionesNegativas: rep.transactions && rep.transactions.ratings ? rep.transactions.ratings.negative : null } : null
   };
+  console.log('[analizador] ' + itemId + ' api: vendedor=' + item.seller_id + ' token_de=' + (meliUserId || '?') +
+    (meliUserId && String(meliUserId) !== String(item.seller_id) ? ' (TOKEN DE OTRA CUENTA)' : ' (misma cuenta)') +
+    ' item.descriptions=' + (Array.isArray(item.descriptions) ? 'array(' + item.descriptions.length + ')' : typeof item.descriptions) +
+    (item.user_product_id ? ' user_product_id=' + item.user_product_id : ''));
   console.log('[analizador] ' + itemId + ' api: descripcion=' + descLectura.estado + ' (' + descLectura.detalle + ')' +
     ' envio=' + JSON.stringify(datos.envio));
   return {
@@ -309,38 +315,77 @@ async function leerPorApi(itemId, token) {
   };
 }
 
-// Descripcion por la API. /items/{id}/description devuelve { plain_text, text }:
-// se usa plain_text y, si viene vacio, text (sin HTML). Si esa consulta falla
-// se prueba /items/{id}/descriptions (la version vieja, devuelve un array).
-// Tres estados distintos: 'leida', 'vacia' (confirmado 0 caracteres) y
-// 'no_se_pudo_leer'. Antes un fallo se convertia en "" y la IA decia
-// "le falta descripcion" con 0/100 aunque la publicacion la tuviera.
+// Descripcion por la API. /items/{id}/description devuelve { plain_text, text,
+// snapshot: { url } }. Medido en produccion (MLA1654121789, publicacion propia,
+// token del duenio): HTTP 200 SIN plain_text ni text, con la descripcion
+// visible en la pagina. Por eso:
+//   - se aceptan tambien un array (como /descriptions) y campos anidados;
+//   - si no hay texto pero hay snapshot.url, se lee ese HTML (descriptions.mlstatic.com);
+//   - un 200 sin texto NO es "vacia": solo es vacia si el item confirma
+//     descriptions: [] o /descriptions devuelve []. Si no, es "no_se_pudo_leer".
+// La forma del cuerpo (claves y largos, no el contenido) queda en el log.
+function htmlAPlano(html) {
+  return String(html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|h\d)>/gi, '\n')
+    .replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
+}
 function textoDeDescripcion(d) {
+  if (Array.isArray(d)) return d.map(textoDeDescripcion).filter(Boolean).join('\n').trim() || null;
   if (!d || typeof d !== 'object') return null;
   const plano = String(d.plain_text || '').trim();
   if (plano) return plano;
-  const html = String(d.text || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ').replace(/[ \t]+/g, ' ').trim();
-  return html;
+  const html = htmlAPlano(d.text);
+  if (html) return html;
+  for (const k of ['description', 'descripcion', 'data', 'body']) {
+    if (d[k] && typeof d[k] === 'object') { const t = textoDeDescripcion(d[k]); if (t) return t; }
+  }
+  return null;
+}
+export function formaDelCuerpo(j) {
+  if (Array.isArray(j)) return 'array[' + j.length + ']' + (j[0] ? ' de ' + formaDelCuerpo(j[0]) : '');
+  if (!j || typeof j !== 'object') return typeof j;
+  return '{' + Object.keys(j).slice(0, 15).map(k => {
+    const v = j[k];
+    if (typeof v === 'string') return k + ':str(' + v.length + ')';
+    if (Array.isArray(v)) return k + ':array(' + v.length + ')';
+    if (v && typeof v === 'object') return k + ':{' + Object.keys(v).slice(0, 6).join(',') + '}';
+    return k + ':' + (v === null ? 'null' : typeof v);
+  }).join(', ') + '}';
+}
+async function leerSnapshot(url) {
+  if (!/^https?:\/\/[a-z0-9.-]*mlstatic\.com\//i.test(String(url || ''))) return null;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 5000);
+  try {
+    const r = await fetch(String(url).replace(/^http:/i, 'https:'), { signal: ctrl.signal });
+    if (!r.ok) return { status: r.status, texto: '' };
+    return { status: r.status, texto: htmlAPlano(await r.text()) };
+  } catch (_) { return { status: 0, texto: '' }; } finally { clearTimeout(t); }
 }
 export async function leerDescripcion(itemId, token, item) {
+  const confirmaVacia = item && Array.isArray(item.descriptions) && item.descriptions.length === 0;
   const r = await fetchJson(MELI_API + '/items/' + itemId + '/description', token, 8000);
+  let detalle = '/description HTTP ' + r.status + (r.ok ? ' ' + formaDelCuerpo(r.json) : '');
   if (r.ok && r.json) {
     const t = textoDeDescripcion(r.json);
-    return t ? { estado: 'leida', texto: t, detalle: 'HTTP 200, ' + t.length + ' caracteres' }
-      : { estado: 'vacia', texto: '', detalle: 'HTTP 200 sin plain_text ni text' };
+    if (t) return { estado: 'leida', texto: t, detalle: 'HTTP 200, ' + t.length + ' caracteres' };
+    const snap = r.json && !Array.isArray(r.json) && r.json.snapshot && r.json.snapshot.url;
+    if (snap) {
+      const s = await leerSnapshot(snap);
+      detalle += ', snapshot HTTP ' + (s ? s.status : 'no-mlstatic');
+      if (s && s.texto && s.texto.length > 20) return { estado: 'leida', texto: s.texto, detalle: detalle + ', ' + s.texto.length + ' caracteres del snapshot' };
+    }
   }
   const r2 = await fetchJson(MELI_API + '/items/' + itemId + '/descriptions', token, 6000);
-  if (r2.ok && Array.isArray(r2.json)) {
-    const t = r2.json.map(textoDeDescripcion).filter(Boolean).join('\n').trim();
-    if (t) return { estado: 'leida', texto: t, detalle: '/description HTTP ' + r.status + ', /descriptions HTTP 200' };
-    if (r2.json.length === 0) return { estado: 'vacia', texto: '', detalle: '/descriptions devolvio []' };
+  detalle += ', /descriptions HTTP ' + r2.status + (r2.ok ? ' ' + formaDelCuerpo(r2.json) : '');
+  if (r2.ok && r2.json) {
+    const t = textoDeDescripcion(r2.json);
+    if (t) return { estado: 'leida', texto: t, detalle };
+    if (Array.isArray(r2.json) && r2.json.length === 0) return { estado: 'vacia', texto: '', detalle };
   }
-  // El item mismo dice si tiene descripciones cargadas: un array vacio confirma
-  // que no tiene. Cualquier otra cosa es "no se sabe".
-  if (item && Array.isArray(item.descriptions) && item.descriptions.length === 0) {
-    return { estado: 'vacia', texto: '', detalle: 'item.descriptions vacio' };
-  }
-  return { estado: 'no_se_pudo_leer', texto: '', detalle: '/description HTTP ' + r.status + ', /descriptions HTTP ' + r2.status };
+  if (confirmaVacia) return { estado: 'vacia', texto: '', detalle: detalle + ', item.descriptions []' };
+  return { estado: 'no_se_pudo_leer', texto: '', detalle };
 }
 
 // Envio: se pasan los campos crudos. free_shipping=false NO quiere decir que
@@ -452,6 +497,8 @@ export const PROMPT_SISTEMA = [
   '- Nunca penalices algo que no se ve, nunca digas que la publicación "no tiene" o "le falta" algo que no aparece en la captura, y no lo menciones en el veredicto ni en las prioridades.',
   '- Leé los indicadores visibles antes de opinar: el contador de fotos "1/N" quiere decir que la publicación tiene N fotos (no pidas más fotos si N ya es 6 o más); "+5 mil vendidos", "MÁS VENDIDO", las estrellas y la cantidad de opiniones, "Tienda oficial", "MercadoLíder", cuotas, "Envío gratis", "Full".',
   '',
+  'Si te paso "seccionesSinDatos": esas secciones van con "score": null y NO las nombres en ningún lado: ni en el veredicto, ni en las prioridades, ni en las recomendaciones de otras secciones. No digas que faltan.',
+  '',
   'Si los datos vienen de la API oficial ("datosOficiales"):',
   '- descripcion.estado "no_se_pudo_leer": la sección descripción va con "score": null. No digas que falta la descripción. Solo si el estado es "vacia" podés decir que no tiene.',
   '- envio.gratisMarcadoPorElVendedor false NO significa que el comprador pague: MeLi puede bonificar el envío según el monto o la logística. Contá lo que informa la API con cautela ("según la API, el envío gratis no está marcado por el vendedor") y nunca afirmes "no tiene envío gratis".',
@@ -477,7 +524,10 @@ function armarContenido(lectura, extra) {
     pistaDeTituloDelLink: extra.pista || null,
     leidoDe: lectura.fuente
   };
-  if (lectura.fuente === 'api') bloque.datosOficiales = lectura.datos;
+  if (lectura.fuente === 'api') {
+    bloque.datosOficiales = lectura.datos;
+    if (lectura.descripcionEstado === 'no_se_pudo_leer') bloque.seccionesSinDatos = ['descripcion'];
+  }
   else if (lectura.fuente !== 'capturas') {
     bloque.tituloDeLaPagina = lectura.datos.tituloPagina;
     bloque.largoTituloDeLaPagina = (lectura.datos.tituloPagina || '').length;
@@ -681,6 +731,70 @@ export function extraerJson(texto, motivos) {
   return null;
 }
 
+// ------------------------------------------------------------
+// Secciones sin datos: el servidor garantiza que no se hable de ellas.
+// Medido en produccion: con descripcion = null, el veredicto dijo "sin
+// descripcion... necesitas descripcion urgente" y la recomendacion "Carga
+// descripcion". El prompt solo no alcanza.
+// ------------------------------------------------------------
+const QUE_CAPTURAR = { titulo: 'del título', fotos: 'de las fotos', descripcion: 'de la descripción',
+  atributos: 'de la ficha técnica', envio: 'del envío', precio: 'del precio',
+  condicion: 'de la condición (nuevo o usado)', reputacion: 'de la reputación del vendedor' };
+// Palabras que delatan que un texto habla de esa seccion.
+export const PALABRAS_SECCION = {
+  titulo: /t[ií]tulo/i,
+  fotos: /\bfotos?\b|\bim[aá]gen(es)?\b/i,
+  descripcion: /descrip/i,
+  atributos: /ficha t[eé]cnica|atributos?/i,
+  envio: /env[ií]os?\b|mercado env|\bfull\b|\bflex\b|log[ií]stica/i,
+  precio: /precio|cuotas|descuento/i,
+  condicion: /condici[oó]n/i,
+  reputacion: /reputaci[oó]n|mercado ?l[ií]der/i
+};
+export function textoSinDatos(k) {
+  return 'No pude leer esta parte. Si querés que la analice, subí una captura ' + (QUE_CAPTURAR[k] || 'de esa parte') + '.';
+}
+function oraciones(t) { return String(t || '').match(/[^.!?]+[.!?]*/g) || []; }
+
+// Devuelve { informe, cambios } con:
+//  - recomendacion fija y listas vacias en cada seccion sin datos,
+//  - prioridades sin secciones sin datos (ni acciones que las nombren),
+//  - veredicto sin oraciones que nombren una seccion sin datos; si no queda
+//    nada, uno armado por el servidor a partir de las prioridades.
+export function limpiarSinDatos(inf, scoreTotal) {
+  const sinDatos = SECCIONES.filter(k => inf.secciones[k] && inf.secciones[k].sinDatos);
+  const cambios = [];
+  if (!sinDatos.length) return { informe: inf, cambios };
+  const nombra = (txt) => sinDatos.some(k => PALABRAS_SECCION[k].test(txt));
+  sinDatos.forEach(k => {
+    const x = inf.secciones[k];
+    if (x.recomendacion !== textoSinDatos(k)) cambios.push('recomendacion ' + k);
+    x.recomendacion = textoSinDatos(k);
+    x.puntosFuertes = []; x.puntosFlojos = [];
+    if (!x.porQue || /falta|no tiene|sin \w+ cargad|carg[aá]|urgente|agreg/i.test(x.porQue)) x.porQue = 'No pude leer esta parte de la publicación, así que no la evalué.';
+  });
+  const antes = inf.resumen.prioridades.length;
+  inf.resumen.prioridades = inf.resumen.prioridades.filter(p => {
+    const k = SECCIONES.find(c => ETIQUETAS[c] === p.seccion);
+    return !(k && sinDatos.includes(k)) && !nombra(p.accion);
+  });
+  if (inf.resumen.prioridades.length !== antes) cambios.push('prioridades ' + antes + '->' + inf.resumen.prioridades.length);
+  const ver = String(inf.resumen.veredicto || '');
+  if (nombra(ver)) {
+    const quedan = oraciones(ver).filter(o => !nombra(o)).map(o => o.trim()).filter(Boolean);
+    inf.resumen.veredicto = quedan.join(' ').trim() || veredictoDelServidor(inf, scoreTotal);
+    cambios.push(quedan.length ? 'veredicto: se sacaron oraciones' : 'veredicto: armado por el servidor');
+  }
+  return { informe: inf, cambios };
+}
+export function veredictoDelServidor(inf, scoreTotal) {
+  const p = inf.resumen.prioridades;
+  const base = scoreTotal == null ? 'Analicé las partes de la publicación que pude leer.'
+    : 'En lo que pude leer, la publicación tiene ' + scoreTotal + '/100.';
+  if (!p.length) return base + ' No encontré correcciones urgentes en esas partes.';
+  return base + ' Lo primero que te conviene mejorar: ' + p.slice(0, 2).map(x => x.seccion.toLowerCase()).join(' y ') + '.';
+}
+
 // Promedio SOLO de las secciones con datos.
 export function promedioConDatos(secciones) {
   const vals = SECCIONES.map(k => secciones[k] && secciones[k].score).filter(v => typeof v === 'number');
@@ -838,9 +952,9 @@ export async function analizar(req) {
     lectura = { ok: true, fuente: 'capturas', capturas: v.capturas, meta: {} };
   } else {
     const user = usuarioDeSesion(req);
-    const { token } = await tokenDelVisitante(user);
+    const { token, meliUserId } = await tokenDelVisitante(user);
     if (token) {
-      const a = await leerPorApi(itemId, token);
+      const a = await leerPorApi(itemId, token, meliUserId);
       if (a.ok) lectura = a;
       else {
         intentos.push('api ' + a.status);
@@ -899,6 +1013,9 @@ export async function analizar(req) {
       puntosFuertes: [], puntosFlojos: [], recomendacion: '' };
     informeIA.resumen.prioridades = informeIA.resumen.prioridades.filter(p => !/descrip/i.test(p.seccion));
   }
+  // Nada del resumen puede hablar de una seccion sin datos.
+  const limpieza = limpiarSinDatos(informeIA, promedioConDatos(informeIA.secciones));
+  if (limpieza.cambios.length) console.log('[analizador] ' + itemId + ' sin datos, el servidor corrigio: ' + limpieza.cambios.join('; '));
   // Con capturas parciales, sugerir que capturas faltan.
   const sinDatos = SECCIONES.filter(k => informeIA.secciones[k].sinDatos);
   if (lectura.fuente === 'capturas' && sinDatos.length) {

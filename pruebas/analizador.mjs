@@ -75,7 +75,7 @@ globalThis.fetch = async function (recurso, opciones) {
       const lte = (url.match(/analyzed_at=lte\.([^&]+)/) || [])[1];
       let filas = analisis.filter(r => (!item || r.item_id === decodeURIComponent(item)) &&
         (!gte || r.analyzed_at >= decodeURIComponent(gte)) && (!lte || r.analyzed_at <= decodeURIComponent(lte)) &&
-        (!/report->>version=eq\.3/.test(url) || (r.report && r.report.version === 3)));
+        (!/report->>version=eq\.4/.test(url) || (r.report && r.report.version === 4)));
       filas = filas.slice().sort((a, b) => b.analyzed_at.localeCompare(a.analyzed_at));
       return resp(200, filas.slice(0, 20));
     }
@@ -123,6 +123,11 @@ globalThis.fetch = async function (recurso, opciones) {
       shipping: { free_shipping: false, mode: 'me2', logistic_type: 'drop_off', tags: ['self_service_out', 'mandatory_free_shipping'], local_pick_up: false },
       attributes: [{ id: 'BRAND', name: 'Marca', value_name: 'Razurii' }] });
     if (p === '/items/MLA1654121789/description') {
+      // Lo que se vio en produccion: HTTP 200 sin plain_text ni text.
+      if (descModo === 'sin_texto_con_snapshot') return resp(200, { id: 'MLA1654121789-4401', last_updated: '2025-01-10T12:00:00Z',
+        date_created: '2024-03-01T12:00:00Z', snapshot: { url: 'http://descriptions.mlstatic.com/D-MLA1654121789.html?hash=abc', width: 0, height: 0, status: '' } });
+      if (descModo === 'sin_texto') return resp(200, { id: 'MLA1654121789-4401', last_updated: '2025-01-10T12:00:00Z' });
+      if (descModo === 'array') return resp(200, [{ id: 'x', plain_text: 'La aspiradora portátil AS-228 de Razurii es la solución perfecta (array).' }]);
       if (descModo === 'plain') return resp(200, { plain_text: 'La aspiradora portátil AS-228 de Razurii es la solución perfecta para mantener limpio tu hogar, oficina y auto.', text: '' });
       if (descModo === 'html') return resp(200, { plain_text: '', text: '<p>La aspiradora portátil AS-228 de Razurii es la solución perfecta<br>para tu auto.</p>' });
       if (descModo === 'vacia') return resp(404, { message: 'not found' });
@@ -134,6 +139,12 @@ globalThis.fetch = async function (recurso, opciones) {
     }
     if (p === '/categories/MLA2/attributes') return resp(200, []);
     return resp(403, { blocked_by: 'PolicyAgent' });   // cualquier item ajeno
+  }
+
+  // ---- Snapshot de la descripcion (HTML estatico de MeLi) ----
+  if (url.startsWith('https://descriptions.mlstatic.com/')) {
+    llamadas.otros.push(url);
+    return resp(200, '<html><body><p>La aspiradora portátil AS-228 de Razurii es la solución perfecta para tu casa.</p><p>Incluye 3 boquillas.</p></body></html>', 'text/html');
   }
 
   // ---- Jina Reader ----
@@ -420,7 +431,54 @@ check('prompt: descripcion "no_se_pudo_leer" va con score null', /descripcion\.e
 reset();
 analisis.push({ item_id: 'MLA1654121789', analyzed_at: new Date().toISOString(), report: { version: 2, itemId: 'MLA1654121789', secciones: {} } });
 r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
-check('un informe viejo (version 2, con el bug) en cache NO se sirve: se analiza de nuevo', r.statusCode === 200 && r.cuerpo.cached === false && r.cuerpo.version === 3 && llamadas.ia.length === 1, [r.cuerpo.cached, r.cuerpo.version]);
+check('un informe viejo (version 2, con el bug) en cache NO se sirve: se analiza de nuevo', r.statusCode === 200 && r.cuerpo.cached === false && r.cuerpo.version === 4 && llamadas.ia.length === 1, [r.cuerpo.cached, r.cuerpo.version]);
+
+console.log('Caso real MLA1654121789: /description 200 sin plain_text ni text');
+reset(); descModo = 'sin_texto_con_snapshot';
+r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
+d = datosIA();
+check('200 sin texto pero con snapshot.url -> se lee el snapshot (https) y la descripcion queda LEIDA', d.descripcion.estado === 'leida' &&
+  /Razurii es la soluci[oó]n perfecta/.test(d.descripcion.texto) && /Incluye 3 boquillas/.test(d.descripcion.texto) && !/</.test(d.descripcion.texto), d.descripcion);
+check('el snapshot se pide por https', llamadas.otros.some(u => u.startsWith('https://descriptions.mlstatic.com/')));
+reset(); descModo = 'sin_texto';
+r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
+d = datosIA();
+check('200 sin texto ni snapshot, con item.descriptions [{id}] -> NO es "vacia": es "no_se_pudo_leer"', d.descripcion.estado === 'no_se_pudo_leer', d.descripcion);
+check('... y la forma del cuerpo queda en el detalle (para el log)', /id:str\(\d+\)/.test(d.descripcion.nota) && /last_updated/.test(d.descripcion.nota), d.descripcion.nota);
+check('... y a la IA se le pasa descripcion en "seccionesSinDatos"', JSON.stringify(llamadas.ia[0].body.messages[0].content[0].text).includes('seccionesSinDatos'));
+reset(); descModo = 'array';
+r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
+d = datosIA();
+check('200 con un array -> tambien se lee', d.descripcion.estado === 'leida' && /\(array\)/.test(d.descripcion.texto), d.descripcion);
+check('forma del cuerpo: describe claves y largos sin volcar el contenido', A.formaDelCuerpo({ plain_text: 'secreto', snapshot: { url: 'u' } }) === '{plain_text:str(7), snapshot:{url}}');
+
+console.log('Resumen: las secciones sin datos no se mencionan (servidor)');
+reset(); descModo = 'sin_texto';
+const real = JSON.parse(informeIA({ descripcion: null, titulo: 70, fotos: 60 }));
+real.resumen.veredicto = 'Buen producto con fotos correctas. Pero la publicación está sin descripción y eso te hace perder ventas. Necesitás descripción urgente.';
+real.resumen.prioridades = [{ seccion: 'Descripción', accion: 'Cargá descripción urgente.' }, { seccion: 'Título', accion: 'Sumá la capacidad al título.' },
+  { seccion: 'Fotos', accion: 'Agregá una foto de uso y mencioná en la descripción las boquillas.' }];
+real.secciones.descripcion = { score: null, porQue: 'La publicación no tiene descripción cargada.', puntosFuertes: [], puntosFlojos: ['Sin descripción'], recomendacion: 'Cargá descripción.' };
+respuestasIA = [JSON.stringify(real)];
+r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
+const rs = r.cuerpo.resumen, dsc = r.cuerpo.secciones.descripcion;
+check('veredicto: se sacan las oraciones que nombran la descripcion y queda el resto', !/descrip/i.test(rs.veredicto) && /Buen producto con fotos correctas/.test(rs.veredicto), rs.veredicto);
+check('prioridades: ninguna es de la descripcion ni la nombra', !rs.prioridades.some(p => /descrip/i.test(p.seccion + ' ' + p.accion)) && rs.prioridades.length === 1 && rs.prioridades[0].seccion === 'Título', rs.prioridades);
+check('recomendacion de la seccion sin datos: texto fijo con la captura a subir', dsc.recomendacion === 'No pude leer esta parte. Si querés que la analice, subí una captura de la descripción.', dsc.recomendacion);
+check('seccion sin datos: sin "le falta" en porQue ni puntos', !/no tiene|falta/i.test(dsc.porQue) && dsc.puntosFlojos.length === 0, dsc);
+check('en ningun lado del resumen dice que falta la descripcion', !/(sin|falta|carg[aá]).{0,20}descrip/i.test(JSON.stringify(rs)), rs);
+
+reset(); descModo = 'sin_texto';
+const todo = JSON.parse(informeIA({ descripcion: null, titulo: 60, fotos: 90 }));
+todo.resumen.veredicto = 'Lo más grave es que no tiene descripción. Sin descripción no vendés.';
+todo.resumen.prioridades = [{ seccion: 'Título', accion: 'Poné la marca y el modelo al principio.' }];
+respuestasIA = [JSON.stringify(todo)];
+r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
+check('veredicto que SOLO habla de la seccion sin datos -> lo arma el servidor desde las prioridades',
+  /^En lo que pude leer, la publicación tiene \d+\/100\. Lo primero que te conviene mejorar: título\.$/.test(r.cuerpo.resumen.veredicto), r.cuerpo.resumen.veredicto);
+check('prompt: seccionesSinDatos no se nombran en ningun lado', /"seccionesSinDatos": esas secciones van con "score": null y NO las nombres en ningún lado/.test(A.PROMPT_SISTEMA));
+check('textoSinDatos por seccion, con "del"/"de la"', A.textoSinDatos('envio') === 'No pude leer esta parte. Si querés que la analice, subí una captura del envío.' &&
+  A.textoSinDatos('fotos').endsWith('captura de las fotos.'), [A.textoSinDatos('envio'), A.textoSinDatos('fotos')]);
 
 console.log('Ejemplo y estado');
 reset();
