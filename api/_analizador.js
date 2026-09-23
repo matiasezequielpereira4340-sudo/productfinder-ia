@@ -36,10 +36,10 @@ const RECHECK_DIAS = 30;
 const EJEMPLO_DIAS = 7;
 
 const MODELO = 'claude-haiku-4-5';
-const MAX_TOKENS_IA = 4000;
+const MAX_TOKENS_IA = 2200;       // ~1200 de salida esperada: con 2500 tardaba >30 s
 const PRESUPUESTO_MS = 55000;      // la funcion corta a los 60 s (vercel.json)
 const JINA_TIMEOUT_MS = 20000;
-const IA_TIMEOUT_MS = 30000;
+const IA_TIMEOUT_MS = 42000;      // medido: ~80 tokens/s de salida
 const TEXTO_PAGINA_MAX = 12000;    // caracteres de la pagina que ve la IA
 const MAX_CAPTURAS = 3;
 const MAX_BYTES_CAPTURA = 1500000;       // por imagen, ya comprimida
@@ -48,8 +48,8 @@ const TIPOS_IMAGEN = ['image/jpeg', 'image/png', 'image/webp'];
 
 const VERSION_INFORME = 2;
 export const SECCIONES = ['titulo', 'fotos', 'descripcion', 'atributos', 'envio', 'precio', 'condicion', 'reputacion'];
-const ETIQUETAS = { titulo: 'Titulo', fotos: 'Fotos', descripcion: 'Descripcion', atributos: 'Ficha tecnica',
-  envio: 'Envio', precio: 'Precio', condicion: 'Condicion', reputacion: 'Reputacion' };
+const ETIQUETAS = { titulo: 'Título', fotos: 'Fotos', descripcion: 'Descripción', atributos: 'Ficha técnica',
+  envio: 'Envío', precio: 'Precio', condicion: 'Condición', reputacion: 'Reputación' };
 const FUENTES = { api: 'API oficial de MercadoLibre (tu cuenta)', pagina: 'la página pública',
   scraper: 'la página pública (ScraperAPI)', capturas: 'tus capturas de pantalla' };
 
@@ -382,7 +382,7 @@ export const PROMPT_SISTEMA = [
   '- La "pistaDeTituloDelLink" sale del link: sirve para saber de qué producto se trata, pero NO es el título confirmado de la publicación.',
   '- Las recomendaciones tienen que ser concretas para ESTE producto: por ejemplo, un título mejorado escrito completo, qué fotos puntuales agregar, qué atributos cargar, qué poner en la descripción. Nada genérico.',
   '- Score de 0 a 100 por sección, con criterio de experto. No tenés datos de la competencia: no inventes comparaciones de precio contra otros vendedores.',
-  '- "puntosFuertes" y "puntosFlojos": como máximo 4 cada uno, frases cortas.',
+  '- Sé breve: el informe se lee en el celular. "porQue": 1 o 2 oraciones. "recomendacion": 1 a 3 oraciones concretas. "puntosFuertes" y "puntosFlojos": como máximo 3 cada uno, de menos de 15 palabras. "veredicto": 2 oraciones.',
   '- "resumen.prioridades": las 3 correcciones que más ventas mueven, de mayor a menor impacto, solo de secciones con datos.',
   '',
   'Respondé SOLO con un objeto JSON válido, sin texto antes ni después y sin ```. Forma exacta:',
@@ -469,10 +469,18 @@ export function validarInforme(obj) {
     };
   }
   const r = obj.resumen && typeof obj.resumen === 'object' ? obj.resumen : {};
-  let prioridades = Array.isArray(r.prioridades) ? r.prioridades.filter(p => p && typeof p === 'object').slice(0, 3).map(p => ({
-    seccion: str(p.seccion, 40), score: numONull(p.score) == null ? null : Math.max(0, Math.min(100, Math.round(numONull(p.score)))),
-    accion: str(p.accion, 600)
-  })).filter(p => p.seccion && p.accion) : [];
+  // La seccion se normaliza a su etiqueta y el score sale de la seccion misma:
+  // la IA a veces pone en la prioridad un numero distinto al de la tarjeta.
+  const claveDe = (txt) => {
+    const t = String(txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return SECCIONES.find(k => t === k || t.indexOf(k) === 0 || t === ETIQUETAS[k].toLowerCase() ||
+      (k === 'atributos' && /ficha/.test(t)) || (k === 'reputacion' && /vendedor/.test(t))) || null;
+  };
+  let prioridades = Array.isArray(r.prioridades) ? r.prioridades.filter(p => p && typeof p === 'object').map(p => {
+    const k = claveDe(p.seccion);
+    return { seccion: k ? ETIQUETAS[k] : str(p.seccion, 40), score: k ? secciones[k].score : null, accion: str(p.accion, 600), _k: k };
+  }).filter(p => p.seccion && p.accion && !(p._k && secciones[p._k].score === null)).slice(0, 3)
+    .map(p => ({ seccion: p.seccion, score: p.score, accion: p.accion })) : [];
   if (!prioridades.length) {
     prioridades = SECCIONES.filter(k => secciones[k].score !== null && secciones[k].score < 75 && secciones[k].recomendacion)
       .sort((a, b) => secciones[a].score - secciones[b].score).slice(0, 3)
@@ -682,8 +690,11 @@ export async function analizar(req) {
   const contenido = armarContenido(lectura, { itemId, url, pista });
   let informeIA = null, usoIA = { input_tokens: 0, output_tokens: 0 }, errorIA = null;
   for (let intento = 0; intento < 2 && !informeIA; intento++) {
-    if (intento > 0 && quedaMs() < 15000) break;
+    if (intento > 0 && quedaMs() < 20000) { console.warn('[analizador] ' + itemId + ' sin tiempo para reintentar'); break; }
+    const t0 = Date.now();
     const r = await llamarIA(contenido, Math.min(IA_TIMEOUT_MS, Math.max(8000, quedaMs())));
+    console.log('[analizador] ' + itemId + ' IA intento ' + (intento + 1) + ': ' + (r.ok ? 'ok' : r.error) + ' en ' + (Date.now() - t0) + ' ms' +
+      (r.uso ? ' (in=' + r.uso.input_tokens + ' out=' + r.uso.output_tokens + ', stop=' + r.stop + ')' : ''));
     if (!r.ok) { errorIA = r.error; continue; }
     if (r.uso) { usoIA.input_tokens += r.uso.input_tokens || 0; usoIA.output_tokens += r.uso.output_tokens || 0; }
     informeIA = validarInforme(extraerJson(r.texto));

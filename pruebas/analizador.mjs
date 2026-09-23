@@ -260,6 +260,7 @@ reset();
 respuestasIA = [informeIA({ reputacion: null, atributos: null, titulo: 90, fotos: 70, descripcion: 50, envio: 100, precio: 60, condicion: 80 })];
 r = await llamar({ body: { url: link(8000001) } });
 check('secciones sin datos -> score null y "sinDatos"', r.cuerpo.secciones.reputacion.score === null && r.cuerpo.secciones.reputacion.sinDatos === true);
+check('prioridades: el score sale de la seccion (fotos 70), no del numero que puso la IA (60)', r.cuerpo.resumen.prioridades[0].seccion === 'Fotos' && r.cuerpo.resumen.prioridades[0].score === 70, r.cuerpo.resumen.prioridades);
 check('scoreTotal = promedio SOLO de las secciones con datos (75, no 56)', r.cuerpo.scoreTotal === 75 && r.cuerpo.seccionesConDatos === 6, [r.cuerpo.scoreTotal, r.cuerpo.seccionesConDatos]);
 
 reset();
