@@ -36,10 +36,13 @@ const RECHECK_DIAS = 30;
 const EJEMPLO_DIAS = 7;
 
 const MODELO = 'claude-haiku-4-5';
-const MAX_TOKENS_IA = 2200;       // ~1200 de salida esperada: con 2500 tardaba >30 s
+// Medido en produccion: Haiku escribe ~2200 tokens aunque se le pida brevedad,
+// y con 2200 de techo dos de cuatro informes salieron cortados (JSON roto).
+// 3200 deja margen: a ~105 tokens/s son ~30 s en el peor caso.
+const MAX_TOKENS_IA = 3200;
 const PRESUPUESTO_MS = 55000;      // la funcion corta a los 60 s (vercel.json)
 const JINA_TIMEOUT_MS = 20000;
-const IA_TIMEOUT_MS = 42000;      // medido: ~80 tokens/s de salida
+const IA_TIMEOUT_MS = 42000;
 const TEXTO_PAGINA_MAX = 12000;    // caracteres de la pagina que ve la IA
 const MAX_CAPTURAS = 3;
 const MAX_BYTES_CAPTURA = 1500000;       // por imagen, ya comprimida
@@ -382,10 +385,10 @@ export const PROMPT_SISTEMA = [
   '- La "pistaDeTituloDelLink" sale del link: sirve para saber de qué producto se trata, pero NO es el título confirmado de la publicación.',
   '- Las recomendaciones tienen que ser concretas para ESTE producto: por ejemplo, un título mejorado escrito completo, qué fotos puntuales agregar, qué atributos cargar, qué poner en la descripción. Nada genérico.',
   '- Score de 0 a 100 por sección, con criterio de experto. No tenés datos de la competencia: no inventes comparaciones de precio contra otros vendedores.',
-  '- Sé breve: el informe se lee en el celular. "porQue": 1 o 2 oraciones. "recomendacion": 1 a 3 oraciones concretas. "puntosFuertes" y "puntosFlojos": como máximo 3 cada uno, de menos de 15 palabras. "veredicto": 2 oraciones.',
+  '- Sé breve: el informe se lee en el celular. "porQue": 1 oración. "recomendacion": 1 a 3 oraciones concretas. "puntosFuertes" y "puntosFlojos": como máximo 3 cada uno, de menos de 12 palabras. "veredicto": 2 oraciones.',
   '- "resumen.prioridades": las 3 correcciones que más ventas mueven, de mayor a menor impacto, solo de secciones con datos.',
   '',
-  'Respondé SOLO con un objeto JSON válido, sin texto antes ni después y sin ```. Forma exacta:',
+  'Respondé SOLO con un objeto JSON válido y COMPACTO (en una sola línea, sin sangría ni saltos de línea), sin texto antes ni después y sin ```. Forma exacta:',
   '{"titulo": string|null, "precio": number|null, "moneda": string|null, "vendidos": number|null,',
   ' "resumen": {"veredicto": string, "prioridades": [{"seccion": string, "score": number, "accion": string}]},',
   ' "secciones": {',
