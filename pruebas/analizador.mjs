@@ -26,6 +26,7 @@ let tablaUso = true;          // false = la migracion no se corrio
 let jinaModo = 'ok';          // ok | bloqueo | inyeccion
 let respuestasIA = [];        // cola de textos que devuelve la "IA"
 let rechazarEsquema = false;  // la API contesta 400 si viene output_config
+let descModo = 'plain';       // plain | html | falla | vacia (descripcion de MLA1654121789)
 const llamadas = { meli: [], jina: [], ia: [], supaEscrituras: [], otros: [] };
 
 function resp(status, cuerpo, tipo) {
@@ -111,6 +112,27 @@ globalThis.fetch = async function (recurso, opciones) {
     if (p === '/users/999') return resp(200, { seller_reputation: { level_id: '5_green', power_seller_status: 'gold' } });
     if (p === '/categories/MLA1/attributes') return resp(200, [{ id: 'BRAND', name: 'Marca', tags: { required: true } }]);
     if (p === '/items/MLA4040404') return resp(404, { message: 'not found' });
+    // Datos reales de MLA1654121789 (aspiradora Razurii), con la descripcion
+    // en distintos estados para reproducir el bug.
+    if (p === '/items/MLA1654121789') return resp(200, {
+      id: 'MLA1654121789', title: 'Aspiradora Portátil Razurii As-228 De 100 Ml, Para Hogar, Oficina Y Coche Negro',
+      price: 25999, currency_id: 'ARS', category_id: 'MLA2', seller_id: 999, condition: 'new', sold_quantity: 12, status: 'active',
+      date_created: new Date(Date.now() - 200 * 86400e3).toISOString(), permalink: 'https://articulo.mercadolibre.com.ar/MLA-1654121789',
+      pictures: [1, 2, 3, 4, 5].map(i => ({ secure_url: 'https://http2.mlstatic.com/r' + i + '.jpg', max_size: '1200x1200' })),
+      descriptions: descModo === 'vacia' ? [] : [{ id: 'MLA1654121789-123' }],
+      shipping: { free_shipping: false, mode: 'me2', logistic_type: 'drop_off', tags: ['self_service_out', 'mandatory_free_shipping'], local_pick_up: false },
+      attributes: [{ id: 'BRAND', name: 'Marca', value_name: 'Razurii' }] });
+    if (p === '/items/MLA1654121789/description') {
+      if (descModo === 'plain') return resp(200, { plain_text: 'La aspiradora portátil AS-228 de Razurii es la solución perfecta para mantener limpio tu hogar, oficina y auto.', text: '' });
+      if (descModo === 'html') return resp(200, { plain_text: '', text: '<p>La aspiradora portátil AS-228 de Razurii es la solución perfecta<br>para tu auto.</p>' });
+      if (descModo === 'vacia') return resp(404, { message: 'not found' });
+      return resp(403, { blocked_by: 'PolicyAgent' });
+    }
+    if (p === '/items/MLA1654121789/descriptions') {
+      if (descModo === 'vacia') return resp(200, []);
+      return resp(403, { blocked_by: 'PolicyAgent' });
+    }
+    if (p === '/categories/MLA2/attributes') return resp(200, []);
     return resp(403, { blocked_by: 'PolicyAgent' });   // cualquier item ajeno
   }
 
@@ -157,7 +179,7 @@ function check(nombre, cond, extra) {
   else { fallas++; console.log('  FALLA ' + nombre + (extra !== undefined ? '\n        ' + JSON.stringify(extra).slice(0, 500) : '')); }
 }
 function reset() {
-  analisis = []; uso = new Map(); tablaUso = true; jinaModo = 'ok'; respuestasIA = []; rechazarEsquema = false;
+  analisis = []; uso = new Map(); tablaUso = true; jinaModo = 'ok'; respuestasIA = []; rechazarEsquema = false; descModo = 'plain';
   A._reiniciarEsquema();
   Object.keys(llamadas).forEach(k => { llamadas[k].length = 0; });
   A._reiniciarUsoMemoria();
@@ -336,6 +358,64 @@ r = await llamar({ body: { url: link(8100005) } });
 check('caso real: secciones en array + falta la ultima llave + ```json -> se repara y sale en el 1er intento',
   r.statusCode === 200 && llamadas.ia.length === 1 && r.cuerpo.secciones.reputacion.score === 80 && r.cuerpo.scoreTotal === 80, [r.statusCode, llamadas.ia.length, r.cuerpo.codigo]);
 check('balanceo respeta llaves dentro de strings', JSON.stringify(A.extraerJson('{"a":{"t":"x}}"}')) === '{"a":{"t":"x}}"}}');
+
+console.log('Capturas parciales (la IA no confunde "no se ve" con "falta")');
+check('prompt: lo que no se ve en capturas va con score null y no se penaliza', /CAPTURAS DE PANTALLA/.test(A.PROMPT_SISTEMA) &&
+  /NO se ve en las capturas NO es una falta/.test(A.PROMPT_SISTEMA) && /score": null \("Sin datos"\)/.test(A.PROMPT_SISTEMA));
+check('prompt: nunca se menciona como falta ni entra en veredicto/prioridades', /Nunca penalices algo que no se ve/.test(A.PROMPT_SISTEMA) &&
+  /no lo menciones en el veredicto ni en las prioridades/.test(A.PROMPT_SISTEMA));
+check('prompt: lee indicadores visibles (1/N, +5 mil vendidos, MÁS VENDIDO, estrellas, Tienda oficial)',
+  ['"1/N"', '+5 mil vendidos', 'MÁS VENDIDO', 'estrellas', 'Tienda oficial'].every(t => A.PROMPT_SISTEMA.includes(t) && A.NOTA_CAPTURAS.includes(t.replace(/"/g, '"'))));
+check('prompt: con 1/6 no pide mas fotos', /no pidas más fotos si N ya es 6 o más/.test(A.PROMPT_SISTEMA));
+reset();
+const parcial = JSON.parse(informeIA({ precio: null, envio: null, descripcion: null, fotos: 85 }));
+parcial.resumen.prioridades = [{ seccion: 'Precio', accion: 'Mostrá el precio.' }, { seccion: 'Título', accion: 'Mejorá el título.' }];
+respuestasIA = [JSON.stringify(parcial)];
+r = await llamar({ body: { url: link(8200001), capturas: [{ tipo: 'image/jpeg', datos: IMG }] } });
+const txtCap = llamadas.ia[0].body.messages[0].content.filter(b => b.type === 'text')[0].text;
+check('capturas: la nota con las reglas viaja en el mensaje', txtCap.includes('1/N') && txtCap.includes('no lo penalices'));
+check('capturas parciales: precio/envio/descripcion quedan "Sin datos" y fuera del promedio', r.cuerpo.secciones.precio.sinDatos &&
+  r.cuerpo.secciones.envio.sinDatos && r.cuerpo.seccionesConDatos === 5 && r.cuerpo.scoreTotal === 81, [r.cuerpo.seccionesConDatos, r.cuerpo.scoreTotal]);
+check('capturas parciales: una prioridad sobre una seccion sin datos se descarta', !r.cuerpo.resumen.prioridades.some(p => p.seccion === 'Precio') &&
+  r.cuerpo.resumen.prioridades[0].seccion === 'Título', r.cuerpo.resumen.prioridades);
+check('capturas parciales: sugiere subir captura del precio/envio y de la descripcion',
+  r.cuerpo.resumen.sugerencia === 'Para un análisis completo, subí también una captura del precio/envío y otra de la descripción.', r.cuerpo.resumen.sugerencia);
+reset();
+r = await llamar({ body: { url: link(8200002), capturas: [{ tipo: 'image/jpeg', datos: IMG }] } });
+check('capturas completas (8 con datos): sin sugerencia', !r.cuerpo.resumen.sugerencia);
+
+console.log('API oficial: descripcion y envio (MLA1654121789 con datos reales)');
+const linkRazurii = 'https://articulo.mercadolibre.com.ar/MLA-1654121789-aspiradora-portatil-razurii-as-228-_JM';
+const datosIA = () => JSON.parse(llamadas.ia[0].body.messages[0].content[0].text.replace(/^<datos_publicacion>\n/, '').replace(/\n<\/datos_publicacion>[\s\S]*$/, '')).datosOficiales;
+reset();
+r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
+let d = datosIA();
+check('/description viaja con el token del visitante', llamadas.meli.some(c => /\/items\/MLA1654121789\/description$/.test(c.url) && c.auth === 'Bearer TOK_ANA'));
+check('plain_text -> descripcion leida, con el texto real', d.descripcion.estado === 'leida' && /Razurii es la soluci[oó]n perfecta/.test(d.descripcion.texto) && d.descripcion.largo > 50, d.descripcion);
+reset(); descModo = 'html';
+r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
+d = datosIA();
+check('plain_text vacio -> usa text (sin HTML)', d.descripcion.estado === 'leida' && /Razurii es la soluci[oó]n perfecta\npara tu auto\./.test(d.descripcion.texto) && !/</.test(d.descripcion.texto), d.descripcion);
+reset(); descModo = 'falla';
+respuestasIA = [informeIA({ descripcion: 0 })];
+const pr = JSON.parse(respuestasIA[0]); pr.resumen.prioridades = [{ seccion: 'Descripción', accion: 'Agregá descripción.' }, { seccion: 'Fotos', accion: 'x' }]; respuestasIA = [JSON.stringify(pr)];
+r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
+d = datosIA();
+check('/description FALLA (403) -> a la IA le llega "no_se_pudo_leer", no una descripcion vacia', d.descripcion.estado === 'no_se_pudo_leer' && !('texto' in d.descripcion) && /HTTP 403/.test(d.descripcion.nota), d.descripcion);
+check('/description FALLA -> aunque la IA ponga 0, la seccion queda "Sin datos"', r.cuerpo.secciones.descripcion.score === null && r.cuerpo.secciones.descripcion.sinDatos, r.cuerpo.secciones.descripcion);
+check('/description FALLA -> no aparece "falta descripcion" en las prioridades', !r.cuerpo.resumen.prioridades.some(p => /descrip/i.test(p.seccion)), r.cuerpo.resumen.prioridades);
+check('/description FALLA -> se probo tambien /descriptions', llamadas.meli.some(c => /\/descriptions$/.test(c.url)));
+reset(); descModo = 'vacia';
+r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
+d = datosIA();
+check('descripcion realmente vacia (item.descriptions [] y /descriptions []) -> "vacia", 0 caracteres', d.descripcion.estado === 'vacia' && d.descripcion.largo === 0, d.descripcion);
+reset();
+r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
+d = datosIA();
+check('envio: a la IA le llegan free_shipping, logistic_type, mode, tags y la nota de cautela', d.envio.gratisMarcadoPorElVendedor === false &&
+  d.envio.logistica === 'drop_off' && d.envio.modo === 'me2' && d.envio.tags.includes('mandatory_free_shipping') && /No afirmes que el comprador paga/.test(d.envio.nota), d.envio);
+check('prompt: nunca afirmar "no tiene envío gratis" con free_shipping false', /nunca afirmes "no tiene envío gratis"/.test(A.PROMPT_SISTEMA));
+check('prompt: descripcion "no_se_pudo_leer" va con score null', /descripcion\.estado "no_se_pudo_leer": la sección descripción va con "score": null/.test(A.PROMPT_SISTEMA));
 
 console.log('Ejemplo y estado');
 reset();

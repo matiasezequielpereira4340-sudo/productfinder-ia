@@ -261,8 +261,8 @@ async function leerPorApi(itemId, token) {
   if (!r.ok || !r.json || r.json.error) return { ok: false, status: r.status };
   const item = r.json;
   const soloDatos = p => p.then(x => (x.ok ? x.json : null)).catch(() => null);
-  const [desc, vendedor, attrsCat] = await Promise.all([
-    soloDatos(fetchJson(MELI_API + '/items/' + itemId + '/description', token, 5000)),
+  const [descLectura, vendedor, attrsCat] = await Promise.all([
+    leerDescripcion(itemId, token, item),
     item.seller_id ? soloDatos(fetchJson(MELI_API + '/users/' + item.seller_id, token, 5000)) : null,
     item.category_id ? soloDatos(fetchJson(MELI_API + '/categories/' + item.category_id + '/attributes', token, 5000)) : null
   ]);
@@ -271,7 +271,7 @@ async function leerPorApi(itemId, token) {
   const obligatorios = Array.isArray(attrsCat) ? attrsCat.filter(a => a.tags && a.tags.required) : [];
   const fotos = Array.isArray(item.pictures) ? item.pictures : [];
   const ladoMenor = fotos.map(p => { const m = String(p.max_size || p.size || '').match(/(\d+)x(\d+)/); return m ? Math.min(+m[1], +m[2]) : null; }).filter(Boolean);
-  const textoDesc = String((desc && (desc.plain_text || desc.text)) || '');
+
   const rep = vendedor && vendedor.seller_reputation;
   const datos = {
     titulo: item.title || null,
@@ -280,22 +280,80 @@ async function leerPorApi(itemId, token) {
     vendidos: item.sold_quantity, estado: item.status,
     fechaPublicacion: item.date_created || null,
     cantidadFotos: fotos.length, ladoMenorFotosPx: ladoMenor,
-    envio: item.shipping ? { gratis: !!item.shipping.free_shipping, logistica: item.shipping.logistic_type || null } : null,
+    envio: resumirEnvio(item),
     atributosCargados: propios.filter(lleno).map(a => (a.name || a.id) + ': ' + (a.value_name || '')).slice(0, 60),
     atributosDisponiblesEnCategoria: Array.isArray(attrsCat) ? attrsCat.length : null,
     atributosObligatoriosFaltantes: obligatorios.filter(o => !propios.some(p => p.id === o.id && lleno(p))).map(o => o.name || o.id),
-    descripcion: textoDesc.slice(0, 4000), largoDescripcion: textoDesc.length,
+    // "no_se_pudo_leer" NO es "vacia": una consulta fallida nunca se
+    // presenta como publicacion sin descripcion.
+    descripcion: descLectura.estado === 'leida'
+      ? { estado: 'leida', largo: descLectura.texto.length, texto: descLectura.texto.slice(0, 4000) }
+      : descLectura.estado === 'vacia'
+        ? { estado: 'vacia', largo: 0, nota: 'La publicacion no tiene descripcion cargada (0 caracteres).' }
+        : { estado: 'no_se_pudo_leer', nota: 'No se pudo leer la descripcion (' + descLectura.detalle + '). No sabemos si tiene o no: no la evalues.' },
     reputacionVendedor: rep ? { nivel: rep.level_id || null, mercadoLider: rep.power_seller_status || null,
       calificacionesNegativas: rep.transactions && rep.transactions.ratings ? rep.transactions.ratings.negative : null } : null
   };
+  console.log('[analizador] ' + itemId + ' api: descripcion=' + descLectura.estado + ' (' + descLectura.detalle + ')' +
+    ' envio=' + JSON.stringify(datos.envio));
   return {
-    ok: true, fuente: 'api', datos,
+    ok: true, fuente: 'api', datos, descripcionEstado: descLectura.estado,
     meta: {
       titulo: item.title || null, precio: item.price, moneda: item.currency_id,
       vendidos: item.sold_quantity || 0, permalink: item.permalink || null, categoryId: item.category_id || null,
       thumbnail: (fotos[0] && fotos[0].secure_url) || item.thumbnail || '',
       dateCreated: item.date_created || null
     }
+  };
+}
+
+// Descripcion por la API. /items/{id}/description devuelve { plain_text, text }:
+// se usa plain_text y, si viene vacio, text (sin HTML). Si esa consulta falla
+// se prueba /items/{id}/descriptions (la version vieja, devuelve un array).
+// Tres estados distintos: 'leida', 'vacia' (confirmado 0 caracteres) y
+// 'no_se_pudo_leer'. Antes un fallo se convertia en "" y la IA decia
+// "le falta descripcion" con 0/100 aunque la publicacion la tuviera.
+function textoDeDescripcion(d) {
+  if (!d || typeof d !== 'object') return null;
+  const plano = String(d.plain_text || '').trim();
+  if (plano) return plano;
+  const html = String(d.text || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ').replace(/[ \t]+/g, ' ').trim();
+  return html;
+}
+export async function leerDescripcion(itemId, token, item) {
+  const r = await fetchJson(MELI_API + '/items/' + itemId + '/description', token, 8000);
+  if (r.ok && r.json) {
+    const t = textoDeDescripcion(r.json);
+    return t ? { estado: 'leida', texto: t, detalle: 'HTTP 200, ' + t.length + ' caracteres' }
+      : { estado: 'vacia', texto: '', detalle: 'HTTP 200 sin plain_text ni text' };
+  }
+  const r2 = await fetchJson(MELI_API + '/items/' + itemId + '/descriptions', token, 6000);
+  if (r2.ok && Array.isArray(r2.json)) {
+    const t = r2.json.map(textoDeDescripcion).filter(Boolean).join('\n').trim();
+    if (t) return { estado: 'leida', texto: t, detalle: '/description HTTP ' + r.status + ', /descriptions HTTP 200' };
+    if (r2.json.length === 0) return { estado: 'vacia', texto: '', detalle: '/descriptions devolvio []' };
+  }
+  // El item mismo dice si tiene descripciones cargadas: un array vacio confirma
+  // que no tiene. Cualquier otra cosa es "no se sabe".
+  if (item && Array.isArray(item.descriptions) && item.descriptions.length === 0) {
+    return { estado: 'vacia', texto: '', detalle: 'item.descriptions vacio' };
+  }
+  return { estado: 'no_se_pudo_leer', texto: '', detalle: '/description HTTP ' + r.status + ', /descriptions HTTP ' + r2.status };
+}
+
+// Envio: se pasan los campos crudos. free_shipping=false NO quiere decir que
+// el comprador pague: MeLi bonifica el envio segun el monto o la logistica, y
+// la pagina puede mostrar "Envio gratis" igual.
+function resumirEnvio(item) {
+  const sh = item && item.shipping;
+  if (!sh) return null;
+  return {
+    gratisMarcadoPorElVendedor: !!sh.free_shipping,
+    logistica: sh.logistic_type || null,
+    modo: sh.mode || null,
+    tags: Array.isArray(sh.tags) ? sh.tags.slice(0, 10) : [],
+    retiroEnPersona: sh.local_pick_up == null ? null : !!sh.local_pick_up,
+    nota: 'Si gratisMarcadoPorElVendedor es false, MeLi igual puede ofrecer envio gratis al comprador segun el monto, la zona o la logistica. No afirmes que el comprador paga el envio.'
   };
 }
 
@@ -385,7 +443,16 @@ export const PROMPT_SISTEMA = [
   '- La "pistaDeTituloDelLink" sale del link: sirve para saber de qué producto se trata, pero NO es el título confirmado de la publicación.',
   '- Las recomendaciones tienen que ser concretas para ESTE producto: por ejemplo, un título mejorado escrito completo, qué fotos puntuales agregar, qué atributos cargar, qué poner en la descripción. Nada genérico.',
   '- Score de 0 a 100 por sección, con criterio de experto. No tenés datos de la competencia: no inventes comparaciones de precio contra otros vendedores.',
-  '- Sé breve: el informe se lee en el celular. "porQue": 1 oración. "recomendacion": 1 a 3 oraciones concretas. "puntosFuertes" y "puntosFlojos": como máximo 3 cada uno, de menos de 12 palabras. "veredicto": 2 oraciones.',
+  '- Sé breve: el informe se lee en el celular. "porQue": 1 oración corta. "recomendacion": 1 o 2 oraciones concretas (si es el título, escribí el título mejorado completo). "puntosFuertes" y "puntosFlojos": como máximo 2 cada uno, de menos de 10 palabras. "veredicto": 2 oraciones cortas.',
+  '',
+  'Si los datos vienen de CAPTURAS DE PANTALLA:',
+  '- Solo ves una parte de la publicación. Lo que NO se ve en las capturas NO es una falta de la publicación: esa sección va con "score": null ("Sin datos").',
+  '- Nunca penalices algo que no se ve, nunca digas que la publicación "no tiene" o "le falta" algo que no aparece en la captura, y no lo menciones en el veredicto ni en las prioridades.',
+  '- Leé los indicadores visibles antes de opinar: el contador de fotos "1/N" quiere decir que la publicación tiene N fotos (no pidas más fotos si N ya es 6 o más); "+5 mil vendidos", "MÁS VENDIDO", las estrellas y la cantidad de opiniones, "Tienda oficial", "MercadoLíder", cuotas, "Envío gratis", "Full".',
+  '',
+  'Si los datos vienen de la API oficial ("datosOficiales"):',
+  '- descripcion.estado "no_se_pudo_leer": la sección descripción va con "score": null. No digas que falta la descripción. Solo si el estado es "vacia" podés decir que no tiene.',
+  '- envio.gratisMarcadoPorElVendedor false NO significa que el comprador pague: MeLi puede bonificar el envío según el monto o la logística. Contá lo que informa la API con cautela ("según la API, el envío gratis no está marcado por el vendedor") y nunca afirmes "no tiene envío gratis".',
   '- "resumen.prioridades": las 3 correcciones que más ventas mueven, de mayor a menor impacto, solo de secciones con datos.',
   '',
   'Respondé SOLO con un objeto JSON válido y COMPACTO (en una sola línea, sin sangría ni saltos de línea), sin texto antes ni después y sin ```. Forma exacta:',
@@ -396,6 +463,10 @@ export const PROMPT_SISTEMA = [
   'Cada S es {"clave": string, "score": number|null, "porQue": string, "puntosFuertes": [string], "puntosFlojos": [string], "recomendacion": string}.',
   '"titulo", "precio" y "vendidos" van solo si los leíste; si no, null.'
 ].join('\n');
+
+export const NOTA_CAPTURAS = 'Los datos están en las capturas de pantalla adjuntas y muestran solo una parte de la publicación. ' +
+  'Leé de ahí título, precio, fotos, envío, descripción y los indicadores visibles (contador de fotos "1/N" = N fotos en total, "+5 mil vendidos", "MÁS VENDIDO", estrellas, "Tienda oficial"). ' +
+  'Lo que no se ve en las capturas va con score null ("Sin datos"): no lo penalices, no digas que falta y no lo pongas en el veredicto ni en las prioridades.';
 
 function armarContenido(lectura, extra) {
   const bloque = {
@@ -410,7 +481,7 @@ function armarContenido(lectura, extra) {
     bloque.largoTituloDeLaPagina = (lectura.datos.tituloPagina || '').length;
     bloque.textoDeLaPagina = lectura.datos.textoPagina;
   } else {
-    bloque.nota = 'Los datos están en las capturas de pantalla adjuntas. Leé de ahí título, precio, fotos, envío, descripción y todo lo que se vea. Lo que no se vea va como sin datos.';
+    bloque.nota = NOTA_CAPTURAS;
   }
   const texto = '<datos_publicacion>\n' + JSON.stringify(bloque, null, 1) + '\n</datos_publicacion>\n\n' +
     'Armá el informe en el JSON pedido.';
@@ -791,6 +862,7 @@ export async function analizar(req) {
     }
   }
 
+  const tLectura = Date.now() - inicio;
   // 4) IA, con un solo reintento si el JSON vino roto.
   const contenido = armarContenido(lectura, { itemId, url, pista });
   let informeIA = null, usoIA = { input_tokens: 0, output_tokens: 0 }, errorIA = null;
@@ -814,7 +886,22 @@ export async function analizar(req) {
     console.error('[analizador] ' + itemId + ' la IA fallo: ' + errorIA);
     return { status: 502, cuerpo: { ok: false, codigo: 'ia_fallo', error: MSJ.iaFallo, restantes: restantesDe(uso), limite: LIMITE_POR_IP } };
   }
+  const tIA = Date.now() - inicio - tLectura;
   console.log('[analizador] ' + itemId + ' fuente=' + lectura.fuente + ' tokens in=' + usoIA.input_tokens + ' out=' + usoIA.output_tokens);
+
+  // Garantia del servidor: si la descripcion no se pudo leer, la seccion va
+  // "sin datos" diga lo que diga la IA. Nunca un 0 por una consulta fallida.
+  if (lectura.fuente === 'api' && lectura.descripcionEstado === 'no_se_pudo_leer') {
+    informeIA.secciones.descripcion = { score: null, sinDatos: true,
+      porQue: 'No pudimos leer la descripción desde MercadoLibre en este momento: no la evaluamos.',
+      puntosFuertes: [], puntosFlojos: [], recomendacion: '' };
+    informeIA.resumen.prioridades = informeIA.resumen.prioridades.filter(p => !/descrip/i.test(p.seccion));
+  }
+  // Con capturas parciales, sugerir que capturas faltan.
+  const sinDatos = SECCIONES.filter(k => informeIA.secciones[k].sinDatos);
+  if (lectura.fuente === 'capturas' && sinDatos.length) {
+    informeIA.resumen.sugerencia = 'Para un análisis completo, subí también una captura del precio/envío y otra de la descripción.';
+  }
 
   // 5) Informe final.
   const meta = lectura.meta || {};
@@ -845,6 +932,10 @@ export async function analizar(req) {
   };
   await guardar(informe);
   const usoNuevo = await sumarUso(ipHash, fecha);
+  // Donde se va el tiempo: lectura (cache, limite, MeLi/Jina) vs. IA vs. cierre.
+  const tTotal = Date.now() - inicio;
+  console.log('[analizador] ' + itemId + ' tiempos: lectura=' + tLectura + 'ms ia=' + tIA + 'ms cierre=' +
+    (tTotal - tLectura - tIA) + 'ms total=' + tTotal + 'ms');
   return { status: 200, cuerpo: Object.assign({ ok: true, cached: false }, informe,
     { restantes: restantesDe(usoNuevo), limite: LIMITE_POR_IP }) };
 }
