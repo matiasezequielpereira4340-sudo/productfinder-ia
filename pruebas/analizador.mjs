@@ -25,6 +25,7 @@ let uso = new Map();          // tabla analizador_uso: 'fecha|hash' -> cantidad
 let tablaUso = true;          // false = la migracion no se corrio
 let jinaModo = 'ok';          // ok | bloqueo | inyeccion
 let respuestasIA = [];        // cola de textos que devuelve la "IA"
+let rechazarEsquema = false;  // la API contesta 400 si viene output_config
 const llamadas = { meli: [], jina: [], ia: [], supaEscrituras: [], otros: [] };
 
 function resp(status, cuerpo, tipo) {
@@ -124,6 +125,7 @@ globalThis.fetch = async function (recurso, opciones) {
   if (url === 'https://api.anthropic.com/v1/messages') {
     const b = JSON.parse(o.body);
     llamadas.ia.push({ body: b, headers: h });
+    if (rechazarEsquema && b.output_config) return resp(400, { type: 'error', error: { type: 'invalid_request_error', message: 'output_config.format: schema not supported' } });
     const texto = respuestasIA.length ? respuestasIA.shift() : informeIA();
     return resp(200, { content: [{ type: 'text', text: texto }], stop_reason: 'end_turn', usage: { input_tokens: 2100, output_tokens: 1300 } });
   }
@@ -155,7 +157,8 @@ function check(nombre, cond, extra) {
   else { fallas++; console.log('  FALLA ' + nombre + (extra !== undefined ? '\n        ' + JSON.stringify(extra).slice(0, 500) : '')); }
 }
 function reset() {
-  analisis = []; uso = new Map(); tablaUso = true; jinaModo = 'ok'; respuestasIA = [];
+  analisis = []; uso = new Map(); tablaUso = true; jinaModo = 'ok'; respuestasIA = []; rechazarEsquema = false;
+  A._reiniciarEsquema();
   Object.keys(llamadas).forEach(k => { llamadas[k].length = 0; });
   A._reiniciarUsoMemoria();
 }
@@ -286,6 +289,41 @@ check('inyeccion: una salida "obediente" sin secciones se descarta y se reintent
 check('inyeccion: la forma de la salida no cambia (sin claves inyectadas)', r.statusCode === 200 && !('hackeado' in r.cuerpo) && !('extra' in r.cuerpo.secciones) &&
   r.cuerpo.userId === null && Object.keys(r.cuerpo.secciones).length === 8, Object.keys(r.cuerpo));
 check('inyeccion: scoreTotal lo calcula el servidor, no la IA', r.cuerpo.scoreTotal === 80, r.cuerpo.scoreTotal);
+
+console.log('Structured outputs');
+reset();
+r = await llamar({ body: { url: link(8100001) } });
+const oc = llamadas.ia[0].body.output_config;
+function todoCerrado(sch) {
+  if (!sch || typeof sch !== 'object') return true;
+  if (sch.type === 'object' && sch.additionalProperties !== false) return false;
+  if (sch.type === 'object' && JSON.stringify(Object.keys(sch.properties || {}).sort()) !== JSON.stringify((sch.required || []).slice().sort())) return false;
+  return Object.values(sch).every(v => (Array.isArray(v) ? v.every(todoCerrado) : todoCerrado(v)));
+}
+check('la IA recibe output_config.format json_schema con las 8 secciones obligatorias', oc && oc.format && oc.format.type === 'json_schema' &&
+  JSON.stringify(oc.format.schema.properties.secciones.required) === JSON.stringify(A.SECCIONES), oc && oc.format && oc.format.type);
+check('el esquema es valido para la API: todo objeto con additionalProperties:false y required completo', todoCerrado(A.ESQUEMA_INFORME));
+check('el esquema no usa restricciones que la API no soporta (minimum/maxLength)', !/"(minimum|maximum|minLength|maxLength|multipleOf)"/.test(JSON.stringify(A.ESQUEMA_INFORME)));
+
+reset(); rechazarEsquema = true;
+r = await llamar({ body: { url: link(8100002) } });
+check('si la API rechaza el esquema (400) -> reintenta sin output_config y sale el informe', r.statusCode === 200 && r.cuerpo.ok &&
+  llamadas.ia.length === 2 && llamadas.ia[0].body.output_config && !llamadas.ia[1].body.output_config, llamadas.ia.length);
+r = await llamar({ body: { url: link(8100003) } });
+check('despues del rechazo no vuelve a mandar el esquema (no duplica llamadas)', llamadas.ia.length === 3 && !llamadas.ia[2].body.output_config);
+
+reset();
+const tolerante = JSON.parse(informeIA());
+tolerante.secciones.reputacion.score = 'sin datos';
+tolerante.secciones.reputacion.porQue = '';
+delete tolerante.secciones.condicion;
+respuestasIA = [JSON.stringify(tolerante)];
+r = await llamar({ body: { url: link(8100004) } });
+check('validador tolerante: score "sin datos" -> null, porQue vacio y 1 seccion faltante no tiran el informe', r.statusCode === 200 &&
+  r.cuerpo.secciones.reputacion.score === null && r.cuerpo.secciones.condicion.sinDatos === true && llamadas.ia.length === 1, r.cuerpo.codigo);
+const motivos = [];
+check('validador: dice por que rechaza (para el log)', A.validarInforme(A.extraerJson('{"secciones": {"titulo": 1', motivos), motivos) === null && motivos.length > 0 && /JSON|llaves/.test(motivos[0]), motivos);
+check('reparacion minima: coma colgando', A.extraerJson('{"a": 1, "b": [1,2,],}').b.length === 2);
 
 console.log('Ejemplo y estado');
 reset();

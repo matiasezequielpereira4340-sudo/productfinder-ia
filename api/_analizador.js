@@ -420,16 +420,67 @@ function armarContenido(lectura, extra) {
     .concat([{ type: 'text', text: texto }]);
 }
 
+// Esquema del informe para structured outputs (Haiku 4.5 lo soporta): la API
+// garantiza JSON valido con las 8 secciones. Medido sin esto: 3 de 4 informes
+// por capturas llegaban con JSON invalido aun terminando en end_turn.
+const NULO = (tipo) => ({ anyOf: [{ type: tipo }, { type: 'null' }] });
+const ESQUEMA_SECCION = {
+  type: 'object', additionalProperties: false,
+  required: ['score', 'porQue', 'puntosFuertes', 'puntosFlojos', 'recomendacion'],
+  properties: {
+    score: NULO('integer'), porQue: { type: 'string' },
+    puntosFuertes: { type: 'array', items: { type: 'string' } },
+    puntosFlojos: { type: 'array', items: { type: 'string' } },
+    recomendacion: { type: 'string' }
+  }
+};
+export const ESQUEMA_INFORME = {
+  type: 'object', additionalProperties: false,
+  required: ['titulo', 'precio', 'moneda', 'vendidos', 'resumen', 'secciones'],
+  properties: {
+    titulo: NULO('string'), precio: NULO('number'), moneda: NULO('string'), vendidos: NULO('integer'),
+    resumen: {
+      type: 'object', additionalProperties: false, required: ['veredicto', 'prioridades'],
+      properties: {
+        veredicto: { type: 'string' },
+        prioridades: { type: 'array', items: { type: 'object', additionalProperties: false,
+          required: ['seccion', 'score', 'accion'],
+          properties: { seccion: { type: 'string' }, score: NULO('integer'), accion: { type: 'string' } } } }
+      }
+    },
+    secciones: {
+      type: 'object', additionalProperties: false, required: SECCIONES.slice(),
+      properties: Object.fromEntries(SECCIONES.map(k => [k, ESQUEMA_SECCION]))
+    }
+  }
+};
+
+// Si la API rechaza el esquema (400 que menciona output_config / schema), se
+// sigue sin el: el prompt ya pide el JSON y el servidor igual lo valida.
+let esquemaRechazado = false;
+export function _reiniciarEsquema() { esquemaRechazado = false; }
+
 async function llamarIA(contenido, timeoutMs) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST', headers: anthropicHeaders(), signal: ctrl.signal,
-      body: JSON.stringify({ model: MODELO, max_tokens: MAX_TOKENS_IA, system: PROMPT_SISTEMA,
-        messages: [{ role: 'user', content: contenido }] })
+    const cuerpo = { model: MODELO, max_tokens: MAX_TOKENS_IA, system: PROMPT_SISTEMA,
+      messages: [{ role: 'user', content: contenido }] };
+    const conEsquema = !esquemaRechazado;
+    if (conEsquema) cuerpo.output_config = { format: { type: 'json_schema', schema: ESQUEMA_INFORME } };
+    let r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers: anthropicHeaders(), signal: ctrl.signal, body: JSON.stringify(cuerpo)
     });
-    const j = await r.json().catch(() => null);
+    let j = await r.json().catch(() => null);
+    if (conEsquema && r.status === 400 && /output_config|schema|format/i.test(String(j && j.error && j.error.message))) {
+      console.warn('[analizador] la API rechazo el esquema, sigo sin structured outputs: ' + j.error.message);
+      esquemaRechazado = true;
+      delete cuerpo.output_config;
+      r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST', headers: anthropicHeaders(), signal: ctrl.signal, body: JSON.stringify(cuerpo)
+      });
+      j = await r.json().catch(() => null);
+    }
     if (!r.ok || !j) return { ok: false, error: 'IA HTTP ' + r.status + (j && j.error ? ': ' + j.error.message : '') };
     const texto = (Array.isArray(j.content) ? j.content : []).filter(b => b && b.type === 'text').map(b => b.text).join('');
     return { ok: true, texto, uso: j.usage || null, stop: j.stop_reason };
@@ -445,32 +496,40 @@ const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const lista = (v, n, max) => (Array.isArray(v) ? v.filter(x => typeof x === 'string' && x.trim()).slice(0, n).map(x => x.trim().slice(0, max)) : []);
 function numONull(v) {
   if (v === null || v === undefined || v === '') return null;
+  // "sin datos", "N/A": sin ningun digito es null, no 0 (Number('') da 0).
+  if (typeof v === 'string' && !/\d/.test(v)) return null;
   const n = typeof v === 'number' ? v : Number(String(v).replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.'));
   return isFinite(n) ? n : null;
 }
-export function validarInforme(obj) {
-  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+// `motivos` (opcional) junta por que se rechazo, para el log.
+export function validarInforme(obj, motivos) {
+  const rechazar = (m) => { if (Array.isArray(motivos)) motivos.push(m); return null; };
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return rechazar('no es un objeto');
   const s = obj.secciones;
-  if (!s || typeof s !== 'object') return null;
+  if (!s || typeof s !== 'object') return rechazar('sin "secciones"');
   const secciones = {};
+  let faltan = 0;
   for (const k of SECCIONES) {
     const x = s[k];
-    if (!x || typeof x !== 'object') return null;
-    let score = x.score;
-    if (score !== null && score !== undefined) {
-      score = numONull(score);
-      if (score === null) return null;
-      score = Math.max(0, Math.min(100, Math.round(score)));
-    } else score = null;
-    const porQue = str(x.porQue, 700);
-    if (!porQue) return null;
+    // Una seccion que falta se muestra como "sin datos"; si faltan muchas, el
+    // informe no sirve (probablemente la IA respondio otra cosa).
+    if (!x || typeof x !== 'object') {
+      faltan++;
+      secciones[k] = { score: null, sinDatos: true, porQue: 'No se pudo evaluar esta secci\u00f3n.', puntosFuertes: [], puntosFlojos: [], recomendacion: '' };
+      continue;
+    }
+    let score = numONull(x.score);   // "sin datos", "N/A" -> null
+    score = score === null ? null : Math.max(0, Math.min(100, Math.round(score)));
     secciones[k] = {
-      score, sinDatos: score === null, porQue,
+      score, sinDatos: score === null,
+      porQue: str(x.porQue, 700) || (score === null ? 'No se pudo leer este dato.' : ''),
       puntosFuertes: lista(x.puntosFuertes, 4, 300),
       puntosFlojos: lista(x.puntosFlojos, 4, 300),
       recomendacion: str(x.recomendacion, 900)
     };
   }
+  if (faltan > 2) return rechazar('faltan ' + faltan + ' secciones');
+  if (SECCIONES.every(k => secciones[k].score === null)) return rechazar('ninguna seccion con puntaje');
   const r = obj.resumen && typeof obj.resumen === 'object' ? obj.resumen : {};
   // La seccion se normaliza a su etiqueta y el score sale de la seccion misma:
   // la IA a veces pone en la prioridad un numero distinto al de la tarjeta.
@@ -499,11 +558,22 @@ export function validarInforme(obj) {
   };
 }
 
-export function extraerJson(texto) {
+export function extraerJson(texto, motivos) {
   const t = String(texto || '');
   const a = t.indexOf('{'), b = t.lastIndexOf('}');
-  if (a < 0 || b <= a) return null;
-  try { return JSON.parse(t.slice(a, b + 1)); } catch (_) { return null; }
+  if (a < 0 || b <= a) { if (Array.isArray(motivos)) motivos.push('sin llaves'); return null; }
+  const crudo = t.slice(a, b + 1);
+  try { return JSON.parse(crudo); } catch (e1) {
+    // Reparacion minima: comas colgando antes de } o ].
+    try { return JSON.parse(crudo.replace(/,\s*([}\]])/g, '$1')); } catch (e2) {
+      if (Array.isArray(motivos)) {
+        const pos = Number((String(e1.message).match(/position (\d+)/) || [])[1]);
+        motivos.push('JSON.parse: ' + String(e1.message).slice(0, 120) +
+          (isFinite(pos) ? ' | cerca de: ' + JSON.stringify(crudo.slice(Math.max(0, pos - 60), pos + 60)) : ''));
+      }
+      return null;
+    }
+  }
 }
 
 // Promedio SOLO de las secciones con datos.
@@ -700,8 +770,13 @@ export async function analizar(req) {
       (r.uso ? ' (in=' + r.uso.input_tokens + ' out=' + r.uso.output_tokens + ', stop=' + r.stop + ')' : ''));
     if (!r.ok) { errorIA = r.error; continue; }
     if (r.uso) { usoIA.input_tokens += r.uso.input_tokens || 0; usoIA.output_tokens += r.uso.output_tokens || 0; }
-    informeIA = validarInforme(extraerJson(r.texto));
-    if (!informeIA) errorIA = 'JSON invalido (stop: ' + r.stop + ')';
+    const motivos = [];
+    informeIA = validarInforme(extraerJson(r.texto, motivos), motivos);
+    if (!informeIA) {
+      errorIA = 'JSON invalido (stop: ' + r.stop + '): ' + motivos.join(' ; ');
+      console.warn('[analizador] ' + itemId + ' intento ' + (intento + 1) + ' descartado: ' + errorIA +
+        ' | inicio: ' + JSON.stringify(String(r.texto).slice(0, 160)));
+    }
   }
   if (!informeIA) {
     console.error('[analizador] ' + itemId + ' la IA fallo: ' + errorIA);
