@@ -1,590 +1,64 @@
 // api/herramientas.js
 // ============================================================
 // MeLi Connect - Endpoint unificado de herramientas.
-// Combina dos funcionalidades en una sola Serverless Function
-// para respetar el limite del plan Hobby de Vercel (max 12).
+// Varias funcionalidades en una sola Serverless Function para respetar el
+// limite del plan Hobby de Vercel (max 12).
 //
 // Ruteo por el campo 'accion' del body (POST):
-//   accion: 'flex-full'  -> Calculadora Flex vs Full (Funcionalidad 3)
-//   (default / cualquier otro) -> Analizador de publicaciones (Funcionalidad 2)
+//   accion: 'estado'      -> analisis gratis que le quedan hoy + un ejemplo
+//   accion: 'comisiones'  -> comisiones reales de MeLi (MargenClear)
+//   accion: 'flex-full'   -> Calculadora Flex vs Full
+//   (sin accion)          -> Analizador de publicaciones (api/_analizador.js)
+// GET ?item_id=X&history=1 -> historial de puntajes de una publicacion
 // ============================================================
 
-import { leerToken, tokenDe } from './_sesion.js';
-import { getUserToken, fetchJson, MELI_API } from './_meli.js';
+import { MELI_API, fetchJson } from './_meli.js';
+import { analizar, estado, historial, usuarioDeSesion, tokenDelVisitante } from './_analizador.js';
 
 export default async function handler(req, res) {
   var accion = (req.body && req.body.accion) ? String(req.body.accion) : '';
-  if (accion === 'comisiones') {
-    return handleComisiones(req, res);
-  }
-  if (accion === 'ejemplo') {
-    return handleEjemplo(req, res);
-  }
-  if (accion === 'flex-full') {
-    return handleFlexFull(req, res);
-  }
-  return handleAnalisis(req, res);
+  if (accion === 'comisiones') return handleComisiones(req, res);
+  if (accion === 'flex-full') return handleFlexFull(req, res);
+  return handleAnalisis(req, res, accion);
 }
 
-// ------------------------------------------------------------
-// Funcionalidad 2: Analizador de publicaciones
-// ------------------------------------------------------------
-// api/analyze-listing.js
-// ============================================================
-// MeLi Connect - Analizador de Publicaciones (Funcionalidad 2)
-// Pegas el link de una publicacion de MercadoLibre y el modulo
-// te dice, EN CRIOLLO, que esta bien, que esta mal, POR QUE
-// importa (impacto en ventas) y que corregir en cada seccion.
-// 100% API oficial de MeLi (items publicos + buscador). NO scrapea HTML.
-//
-// Guarda cada corrida en Supabase (tabla listing_analyses) para:
-//   - cachear y no pegarle de mas a los rate limits de MeLi
-//   - re-correr el analisis a los 30 dias y mostrar la evolucion
-//     (motivo de vuelta a la app / lead magnet del embudo).
-//
-// FUERA DE ALCANCE v1: visitas y tasa de conversion (solo las ve
-// el dueno de la publicacion via OAuth -> fase 2).
-//
-// Desde septiembre 2026 MercadoLibre rechaza con 403 las consultas sin token
-// (/items da "blocked_by: PolicyAgent"). Por eso cada consulta viaja con el
-// token OAuth DEL VISITANTE: la herramienta sigue siendo gratis, pero pide
-// sesion iniciada y la cuenta de MeLi conectada. Nunca se usa la cuenta del
-// dueno de la app como respaldo.
-// ============================================================
-
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://qglieqpcmmffgxijbysb.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
-
-const CACHE_HOURS = 12;   // no repetir llamadas a MeLi para el mismo item antes de esto
-const RECHECK_DAYS = 30;  // a los N dias mostramos "mejoraste?"
-
-// El usuario sale SOLO de la sesion firmada por el servidor. El userId que
-// manda el navegador (pf_user en localStorage) se puede falsificar, y con el
-// se elegiria el token de MeLi de otra persona.
-function usuarioDeSesion(req) {
-  const s = leerToken(tokenDe(req));
-  return s && s.user ? s.user : null;
-}
-
-// Token de MeLi del visitante. Devuelve { token, meliUserId } o token null.
-async function tokenDelVisitante(user) {
-  if (!user) return { token: null };
-  try {
-    const t = await getUserToken(user);
-    return { token: (t && t.token) || null, meliUserId: (t && t.meli_user_id) || null };
-  } catch (_) {
-    return { token: null };
-  }
-}
-
-const MSJ_SIN_SESION = 'Para analizar una publicaci\u00f3n ten\u00e9s que iniciar sesi\u00f3n. Es gratis.';
-const MSJ_SIN_MELI = 'MercadoLibre ya no deja consultar publicaciones sin una cuenta conectada. Conect\u00e1 tu cuenta de MercadoLibre (es gratis) y volv\u00e9 a probar.';
-const MSJ_RECHAZO = 'MercadoLibre rechaz\u00f3 la consulta con tu cuenta. Reconect\u00e1 tu cuenta de MercadoLibre y prob\u00e1 de nuevo.';
-const MSJ_NO_EXISTE = 'Esa publicaci\u00f3n no existe o est\u00e1 finalizada. Revis\u00e1 que el link sea el correcto.';
-const MSJ_CAIDO = 'MercadoLibre no respondi\u00f3. Prob\u00e1 de nuevo en un rato.';
-
-async function handleAnalisis(req, res) {
+function cabecerasCors(res, metodos) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', metodos);
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-
-  try {
-    if (req.method === 'GET') {
-      const { item_id, history } = req.query || {};
-      if (!item_id) return res.status(400).json({ error: 'item_id requerido' });
-      if (history) return res.status(200).json({ ok: true, item_id, history: await getHistory(item_id) });
-      return res.status(400).json({ error: 'Falta ?history=1' });
-    }
-
-    if (req.method === 'POST') {
-      const { url, forceRefresh } = req.body || {};
-      if (!url || typeof url !== 'string') return res.status(400).json({ error: 'url requerida' });
-
-      const user = usuarioDeSesion(req);
-      if (!user) return res.status(401).json({ ok: false, error: MSJ_SIN_SESION, codigo: 'sin_sesion' });
-
-      const { token } = await tokenDelVisitante(user);
-      if (!token) return res.status(401).json({ ok: false, error: MSJ_SIN_MELI, codigo: 'sin_meli' });
-
-      const itemId = await extractItemId(url.trim());
-      if (!itemId) return res.status(400).json({ error: 'No pude reconocer el ID de la publicación en ese link. Copia y pega el link completo de la publicación (el que dice MLA-...).' });
-
-      if (!forceRefresh) {
-        const cached = await getCachedAnalysis(itemId, CACHE_HOURS);
-        // La cache es compartida por item: no se le muestra a nadie quien
-        // lo analizo antes.
-        if (cached) return res.status(200).json({ ok: true, cached: true, ...cached, userId: null });
-      }
-
-      const report = await buildReport(itemId, url.trim(), user, token);
-      if (report.error) {
-        const http = report.httpStatus || 422;
-        delete report.httpStatus;
-        return res.status(http).json({ ok: false, ...report });
-      }
-
-      await saveAnalysis(report);
-      return res.status(200).json({ ok: true, cached: false, ...report });
-    }
-
-    return res.status(405).json({ error: 'Metodo no soportado' });
-  } catch (e) {
-    return res.status(500).json({ error: 'Fallo el análisis', detalle: String((e && e.message) || e) });
-  }
 }
 
-// ------------------------------------------------------------
-// 1) Identificar el item a partir del link pegado
-// ------------------------------------------------------------
-async function extractItemId(rawUrl) {
-  let clean = rawUrl;
-  if (!/^https?:\/\//i.test(clean)) clean = 'https://' + clean;
-
-  const direct = clean.match(/MLA[-]?(\d{6,})/i);
-  if (direct) return 'MLA' + direct[1];
-
-  // Links cortos (app / social) no traen el ID: seguimos el redirect
-  // OFICIAL de MeLi y leemos SOLO la URL final (no parseamos HTML).
-  try {
-    const r = await fetch(clean, { method: 'GET', redirect: 'follow' });
-    const finalUrl = r.url || clean;
-    const m = finalUrl.match(/MLA[-]?(\d{6,})/i);
-    if (m) return 'MLA' + m[1];
-  } catch (_) { /* seguimos */ }
-
-  return null;
-}
-
-// ------------------------------------------------------------
-// 2) Traer datos oficiales (API de MeLi con el token del visitante)
-// ------------------------------------------------------------
-// Antes devolvia null ante CUALQUIER error, y un 403 por falta de token se
-// mostraba como "no encontre la publicacion". Ahora se devuelve el status
-// para poder decir la verdad.
 async function fetchJSON(url, token, timeoutMs) {
   const r = await fetchJson(url, token, timeoutMs || 6000);
   return { ok: r.ok, status: r.status, data: r.json };
 }
 
-// El error de la consulta principal (/items/{id}), en criollo y sin mentir.
-function errorDeItem(status, itemId) {
-  if (status === 404) return { error: MSJ_NO_EXISTE, codigo: 'no_existe', itemId, httpStatus: 404 };
-  if (status === 401 || status === 403) return { error: MSJ_RECHAZO, codigo: 'meli_rechazo', itemId, httpStatus: 401 };
-  return { error: MSJ_CAIDO, codigo: 'meli_caido', itemId, httpStatus: 502 };
-}
-
-async function buildReport(itemId, inputUrl, userId, token) {
-  const r = await fetchJSON(MELI_API + '/items/' + itemId, token);
-  const item = r.ok ? r.data : null;
-  if (!r.ok || !item || item.error) return errorDeItem(r.ok ? 502 : r.status, itemId);
-
-  // Las consultas secundarias pueden fallar sin romper el informe: cada
-  // evaluador ya sabe decir "no se pudo leer".
-  const soloDatos = p => p.then(x => (x.ok ? x.data : null));
-  const [descData, sellerData, catAttrs] = await Promise.all([
-    soloDatos(fetchJSON(MELI_API + '/items/' + itemId + '/description', token)),
-    item.seller_id ? soloDatos(fetchJSON(MELI_API + '/users/' + item.seller_id, token)) : Promise.resolve(null),
-    item.category_id ? soloDatos(fetchJSON(MELI_API + '/categories/' + item.category_id + '/attributes', token)) : Promise.resolve(null)
-  ]);
-
-  const top = await fetchTopListings(item.category_id, itemId, token);
-
-  const secciones = {
-    titulo: evalTitulo(item, top),
-    fotos: evalFotos(item),
-    descripcion: evalDescripcion(descData),
-    atributos: evalAtributos(item, catAttrs),
-    envio: evalEnvio(item),
-    precio: evalPrecio(item, top),
-    condicion: evalCondicion(item),
-    reputacion: evalReputacion(sellerData)
-  };
-
-  const scoreTotal = Math.round(
-    Object.values(secciones).reduce((acc, s) => acc + s.score, 0) / Object.keys(secciones).length
-  );
-
-  const resumen = buildResumen(secciones, scoreTotal);
-
-  const previa = await getPreviousAnalysis(itemId, RECHECK_DAYS);
-  const evolucion = previa ? {
-    fechaAnterior: previa.analyzed_at,
-    scoreAnterior: previa.score_total,
-    diferencia: scoreTotal - previa.score_total
-  } : null;
-
-  const rotacionBaja = isRotacionBaja(item);
-  const cta = buildFunnelCTA(scoreTotal, rotacionBaja);
-
-  return {
-    itemId,
-    inputUrl,
-    userId: userId || null,
-    titulo: item.title,
-    permalink: item.permalink,
-    thumbnail: (item.pictures && item.pictures[0] && item.pictures[0].secure_url) || item.thumbnail || '',
-    precio: item.price,
-    moneda: item.currency_id,
-    categoryId: item.category_id,
-    vendidos: item.sold_quantity || 0,
-    scoreTotal,
-    resumen,
-    secciones,
-    comparacion: top.comparacion,
-    topCategoria: top.items,
-    evolucion,
-    cta,
-    disclaimer: 'Este informe usa solo datos publicos de MercadoLibre. Las visitas y la tasa de conversion de tu publicación solo las ve el dueno conectando su cuenta (proximamente en MeLi Connect).',
-    analyzedAt: new Date().toISOString()
-  };
-}
-
-// Resumen ejecutivo: veredicto en criollo + las prioridades a corregir
-// (las 3 secciones con peor puntaje, ordenadas por impacto).
-function buildResumen(secciones, scoreTotal) {
-  let veredicto;
-  if (scoreTotal >= 80) veredicto = 'Tu publicación está muy bien armada. Hay solo detalles finos para pulir.';
-  else if (scoreTotal >= 60) veredicto = 'Tu publicación está aceptable, pero le faltan cosas que hoy te están costando ventas. Con unos ajustes rendiria mucho más.';
-  else if (scoreTotal >= 40) veredicto = 'Tu publicación tiene varios puntos flojos importantes. MercadoLibre la está mostrando menos de lo que podria, y eso se traduce en menos ventas.';
-  else veredicto = 'Tu publicación tiene problemas de base que la están enterrando en los resultados de busqueda. La buena noticia: casi todo se corrige gratis y en un rato.';
-
-  const orden = Object.keys(secciones)
-    .map(k => ({ k, s: secciones[k] }))
-    .filter(x => x.s.score < 75 && x.s.puntosFlojos && x.s.puntosFlojos.length)
-    .sort((a, b) => a.s.score - b.s.score)
-    .slice(0, 3);
-
-  const LBL = { titulo: 'Titulo', fotos: 'Fotos', descripcion: 'Descripcion', atributos: 'Ficha técnica', envio: 'Envio', precio: 'Precio', condicion: 'Condicion', reputacion: 'Reputacion' };
-  const prioridades = orden.map(x => ({
-    seccion: LBL[x.k] || x.k,
-    score: x.s.score,
-    accion: x.s.recomendacion
-  }));
-
-  return { veredicto, prioridades };
-}
-
-// /sites/MLA/search esta cerrado a terceros (403 aun con token). El top de la
-// categoria sale de los destacados de MeLi (/highlights) y el detalle de cada
-// uno de /items?ids=, igual que en market.js. Si algo falla, el informe sale
-// igual sin la comparativa.
-async function highlightIds(categoryId, token) {
-  const hl = await fetchJSON(MELI_API + '/highlights/MLA/category/' + encodeURIComponent(categoryId), token, 4000);
-  const cont = (hl.ok && hl.data && Array.isArray(hl.data.content)) ? hl.data.content : [];
-  return cont.filter(c => c && c.id && (!c.type || c.type === 'ITEM')).map(c => c.id);
-}
-
-async function itemsPorIds(ids, token) {
-  if (!ids.length) return [];
-  const it = await fetchJSON(MELI_API + '/items?ids=' + ids.slice(0, 20).join(',') +
-    '&attributes=id,title,price,sold_quantity,shipping,permalink,status', token, 5000);
-  const filas = (it.ok && Array.isArray(it.data)) ? it.data : [];
-  return filas
-    .filter(f => f && (f.code == null || f.code === 200))
-    .map(f => f.body || f)
-    .filter(b => b && b.id);
-}
-
-async function fetchTopListings(categoryId, ownItemId, token) {
-  if (!categoryId || !token) return { items: [], comparacion: null };
-  let candidatos = [];
+// ------------------------------------------------------------
+// Analizador de publicaciones (la logica vive en _analizador.js)
+// ------------------------------------------------------------
+// Sin login obligatorio: cualquiera analiza, con limite por IP. La sesion, si
+// esta, solo se usa para leer por la API oficial una publicacion propia.
+async function handleAnalisis(req, res, accion) {
+  cabecerasCors(res, 'GET,POST,OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(200).end();
   try {
-    const ids = (await highlightIds(categoryId, token)).filter(id => id !== ownItemId).slice(0, 6);
-    candidatos = await itemsPorIds(ids, token);
-  } catch (_) { candidatos = []; }
-
-  const items = candidatos.filter(r => r.id !== ownItemId).slice(0, 5);
-  if (!items.length) return { items: [], comparacion: null };
-
-  const avgTitleLen = Math.round(items.reduce((a, r) => a + ((r.title || '').length), 0) / items.length);
-  const prices = items.map(r => r.price).filter(p => typeof p === 'number' && p > 0);
-  const avgPrice = prices.length ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : null;
-  const freeShip = items.filter(r => r.shipping && r.shipping.free_shipping).length;
-  const full = items.filter(r => r.shipping && r.shipping.logistic_type === 'fulfillment').length;
-
-  return {
-    items: items.map(r => ({
-      titulo: r.title,
-      precio: r.price,
-      vendidos: r.sold_quantity || 0,
-      envioGratis: !!(r.shipping && r.shipping.free_shipping),
-      full: !!(r.shipping && r.shipping.logistic_type === 'fulfillment')
-    })),
-    comparacion: {
-      avgTitleLen,
-      avgPrice,
-      pctEnvioGratis: Math.round((freeShip / items.length) * 100),
-      pctFull: Math.round((full / items.length) * 100),
-      muestra: items.length
+    if (req.method === 'GET') {
+      const { item_id, history } = req.query || {};
+      if (!item_id) return res.status(400).json({ error: 'item_id requerido' });
+      if (history) return res.status(200).json({ ok: true, item_id, history: await historial(String(item_id)) });
+      return res.status(400).json({ error: 'Falta ?history=1' });
     }
-  };
-}
-
-// ------------------------------------------------------------
-// 3) Evaluadores por seccion
-//    Cada uno devuelve:
-//      score, puntosFuertes, puntosFlojos, recomendacion (que hacer),
-//      porQue (por que importa / impacto en ventas, en criollo)
-// ------------------------------------------------------------
-function seccion(score, fuertes, flojos, recomendacion, porQue, extra) {
-  return Object.assign({
-    score: Math.max(0, Math.min(100, Math.round(score))),
-    puntosFuertes: fuertes,
-    puntosFlojos: flojos,
-    recomendacion: recomendacion,
-    porQue: porQue
-  }, extra || {});
-}
-function fmtARS(n) { return n == null ? '-' : ('ARS ' + Math.round(n).toLocaleString('es-AR')); }
-
-function evalTitulo(item, top) {
-  const t = item.title || '';
-  const len = t.length;
-  const avg = (top.comparacion && top.comparacion.avgTitleLen) || 55;
-  const gritos = /[!?]{2,}/.test(t) || (/[A-Z]{5,}/.test(t) && t === t.toUpperCase());
-  const tieneDato = /\d/.test(t);
-  const f = [], x = []; let s = 100;
-
-  if (len < 40) { x.push('El título es corto (' + len + ' caracteres). Las publicaciones que más venden en tu categoría usan en promedio ' + avg + '.'); s -= 25; }
-  else f.push('Longitud competitiva (' + len + ' caracteres; el promedio del top es ' + avg + ').');
-
-  if (gritos) { x.push('Usa MAYUSCULAS sostenidas o signos repetidos ("!!!"). MercadoLibre lo interpreta como spam y lo baja en el buscador.'); s -= 20; }
-  else f.push('No abusa de mayusculas ni signos: respeta las buenas practicas de SEO de MeLi.');
-
-  if (!tieneDato) { x.push('No se detecta marca, modelo ni un dato numerico (talle, capacidad, cantidad). Justo lo que la gente escribe cuando busca algo puntual.'); s -= 15; }
-  else f.push('Incluye datos concretos (número/modelo) que ayudan a que aparezcas en busquedas especificas.');
-
-  const rec = len < avg
-    ? 'Sumale marca + modelo + un atributo clave (color, talle, cantidad) hasta acercarte a los ' + avg + ' caracteres del top. Importante: pone las palabras que la gente busca en las PRIMERAS 3-4 palabras del título.'
-    : 'La longitud está bien. Revisa que las primeras palabras sean el nombre generico que la gente busca (ej: "auriculares bluetooth"), no la marca.';
-  const porQue = 'El título es lo primero que lee el buscador de MercadoLibre para decidir en que busquedas te muestra. Si le faltan palabras clave, simplemente no aparecas cuando alguien busca tu producto, por más bueno que sea. Es la variable de SEO que más mueve la aguja.';
-  return seccion(s, f, x, rec, porQue, { valor: t, longitud: len });
-}
-
-function evalFotos(item) {
-  const pics = item.pictures || [];
-  const count = pics.length;
-  const f = [], x = []; let s = 100;
-
-  if (count < 3) { x.push('Solo tiene ' + count + ' foto(s). MercadoLibre recomienda entre 6 y 10.'); s -= 35; }
-  else if (count < 6) { x.push('Tiene ' + count + ' fotos. Sumando 2-3 más (detalle, uso real, packaging) baja las dudas del comprador.'); s -= 15; }
-  else f.push('Buena cantidad de fotos (' + count + '): cubris varios angulos.');
-
-  const res = pics.map(p => { const m = (p.max_size || p.size || '').match(/(\d+)x(\d+)/); return m ? Math.min(+m[1], +m[2]) : null; }).filter(Boolean);
-  const baja = res.filter(r => r < 800).length;
-  if (res.length && baja) { x.push(baja + ' de ' + res.length + ' fotos están por debajo de 800px de lado menor. Se ven pixeladas al hacer zoom.'); s -= 15; }
-  else if (res.length) f.push('Las fotos superan los 800px: permiten hacer zoom sin que se pixele.');
-
-  const rec = count < 6
-    ? 'Llega a 6-8 fotos con este orden: 1) portada con FONDO BLANCO liso, 2) el producto en uso o con algo al lado para dar escala, 3) detalle de materiales/terminaciones, 4) el packaging. Evita fondos con muebles o telas de tu casa.'
-    : 'Verifica que la PRIMERA foto (la portada) tenga fondo blanco liso. Es la que se ve en la grilla de resultados y define si te hacen clic o siguen de largo.';
-  const porQue = 'La primera foto es lo que decide si el comprador te hace clic o pasa al de al lado, y el resto de las fotos son las que responden "es lo que busco?" sin que te tengan que preguntar. Pocas fotos o de mala calidad generan desconfianza, más consultas antes de comprar y más devoluciones despues.';
-  return seccion(s, f, x, rec, porQue, { cantidad: count });
-}
-
-function evalDescripcion(descData) {
-  const texto = (descData && (descData.plain_text || descData.text)) || '';
-  const len = texto.trim().length;
-  const f = [], x = []; let s = 100;
-
-  if (len === 0) { x.push('La publicación no tiene descripción cargada.'); s -= 50; }
-  else if (len < 300) { x.push('La descripción es muy corta (' + len + ' caracteres). No alcanza para responder las dudas tipicas: medidas, que incluye, garantía.'); s -= 25; }
-  else f.push('Tiene una descripción con buen desarrollo (' + len + ' caracteres).');
-
-  const estructura = /\n|-\s|\u2022/.test(texto);
-  if (len > 0 && !estructura) { x.push('Es un bloque de texto corrido, sin separar por temas. En el celular se hace intragable.'); s -= 10; }
-  else if (estructura) f.push('Usa saltos de línea o listas: se lee fácil desde el celular.');
-
-  const rec = len < 300
-    ? 'Arma la descripción en bloques cortos y separados: 1) que es y para que sirve, 2) que incluye exactamente la compra, 3) medidas y especificaciones, 4) garantía y politica de cambios. Nada de un solo párrafo corrido.'
-    : 'Sumale al final una sección de "Preguntas frecuentes" con las 2-3 dudas que más te consultan por chat. Cada duda resuelta antes es una venta que no se cae.';
-  const porQue = 'La descripción es tu vendedor silencioso: trabaja cuando vos no estás para contestar. Una buena descripción resuelve las dudas antes de que el comprador tenga que preguntar (y muchos, si tienen que preguntar, directamente no compran). Además, el texto también lo lee el buscador.';
-  return seccion(s, f, x, rec, porQue, { longitud: len });
-}
-
-function evalAtributos(item, catAttrs) {
-  const propios = item.attributes || [];
-  const lleno = a => !!(a.value_name || a.value_id || (a.values && a.values.length));
-  const completados = propios.filter(lleno).length;
-  const disponibles = Array.isArray(catAttrs) ? catAttrs.length : null;
-  const req = Array.isArray(catAttrs) ? catAttrs.filter(a => a.tags && a.tags.required) : null;
-  const reqCompletos = req ? req.filter(a => propios.some(ia => ia.id === a.id && lleno(ia))).length : null;
-  const f = [], x = []; let s = 100;
-
-  if (req && req.length) {
-    if (reqCompletos < req.length) { x.push('Faltan ' + (req.length - reqCompletos) + ' de ' + req.length + ' atributos OBLIGATORIOS de la ficha técnica de tu categoría.'); s -= 40; }
-    else f.push('Completaste los ' + req.length + ' atributos obligatorios de la ficha técnica.');
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Metodo no soportado' });
+    // 'ejemplo' queda como alias de 'estado' para paginas viejas en cache.
+    if (accion === 'estado' || accion === 'ejemplo') return res.status(200).json(await estado(req));
+    const r = await analizar(req);
+    return res.status(r.status).json(r.cuerpo);
+  } catch (e) {
+    console.error('[analizador] excepcion:', e && e.stack || e);
+    return res.status(500).json({ ok: false, error: 'Fall\u00f3 el an\u00e1lisis. Prob\u00e1 de nuevo en un rato.' });
   }
-  if (disponibles) {
-    const pct = Math.round((completados / disponibles) * 100);
-    if (pct < 60) { x.push('Solo completaste el ' + pct + '% de los atributos disponibles (' + completados + ' de ' + disponibles + ').'); s -= 20; }
-    else f.push('Completaste el ' + pct + '% de los atributos disponibles de la categoría.');
-  }
-  if (!disponibles) f.push('No se pudo leer la ficha técnica de la categoría (igual conviene completar todo lo que MeLi sugiera).');
-
-  const rec = 'Entra a Editar publicación, sección "Ficha técnica", y completa TODOS los atributos que MeLi te ofrece, incluso los que no son obligatorios (color, material, medidas, etc.).';
-  const porQue = 'Cada atributo que completas es un filtro más del costado izquierdo del buscador donde tu producto puede aparecer. La gente filtra por color, talle, marca, etc.; si no cargaste ese dato, quedas afuera de ese filtro directamente. Además, MeLi premia con mejor posicion a las fichas completas.';
-  return seccion(s, f, x, rec, porQue, { completados, disponibles });
 }
 
-function evalEnvio(item) {
-  const sh = item.shipping || {};
-  const f = [], x = []; let s = 100; let modalidad = 'Sin Mercado Envios / a cargo del comprador';
-
-  if (sh.logistic_type === 'fulfillment') { modalidad = 'Mercado Full'; f.push('Publicado con Mercado Full: MeLi guarda tu stock y hace el envio. Es la modalidad que más empuja el posicionamiento.'); }
-  else if (sh.logistic_type === 'self_service') { modalidad = 'Mercado Flex'; f.push('Usa Mercado Flex (vos entregas el mismo día con tu logística): buen empujon de visibilidad y de conversion.'); }
-  else if (sh.logistic_type === 'drop_off' || sh.logistic_type === 'xd_drop_off') { modalidad = 'Mercado Envios (por agencia/colecta)'; f.push('Usa Mercado Envios: quedas dentro de los filtros de envio de MeLi.'); }
-  else { x.push('No se detecta Mercado Envios activo. Quedas afuera de los filtros de "Llega gratis" y "Llega mañana" que usa la mayoria de los compradores.'); s -= 30; }
-
-  if (!sh.free_shipping) { x.push('No ofrece envio gratis. En casi todas las categorías, el envio gratis es el filtro que más usan los compradores.'); s -= 25; }
-  else f.push('Ofrece envio gratis: cumplis con el filtro más usado por los compradores.');
-
-  const rec = !sh.free_shipping
-    ? 'Antes de activar envio gratis, corre la Calculadora Flex vs Full de MeLi Connect para ver si te conviene absorber el costo del envio subiendolo al precio. En la mayoria de las categorías, el envio gratis multiplica la visibilidad.'
-    : 'Si el producto es chico y liviano y ya rota, evalua pasar a Mercado Full: mejora el posicionamiento y te saca la logística de encima.';
-  const porQue = 'El envio es, junto al precio, lo que más define la compra en MercadoLibre. Sin Mercado Envios no aparecas en los filtros de "llega gratis/rápido", y esos filtros son justamente donde la gente decide. Es de las palancas que más rápido suben las ventas.';
-  return seccion(s, f, x, rec, porQue, { modalidadActual: modalidad });
-}
-
-function evalPrecio(item, top) {
-  const p = item.price;
-  const avg = top.comparacion && top.comparacion.avgPrice;
-  const f = [], x = []; let s = 100;
-  if (avg) {
-    const dif = Math.round(((p - avg) / avg) * 100);
-    if (dif > 20) { x.push('Tu precio está ' + dif + '% por ENCIMA del promedio del top de tu categoría (' + fmtARS(avg) + ').'); s -= 25; }
-    else if (dif < -20) { x.push('Tu precio está muy por DEBAJO del promedio (' + fmtARS(avg) + '). Ojo: puede que estes regalando margen, o generar desconfianza por "demasiado barato".'); s -= 10; }
-    else f.push('Tu precio está alineado con el promedio de la competencia (' + fmtARS(avg) + ').');
-  } else { x.push('No pude comparar contra la competencia (hay pocas publicaciones de referencia en la categoría).'); }
-  const rec = avg
-    ? 'No bajes el precio a ciegas. Corre tu margen real en MargenClear y la Calculadora Flex vs Full: muchas veces conviene ofrecer envio gratis en vez de tocar el precio de lista.'
-    : 'Segui manualmente el precio de 3 competidores directos durante 2 semanas para tener una referencia real antes de mover el tuyo.';
-  const porQue = 'El precio no se mira solo: el comprador lo compara con las otras publicaciones que ve al lado tuyo. Estar muy por encima te saca de juego, y estar muy por debajo te come el margen que te llevo importar el producto. La idea es competir sin regalar plata.';
-  return seccion(s, f, x, rec, porQue, { precio: p, promedioCategoria: avg });
-}
-
-function evalCondicion(item) {
-  const c = item.condition;
-  const f = [], x = []; let s = 100;
-  if (c !== 'new') { x.push('La publicación figura como "' + (c || 'sin dato') + '". Si tu producto es importado nuevo, deberia decir "Nuevo".'); s -= 20; }
-  else f.push('La condición está cargada correctamente como "Nuevo".');
-  const rec = c !== 'new' ? 'Corrige la condición a "Nuevo" en la edicion de la publicación si el producto lo es. Es un cambio de 10 segundos.' : 'Sin acciones pendientes en este punto.';
-  const porQue = 'La condición es un filtro de busqueda (la gente filtra "Nuevo") y además define la confianza. Si vendés producto nuevo importado y quedo marcado como usado, te estás auto-excluyendo de las busquedas de la mayoria de los compradores.';
-  return seccion(s, f, x, rec, porQue, { condicion: c });
-}
-
-function evalReputacion(sellerData) {
-  const rep = sellerData && sellerData.seller_reputation;
-  const porQue = 'La reputación es la confianza en números. Ante dos publicaciones parecidas, la gente le compra al que tiene mejor color de reputación y la medalla de Mercado Lider. Además, MeLi le da mejor posicion a los vendedores con buena reputación.';
-  if (!rep) return seccion(60, [], ['No se pudo obtener la reputación del vendedor.'], 'Revisa tu nivel de reputación desde el panel de tu cuenta de MercadoLibre.', porQue, {});
-  const f = [], x = []; let s = 100;
-  const nivel = rep.level_id || 'sin nivel';
-  const power = rep.power_seller_status;
-  const neg = rep.transactions && rep.transactions.ratings && rep.transactions.ratings.negative;
-
-  if (power) f.push('Sos Mercado Lider (' + power + '): suma confianza y mejora tu posicionamiento.');
-  else x.push('Todavia no tenés el status de Mercado Lider. Se gana con ventas sostenidas, buena atención y pocos reclamos.');
-
-  if (typeof nivel === 'string' && nivel.indexOf('5') !== -1) f.push('Tu color de reputación es el máximo (verde oscuro).');
-  else if (nivel === 'sin nivel') { x.push('Tu reputación todavia no tiene nivel suficiente (cuenta nueva o con pocas ventas).'); s -= 20; }
-
-  if (neg && neg > 0.02) { x.push('Tu tasa de calificaciones negativas (' + Math.round(neg * 100) + '%) supera el 2% que recomienda MeLi.'); s -= 25; }
-
-  const rec = !power
-    ? 'Enfocate en dos cosas: despachar rápido (mismo día o al día siguiente) y responder las preguntas en menos de un par de horas. Son las variables que más pesan para subir de nivel y llegar a Mercado Lider.'
-    : 'Manten el nivel: segui respondiendo rápido y cuidando los tiempos de entrega.';
-  return seccion(s, f, x, rec, porQue, { nivel });
-}
-
-// ------------------------------------------------------------
-// 4) Embudo: el CTA aparece DENTRO del informe cuando corresponde
-// ------------------------------------------------------------
-function isRotacionBaja(item) {
-  if (!item.date_created) return false;
-  const dias = Math.max(1, Math.round((Date.now() - new Date(item.date_created).getTime()) / 86400000));
-  const ventasMes = (item.sold_quantity || 0) / (dias / 30);
-  return ventasMes < 3;
-}
-
-function buildFunnelCTA(scoreTotal, rotacionBaja) {
-  if (scoreTotal >= 75 && !rotacionBaja) return null;
-  return {
-    mostrar: true,
-    titulo: rotacionBaja ? 'El producto casi no rota' : 'Antes de gastar en Ads, ordena la publicación',
-    mensaje: rotacionBaja
-      ? 'Esta publicación vende menos de 3 unidades por mes. Si aplicas las mejoras de arriba y aun así no repunta, capaz el problema no es la publicación sino que el producto ya se saturo. Ahi conviene pensar en traer stock nuevo con más demanda.'
-      : 'Tu publicación tiene puntos flojos que le están restando visibilidad. Corregirlos suele costar $0 y sube las ventas más rápido (y más barato) que pagar publicidad.',
-    acciones: [
-      { texto: 'Quiero asesoria para importar mi próximo producto', tipo: 'asesoria_importacion' },
-      { texto: 'Hablar con el despachante de aduana', tipo: 'contacto_despachante' }
-    ]
-  };
-}
-
-// ------------------------------------------------------------
-// 5) Persistencia en Supabase (cache + historial)
-// ------------------------------------------------------------
-function supaHeaders() {
-  return { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' };
-}
-
-async function getCachedAnalysis(itemId, hours) {
-  if (!SUPABASE_KEY) return null;
-  const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
-  const url = SUPABASE_URL + '/rest/v1/listing_analyses?item_id=eq.' + encodeURIComponent(itemId) + '&analyzed_at=gte.' + encodeURIComponent(since) + '&order=analyzed_at.desc&limit=1&select=report';
-  try {
-    const r = await fetch(url, { headers: supaHeaders() });
-    if (!r.ok) return null;
-    const rows = await r.json();
-    return (Array.isArray(rows) && rows.length) ? rows[0].report : null;
-  } catch (_) { return null; }
-}
-
-async function getPreviousAnalysis(itemId, daysAgo) {
-  if (!SUPABASE_KEY) return null;
-  const before = new Date(Date.now() - (daysAgo - 3) * 86400000).toISOString();
-  const url = SUPABASE_URL + '/rest/v1/listing_analyses?item_id=eq.' + encodeURIComponent(itemId) + '&analyzed_at=lte.' + encodeURIComponent(before) + '&order=analyzed_at.desc&limit=1&select=analyzed_at,score_total';
-  try {
-    const r = await fetch(url, { headers: supaHeaders() });
-    if (!r.ok) return null;
-    const rows = await r.json();
-    return (Array.isArray(rows) && rows.length) ? rows[0] : null;
-  } catch (_) { return null; }
-}
-
-async function getHistory(itemId) {
-  if (!SUPABASE_KEY) return [];
-  const url = SUPABASE_URL + '/rest/v1/listing_analyses?item_id=eq.' + encodeURIComponent(itemId) + '&order=analyzed_at.desc&limit=12&select=analyzed_at,score_total';
-  try {
-    const r = await fetch(url, { headers: supaHeaders() });
-    if (!r.ok) return [];
-    const rows = await r.json();
-    return Array.isArray(rows) ? rows : [];
-  } catch (_) { return []; }
-}
-
-async function saveAnalysis(report) {
-  if (!SUPABASE_KEY) return;
-  const payload = {
-    item_id: report.itemId,
-    input_url: report.inputUrl,
-    user_id: report.userId,
-    category_id: report.categoryId,
-    score_total: report.scoreTotal,
-    report: report,
-    analyzed_at: report.analyzedAt || new Date().toISOString()
-  };
-  try {
-    await fetch(SUPABASE_URL + '/rest/v1/listing_analyses', {
-      method: 'POST',
-      headers: Object.assign(supaHeaders(), { Prefer: 'return=minimal' }),
-      body: JSON.stringify(payload)
-    });
-  } catch (_) { /* el analisis igual se devuelve al usuario */ }
-}
-
-// ------------------------------------------------------------
 // ------------------------------------------------------------
 // Comisiones reales de MercadoLibre
 // ------------------------------------------------------------
@@ -598,9 +72,7 @@ async function saveAnalysis(report) {
 // son estimados. Nunca se inventa un porcentaje y se lo presenta como dato
 // de MercadoLibre.
 async function handleComisiones(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  cabecerasCors(res, 'POST,OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const precio = Math.max(1000, Math.min(5000000, Number((req.body && req.body.precio) || 100000)));
@@ -665,96 +137,6 @@ async function handleComisiones(req, res) {
 }
 
 // ------------------------------------------------------------
-// Publicacion de ejemplo
-// ------------------------------------------------------------
-// El Analizador pedia un link y no ofrecia nada mas: quien todavia no
-// publico nada se quedaba mirando un input vacio y 300px de pantalla negra.
-// Ahora puede probar la herramienta con una publicacion real.
-//
-// A proposito NO hay una URL fija escrita en el codigo: esa publicacion se
-// da de baja en algun momento y el boton queda roto sin que nadie se entere.
-// Se busca una viva en el momento, con la misma API publica que ya usa el
-// resto de este archivo.
-async function handleEjemplo(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-
-  const sinSuerte = {
-    ok: false,
-    error: 'No pudimos traer una publicaci\u00f3n de ejemplo ahora mismo. Peg\u00e1 el link de cualquier publicaci\u00f3n de MercadoLibre y funciona igual.'
-  };
-
-  // Sin token MeLi contesta 403 a todo: no tiene sentido buscar.
-  const user = usuarioDeSesion(req);
-  if (!user) return res.status(401).json({ ok: false, error: MSJ_SIN_SESION, codigo: 'sin_sesion' });
-  const { token, meliUserId } = await tokenDelVisitante(user);
-  if (!token) return res.status(401).json({ ok: false, error: MSJ_SIN_MELI, codigo: 'sin_meli' });
-
-  try {
-    const termino = (req.body && req.body.termino) ? String(req.body.termino).slice(0, 60) : 'auriculares bluetooth';
-    const cand = await buscarEjemplo(termino, token, meliUserId);
-    if (!cand) return res.status(200).json(sinSuerte);
-    return res.status(200).json({
-      ok: true,
-      url: cand.permalink || ('https://articulo.mercadolibre.com.ar/' + String(cand.id).replace(/^MLA/, 'MLA-')),
-      titulo: cand.title || '',
-      nota: cand.propia
-        ? 'Es una de tus publicaciones activas, tra\u00edda de MercadoLibre reci\u00e9n.'
-        : 'Es una publicaci\u00f3n real de otro vendedor, tra\u00edda de MercadoLibre reci\u00e9n.'
-    });
-  } catch (e) {
-    return res.status(200).json(sinSuerte);
-  }
-}
-
-// Tres caminos sin /sites/MLA/search, en paralelo para no comerse el tiempo
-// de la funcion, y se queda con el primero que haya dado algo en este orden:
-//   1) destacados de la categoria del termino (/highlights)
-//   2) ganador del buy box de un producto de catalogo (/products/search)
-//   3) una publicacion activa del propio visitante
-async function buscarEjemplo(termino, token, meliUserId) {
-  const q = encodeURIComponent(termino);
-
-  const porDestacados = (async () => {
-    const dom = await fetchJSON(MELI_API + '/sites/MLA/domain_discovery/search?limit=1&q=' + q, token, 3500);
-    const cat = dom.ok && Array.isArray(dom.data) && dom.data[0] && dom.data[0].category_id;
-    if (!cat) return null;
-    const ids = (await highlightIds(cat, token)).slice(0, 5);
-    const vivos = (await itemsPorIds(ids, token)).filter(b => !b.status || b.status === 'active');
-    return vivos[0] || null;
-  })().catch(() => null);
-
-  const porCatalogo = (async () => {
-    const busq = await fetchJSON(MELI_API + '/products/search?status=active&site_id=MLA&limit=3&q=' + q, token, 3500);
-    const lista = (busq.ok && busq.data && Array.isArray(busq.data.results)) ? busq.data.results : [];
-    for (const p of lista.slice(0, 3)) {
-      const pid = p && (p.id || p.catalog_product_id);
-      if (!pid) continue;
-      const det = await fetchJSON(MELI_API + '/products/' + encodeURIComponent(pid), token, 3000);
-      const ganador = det.ok && det.data && det.data.buy_box_winner;
-      if (ganador && ganador.item_id) {
-        const vivos = await itemsPorIds([ganador.item_id], token);
-        if (vivos[0]) return vivos[0];
-      }
-    }
-    return null;
-  })().catch(() => null);
-
-  const porPropias = (async () => {
-    if (!meliUserId) return null;
-    const mias = await fetchJSON(MELI_API + '/users/' + encodeURIComponent(meliUserId) + '/items/search?status=active&limit=1', token, 3500);
-    const id = mias.ok && mias.data && Array.isArray(mias.data.results) && mias.data.results[0];
-    if (!id) return null;
-    const vivos = await itemsPorIds([id], token);
-    return vivos[0] ? Object.assign({ propia: true }, vivos[0]) : null;
-  })().catch(() => null);
-
-  const [a, b, c] = await Promise.all([porDestacados, porCatalogo, porPropias]);
-  return a || b || c || null;
-}
-
 // Funcionalidad 3: Calculadora Flex vs Full
 // ------------------------------------------------------------
 // api/flex-full.js

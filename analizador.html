@@ -69,6 +69,19 @@
   .aviso-cuenta h3{color:#FFE600;font-size:16px;margin-bottom:6px}
   .aviso-cuenta p{color:#d8cfa0;font-size:14px;line-height:1.55;margin-bottom:14px}
   .aviso-cuenta .btn-cta{display:inline-block}
+  [hidden]{display:none !important}
+  .hint-chica{font-size:11.5px;color:#777;margin-top:4px}
+  .hint-chica a{color:#FFE600;text-decoration:underline}
+  .cupo{display:inline-block;margin-left:6px;color:#FFE600;font-weight:700}
+  .capturas-box{background:#111;border:1px solid #4a4200;border-radius:14px;padding:18px 20px;margin-top:18px}
+  .capturas-box h3{color:#FFE600;font-size:16px;margin-bottom:6px}
+  .capturas-box p{color:#d8cfa0;font-size:14px;line-height:1.55;margin-bottom:12px}
+  .capturas-elegir{display:inline-block;margin-right:8px;margin-bottom:10px}
+  .capturas-prev{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .capturas-prev img{width:92px;height:92px;object-fit:cover;border-radius:8px;border:1px solid #2a2a2a}
+  .b-nd{background:#1c1c1c;color:#9a9a9a}
+  .fuente{font-size:11.5px;color:#777;margin-top:4px}
+  .ejemplo-banner{background:#0d0f14;border:1px dashed #1e2636;color:#93c5fd;border-radius:10px;padding:8px 12px;font-size:13px;margin-bottom:12px}
 
   .results{display:none;margin-top:26px}
   .results.on{display:block}
@@ -192,18 +205,33 @@
       <p>Peg&aacute; el link de una publicaci&oacute;n de MercadoLibre y te digo, en criollo, qu&eacute; est&aacute; bien, qu&eacute; est&aacute; mal, por qu&eacute; importa y qu&eacute; corregir. Ideal si reci&eacute;n arranc&aacute;s y no sab&eacute;s por d&oacute;nde empezar.</p>
     </div>
 
-    <div class="aviso-cuenta" id="avisoCuenta" role="status" aria-live="polite"></div>
-
     <div class="search-box">
-      <input id="url" type="text" placeholder="Peg&aacute; ac&aacute; el link: https://artículo.mercadolibre.com.ar/MLA-..." aria-label="Link de la publicaci&oacute;n de MercadoLibre">
+      <input id="url" type="text" placeholder="Peg&aacute; ac&aacute; el link: https://articulo.mercadolibre.com.ar/MLA-..." aria-label="Link de la publicaci&oacute;n de MercadoLibre">
       <button class="btn btn-yellow" id="go">Analizar gratis</button>
     </div>
-    <div class="hint">Es gratis. Necesit&aacute;s iniciar sesi&oacute;n y conectar tu cuenta de MercadoLibre: MeLi ya no deja consultar publicaciones sin una cuenta.
-      <button type="button" class="link-ejemplo" id="btnEjemplo">&iquest;Todav&iacute;a no publicaste? Prob&aacute; con un ejemplo real &rarr;</button>
+    <div class="hint">Gratis y sin registrarte: funciona con publicaciones tuyas o de cualquier vendedor.
+      <span class="cupo" id="cupo" hidden></span>
+      <button type="button" class="link-ejemplo" id="btnEjemplo" hidden>Ver un ejemplo real &rarr;</button>
+    </div>
+    <div class="hint hint-chica">Si la publicaci&oacute;n es tuya, <a href="meli-connect.html?next=analizador">conect&aacute; tu cuenta de MercadoLibre</a> para un an&aacute;lisis m&aacute;s preciso.</div>
+
+    <div class="aviso-cuenta" id="avisoCuenta" role="status" aria-live="polite"></div>
+
+    <div class="capturas-box" id="capturasBox" hidden>
+      <h3>Subime capturas y lo analizo igual</h3>
+      <p id="capturasMsg">No pude leer esta publicaci&oacute;n autom&aacute;ticamente. Sub&iacute; 1 a 3 capturas de pantalla (la parte de arriba con fotos, precio y t&iacute;tulo, y la descripci&oacute;n) y la analizo igual.</p>
+      <label class="btn-cta ghost capturas-elegir">
+        <input type="file" id="capturasInput" accept="image/*" multiple hidden>
+        Elegir capturas
+      </label>
+      <div class="capturas-prev" id="capturasPrev"></div>
+      <button type="button" class="btn btn-yellow" id="capturasGo" disabled>Analizar con estas capturas</button>
+      <div class="hint" id="capturasEstado"></div>
     </div>
 
     <div class="loading" id="loading">
-      <div class="spin"></div> Analizando tu publicaci&oacute;n y compar&aacute;ndola contra el top de la categor&iacute;a&hellip;
+      <div class="spin"></div> <span id="loadingTxt">Leyendo la publicaci&oacute;n&hellip;</span>
+      <div class="hint">Puede tardar entre 15 y 25 segundos.</div>
     </div>
 
     <div class="error-box" id="error"></div>
@@ -212,13 +240,13 @@
 
     <section class="que-reviso" id="queReviso" aria-label="Qu&eacute; revisa el analizador">
       <h2>Qu&eacute; te voy a revisar</h2>
-      <p class="qr-intro">Seis cosas, todas sacadas de tu publicaci&oacute;n real en MercadoLibre. Ninguna nota sale de una opini&oacute;n: cada punto que descuento tiene un motivo verificable.</p>
+      <p class="qr-intro">Lo analiza una IA con criterio de vendedor experto en MercadoLibre, a partir de lo que se lee de la publicaci&oacute;n. Lo que no se puede leer aparece como &laquo;Sin datos&raquo; y no cuenta para el puntaje: no se inventa nada.</p>
       <div class="qr-grid">
         <article><h3>El t&iacute;tulo</h3><p>Si us&aacute;s las palabras que la gente escribe en el buscador, si aprovech&aacute;s los 60 caracteres y si hay relleno que no suma.</p></article>
         <article><h3>Las fotos</h3><p>Cu&aacute;ntas subiste, si tienen la resoluci&oacute;n que MercadoLibre pide y si la primera es fondo limpio.</p></article>
         <article><h3>La descripci&oacute;n</h3><p>Si alcanza para contestar las dudas t&iacute;picas y si se puede leer desde el celular sin sufrir.</p></article>
         <article><h3>La ficha t&eacute;cnica</h3><p>Cu&aacute;ntos atributos obligatorios de tu categor&iacute;a te faltan completar. Cada uno es un filtro donde hoy no aparec&eacute;s.</p></article>
-        <article><h3>El precio</h3><p>C&oacute;mo qued&aacute;s parado contra las publicaciones que el comprador ve al lado de la tuya.</p></article>
+        <article><h3>El precio</h3><p>C&oacute;mo est&aacute; presentado: cuotas, descuentos y si el valor se entiende de un vistazo.</p></article>
         <article><h3>El env&iacute;o y la modalidad</h3><p>Si ten&eacute;s env&iacute;o gratis, Flex o Full, y qu&eacute; te est&aacute; costando o dando cada opci&oacute;n.</p></article>
       </div>
       <p class="qr-pie">&iquest;Reci&eacute;n arranc&aacute;s y todav&iacute;a no ten&eacute;s ninguna publicaci&oacute;n? Empez&aacute; por la <a href="/educacion.html">gu&iacute;a para publicar</a> y volv&eacute; ac&aacute; cuando tengas la primera.</p>
@@ -231,133 +259,176 @@
   // ---- Config del embudo: cambia estos enlaces por los reales de Innovasmart ----
   var ASESORIA_URL = 'https://matiasezequielpereira4340-sudo.github.io/InnovaSmart/';  // Pagina de Innovasmart
   var DESPACHANTE_URL = 'https://wa.me/541160374306?text=Hola%20Matias,%20quiero%20traer%20stock%20nuevo%20y%20asesoria%20de%20importacion';  // WhatsApp de contacto
+  var WHATSAPP_ASESOR = 'https://wa.me/541160374306?text=Hola!%20Quiero%20asesor%C3%ADa%20para%20importar';
 
   var SEC = {
     titulo:      { icon: 'Aa', label: 'Título (SEO)' },
     fotos:       { icon: 'Fo', label: 'Fotos' },
-    descripcion: { icon: 'Dc', label: 'Descripcion' },
+    descripcion: { icon: 'Dc', label: 'Descripción' },
     atributos:   { icon: 'Ft', label: 'Ficha técnica / Atributos' },
-    envio:       { icon: 'En', label: 'Envio' },
+    envio:       { icon: 'En', label: 'Envío' },
     precio:      { icon: '$',  label: 'Precio' },
-    condicion:   { icon: 'Cn', label: 'Condicion' },
+    condicion:   { icon: 'Cn', label: 'Condición' },
     reputacion:  { icon: 'Rp', label: 'Reputación del vendedor' }
   };
 
   function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':String(s)); return d.innerHTML; }
-  function fmtARS(n){ return n==null ? '-' : ('ARS ' + Math.round(n).toLocaleString('es-AR')); }
-  function scoreClass(v){ return v>=75 ? 'b-ok' : (v>=50 ? 'b-mid' : 'b-bad'); }
-  function scoreColor(v){ return v>=75 ? '#4ade80' : (v>=50 ? '#FFE600' : '#f87171'); }
+  function fmtARS(n){ return n==null ? '-' : ('$ ' + Math.round(n).toLocaleString('es-AR')); }
+  function scoreClass(v){ return v==null ? 'b-nd' : (v>=75 ? 'b-ok' : (v>=50 ? 'b-mid' : 'b-bad')); }
+  function scoreColor(v){ return v==null ? '#9a9a9a' : (v>=75 ? '#4ade80' : (v>=50 ? '#FFE600' : '#f87171')); }
+  function hrefSeguro(u){ return /^https:\/\//i.test(String(u||'')) ? u : ''; }
   var $ = function(id){ return document.getElementById(id); };
 
-  // Sesion firmada por el servidor (la guarda el login en pf_token). El
-  // servidor elige el token de MeLi a partir de ella, nunca de pf_user.
-  function sesionToken(){ try{ return localStorage.getItem('pf_token') || ''; }catch(e){ return ''; } }
+  // La sesion es OPCIONAL: si esta, el servidor la usa para leer por la API
+  // oficial una publicacion propia. Nunca se exige.
   function cabeceras(){
     var h = { 'Content-Type':'application/json' };
-    var t = sesionToken(); if(t) h['Authorization'] = 'Bearer ' + t;
+    try{ var t = localStorage.getItem('pf_token'); if(t) h['Authorization'] = 'Bearer ' + t; }catch(e){}
     return h;
   }
 
-  var AVISOS = {
-    sin_sesion: {
-      titulo: 'Primero inici\u00e1 sesi\u00f3n',
-      texto: 'El analizador es gratis, pero MercadoLibre ya no deja consultar publicaciones sin una cuenta. Entr\u00e1 con tu usuario y despu\u00e9s conect\u00e1s MeLi en un clic.',
-      boton: 'Iniciar sesi\u00f3n', href: 'login.html?next=analizador'
-    },
-    sin_meli: {
-      titulo: 'Conect\u00e1 tu cuenta de MercadoLibre',
-      texto: 'MercadoLibre ya no deja leer publicaciones sin una cuenta conectada. Conect\u00e1 la tuya (es gratis, no publicamos nada por vos) y volv\u00e9 a pegar el link.',
-      boton: 'Conectar mi cuenta de MercadoLibre', href: 'meli-connect.html?next=analizador'
-    },
-    sesion_vieja: {
-      titulo: 'Volv\u00e9 a entrar',
-      texto: 'Tu sesi\u00f3n es de antes de una actualizaci\u00f3n. Volv\u00e9 a entrar para usar el Analizador.',
-      boton: 'Iniciar sesi\u00f3n', href: 'login.html?next=analizador'
-    },
-    sesion_vencida: {
-      titulo: 'Tu sesi\u00f3n venci\u00f3',
-      texto: 'Pas\u00f3 mucho tiempo desde que entraste. Volv\u00e9 a entrar para usar el Analizador.',
-      boton: 'Iniciar sesi\u00f3n', href: 'login.html?next=analizador'
-    },
-    meli_rechazo: {
-      titulo: 'MercadoLibre rechaz\u00f3 la consulta',
-      texto: 'La conexi\u00f3n con tu cuenta de MercadoLibre venci\u00f3 o fue revocada. Volv\u00e9 a conectarla y prob\u00e1 de nuevo.',
-      boton: 'Conectar mi cuenta de MercadoLibre', href: 'meli-connect.html?next=analizador'
-    }
-  };
-  function mostrarAviso(codigo, mensaje){
-    var a = AVISOS[codigo]; if(!a) return false;
+  // ---- Cupo de analisis gratis ----
+  function mostrarCupo(d){
+    if(!d || d.restantes == null) return;
+    var c = $('cupo');
+    c.textContent = d.restantes === 1 ? 'Te queda 1 análisis gratis hoy.' :
+      (d.restantes > 0 ? 'Te quedan ' + d.restantes + ' análisis gratis hoy.' : 'No te quedan análisis gratis hoy.');
+    c.hidden = false;
+  }
+
+  // ---- Avisos ----
+  function mostrarAviso(titulo, texto, boton, href){
     var box = $('avisoCuenta');
-    box.innerHTML = '<h3>'+esc(a.titulo)+'</h3><p>'+esc(mensaje || a.texto)+'</p>' +
-      '<a class="btn-cta" href="'+esc(a.href)+'">'+esc(a.boton)+'</a>';
+    box.innerHTML = '<h3>'+esc(titulo)+'</h3><p>'+esc(texto)+'</p>' +
+      (boton ? '<a class="btn-cta" href="'+esc(href)+'" target="_blank" rel="noopener">'+esc(boton)+'</a>' : '');
     box.className = 'aviso-cuenta on';
     box.scrollIntoView({ behavior:'smooth', block:'center' });
-    return true;
-  }
-  // Sin pf_token: si hay un usuario guardado es una sesion de antes de que el
-  // login guardara la sesion firmada; si no, nunca entro.
-  function codigoSinSesion(){
-    var u = ''; try{ u = localStorage.getItem('pf_user') || ''; }catch(e){}
-    return (u && !/^invitado$/i.test(u)) ? 'sesion_vieja' : 'sin_sesion';
-  }
-  // El servidor dijo sin_sesion aunque mandamos token: vencio o es invalido.
-  function avisoDeRespuesta(codigo){
-    if(codigo === 'sin_sesion' && sesionToken()){
-      try{ localStorage.removeItem('pf_token'); }catch(e){}
-      return mostrarAviso('sesion_vencida');
-    }
-    return mostrarAviso(codigo);
   }
   function ocultarAviso(){ $('avisoCuenta').className = 'aviso-cuenta'; }
-  window.__mcAviso = { mostrar: mostrarAviso, ocultar: ocultarAviso, cabeceras: cabeceras, sinSesion: codigoSinSesion, deRespuesta: avisoDeRespuesta };
 
-  function setLoading(on){ $('loading').className = on ? 'loading on' : 'loading'; $('go').disabled = on; }
+  var cargandoTimer = [];
+  function setLoading(on, conCapturas){
+    cargandoTimer.forEach(clearTimeout); cargandoTimer = [];
+    $('loading').className = on ? 'loading on' : 'loading';
+    $('go').disabled = on; $('capturasGo').disabled = on || !capturas.length;
+    if(on){
+      $('loadingTxt').textContent = conCapturas ? 'Leyendo tus capturas…' : 'Leyendo la publicación…';
+      cargandoTimer.push(setTimeout(function(){ $('loadingTxt').textContent = 'Analizando…'; }, conCapturas ? 3000 : 7000));
+      cargandoTimer.push(setTimeout(function(){ $('loadingTxt').textContent = 'Ya casi: armando las recomendaciones…'; }, 20000));
+    }
+  }
   function showError(msg){ $('error').className='error-box on'; $('error').textContent = msg; }
   function clearError(){ $('error').className='error-box'; $('error').textContent=''; }
 
-  async function analizar(){
-    var url = ($('url').value || '').trim();
-    if(!url){ showError('Pega primero el link de la publicación.'); return; }
-    clearError();
-    $('results').className='results'; $('results').innerHTML='';
-    if(!sesionToken()){ mostrarAviso(codigoSinSesion()); return; }
-    ocultarAviso();
-    setLoading(true);
+  // ---- Capturas ----
+  var capturas = [];
+  var urlPendiente = '';
+  function pedirCapturas(d){
+    urlPendiente = ($('url').value || '').trim();
+    $('capturasMsg').textContent = d.mensaje || d.error;
+    $('capturasBox').hidden = false;
+    $('capturasBox').scrollIntoView({ behavior:'smooth', block:'center' });
+  }
+  function ocultarCapturas(){ $('capturasBox').hidden = true; capturas = []; $('capturasPrev').innerHTML = ''; $('capturasGo').disabled = true; $('capturasEstado').textContent = ''; }
+
+  // JPEG, lado mayor 1400 px. Una captura de celular queda en ~150-400 KB.
+  function comprimir(file){
+    return new Promise(function(ok, mal){
+      var img = new Image();
+      var u = URL.createObjectURL(file);
+      img.onload = function(){
+        var lado = 1400, w = img.naturalWidth, h = img.naturalHeight;
+        var k = Math.min(1, lado / Math.max(w, h));
+        var cv = document.createElement('canvas');
+        cv.width = Math.round(w * k); cv.height = Math.round(h * k);
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        URL.revokeObjectURL(u);
+        var calidad = 0.8, data = cv.toDataURL('image/jpeg', calidad);
+        while(data.length > 1300000 && calidad > 0.4){ calidad -= 0.1; data = cv.toDataURL('image/jpeg', calidad); }
+        ok({ tipo:'image/jpeg', datos: data.split(',')[1], vista: data });
+      };
+      img.onerror = function(){ URL.revokeObjectURL(u); mal(new Error('No pude abrir una de las imágenes.')); };
+      img.src = u;
+    });
+  }
+  $('capturasInput').addEventListener('change', async function(){
+    var files = Array.prototype.slice.call(this.files || []).filter(function(f){ return /^image\//.test(f.type); }).slice(0, 3);
+    this.value = '';
+    if(!files.length) return;
+    $('capturasEstado').textContent = 'Preparando las imágenes…';
     try{
-      var r = await fetch('/api/herramientas', {
-        method:'POST', headers: cabeceras(),
-        body: JSON.stringify({ url: url })
-      });
+      capturas = [];
+      for(var i=0;i<files.length;i++) capturas.push(await comprimir(files[i]));
+      $('capturasPrev').innerHTML = capturas.map(function(c){ return '<img alt="captura" src="'+c.vista+'">'; }).join('');
+      var kb = Math.round(capturas.reduce(function(a,c){ return a + c.datos.length*3/4; }, 0) / 1024);
+      $('capturasEstado').textContent = capturas.length + (capturas.length===1?' captura lista':' capturas listas') + ' (' + kb + ' KB).';
+      $('capturasGo').disabled = false;
+    }catch(e){ capturas = []; $('capturasEstado').textContent = e.message; }
+  });
+  $('capturasGo').addEventListener('click', function(){
+    if(!capturas.length) return;
+    enviar({ url: urlPendiente || ($('url').value||'').trim(),
+      capturas: capturas.map(function(c){ return { tipo:c.tipo, datos:c.datos }; }) }, true);
+  });
+
+  async function enviar(cuerpo, conCapturas){
+    clearError(); ocultarAviso();
+    $('results').className='results'; $('results').innerHTML='';
+    setLoading(true, conCapturas);
+    try{
+      var r = await fetch('/api/herramientas', { method:'POST', headers: cabeceras(), body: JSON.stringify(cuerpo) });
       var data = await r.json();
       setLoading(false);
-      if(data && AVISOS[data.codigo]){ avisoDeRespuesta(data.codigo); return; }
-      if(!r.ok || data.error){ showError(data.error || 'No se pudo analizar la publicación.'); return; }
+      mostrarCupo(data);
+      if(data.codigo === 'necesito_capturas'){ pedirCapturas(data); return; }
+      if(data.codigo === 'limite_ip' || data.codigo === 'tope_global'){
+        mostrarAviso(data.codigo === 'limite_ip' ? 'Llegaste al límite de hoy' : 'Se agotaron los análisis de hoy',
+          data.error, 'Hablar con un asesor', data.asesor || WHATSAPP_ASESOR);
+        return;
+      }
+      if(!r.ok || !data.ok){ showError(data.error || 'No se pudo analizar la publicación.'); return; }
+      ocultarCapturas();
       render(data);
     }catch(e){
       setLoading(false);
-      showError('Error de conexion: ' + (e && e.message ? e.message : e));
+      showError('Error de conexión: ' + (e && e.message ? e.message : e));
     }
   }
 
-  function render(d){
+  function analizar(){
+    var url = ($('url').value || '').trim();
+    if(!url){ showError('Pegá primero el link de la publicación.'); return; }
+    ocultarCapturas();
+    enviar({ url: url }, false);
+  }
+
+  function render(d, esEjemplo){
     var html = '';
+    if(esEjemplo){ html += '<div class="ejemplo-banner">Ejemplo: análisis real de una publicación, hecho hace poco en MeLi Connect.</div>'; }
 
     // ---- Cabecera + score total ----
     var evo = '';
-    if(d.evolucion){
+    if(d.evolucion && !esEjemplo){
       var dif = d.evolucion.diferencia;
       var cls = dif>0?'up':(dif<0?'down':'same');
       var sign = dif>0?('+'+dif):(''+dif);
       evo = '<div class="evo '+cls+'">vs. hace 30 días: '+sign+' pts</div>';
     }
     html += '<div class="head-card">';
-    if(d.thumbnail){ html += '<img src="'+esc(d.thumbnail)+'" alt="">'; }
-    html += '<div class="head-info"><h2>'+esc(d.titulo)+'</h2>';
-    html += '<div class="head-meta">'+fmtARS(d.precio)+' &middot; '+esc(d.vendidos||0)+' vendidos';
-    if(d.permalink){ html += ' &middot; <a href="'+esc(d.permalink)+'" target="_blank" rel="noopener">ver en MeLi</a>'; }
-    html += '</div></div>';
-    html += '<div class="score-badge"><div class="score-num" style="color:'+scoreColor(d.scoreTotal)+'">'+d.scoreTotal+'</div>';
-    html += '<div class="score-lbl">Puntaje / 100</div>'+evo+'</div>';
+    if(hrefSeguro(d.thumbnail)){ html += '<img src="'+esc(d.thumbnail)+'" alt="">'; }
+    html += '<div class="head-info"><h2>'+esc(d.titulo)+(d.tituloEsPista?' <span class="tag">título aproximado</span>':'')+'</h2>';
+    var meta = [];
+    if(d.precio != null) meta.push(fmtARS(d.precio));
+    if(d.vendidos != null) meta.push(esc(d.vendidos)+' vendidos');
+    if(hrefSeguro(d.permalink)) meta.push('<a href="'+esc(d.permalink)+'" target="_blank" rel="noopener">ver en MeLi</a>');
+    html += '<div class="head-meta">'+meta.join(' &middot; ')+'</div>';
+    if(d.fuenteTexto){ html += '<div class="fuente">Leído de: '+esc(d.fuenteTexto)+(d.cached?' · guardado de un análisis de las últimas 24 hs':'')+'</div>'; }
+    html += '</div>';
+    var total = d.scoreTotal;
+    html += '<div class="score-badge"><div class="score-num" style="color:'+scoreColor(total)+'">'+(total==null?'—':total)+'</div>';
+    html += '<div class="score-lbl">Puntaje / 100</div>';
+    if(d.seccionesConDatos != null && d.seccionesConDatos < 8){ html += '<div class="fuente">sobre '+d.seccionesConDatos+' de 8 secciones con datos</div>'; }
+    html += evo+'</div>';
     html += '</div>';
 
     // ---- Resumen ejecutivo (en criollo) ----
@@ -367,7 +438,7 @@
       if(d.resumen.prioridades && d.resumen.prioridades.length){
         html += '<ol>';
         d.resumen.prioridades.forEach(function(p){
-          html += '<li><b>'+esc(p.seccion)+' ('+p.score+'/100):</b> '+esc(p.accion)+'</li>';
+          html += '<li><b>'+esc(p.seccion)+(p.score!=null?' ('+esc(p.score)+'/100)':'')+':</b> '+esc(p.accion)+'</li>';
         });
         html += '</ol>';
       }
@@ -380,33 +451,21 @@
     for(var i=0;i<order.length;i++){
       var k = order[i]; var s = d.secciones && d.secciones[k];
       if(!s) continue;
-      var meta = SEC[k] || { icon:'?', label:k };
+      var meta2 = SEC[k] || { icon:'?', label:k };
+      var sd = s.score == null;
       html += '<div class="card"><div class="card-head">';
-      html += '<div class="card-title"><span>'+meta.icon+'</span> '+esc(meta.label)+'</div>';
-      html += '<span class="badge '+scoreClass(s.score)+'">'+s.score+'</span></div>';
-      html += '<div class="bar"><i style="width:'+s.score+'%;background:'+scoreColor(s.score)+'"></i></div>';
-      if(s.porQue){ html += '<div class="porque"><b>Por que importa:</b> '+esc(s.porQue)+'</div>'; }
+      html += '<div class="card-title"><span>'+meta2.icon+'</span> '+esc(meta2.label)+'</div>';
+      html += '<span class="badge '+scoreClass(s.score)+'">'+(sd ? 'Sin datos' : esc(s.score))+'</span></div>';
+      if(!sd){ html += '<div class="bar"><i style="width:'+Number(s.score)+'%;background:'+scoreColor(s.score)+'"></i></div>'; }
+      if(s.porQue){ html += '<div class="porque"><b>'+(sd?'Por qué no hay nota:':'Por qué importa:')+'</b> '+esc(s.porQue)+'</div>'; }
       html += '<ul class="pts">';
       (s.puntosFuertes||[]).forEach(function(p){ html += '<li><span class="mk" style="color:#4ade80">+</span> '+esc(p)+'</li>'; });
       (s.puntosFlojos||[]).forEach(function(p){ html += '<li><span class="mk" style="color:#f87171">!</span> '+esc(p)+'</li>'; });
       html += '</ul>';
-      if(s.recomendacion){ html += '<div class="rec"><b>Que hacer:</b> '+esc(s.recomendacion)+'</div>'; }
+      if(s.recomendacion){ html += '<div class="rec"><b>Qué hacer:</b> '+esc(s.recomendacion)+'</div>'; }
       html += '</div>';
     }
     html += '</div>';
-
-    // ---- Comparativa vs top de categoria ----
-    if(d.comparacion && d.topCategoria && d.topCategoria.length){
-      var c = d.comparacion;
-      html += '<div class="cmp-card"><div class="card-title">Comparativa vs. el top '+d.topCategoria.length+' de tu categoría</div>';
-      html += '<div class="head-meta" style="margin-top:8px">Título promedio: '+c.avgTitleLen+' caracteres &middot; Precio promedio: '+fmtARS(c.avgPrice)+' &middot; '+c.pctEnvioGratis+'% con envio gratis &middot; '+c.pctFull+'% con Full</div>';
-      html += '<table><thead><tr><th>Publicacion</th><th>Precio</th><th>Vendidos</th><th>Envio</th></tr></thead><tbody>';
-      d.topCategoria.forEach(function(t){
-        var envio = t.full ? '<span class="tag g">Full</span>' : (t.envioGratis ? '<span class="tag g">Gratis</span>' : '<span class="tag">-</span>');
-        html += '<tr><td>'+esc((t.titulo||'').slice(0,60))+'</td><td>'+fmtARS(t.precio)+'</td><td>'+esc(t.vendidos||0)+'</td><td>'+envio+'</td></tr>';
-      });
-      html += '</tbody></table></div>';
-    }
 
     // ---- Embudo: CTA contextual dentro del informe ----
     if(d.cta && d.cta.mostrar){
@@ -419,7 +478,7 @@
       html += '</div></div>';
     }
 
-    html += '<div class="note">Volve a analizar esta misma publicación en 30 días para ver si tus cambios mejoraron el puntaje.</div>';
+    html += '<div class="note">Lo arma una IA a partir de lo que se pudo leer de la publicación: tomalo como la opinión de un experto, no como una verdad absoluta. Volvé a analizarla en 30 días para ver si tus cambios mejoraron el puntaje.</div>';
 
     var box = $('results');
     box.innerHTML = html;
@@ -427,9 +486,23 @@
     box.scrollIntoView({ behavior:'smooth', block:'start' });
   }
 
+  // ---- Estado inicial: cupo y ejemplo (no gasta nada) ----
+  var ejemplo = null;
+  (async function(){
+    try{
+      var r = await fetch('/api/herramientas', { method:'POST', headers: cabeceras(), body: JSON.stringify({ accion:'estado' }) });
+      var d = await r.json();
+      mostrarCupo(d);
+      if(d && d.ejemplo && d.ejemplo.secciones){ ejemplo = d.ejemplo; $('btnEjemplo').hidden = false; }
+    }catch(e){}
+  })();
+  $('btnEjemplo').addEventListener('click', function(){
+    if(!ejemplo) return;
+    clearError(); ocultarAviso(); ocultarCapturas();
+    render(ejemplo, true);
+  });
+
   $('go').addEventListener('click', analizar);
-  // Sin sesion se avisa de entrada, en vez de dejar pegar un link que va a fallar.
-  if(!sesionToken()) mostrarAviso(codigoSinSesion());
   $('url').addEventListener('keydown', function(e){ if(e.key==='Enter') analizar(); });
 </script>
 <script>(function(){var t=document.getElementById('mnavToggle'),n=document.getElementById('mnav');if(t&&n){t.addEventListener('click',function(){n.classList.toggle('show');});}})();</script>
@@ -456,46 +529,6 @@
   })();
   </script>
 <script defer src="mc-ui.js?v=20260908a"></script>
-<script>
-(function(){
-  var btn = document.getElementById('btnEjemplo');
-  var campo = document.getElementById('url');
-  var go = document.getElementById('go');
-  if(!btn || !campo) return;
-  btn.addEventListener('click', async function(){
-    var textoOriginal = btn.textContent;
-    var av = window.__mcAviso;
-    var tieneSesion = false; try{ tieneSesion = !!localStorage.getItem('pf_token'); }catch(e){}
-    if(!tieneSesion){ if(av) av.mostrar(av.sinSesion()); return; }
-    btn.disabled = true;
-    btn.textContent = 'Buscando una publicaci\u00f3n\u2026';
-    try{
-      var r = await fetch('/api/herramientas', {
-        method:'POST', headers: av ? av.cabeceras() : {'Content-Type':'application/json'},
-        body: JSON.stringify({ accion:'ejemplo' })
-      });
-      var d = await r.json();
-      if(d && (d.codigo === 'sin_sesion' || d.codigo === 'sin_meli' || d.codigo === 'meli_rechazo') && av){
-        av.deRespuesta(d.codigo);
-        btn.textContent = textoOriginal;
-        btn.disabled = false;
-        return;
-      }
-      if(d && d.ok && d.url){
-        campo.value = d.url;
-        btn.textContent = textoOriginal;
-        btn.disabled = false;
-        if(go) go.click();
-        return;
-      }
-      btn.textContent = (d && d.error) ? d.error : 'No pudimos traer un ejemplo. Peg\u00e1 un link.';
-    }catch(e){
-      btn.textContent = 'No pudimos traer un ejemplo. Peg\u00e1 un link.';
-    }
-    btn.disabled = false;
-    setTimeout(function(){ btn.textContent = textoOriginal; }, 6000);
-  });
-})();
-</script>
+
 </body>
 </html>

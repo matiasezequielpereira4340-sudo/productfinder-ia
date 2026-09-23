@@ -99,8 +99,7 @@ console.log('Login');
   check('login guarda pf_token', await ls(page, 'pf_token') === 'TOKEN_FIRMADO');
   check('login guarda pf_premium', await ls(page, 'pf_premium') === '0');
   await page.waitForTimeout(300);
-  check('de vuelta en el Analizador ya NO pide iniciar sesion', !(await page.isVisible('#avisoCuenta')),
-    await page.textContent('#avisoCuenta'));
+  check('de vuelta en el Analizador, sin avisos de sesion', !(await page.isVisible('#avisoCuenta')));
   await ctx.close();
 }
 {
@@ -136,54 +135,114 @@ for (const malo of ['https://evil.example', '//evil.example', '/analizador.html'
   await ctx.close();
 }
 
-console.log('Analizador');
+console.log('Analizador (sin login obligatorio)');
+const informeUI = {
+  ok: true, cached: false, version: 2, itemId: 'MLA123456789', titulo: 'Mate termico', precio: 15999, vendidos: null,
+  permalink: 'https://articulo.mercadolibre.com.ar/MLA-123456789', thumbnail: '', fuente: 'pagina', fuenteTexto: 'la página pública',
+  scoreTotal: 75, seccionesConDatos: 7, restantes: 2, limite: 3,
+  resumen: { veredicto: 'Bien.', prioridades: [{ seccion: 'Fotos', score: 60, accion: 'Sumá fotos.' }] },
+  secciones: Object.fromEntries(['titulo', 'fotos', 'descripcion', 'atributos', 'envio', 'precio', 'condicion', 'reputacion']
+    .map(k => [k, k === 'reputacion' ? { score: null, sinDatos: true, porQue: 'No se ve.', puntosFuertes: [], puntosFlojos: [], recomendacion: '' }
+      : { score: 75, porQue: 'x', puntosFuertes: ['a'], puntosFlojos: ['b'], recomendacion: 'c' }]))
+};
+const estadoUI = (ejemplo) => ({ body: { ok: true, limite: 3, restantes: 3, ejemplo } });
 {
-  const { ctx, page } = await nuevaPagina({ pf_user: 'juan', pf_role: 'user' });
+  const { ctx, page } = await nuevaPagina(null, (u, req) => {
+    const b = JSON.parse(req.postData() || '{}');
+    if (b.accion === 'estado') return estadoUI(null);
+    return null;
+  });
   await page.goto(BASE + '/analizador.html');
-  const txt = await page.textContent('#avisoCuenta');
-  check('sesion vieja -> aviso "de antes de una actualizacion"', /antes de una actualizaci/i.test(txt), txt);
-  check('sesion vieja -> boton a login.html?next=analizador',
-    await page.getAttribute('#avisoCuenta a', 'href') === 'login.html?next=analizador');
+  await page.waitForTimeout(400);
+  check('sin sesion -> NO aparece ningun aviso de iniciar sesion', !(await page.isVisible('#avisoCuenta')));
+  check('muestra el cupo del dia', /Te quedan 3 an[aá]lisis gratis hoy/.test(await page.textContent('#cupo')), await page.textContent('#cupo'));
+  check('sin ejemplos en cache -> el boton de ejemplo queda oculto', !(await page.isVisible('#btnEjemplo')));
+  check('texto opcional para conectar la cuenta', /Si la publicaci[oó]n es tuya/.test(await page.textContent('body')) &&
+    await page.getAttribute('a[href^="meli-connect.html"]', 'href') === 'meli-connect.html?next=analizador');
+  check('la pagina ya no dice que hace falta iniciar sesion', !/Necesit[aá]s iniciar sesi[oó]n/.test(await page.textContent('body')));
   await ctx.close();
 }
 {
-  const { ctx, page } = await nuevaPagina(null);
+  let authHeader = 'sin-llamar', cuerpoEnviado = null;
+  const { ctx, page } = await nuevaPagina(null, (u, req) => {
+    const b = JSON.parse(req.postData() || '{}');
+    if (b.accion === 'estado') return estadoUI(informeUI);
+    authHeader = req.headers()['authorization'] || null; cuerpoEnviado = b;
+    return { body: informeUI };
+  });
   await page.goto(BASE + '/analizador.html');
-  const txt = await page.textContent('#avisoCuenta');
-  check('sin usuario -> "Primero inicia sesion"', /Primero inici/i.test(txt), txt);
-  check('sin usuario -> boton a login.html?next=analizador',
-    await page.getAttribute('#avisoCuenta a', 'href') === 'login.html?next=analizador');
-  await ctx.close();
-}
-{
-  const { ctx, page } = await nuevaPagina({ pf_user: 'invitado', pf_role: 'guest' });
-  await page.goto(BASE + '/analizador.html');
-  check('invitado -> aviso generico, no el de sesion vieja', /Primero inici/i.test(await page.textContent('#avisoCuenta')));
+  await page.fill('#url', 'https://articulo.mercadolibre.com.ar/MLA-123456789-mate-_JM');
+  await page.click('#go');
+  await page.waitForSelector('#results.on');
+  const res = await page.textContent('#results');
+  check('analizar sin sesion -> informe, sin mandar Authorization', authHeader === null && cuerpoEnviado.url.includes('MLA-123456789'), authHeader);
+  check('el informe muestra "Leido de: ..."', /Le[ií]do de: la p[aá]gina p[uú]blica/.test(res), res.slice(0, 200));
+  check('seccion sin datos -> badge "Sin datos" y no un numero', /Sin datos/.test(res) && (await page.$$('.badge.b-nd')).length === 1);
+  check('aclara sobre cuantas secciones se calculo el puntaje', /sobre 7 de 8 secciones/.test(res));
+  check('el cupo baja con la respuesta (quedan 2)', /Te quedan 2/.test(await page.textContent('#cupo')));
+  check('ya no hay comparativa vs top de categoria', !/Comparativa vs/.test(res));
+  await page.click('#btnEjemplo');
+  check('boton de ejemplo -> muestra un analisis guardado con aviso de ejemplo', /Ejemplo: an[aá]lisis real/.test(await page.textContent('#results')));
   await ctx.close();
 }
 {
   let authHeader = null;
   const { ctx, page } = await nuevaPagina({ pf_user: 'juan', pf_role: 'user', pf_token: 'T1' }, (u, req) => {
-    if (u.pathname === '/api/herramientas') { authHeader = req.headers()['authorization']; return { status: 401, body: { ok: false, codigo: 'sin_meli', error: 'x' } }; }
-    return null;
+    const b = JSON.parse(req.postData() || '{}');
+    if (b.accion === 'estado') return estadoUI(null);
+    authHeader = req.headers()['authorization']; return { body: informeUI };
+  });
+  await page.goto(BASE + '/analizador.html');
+  await page.fill('#url', 'https://articulo.mercadolibre.com.ar/MLA-123456789');
+  await page.click('#go');
+  await page.waitForSelector('#results.on');
+  check('con sesion -> manda Authorization: Bearer <pf_token> (opcional, para propias)', authHeader === 'Bearer T1', authHeader);
+  await ctx.close();
+}
+{
+  const enviados = [];
+  const { ctx, page } = await nuevaPagina(null, (u, req) => {
+    const b = JSON.parse(req.postData() || '{}');
+    if (b.accion === 'estado') return estadoUI(null);
+    enviados.push(b);
+    if (!b.capturas) return { body: { ok: false, codigo: 'necesito_capturas', mensaje: 'No pude leer esta publicación automáticamente. Subí 1 a 3 capturas de pantalla.', restantes: 3, limite: 3 } };
+    return { body: Object.assign({}, informeUI, { fuente: 'capturas', fuenteTexto: 'tus capturas de pantalla' }) };
+  });
+  await page.goto(BASE + '/analizador.html');
+  await page.fill('#url', 'https://articulo.mercadolibre.com.ar/MLA-123456789');
+  await page.click('#go');
+  await page.waitForSelector('#capturasBox:not([hidden])');
+  check('necesito_capturas -> aparece el recuadro para subir capturas', /Sub[ií] 1 a 3 capturas/.test(await page.textContent('#capturasBox')));
+  // Una captura "grande" generada en el navegador: 3000x2000 px.
+  const png = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 3000; c.height = 2000;
+    const x = c.getContext('2d'); for (let i = 0; i < 400; i++) { x.fillStyle = 'hsl(' + (i * 37 % 360) + ',70%,50%)'; x.fillRect((i * 97) % 3000, (i * 53) % 2000, 180, 120); }
+    return c.toDataURL('image/png').split(',')[1]; });
+  await page.setInputFiles('#capturasInput', [{ name: 'captura.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') }]);
+  await page.waitForSelector('#capturasGo:not([disabled])');
+  await page.click('#capturasGo');
+  await page.waitForSelector('#results.on');
+  const env = enviados[enviados.length - 1];
+  const bytes = env.capturas ? Math.floor(env.capturas[0].datos.length * 3 / 4) : 0;
+  const dims = env.capturas ? await page.evaluate(d => new Promise(ok => { const i = new Image(); i.onload = () => ok([i.naturalWidth, i.naturalHeight]); i.src = 'data:image/jpeg;base64,' + d; }), env.capturas[0].datos) : [];
+  check('las capturas se mandan como JPEG junto con el link', env.capturas && env.capturas.length === 1 && env.capturas[0].tipo === 'image/jpeg' && /MLA-123456789/.test(env.url));
+  check('compresion en el navegador: lado mayor 1400 px y menos de 1,3 MB', dims[0] === 1400 && dims[1] === 933 && bytes < 1300000, { dims, bytes });
+  check('informe por capturas -> "Leido de: tus capturas"', /Le[ií]do de: tus capturas/.test(await page.textContent('#results')));
+  await ctx.close();
+}
+{
+  const { ctx, page } = await nuevaPagina(null, (u, req) => {
+    const b = JSON.parse(req.postData() || '{}');
+    if (b.accion === 'estado') return estadoUI(null);
+    return { status: 429, body: { ok: false, codigo: 'limite_ip', error: 'Usaste tus 3 análisis gratis de hoy. Volvé mañana o hablá con un asesor.', asesor: 'https://wa.me/541160374306?text=x', restantes: 0, limite: 3 } };
   });
   await page.goto(BASE + '/analizador.html');
   await page.fill('#url', 'https://articulo.mercadolibre.com.ar/MLA-123456789');
   await page.click('#go');
   await page.waitForSelector('#avisoCuenta.on');
-  check('analizar manda Authorization: Bearer <pf_token>', authHeader === 'Bearer T1', authHeader);
-  check('sin_meli -> boton a meli-connect.html?next=analizador',
-    await page.getAttribute('#avisoCuenta a', 'href') === 'meli-connect.html?next=analizador');
-  await ctx.close();
-}
-{
-  const { ctx, page } = await nuevaPagina({ pf_user: 'juan', pf_role: 'user', pf_token: 'VENCIDO' }, (u) =>
-    u.pathname === '/api/herramientas' ? { status: 401, body: { ok: false, codigo: 'sin_sesion', error: 'x' } } : null);
-  await page.goto(BASE + '/analizador.html');
-  await page.fill('#url', 'https://articulo.mercadolibre.com.ar/MLA-123456789');
-  await page.click('#go');
-  await page.waitForSelector('#avisoCuenta.on');
-  check('token rechazado por el servidor -> "Tu sesion vencio" y se borra', /venci/i.test(await page.textContent('#avisoCuenta')) && await ls(page, 'pf_token') === null);
+  check('limite -> mensaje amable con boton al asesor (WhatsApp)', /Usaste tus 3 an[aá]lisis gratis de hoy/.test(await page.textContent('#avisoCuenta')) &&
+    /wa\.me/.test(await page.getAttribute('#avisoCuenta a', 'href')));
+  check('limite -> el cupo muestra que no quedan', /No te quedan/.test(await page.textContent('#cupo')));
+  check('nunca muestra "Reconecta tu cuenta"', !/Reconect/i.test(await page.textContent('body')));
   await ctx.close();
 }
 
