@@ -26,6 +26,8 @@ let tablaUso = true;          // false = la migracion no se corrio
 let jinaModo = 'ok';          // ok | bloqueo | inyeccion
 let respuestasIA = [];        // cola de textos que devuelve la "IA"
 let rechazarEsquema = false;  // la API contesta 400 si viene output_config
+let repModo = '5_green';      // level_id del vendedor 999
+let upModo = 'sin_desc';      // /user-products/MLAU3430824424: sin_desc | con_desc
 let descModo = 'plain';       // plain | html | falla | vacia (descripcion de MLA1654121789)
 const llamadas = { meli: [], jina: [], ia: [], supaEscrituras: [], otros: [] };
 
@@ -75,7 +77,7 @@ globalThis.fetch = async function (recurso, opciones) {
       const lte = (url.match(/analyzed_at=lte\.([^&]+)/) || [])[1];
       let filas = analisis.filter(r => (!item || r.item_id === decodeURIComponent(item)) &&
         (!gte || r.analyzed_at >= decodeURIComponent(gte)) && (!lte || r.analyzed_at <= decodeURIComponent(lte)) &&
-        (!/report->>version=eq\.4/.test(url) || (r.report && r.report.version === 4)));
+        (!/report->>version=eq\.5/.test(url) || (r.report && r.report.version === 5)));
       filas = filas.slice().sort((a, b) => b.analyzed_at.localeCompare(a.analyzed_at));
       return resp(200, filas.slice(0, 20));
     }
@@ -99,7 +101,7 @@ globalThis.fetch = async function (recurso, opciones) {
   // ---- API de MercadoLibre ----
   if (url.startsWith('https://api.mercadolibre.com')) {
     const auth = h.Authorization || h.authorization || null;
-    llamadas.meli.push({ url, auth });
+    llamadas.meli.push({ url, auth, t: Date.now() });
     if (!auth) return resp(403, { blocked_by: 'PolicyAgent' });
     const p = new URL(url).pathname;
     if (p === '/items/MLA1111111') return resp(200, {
@@ -109,7 +111,9 @@ globalThis.fetch = async function (recurso, opciones) {
       pictures: [{ secure_url: 'https://http2.mlstatic.com/p1.jpg', max_size: '1200x1200' }],
       shipping: { free_shipping: true, logistic_type: 'fulfillment' }, attributes: [{ id: 'BRAND', name: 'Marca', value_name: 'Razurii' }] });
     if (p === '/items/MLA1111111/description') return resp(200, { plain_text: 'Descripción propia\n- punto' });
-    if (p === '/users/999') return resp(200, { seller_reputation: { level_id: '5_green', power_seller_status: 'gold' } });
+    if (p === '/users/999') return resp(200, { seller_reputation: repModo === '2_orange'
+      ? { level_id: '2_orange', power_seller_status: null, transactions: { ratings: { negative: 0.04 } } }
+      : { level_id: '5_green', power_seller_status: 'gold' } });
     if (p === '/categories/MLA1/attributes') return resp(200, [{ id: 'BRAND', name: 'Marca', tags: { required: true } }]);
     if (p === '/items/MLA4040404') return resp(404, { message: 'not found' });
     // Datos reales de MLA1654121789 (aspiradora Razurii), con la descripcion
@@ -119,11 +123,14 @@ globalThis.fetch = async function (recurso, opciones) {
       price: 25999, currency_id: 'ARS', category_id: 'MLA2', seller_id: 999, condition: 'new', sold_quantity: 12, status: 'active',
       date_created: new Date(Date.now() - 200 * 86400e3).toISOString(), permalink: 'https://articulo.mercadolibre.com.ar/MLA-1654121789',
       pictures: [1, 2, 3, 4, 5].map(i => ({ secure_url: 'https://http2.mlstatic.com/r' + i + '.jpg', max_size: '1200x1200' })),
-      descriptions: descModo === 'vacia' ? [] : [{ id: 'MLA1654121789-123' }],
+      ...(descModo === 'real' ? { user_product_id: 'MLAU3430824424' } : { descriptions: descModo === 'vacia' ? [] : [{ id: 'MLA1654121789-123' }] }),
       shipping: { free_shipping: false, mode: 'me2', logistic_type: 'drop_off', tags: ['self_service_out', 'mandatory_free_shipping'], local_pick_up: false },
       attributes: [{ id: 'BRAND', name: 'Marca', value_name: 'Razurii' }] });
     if (p === '/items/MLA1654121789/description') {
       // Lo que se vio en produccion: HTTP 200 sin plain_text ni text.
+      // Tal cual se midio el 23/09: text y plain_text de 0 caracteres + snapshot.
+      if (descModo === 'real') { await new Promise(r => setTimeout(r, 120)); return resp(200, { text: '', plain_text: '', last_updated: '2025-01-10T12:00:00.000Z',
+        date_created: '2024-03-01T12:00:00.000Z', snapshot: { url: 'http://descriptions.mlstatic.com/D-MLA1654121789.html?hash=real', width: 0, height: 0, status: '' } }); }
       if (descModo === 'sin_texto_con_snapshot') return resp(200, { id: 'MLA1654121789-4401', last_updated: '2025-01-10T12:00:00Z',
         date_created: '2024-03-01T12:00:00Z', snapshot: { url: 'http://descriptions.mlstatic.com/D-MLA1654121789.html?hash=abc', width: 0, height: 0, status: '' } });
       if (descModo === 'sin_texto') return resp(200, { id: 'MLA1654121789-4401', last_updated: '2025-01-10T12:00:00Z' });
@@ -133,7 +140,12 @@ globalThis.fetch = async function (recurso, opciones) {
       if (descModo === 'vacia') return resp(404, { message: 'not found' });
       return resp(403, { blocked_by: 'PolicyAgent' });
     }
+    if (p === '/user-products/MLAU3430824424') {
+      if (upModo === 'con_desc') return resp(200, { id: 'MLAU3430824424', name: 'Aspiradora Razurii AS-228', description: { plain_text: 'La aspiradora portátil AS-228 de Razurii es la solución perfecta (user product).' } });
+      return resp(200, { id: 'MLAU3430824424', name: 'Aspiradora Razurii AS-228', attributes: [] });
+    }
     if (p === '/items/MLA1654121789/descriptions') {
+      if (descModo === 'real') return resp(410, { message: 'gone' });
       if (descModo === 'vacia') return resp(200, []);
       return resp(403, { blocked_by: 'PolicyAgent' });
     }
@@ -144,6 +156,7 @@ globalThis.fetch = async function (recurso, opciones) {
   // ---- Snapshot de la descripcion (HTML estatico de MeLi) ----
   if (url.startsWith('https://descriptions.mlstatic.com/')) {
     llamadas.otros.push(url);
+    if (/hash=real/.test(url)) return resp(404, 'Not Found', 'text/plain');
     return resp(200, '<html><body><p>La aspiradora portátil AS-228 de Razurii es la solución perfecta para tu casa.</p><p>Incluye 3 boquillas.</p></body></html>', 'text/html');
   }
 
@@ -190,7 +203,7 @@ function check(nombre, cond, extra) {
   else { fallas++; console.log('  FALLA ' + nombre + (extra !== undefined ? '\n        ' + JSON.stringify(extra).slice(0, 500) : '')); }
 }
 function reset() {
-  analisis = []; uso = new Map(); tablaUso = true; jinaModo = 'ok'; respuestasIA = []; rechazarEsquema = false; descModo = 'plain';
+  analisis = []; uso = new Map(); tablaUso = true; jinaModo = 'ok'; respuestasIA = []; rechazarEsquema = false; descModo = 'plain'; repModo = '5_green'; upModo = 'sin_desc';
   A._reiniciarEsquema();
   Object.keys(llamadas).forEach(k => { llamadas[k].length = 0; });
   A._reiniciarUsoMemoria();
@@ -423,15 +436,17 @@ check('descripcion realmente vacia (item.descriptions [] y /descriptions []) -> 
 reset();
 r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
 d = datosIA();
-check('envio: a la IA le llegan free_shipping, logistic_type, mode, tags y la nota de cautela', d.envio.gratisMarcadoPorElVendedor === false &&
-  d.envio.logistica === 'drop_off' && d.envio.modo === 'me2' && d.envio.tags.includes('mandatory_free_shipping') && /No afirmes que el comprador paga/.test(d.envio.nota), d.envio);
-check('prompt: nunca afirmar "no tiene envío gratis" con free_shipping false', /nunca afirmes "no tiene envío gratis"/.test(A.PROMPT_SISTEMA));
+check('envio: a la IA le llegan free_shipping, logistica, modalidad y detalles YA TRADUCIDOS, con la nota de cautela', d.envio.envioGratisACargoDelVendedor === 'no marcado por la API' &&
+  /correo o agencia/.test(d.envio.logistica) && d.envio.modalidad === 'Mercado Envíos' && d.envio.detalles.includes('MeLi exige envío gratis en esta publicación') &&
+  /el comprador puede verlo gratis por beneficios de MeLi/.test(d.envio.nota), d.envio);
+check('envio: ningun codigo interno viaja a la IA (drop_off, me2, mandatory_free_shipping, self_service)', !/drop_off|\bme2\b|mandatory_free_shipping|self_service/.test(JSON.stringify(d.envio)), d.envio);
+check('prompt: con envio gratis no marcado, no recomendar "ofrecer envío gratis" ni decir que no tiene', /NO recomiendes "ofrecer envío gratis", no digas que no tiene envío gratis/.test(A.PROMPT_SISTEMA));
 check('prompt: descripcion "no_se_pudo_leer" va con score null', /descripcion\.estado "no_se_pudo_leer": la sección descripción va con "score": null/.test(A.PROMPT_SISTEMA));
 
 reset();
 analisis.push({ item_id: 'MLA1654121789', analyzed_at: new Date().toISOString(), report: { version: 2, itemId: 'MLA1654121789', secciones: {} } });
 r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
-check('un informe viejo (version 2, con el bug) en cache NO se sirve: se analiza de nuevo', r.statusCode === 200 && r.cuerpo.cached === false && r.cuerpo.version === 4 && llamadas.ia.length === 1, [r.cuerpo.cached, r.cuerpo.version]);
+check('un informe viejo (version 2, con el bug) en cache NO se sirve: se analiza de nuevo', r.statusCode === 200 && r.cuerpo.cached === false && r.cuerpo.version === 5 && llamadas.ia.length === 1, [r.cuerpo.cached, r.cuerpo.version]);
 
 console.log('Caso real MLA1654121789: /description 200 sin plain_text ni text');
 reset(); descModo = 'sin_texto_con_snapshot';
@@ -451,6 +466,58 @@ r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
 d = datosIA();
 check('200 con un array -> tambien se lee', d.descripcion.estado === 'leida' && /\(array\)/.test(d.descripcion.texto), d.descripcion);
 check('forma del cuerpo: describe claves y largos sin volcar el contenido', A.formaDelCuerpo({ plain_text: 'secreto', snapshot: { url: 'u' } }) === '{plain_text:str(7), snapshot:{url}}');
+
+console.log('Caso real 23/09: 200 vacio + snapshot 404 + /descriptions 410 + user product');
+reset(); descModo = 'real';
+r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
+d = datosIA();
+check('sin texto por ninguna via -> "no_se_pudo_leer" con la evidencia de cada una', d.descripcion.estado === 'no_se_pudo_leer' &&
+  /\/description HTTP 200 \{text:str\(0\), plain_text:str\(0\)/.test(d.descripcion.nota) && /snapshot HTTP 404/.test(d.descripcion.nota) &&
+  /\/descriptions HTTP 410/.test(d.descripcion.nota) && /\/user-products HTTP 200/.test(d.descripcion.nota), d.descripcion.nota);
+check('se consulta el user product del item (MLAU3430824424) con el token', llamadas.meli.some(c => /\/user-products\/MLAU3430824424$/.test(c.url) && c.auth === 'Bearer TOK_ANA'));
+const tDesc = llamadas.meli.find(c => /\/description$/.test(c.url)).t, tUP = llamadas.meli.find(c => /user-products/.test(c.url)).t,
+  tDescs = llamadas.meli.find(c => /\/descriptions$/.test(c.url)).t;
+check('/description, /descriptions y /user-products arrancan en PARALELO (no en serie)', Math.abs(tUP - tDesc) < 60 && Math.abs(tDescs - tDesc) < 60, [tDesc, tUP, tDescs]);
+reset(); descModo = 'real'; upModo = 'con_desc';
+r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
+d = datosIA();
+check('si el user product trae la descripcion -> LEIDA', d.descripcion.estado === 'leida' && /\(user product\)/.test(d.descripcion.texto), d.descripcion);
+
+console.log('Codigos internos de MeLi y envio gratis');
+reset(); descModo = 'real'; repModo = '2_orange';
+const conCodigos = JSON.parse(informeIA({ descripcion: null }));
+conCodigos.secciones.envio.recomendacion = 'Considerá ofrecer envío gratis para subir la conversión (genera confianza a nivel 2_orange). Mantené el despacho rápido.';
+conCodigos.secciones.envio.puntosFlojos = ['No ofrece envío gratis', 'Logística xd_drop_off lenta'];
+conCodigos.secciones.reputacion.recomendacion = 'Tu reputación 2_orange limita: apuntá a MercadoLíder gold. Publicás como gold_special con fulfillment y me2.';
+conCodigos.resumen.veredicto = 'Buena publicación. Te conviene activar envío gratis.';
+conCodigos.resumen.prioridades = [{ seccion: 'Envío', accion: 'Ofrecé envío gratis.' }, { seccion: 'Fotos', accion: 'Sumá una foto de uso.' }];
+respuestasIA = [JSON.stringify(conCodigos)];
+r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
+d = datosIA();
+check('a la IA le llega la reputacion traducida ("reputación naranja (nivel 2 de 5)"), sin "2_orange"', d.reputacionVendedor.reputacion === 'reputación naranja (nivel 2 de 5)' &&
+  d.reputacionVendedor.mercadoLider === 'no es MercadoLíder' && d.reputacionVendedor.calificacionesNegativas === '4%' && !/2_orange/.test(JSON.stringify(llamadas.ia[0].body.messages)), d.reputacionVendedor);
+const todoTexto = JSON.stringify({ r: r.cuerpo.resumen, s: r.cuerpo.secciones });
+check('en la salida no queda ningun codigo interno (2_orange, gold_special, fulfillment, me2, xd_drop_off)', !/2_orange|gold_special|fulfillment|\bme2\b|xd_drop_off/.test(todoTexto), todoTexto.match(/2_orange|gold_special|fulfillment|\bme2\b|xd_drop_off/g));
+check('los codigos se reemplazan por castellano', /reputación naranja \(nivel 2 de 5\)/.test(r.cuerpo.secciones.reputacion.recomendacion) &&
+  /publicación Clásica/.test(r.cuerpo.secciones.reputacion.recomendacion) && /MercadoLíder Gold/.test(r.cuerpo.secciones.reputacion.recomendacion), r.cuerpo.secciones.reputacion.recomendacion);
+check('envio gratis no marcado por la API -> la recomendacion de envio no dice "ofrecer envío gratis"', !/ofrec\w* env[ií]o gratis/i.test(r.cuerpo.secciones.envio.recomendacion) &&
+  /Mantené el despacho rápido/.test(r.cuerpo.secciones.envio.recomendacion), r.cuerpo.secciones.envio.recomendacion);
+check('... ni un punto flojo "no ofrece envío gratis"', !r.cuerpo.secciones.envio.puntosFlojos.some(p => /env[ií]o gratis/i.test(p)), r.cuerpo.secciones.envio.puntosFlojos);
+check('... ni una prioridad ni el veredicto', !r.cuerpo.resumen.prioridades.some(p => /env[ií]o gratis/i.test(p.accion)) && !/env[ií]o gratis/i.test(r.cuerpo.resumen.veredicto), r.cuerpo.resumen);
+reset(); descModo = 'real';
+const soloEnvio = JSON.parse(informeIA({ descripcion: null }));
+soloEnvio.secciones.envio.recomendacion = 'Ofrecé envío gratis.';
+respuestasIA = [JSON.stringify(soloEnvio)];
+r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
+check('si la recomendacion de envio era SOLO eso -> queda el texto con cautela', r.cuerpo.secciones.envio.recomendacion === A.ENVIO_CAUTELA, r.cuerpo.secciones.envio.recomendacion);
+reset();
+const conEnvioGratis = JSON.parse(informeIA());
+conEnvioGratis.secciones.envio.recomendacion = 'Sumá envío gratis también en la variante grande.';
+respuestasIA = [JSON.stringify(conEnvioGratis)];
+r = await llamar({ body: { url: link(1111111, 'aspiradora-portatil') }, sesion: sesAna });
+check('con free_shipping=true (MLA1111111) el filtro de envio no toca nada', r.cuerpo.secciones.envio.recomendacion === 'Sumá envío gratis también en la variante grande.', r.cuerpo.secciones.envio.recomendacion);
+check('"por qué importa" es fijo por seccion (no lo escribe la IA)', r.cuerpo.secciones.titulo.porQue === A.PORQUE_IMPORTA.titulo && !('porQue' in A.ESQUEMA_INFORME.properties.secciones.items.properties));
+check('sinCodigos: casos sueltos', A.sinCodigos('nivel 4_light_green, me1, self_service_in') === 'nivel reputación verde claro (nivel 4 de 5), Mercado Envíos, Flex', A.sinCodigos('nivel 4_light_green, me1, self_service_in'));
 
 console.log('Resumen: las secciones sin datos no se mencionan (servidor)');
 reset(); descModo = 'sin_texto';
