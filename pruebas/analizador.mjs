@@ -300,8 +300,9 @@ function todoCerrado(sch) {
   if (sch.type === 'object' && JSON.stringify(Object.keys(sch.properties || {}).sort()) !== JSON.stringify((sch.required || []).slice().sort())) return false;
   return Object.values(sch).every(v => (Array.isArray(v) ? v.every(todoCerrado) : todoCerrado(v)));
 }
-check('la IA recibe output_config.format json_schema con las 8 secciones obligatorias', oc && oc.format && oc.format.type === 'json_schema' &&
-  JSON.stringify(oc.format.schema.properties.secciones.required) === JSON.stringify(A.SECCIONES), oc && oc.format && oc.format.type);
+check('la IA recibe output_config.format json_schema con las secciones como array (clave enum de las 8)', oc && oc.format && oc.format.type === 'json_schema' &&
+  JSON.stringify(oc.format.schema.properties.secciones.items.properties.clave.enum) === JSON.stringify(A.SECCIONES), oc && oc.format && oc.format.type);
+check('el esquema es chico (la API rechazo el de 8 objetos por "grammar too large")', JSON.stringify(A.ESQUEMA_INFORME).length < 2000, JSON.stringify(A.ESQUEMA_INFORME).length);
 check('el esquema es valido para la API: todo objeto con additionalProperties:false y required completo', todoCerrado(A.ESQUEMA_INFORME));
 check('el esquema no usa restricciones que la API no soporta (minimum/maxLength)', !/"(minimum|maximum|minLength|maxLength|multipleOf)"/.test(JSON.stringify(A.ESQUEMA_INFORME)));
 
@@ -322,8 +323,19 @@ r = await llamar({ body: { url: link(8100004) } });
 check('validador tolerante: score "sin datos" -> null, porQue vacio y 1 seccion faltante no tiran el informe', r.statusCode === 200 &&
   r.cuerpo.secciones.reputacion.score === null && r.cuerpo.secciones.condicion.sinDatos === true && llamadas.ia.length === 1, r.cuerpo.codigo);
 const motivos = [];
-check('validador: dice por que rechaza (para el log)', A.validarInforme(A.extraerJson('{"secciones": {"titulo": 1', motivos), motivos) === null && motivos.length > 0 && /JSON|llaves/.test(motivos[0]), motivos);
+check('validador: dice por que rechaza (para el log)', A.validarInforme(A.extraerJson('{"secciones": {"titulo": 1', motivos), motivos) === null && motivos.length > 0 && /faltan 8 secciones/.test(motivos[0]), motivos);
 check('reparacion minima: coma colgando', A.extraerJson('{"a": 1, "b": [1,2,],}').b.length === 2);
+
+// El caso real de produccion: JSON en una linea al que le falta la ultima llave.
+reset();
+const arr = JSON.parse(informeIA());
+arr.secciones = A.SECCIONES.map(k => Object.assign({ clave: k }, arr.secciones[k]));
+const sinUltimaLlave = '```json\n' + JSON.stringify(arr).replace(/}$/, '') + '\n```';
+respuestasIA = [sinUltimaLlave];
+r = await llamar({ body: { url: link(8100005) } });
+check('caso real: secciones en array + falta la ultima llave + ```json -> se repara y sale en el 1er intento',
+  r.statusCode === 200 && llamadas.ia.length === 1 && r.cuerpo.secciones.reputacion.score === 80 && r.cuerpo.scoreTotal === 80, [r.statusCode, llamadas.ia.length, r.cuerpo.codigo]);
+check('balanceo respeta llaves dentro de strings', JSON.stringify(A.extraerJson('{"a":{"t":"x}}"}')) === '{"a":{"t":"x}}"}}');
 
 console.log('Ejemplo y estado');
 reset();

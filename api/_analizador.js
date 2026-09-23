@@ -390,11 +390,10 @@ export const PROMPT_SISTEMA = [
   '',
   'Respondé SOLO con un objeto JSON válido y COMPACTO (en una sola línea, sin sangría ni saltos de línea), sin texto antes ni después y sin ```. Forma exacta:',
   '{"titulo": string|null, "precio": number|null, "moneda": string|null, "vendidos": number|null,',
-  ' "resumen": {"veredicto": string, "prioridades": [{"seccion": string, "score": number, "accion": string}]},',
-  ' "secciones": {',
-  '   "titulo": S, "fotos": S, "descripcion": S, "atributos": S, "envio": S, "precio": S, "condicion": S, "reputacion": S',
-  ' }}',
-  'donde cada S es {"score": number|null, "porQue": string, "puntosFuertes": [string], "puntosFlojos": [string], "recomendacion": string}.',
+  ' "resumen": {"veredicto": string, "prioridades": [{"seccion": string, "accion": string}]},',
+  ' "secciones": [S, S, S, S, S, S, S, S]}',
+  'con exactamente 8 secciones S, una por cada "clave" en este orden: titulo, fotos, descripcion, atributos, envio, precio, condicion, reputacion.',
+  'Cada S es {"clave": string, "score": number|null, "porQue": string, "puntosFuertes": [string], "puntosFlojos": [string], "recomendacion": string}.',
   '"titulo", "precio" y "vendidos" van solo si los leíste; si no, null.'
 ].join('\n');
 
@@ -421,19 +420,13 @@ function armarContenido(lectura, extra) {
 }
 
 // Esquema del informe para structured outputs (Haiku 4.5 lo soporta): la API
-// garantiza JSON valido con las 8 secciones. Medido sin esto: 3 de 4 informes
-// por capturas llegaban con JSON invalido aun terminando en end_turn.
+// garantiza JSON valido. Medido sin esto: 3 de 4 informes por capturas
+// llegaban con una llave de cierre de menos (JSON en una linea, anidado).
+//
+// Las secciones van como ARRAY con un solo esquema de item: con las 8 como
+// objeto, la API contesto "The compiled grammar is too large". El servidor
+// las vuelve a pasar a objeto (validarInforme acepta las dos formas).
 const NULO = (tipo) => ({ anyOf: [{ type: tipo }, { type: 'null' }] });
-const ESQUEMA_SECCION = {
-  type: 'object', additionalProperties: false,
-  required: ['score', 'porQue', 'puntosFuertes', 'puntosFlojos', 'recomendacion'],
-  properties: {
-    score: NULO('integer'), porQue: { type: 'string' },
-    puntosFuertes: { type: 'array', items: { type: 'string' } },
-    puntosFlojos: { type: 'array', items: { type: 'string' } },
-    recomendacion: { type: 'string' }
-  }
-};
 export const ESQUEMA_INFORME = {
   type: 'object', additionalProperties: false,
   required: ['titulo', 'precio', 'moneda', 'vendidos', 'resumen', 'secciones'],
@@ -444,13 +437,22 @@ export const ESQUEMA_INFORME = {
       properties: {
         veredicto: { type: 'string' },
         prioridades: { type: 'array', items: { type: 'object', additionalProperties: false,
-          required: ['seccion', 'score', 'accion'],
-          properties: { seccion: { type: 'string' }, score: NULO('integer'), accion: { type: 'string' } } } }
+          required: ['seccion', 'accion'], properties: { seccion: { type: 'string' }, accion: { type: 'string' } } } }
       }
     },
     secciones: {
-      type: 'object', additionalProperties: false, required: SECCIONES.slice(),
-      properties: Object.fromEntries(SECCIONES.map(k => [k, ESQUEMA_SECCION]))
+      type: 'array',
+      items: {
+        type: 'object', additionalProperties: false,
+        required: ['clave', 'score', 'porQue', 'puntosFuertes', 'puntosFlojos', 'recomendacion'],
+        properties: {
+          clave: { type: 'string', enum: SECCIONES.slice() },
+          score: NULO('integer'), porQue: { type: 'string' },
+          puntosFuertes: { type: 'array', items: { type: 'string' } },
+          puntosFlojos: { type: 'array', items: { type: 'string' } },
+          recomendacion: { type: 'string' }
+        }
+      }
     }
   }
 };
@@ -505,7 +507,12 @@ function numONull(v) {
 export function validarInforme(obj, motivos) {
   const rechazar = (m) => { if (Array.isArray(motivos)) motivos.push(m); return null; };
   if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return rechazar('no es un objeto');
-  const s = obj.secciones;
+  let s = obj.secciones;
+  if (Array.isArray(s)) {
+    const porClave = {};
+    s.forEach(x => { if (x && typeof x === 'object' && SECCIONES.includes(x.clave) && !porClave[x.clave]) porClave[x.clave] = x; });
+    s = porClave;
+  }
   if (!s || typeof s !== 'object') return rechazar('sin "secciones"');
   const secciones = {};
   let faltan = 0;
@@ -558,22 +565,47 @@ export function validarInforme(obj, motivos) {
   };
 }
 
+// Cierra llaves y corchetes que quedaron abiertos, respetando los strings.
+// Medido: sin esquema, Haiku a veces escribe "}}" donde van "}}}".
+export function balancearJson(txt) {
+  const pila = [];
+  let enString = false, escape = false;
+  for (const c of txt) {
+    if (enString) {
+      if (escape) escape = false;
+      else if (c === '\\') escape = true;
+      else if (c === '"') enString = false;
+      continue;
+    }
+    if (c === '"') enString = true;
+    else if (c === '{' || c === '[') pila.push(c === '{' ? '}' : ']');
+    else if ((c === '}' || c === ']') && pila.length && pila[pila.length - 1] === c) pila.pop();
+  }
+  if (enString) return null;
+  return txt + pila.reverse().join('');
+}
+
 export function extraerJson(texto, motivos) {
-  const t = String(texto || '');
-  const a = t.indexOf('{'), b = t.lastIndexOf('}');
-  if (a < 0 || b <= a) { if (Array.isArray(motivos)) motivos.push('sin llaves'); return null; }
-  const crudo = t.slice(a, b + 1);
-  try { return JSON.parse(crudo); } catch (e1) {
-    // Reparacion minima: comas colgando antes de } o ].
-    try { return JSON.parse(crudo.replace(/,\s*([}\]])/g, '$1')); } catch (e2) {
-      if (Array.isArray(motivos)) {
-        const pos = Number((String(e1.message).match(/position (\d+)/) || [])[1]);
-        motivos.push('JSON.parse: ' + String(e1.message).slice(0, 120) +
-          (isFinite(pos) ? ' | cerca de: ' + JSON.stringify(crudo.slice(Math.max(0, pos - 60), pos + 60)) : ''));
-      }
-      return null;
+  const t = String(texto || '').replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+  const a = t.indexOf('{');
+  if (a < 0) { if (Array.isArray(motivos)) motivos.push('sin llaves'); return null; }
+  const b = t.lastIndexOf('}');
+  const candidatos = [];
+  if (b > a) candidatos.push(t.slice(a, b + 1));
+  candidatos.push(t.slice(a));
+  let primerError = null;
+  for (const crudo of candidatos) {
+    for (const intento of [crudo, crudo.replace(/,\s*([}\]])/g, '$1'), balancearJson(crudo.replace(/,\s*$/, ''))]) {
+      if (!intento) continue;
+      try { return JSON.parse(intento); } catch (e) { if (!primerError) primerError = { e, crudo }; }
     }
   }
+  if (Array.isArray(motivos) && primerError) {
+    const pos = Number((String(primerError.e.message).match(/position (\d+)/) || [])[1]);
+    motivos.push('JSON.parse: ' + String(primerError.e.message).slice(0, 120) +
+      (isFinite(pos) ? ' | cerca de: ' + JSON.stringify(primerError.crudo.slice(Math.max(0, pos - 60), pos + 60)) : ''));
+  }
+  return null;
 }
 
 // Promedio SOLO de las secciones con datos.
