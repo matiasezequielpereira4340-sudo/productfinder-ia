@@ -49,7 +49,9 @@ const MAX_BYTES_CAPTURA = 1500000;       // por imagen, ya comprimida
 const MAX_BYTES_CAPTURAS_TOTAL = 3200000; // muy abajo de los 4,5 MB de Vercel
 const TIPOS_IMAGEN = ['image/jpeg', 'image/png', 'image/webp'];
 
-const VERSION_INFORME = 2;
+// 3: descripcion con estado (leida/vacia/no_se_pudo_leer) y capturas parciales sin
+// penalizar. Subir la version invalida la cache de informes hechos con el bug.
+const VERSION_INFORME = 3;
 export const SECCIONES = ['titulo', 'fotos', 'descripcion', 'atributos', 'envio', 'precio', 'condicion', 'reputacion'];
 const ETIQUETAS = { titulo: 'Título', fotos: 'Fotos', descripcion: 'Descripción', atributos: 'Ficha técnica',
   envio: 'Envío', precio: 'Precio', condicion: 'Condición', reputacion: 'Reputación' };

@@ -75,7 +75,7 @@ globalThis.fetch = async function (recurso, opciones) {
       const lte = (url.match(/analyzed_at=lte\.([^&]+)/) || [])[1];
       let filas = analisis.filter(r => (!item || r.item_id === decodeURIComponent(item)) &&
         (!gte || r.analyzed_at >= decodeURIComponent(gte)) && (!lte || r.analyzed_at <= decodeURIComponent(lte)) &&
-        (!/report->>version=eq\.2/.test(url) || (r.report && r.report.version === 2)));
+        (!/report->>version=eq\.3/.test(url) || (r.report && r.report.version === 3)));
       filas = filas.slice().sort((a, b) => b.analyzed_at.localeCompare(a.analyzed_at));
       return resp(200, filas.slice(0, 20));
     }
@@ -416,6 +416,11 @@ check('envio: a la IA le llegan free_shipping, logistic_type, mode, tags y la no
   d.envio.logistica === 'drop_off' && d.envio.modo === 'me2' && d.envio.tags.includes('mandatory_free_shipping') && /No afirmes que el comprador paga/.test(d.envio.nota), d.envio);
 check('prompt: nunca afirmar "no tiene envío gratis" con free_shipping false', /nunca afirmes "no tiene envío gratis"/.test(A.PROMPT_SISTEMA));
 check('prompt: descripcion "no_se_pudo_leer" va con score null', /descripcion\.estado "no_se_pudo_leer": la sección descripción va con "score": null/.test(A.PROMPT_SISTEMA));
+
+reset();
+analisis.push({ item_id: 'MLA1654121789', analyzed_at: new Date().toISOString(), report: { version: 2, itemId: 'MLA1654121789', secciones: {} } });
+r = await llamar({ body: { url: linkRazurii }, sesion: sesAna });
+check('un informe viejo (version 2, con el bug) en cache NO se sirve: se analiza de nuevo', r.statusCode === 200 && r.cuerpo.cached === false && r.cuerpo.version === 3 && llamadas.ia.length === 1, [r.cuerpo.cached, r.cuerpo.version]);
 
 console.log('Ejemplo y estado');
 reset();
