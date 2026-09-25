@@ -934,6 +934,20 @@ const CATALOGO = {
     { nombre:'Globos de aluminio con forma de numero', q:'globo numero aluminio grande', costoMin:1, costoMax:3, pesoG:60, nota:'Se envia desinflado, liviano' },
     { nombre:'Mantel y set descartable tematico', q:'set descartable tematico cumpleanos', costoMin:2.5, costoMax:7, pesoG:300, nota:'Recompra estacional' },
   ]},
+  ortopedia: { label: 'Ortopedia / Rehabilitación', icon: '🦴', productos: [
+    { nombre:'Rodillera ortopedica con estabilizadores', q:'rodillera ortopedica estabilizadores', costoMin:2, costoMax:6, pesoG:250, nota:'Talles, alta demanda' },
+    { nombre:'Tobillera elastica con velcro', q:'tobillera ortopedica velcro', costoMin:1, costoMax:3.5, pesoG:120, nota:'Liviana, cruza con deporte' },
+    { nombre:'Munequera con ferula para tunel carpiano', q:'muñequera ferula tunel carpiano', costoMin:2, costoMax:5, pesoG:150, nota:'Confirmar NCM con despachante' },
+    { nombre:'Faja lumbar con soporte', q:'faja lumbar ortopedica', costoMin:3, costoMax:8, pesoG:350, nota:'Talles: complejo' },
+    { nombre:'Corrector de postura de espalda', q:'corrector postura espalda', costoMin:1.5, costoMax:4, pesoG:150, nota:'Muy buscado, competitivo' },
+    { nombre:'Plantillas ortopedicas con arco', q:'plantillas ortopedicas arco', costoMin:1, costoMax:3, pesoG:120, nota:'Confirmar NCM con despachante' },
+    { nombre:'Corrector de juanete / separador de dedos', q:'corrector juanete separador dedos', costoMin:0.5, costoMax:2, pesoG:40, nota:'Micro ticket, packs' },
+    { nombre:'Talonera de gel para espolon', q:'talonera gel espolon', costoMin:0.8, costoMax:2.5, pesoG:80, nota:'Sin promesas terapeuticas en MeLi' },
+    { nombre:'Cabestrillo inmovilizador de brazo', q:'cabestrillo brazo inmovilizador', costoMin:1.5, costoMax:4, pesoG:200, nota:'Confirmar NCM con despachante' },
+    { nombre:'Almohada cervical viscoelastica', q:'almohada cervical viscoelastica', costoMin:6, costoMax:14, pesoG:1200, nota:'Volumen alto: flete caro' },
+    { nombre:'Almohadon de asiento para coxis', q:'almohadon coxis viscoelastico', costoMin:5, costoMax:12, pesoG:600, nota:'Voluminoso, ticket medio' },
+    { nombre:'Ejercitador de mano para rehabilitacion', q:'ejercitador mano rehabilitacion', costoMin:0.8, costoMax:2.5, pesoG:100, nota:'Chico, poco saturado' },
+  ]},
 };
 
 // ------------------------------------------------------------

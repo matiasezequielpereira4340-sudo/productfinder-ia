@@ -498,7 +498,8 @@ async function runHeroDemo(term){
     {v:'fitness',l:'Running / Fitness'},
     {v:'natacion',l:'Natación / Pileta'},
     {v:'golf',l:'Golf'},
-    {v:'festejos',l:'Cotillón / Fiestas'}
+    {v:'festejos',l:'Cotillón / Fiestas'},
+    {v:'ortopedia',l:'Ortopedia / Rehabilitación'}
   ];
   var TOP8 = ['tecnologia','hogar','celulares','deportes','moda','mascotas','bebes','gaming'];
   var byValue = {};
