@@ -1,4 +1,5 @@
 // ProductFinder IA - Users Management API (Vercel KV / env-based storage)
+import { hashearClave } from './_clave.js';
 const ADMIN_USER = process.env.APP_USER;
 const ADMIN_PASS = process.env.APP_PASS;
 const ADMIN_KEY = process.env.ADMIN_KEY;
@@ -112,7 +113,7 @@ export default async function handler(req, res) {
     if (stored.find(u => (u.username||'').toLowerCase() === uid || (u.email||'').toLowerCase() === uid) || uid === (ADMIN_USER||'').toLowerCase()) {
       return res.status(409).json({ error: 'El usuario ya existe' });
     }
-    const expiryDays = parseInt(days) || 120;
+    const expiryDays = parseInt(days ?? req.body.expiryDays) || 120;
     const createdAt = new Date().toISOString();
     const newUser = { username: uid, email: uid, password: hashearClave(password), active: true, approved: true, expiryDays, createdAt, premium: (req.body.premium !== false), meli_connected: false };
     stored.push(newUser);
