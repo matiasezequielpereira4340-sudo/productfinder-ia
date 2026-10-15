@@ -100,7 +100,7 @@ export default async function handler(req, res) {
     // Necesita sesion (no admin): lo usa el usuario logueado. No expone
     // terminos de otros ni el detalle del gasto, solo el saldo.
     if (req.query && req.query.cupo) {
-      if (!haySesion(tokenDe(req))) return pedirSesion(res, 'Necesito que inicies sesion para ver tu saldo de busquedas.');
+      if (!haySesion(tokenDe(req))) return pedirSesion(res, 'Necesito que inicies sesión para ver tu saldo de búsquedas.');
       const gas = await import('./_gasto.js');
       const mes = await gas.corridasDelCiclo();
       const topeMes = gas.topeMensual();
@@ -1004,19 +1004,19 @@ async function serieViaProveedor(product) {
     const r = await fu.serieDeTendencia(product, 'AR');
     if (r && r.pendiente) {
       _ultimoMotivoTrends = r.aviso ||
-        'Se esta trayendo la serie de Google Trends. En el proximo analisis de este producto ya sale medida.';
+        'Se está trayendo la serie de Google Trends. En el próximo análisis de este producto ya sale medida.';
       return null;
     }
     if (r && r.error) { _ultimoMotivoTrends = String(r.error).slice(0, 200); return null; }
     const fila = (r && r.items && r.items[0]) || null;
-    if (!fila) { _ultimoMotivoTrends = 'el proveedor no devolvio la serie'; return null; }
+    if (!fila) { _ultimoMotivoTrends = 'el proveedor no devolvió la serie'; return null; }
     const serie = fu.serieAMeses(fila);
     if (serie.error) {
       // El actor contesto pero con una forma que no se reconoce. Se dice cual
       // es, en vez de inventar una curva.
       console.error('[trends] no pude leer la serie del proveedor: ' + serie.error +
                     ' | campos: ' + JSON.stringify(serie.campos || serie.campoSerie || null));
-      _ultimoMotivoTrends = 'el proveedor devolvio la serie en un formato que no reconozco';
+      _ultimoMotivoTrends = 'el proveedor devolvió la serie en un formato que no reconozco';
       return null;
     }
     return { monthlyData: serie.monthlyData, values: serie.values, via: 'proveedor-apify' };
@@ -1104,7 +1104,7 @@ async function stepCompetencia(product, ctx) {
     return { fuente: 'preparando', sellersEstimados: null, precioMinARS: null, precioMaxARS: null,
       precioPromedioARS: null, totalResults: null, categoryName: '', saturacion: null,
       competenciaScore: null, competitors: [],
-      aviso: 'Estoy trayendo los datos de MercadoLibre para este producto. La primera vez tarda dos o tres minutos; despues queda guardado y sale al instante.' };
+      aviso: 'Estoy trayendo los datos de MercadoLibre para este producto. La primera vez tarda dos o tres minutos; después queda guardado y sale al instante.' };
   }
   // Freno de gasto: NO se consulto. Esto es consultaFallida, no sinComparable.
   // La diferencia importa mas que ninguna otra en este archivo: "no hay
@@ -1118,7 +1118,7 @@ async function stepCompetencia(product, ctx) {
       sellersEstimados: null, precioMinARS: null, precioMaxARS: null, precioPromedioARS: null,
       totalResults: null, categoryName: '', saturacion: null, competenciaScore: null,
       competitors: [], envioGratisPct: null,
-      aviso: meli.aviso || 'Para traer publicaciones reales de MercadoLibre necesitas iniciar sesion.' };
+      aviso: meli.aviso || 'Para traer publicaciones reales de MercadoLibre necesitás iniciar sesión.' };
   }
   if (meli && meli.topeAlcanzado) {
     return { fuente: 'tope-diario', topeAlcanzado: true, gasto: meli.gasto || null,
@@ -1126,7 +1126,7 @@ async function stepCompetencia(product, ctx) {
       sellersEstimados: null, precioMinARS: null, precioMaxARS: null, precioPromedioARS: null,
       totalResults: null, categoryName: '', saturacion: null, competenciaScore: null,
       competitors: [], envioGratisPct: null,
-      aviso: meli.aviso || 'Se alcanzo el tope diario de busquedas pagas en MercadoLibre.' };
+      aviso: meli.aviso || 'Se alcanzó el tope diario de búsquedas pagas en MercadoLibre.' };
   }
   // Cero CONFIRMADO: se entro al listado publico y no hay ninguna publicacion.
   // Es un dato, y es el que dispara el modo "sin comparable". Distinto del
@@ -1197,8 +1197,8 @@ async function stepCompetencia(product, ctx) {
       totalCrudoMeli: (typeof meli.total === 'number') ? meli.total : null,
       categoryName: '', saturacion: null, competenciaScore: null,
       competitors: [], envioGratisPct: null,
-      aviso: 'MercadoLibre te devolvio resultados, pero no son tu producto: ' + rel.muestra +
-             ' publicaciones y ninguna coincide con la busqueda. Son resultados de rescate.'
+      aviso: 'MercadoLibre te devolvió resultados, pero no son tu producto: ' + rel.muestra +
+             ' publicaciones y ninguna coincide con la búsqueda. Son resultados de rescate.'
     };
   }
 
@@ -1313,7 +1313,7 @@ async function stepCompetencia(product, ctx) {
   // Ojo con la diferencia: aca NO se pudo consultar. Eso no es lo mismo que
   // "no hay publicaciones", asi que no se marca sinComparable: marcarlo
   // dispararia el modo de producto sin comparable por un bloqueo de MeLi.
-  return { fuente: 'no-disponible', muestraInsuficiente: true, muestra: 0, sinComparable: false, consultaFallida: true, sellersEstimados: null, precioMinARS: null, precioMaxARS: null, precioPromedioARS: null, totalResults: null, totalCatalogo: null, totalLabel: null, categoryName: '', saturacion: null, competenciaScore: null, competitors: [], envioGratisPct: null, aviso: 'Datos de Mercado Libre no disponibles ahora (la API publica requiere autenticacion). Mostramos solo lo verificable.' };
+  return { fuente: 'no-disponible', muestraInsuficiente: true, muestra: 0, sinComparable: false, consultaFallida: true, sellersEstimados: null, precioMinARS: null, precioMaxARS: null, precioPromedioARS: null, totalResults: null, totalCatalogo: null, totalLabel: null, categoryName: '', saturacion: null, competenciaScore: null, competitors: [], envioGratisPct: null, aviso: 'Datos de Mercado Libre no disponibles ahora (la API pública requiere autenticación). Mostramos solo lo verificable.' };
 }
 
 // ============================================================
@@ -1749,7 +1749,7 @@ async function safeGoogleTrends(product) {
     const clean1 = txt1.replace(/^\)\]\}',?\n?/, '');
     let j1;
     try { j1 = JSON.parse(clean1); }
-    catch (e) { return fallo('explore no devolvio JSON (probable pagina de consentimiento o captcha)'); }
+    catch (e) { return fallo('explore no devolvió JSON (probable página de consentimiento o captcha)'); }
     const tw = (j1.widgets || []).find(w => w.id === 'TIMESERIES');
     if (!tw) return fallo('explore no trajo el widget TIMESERIES');
     const r2 = await fetch('https://trends.google.com/trends/api/widgetdata/multiline?hl=es-AR&tz=180&req=' + encodeURIComponent(JSON.stringify(tw.request)) + '&token=' + encodeURIComponent(tw.token), { headers: { 'User-Agent': 'Mozilla/5.0' } });
@@ -1758,7 +1758,7 @@ async function safeGoogleTrends(product) {
     const clean2 = txt2.replace(/^\)\]\}',?\n?/, '');
     let j2;
     try { j2 = JSON.parse(clean2); }
-    catch (e) { return fallo('widgetdata no devolvio JSON'); }
+    catch (e) { return fallo('widgetdata no devolvió JSON'); }
     const points = (j2.default && j2.default.timelineData) || [];
     if (!points.length) return fallo('la serie vino vacia');
     const monthly = {};
@@ -1853,7 +1853,7 @@ async function readMercadoLibre(url) {
     const scraped = await scrapeMercadoLibreHtml(url);
     if (scraped && scraped.título) return { fuente: 'mercadolibre-html', itemId, lecturaFallida: false, ...scraped, titulo: scraped.título, descripcion: scraped.descripción, realData: false, url };
   } catch (_) {}
-  return { fuente: 'mercadolibre-min', itemId, lecturaFallida: true, motivo: 'MercadoLibre no devolvio los datos de esta publicacion', título: '', titulo: '', precio: null, moneda: 'ARS', imagen: '', descripción: '', descripcion: '', url };
+  return { fuente: 'mercadolibre-min', itemId, lecturaFallida: true, motivo: 'MercadoLibre no devolvió los datos de esta publicación', título: '', titulo: '', precio: null, moneda: 'ARS', imagen: '', descripción: '', descripcion: '', url };
 }
 
 async function scrapeMercadoLibreHtml(url) {
@@ -1879,7 +1879,7 @@ async function readAlibaba(url) {
   const r = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ProductFinderBot/1.0)' } });
   if (!r.ok) {
     console.warn('[alibaba] respondio HTTP ' + r.status);
-    return { fuente: 'alibaba', url, lecturaFallida: true, motivo: 'Alibaba bloquea la lectura automatica desde el servidor', detalle: 'HTTP ' + r.status };
+    return { fuente: 'alibaba', url, lecturaFallida: true, motivo: 'Alibaba bloquea la lectura automática desde el servidor', detalle: 'HTTP ' + r.status };
   }
   const html = await r.text();
   const pick = (re) => { const m = html.match(re); return m ? m[1] : null; };
@@ -1903,7 +1903,7 @@ async function readAlibaba(url) {
   // devolver un objeto lleno de nulls que la UI disimula.
   if (!título && precioSugeridoMin == null && !imagen) {
     console.warn('[alibaba] HTTP 200 pero sin og: tags — pagina de challenge');
-    return { fuente: 'alibaba', url, lecturaFallida: true, motivo: 'Alibaba bloquea la lectura automatica desde el servidor' };
+    return { fuente: 'alibaba', url, lecturaFallida: true, motivo: 'Alibaba bloquea la lectura automática desde el servidor' };
   }
 
   return {
@@ -1920,7 +1920,7 @@ async function readOpenGraph(url) {
   const r = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ProductFinderBot/1.0)' } });
   if (!r.ok) {
     console.warn('[opengraph] ' + url + ' respondio HTTP ' + r.status);
-    return { fuente: 'opengraph', url, lecturaFallida: true, motivo: 'La pagina no dejo leerla desde el servidor', detalle: 'HTTP ' + r.status };
+    return { fuente: 'opengraph', url, lecturaFallida: true, motivo: 'La página no dejó leerla desde el servidor', detalle: 'HTTP ' + r.status };
   }
   const html = await r.text();
   const pick = (re) => { const m = html.match(re); return m ? m[1] : null; };
@@ -1930,7 +1930,7 @@ async function readOpenGraph(url) {
   // Mismo criterio que Alibaba: si no vino nada, se avisa.
   if (!título && !imagen && !descripción) {
     console.warn('[opengraph] ' + url + ' devolvio HTTP 200 sin og: tags');
-    return { fuente: 'opengraph', url, lecturaFallida: true, motivo: 'La pagina no expone titulo ni imagen legibles desde el servidor' };
+    return { fuente: 'opengraph', url, lecturaFallida: true, motivo: 'La página no expone título ni imagen legibles desde el servidor' };
   }
   return { fuente: 'opengraph', url, lecturaFallida: false, 'título': título, titulo: título, imagen, 'descripción': descripción, descripcion: descripción };
 }

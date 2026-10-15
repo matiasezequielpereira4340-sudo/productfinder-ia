@@ -36,18 +36,18 @@ async function doRegister(){
   const errEl=document.getElementById('regError');
   const okEl=document.getElementById('regOk');
   errEl.textContent=''; if(okEl){okEl.style.display='none';}
-  if(!email||!pass){ errEl.textContent='Completa email y contrasena'; return; }
-  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ errEl.textContent='Email invalido'; return; }
-  if(pass.length<6){ errEl.textContent='La contrasena debe tener al menos 6 caracteres'; return; }
+  if(!email||!pass){ errEl.textContent='Completá email y contraseña'; return; }
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ errEl.textContent='Email inválido'; return; }
+  if(pass.length<6){ errEl.textContent='La contraseña debe tener al menos 6 caracteres'; return; }
   if(pass!==pass2){ errEl.textContent='Las contrasenas no coinciden'; return; }
   try{
     const res=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass,action:'register'})});
     const data=await res.json();
     if(!res.ok||!data.success){ errEl.textContent=data.error||'No se pudo crear la cuenta'; return; }
     document.getElementById('regEmail').value=''; document.getElementById('regPass').value=''; document.getElementById('regPass2').value='';
-    if(okEl){ okEl.style.display='block'; okEl.textContent='Cuenta creada. Queda pendiente de aprobacion del administrador. Te avisaremos cuando este habilitada.'; }
+    if(okEl){ okEl.style.display='block'; okEl.textContent='Cuenta creada. Queda pendiente de aprobación del administrador. Te avisaremos cuando esté habilitada.'; }
     if(window.mcTrack) window.mcTrack('registro_iniciado',{});
-  }catch(e){ errEl.textContent='Error de conexion. Intenta de nuevo.'; }
+  }catch(e){ errEl.textContent='Error de conexión. Intentá de nuevo.'; }
 }
 
 async function doLogin(){
@@ -110,7 +110,7 @@ function setupTopbar(user){
     var days=Math.ceil((new Date(sessionExpiry)-Date.now())/(1000*60*60*24));
     if(expiryEl){
       expiryEl.style.display='block';
-      expiryEl.textContent=days>0?' '+days+'d restantes':'Sesion expirada';
+      expiryEl.textContent=days>0?' '+days+'d restantes':'Sesión expirada';
       if(days<=7) expiryEl.classList.add('urgent');
     }
     if(adminBtn) adminBtn.style.display='none';
@@ -685,9 +685,9 @@ function renderResults(data){
   }
   if(!data.meliConectado){
     const motivo = data.meliTokenExpirado ? 'tu conexi&#243;n con MercadoLibre expir&#243;' : 'no ten&#233;s MercadoLibre conectado';
-    banner += '<div class="ml-banner" style="grid-column:1/-1;background:rgba(255,230,0,.12);border:1px solid var(--gold);border-radius:10px;padding:14px 16px;margin-bottom:8px;color:var(--text)"><strong><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Precios estimados:</strong> como '+motivo+', muestro los productos ordenados por su potencial (peso, margen esperado y estacionalidad), pero <strong>sin precios de venta reales</strong>. Conecta tu cuenta para ver precio, competencia y saturaci&#243;n reales de cada producto. <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">Conectar MercadoLibre \u2192</a></div>';
+    banner += '<div class="ml-banner" style="grid-column:1/-1;background:rgba(255,230,0,.12);border:1px solid var(--gold);border-radius:10px;padding:14px 16px;margin-bottom:8px;color:var(--text)"><strong><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Precios estimados:</strong> como '+motivo+', muestro los productos ordenados por su potencial (peso, margen esperado y estacionalidad), pero <strong>sin precios de venta reales</strong>. Conect&#225; tu cuenta para ver precio, competencia y saturaci&#243;n reales de cada producto. <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">Conectar MercadoLibre \u2192</a></div>';
   } else {
-    banner += '<div class="ml-banner" style="grid-column:1/-1;background:rgba(39,174,96,.12);border:1px solid var(--green);border-radius:10px;padding:12px 16px;margin-bottom:8px;color:var(--text)"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Datos reales de MercadoLibre. Analizamos <strong>'+data.totalEvaluados+'</strong> productos, <strong>'+data.conDatoReal+'</strong> con datos de mercado en vivo. Cotizacion usada: 1 USD \u2248 $'+nf.format(data.usdArs)+'.</div>';
+    banner += '<div class="ml-banner" style="grid-column:1/-1;background:rgba(39,174,96,.12);border:1px solid var(--green);border-radius:10px;padding:12px 16px;margin-bottom:8px;color:var(--text)"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Datos reales de MercadoLibre. Analizamos <strong>'+data.totalEvaluados+'</strong> productos, <strong>'+data.conDatoReal+'</strong> con datos de mercado en vivo. Cotización usada: 1 USD \u2248 $'+nf.format(data.usdArs)+'.</div>';
   }
   const cards = products.map(function(p){
     const real = p.score != null;
@@ -696,7 +696,7 @@ function renderResults(data){
     const costo = '$'+nf.format(Math.round(p.costoPuestoARS)) + ' aprox.';
     const margen = p.margen != null ? (p.margen+'%') : '\u2014';
         const sellers = (p.competencia != null ? nf.format(p.competencia) + ' pub.' : (p.sellers != null ? nf.format(p.sellers) + ' pub.' : '\u2014'));
-    const fuenteTag = real ? '<span class="tag-real" title="Precio y competencia obtenidos en vivo de MercadoLibre"><svg class="ic" aria-hidden="true"><use href="#i-dot"></use></svg> Dato real ML</span>' : '<span class="tag-est" title="Sin precio real: conecta MercadoLibre para activarlo"><svg class="ic" aria-hidden="true"><use href="#i-dot"></use></svg> Estimado</span>';
+    const fuenteTag = real ? '<span class="tag-real" title="Precio y competencia obtenidos en vivo de MercadoLibre"><svg class="ic" aria-hidden="true"><use href="#i-dot"></use></svg> Dato real ML</span>' : '<span class="tag-est" title="Sin precio real: conectá MercadoLibre para activarlo"><svg class="ic" aria-hidden="true"><use href="#i-dot"></use></svg> Estimado</span>';
     // El buscador de oportunidades es un barrido y NO paga por traer
     // publicaciones. Cuando las vias gratuitas no dan, se dice por que y se
     // manda al Market Reader, que es donde el dato real si se trae. Antes esto
@@ -708,7 +708,7 @@ function renderResults(data){
         'Analiz&aacute; el producto en el <a href="#" class="pf-ir-mr" data-q="'+String(p.query||p.nombre||'').replace(/"/g,'&quot;')+'">Market Reader</a> para traer las publicaciones reales.'+
         '</div>'
       : '';
-    return '<div class="product-card '+(p.topPick?'top-pick':'')+'">'+(p.topPick ? '<span class="top-badge"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> TOP PICK</span>' : '')+'<div class="product-name">'+p.nombre+'</div><div style="margin-bottom:10px">'+fuenteTag+' <span class="tag-info" title="Por que es apto para regimen de importacion">'+p.nota+'</span></div>'+(real ? '<div class="score-row"><span>Score</span><strong>'+p.score+'/100</strong></div><div class="score-bar"><div class="score-fill" style="width:'+scorePct+'%"></div></div>' : '')+'<div class="product-stats"><div class="stat"><span class="stat-l" title="Precio promedio de venta en MercadoLibre">Precio venta</span><span class="stat-v">'+precio+'</span></div><div class="stat"><span class="stat-l" title="Costo estimado del producto puesto en Argentina (FOB China + logistica + impuestos)">Costo est.</span><span class="stat-v">'+costo+'</span></div><div class="stat"><span class="stat-l" title="Ganancia sobre el costo estimado">Margen</span><span class="stat-v">'+margen+'</span></div><div class="stat"><span class="stat-l" title="Publicaciones activas compitiendo en MercadoLibre (dato real)">Competencia</span><span class="stat-v">'+sellers+'</span></div><div class="stat"><span class="stat-l" title="Nivel de demanda del producto">Demanda</span><span class="stat-v">'+p.demanda+'</span></div><div class="stat"><span class="stat-l" title="Cuan saturado esta el mercado. Baja = mejor oportunidad">Saturacion</span><span class="stat-v">'+p.saturacion+'</span></div></div><div class="risk-line risk-'+String(p.riesgo).toLowerCase().replace(/[^a-z]/g,'')+'">Riesgo: '+p.riesgo+'</div>'+sinComp+'</div>';
+    return '<div class="product-card '+(p.topPick?'top-pick':'')+'">'+(p.topPick ? '<span class="top-badge"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> TOP PICK</span>' : '')+'<div class="product-name">'+p.nombre+'</div><div style="margin-bottom:10px">'+fuenteTag+' <span class="tag-info" title="Por qué es apto para régimen de importación">'+p.nota+'</span></div>'+(real ? '<div class="score-row"><span>Score</span><strong>'+p.score+'/100</strong></div><div class="score-bar"><div class="score-fill" style="width:'+scorePct+'%"></div></div>' : '')+'<div class="product-stats"><div class="stat"><span class="stat-l" title="Precio promedio de venta en MercadoLibre">Precio venta</span><span class="stat-v">'+precio+'</span></div><div class="stat"><span class="stat-l" title="Costo estimado del producto puesto en Argentina (FOB China + logística + impuestos)">Costo est.</span><span class="stat-v">'+costo+'</span></div><div class="stat"><span class="stat-l" title="Ganancia sobre el costo estimado">Margen</span><span class="stat-v">'+margen+'</span></div><div class="stat"><span class="stat-l" title="Publicaciones activas compitiendo en MercadoLibre (dato real)">Competencia</span><span class="stat-v">'+sellers+'</span></div><div class="stat"><span class="stat-l" title="Nivel de demanda del producto">Demanda</span><span class="stat-v">'+p.demanda+'</span></div><div class="stat"><span class="stat-l" title="Cuán saturado está el mercado. Baja = mejor oportunidad">Saturación</span><span class="stat-v">'+p.saturacion+'</span></div></div><div class="risk-line risk-'+String(p.riesgo).toLowerCase().replace(/[^a-z]/g,'')+'">Riesgo: '+p.riesgo+'</div>'+sinComp+'</div>';
   }).join('');
   // El servidor manda solo los productos que corresponden. Si sobran, dibujamos
   // el candado con tarjetas vacias: ya no hay datos reales escondidos en el DOM.
@@ -787,7 +787,7 @@ async function sendChat(){
     // mostraba siempre "No pude procesar tu consulta.", aunque la respuesta
     // hubiera llegado bien.
     if(data && data.requiereSesion){
-      thinking.textContent = data.error || 'Para usar el asesor IA hace falta iniciar sesion.';
+      thinking.textContent = data.error || 'Para usar el asesor IA hace falta iniciar sesión.';
     } else {
       thinking.textContent = data.response || data.reply || data.error || 'No pude procesar tu consulta.';
     }
@@ -1312,9 +1312,9 @@ async function runMRStep2(product){
     // MeLi de una decision nuestra.
     if(r && r.fuente==='requiere-sesion'){
       document.getElementById('mrStep2Body').innerHTML=
-        '<div class="mr-row"><span class="mr-row-label">'+(r.aviso||'Para traer publicaciones reales de MercadoLibre necesitas iniciar sesion.')+'</span></div>'+
+        '<div class="mr-row"><span class="mr-row-label">'+(r.aviso||'Para traer publicaciones reales de MercadoLibre necesitás iniciar sesión.')+'</span></div>'+
         '<div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">Traer publicaciones reales de MercadoLibre tiene un costo por búsqueda, así que esa parte queda detrás del login. El resto del Market Reader sigue funcionando igual.</div>'+
-        '<div style="margin-top:10px"><a class="btn-secondary" href="login.html">Iniciar sesion</a></div>';
+        '<div style="margin-top:10px"><a class="btn-secondary" href="login.html">Iniciar sesión</a></div>';
       return;
     }
     if(r && r.fuente==='tope-diario'){
@@ -1322,12 +1322,12 @@ async function runMRStep2(product){
       let cuando='';
       if(g.reinicio){ try{ cuando=' Se habilita de nuevo el '+new Date(g.reinicio).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'.'; }catch(_){} }
       document.getElementById('mrStep2Body').innerHTML=
-        '<div class="mr-row"><span class="mr-row-label">'+(r.aviso||'Se alcanzo el tope diario de busquedas pagas.')+cuando+'</span></div>'+
-        '<div style="margin-top:8px;font-size:.82rem;opacity:.75">No es un error: es un freno puesto a proposito para que la cuenta no se gaste sola. Los productos ya consultados antes siguen saliendo al instante.</div>';
+        '<div class="mr-row"><span class="mr-row-label">'+(r.aviso||'Se alcanzó el tope diario de búsquedas pagas.')+cuando+'</span></div>'+
+        '<div style="margin-top:8px;font-size:.82rem;opacity:.75">No es un error: es un freno puesto a propósito para que la cuenta no se gaste sola. Los productos ya consultados antes siguen saliendo al instante.</div>';
       return;
     }
     if(r && r.fuente==='no-disponible'){
-      document.getElementById('mrStep2Body').innerHTML='<div class="mr-row"><span class="mr-row-label" style="color:var(--text-dim)">'+(r.aviso||'Datos de Mercado Libre no disponibles ahora.')+'</span></div><div style="margin-top:8px;font-size:.82rem;opacity:.75">No muestro datos estimados para no inventar numeros. Prob&#225; nuevamente m&#225;s tarde o peg&#225; un link de un listado de MeLi para leer datos reales del producto.</div>';
+      document.getElementById('mrStep2Body').innerHTML='<div class="mr-row"><span class="mr-row-label" style="color:var(--text-dim)">'+(r.aviso||'Datos de Mercado Libre no disponibles ahora.')+'</span></div><div style="margin-top:8px;font-size:.82rem;opacity:.75">No muestro datos estimados para no inventar números. Prob&#225; nuevamente m&#225;s tarde o peg&#225; un link de un listado de MeLi para leer datos reales del producto.</div>';
       return;
     }
     const satMap={'libre':'tag-ok','moderado':'tag-warn','saturado':'tag-bad','muy saturado':'tag-bad'};
@@ -1454,7 +1454,7 @@ function mrScoreTikTok(step3){
   else if(v<10000){ base=20; tramo='menos de 10k vistas'; }
   else if(v<100000){ base=45; tramo='entre 10k y 100k vistas'; }
   else if(v<1000000){ base=70; tramo='entre 100k y 1M de vistas'; }
-  else { base=90; tramo='mas de 1M de vistas'; }
+  else { base=90; tramo='más de 1M de vistas'; }
   const mult=step3.arg==='si'?1.0:step3.arg==='pocos'?0.85:0.7;
   const multLabel=step3.arg==='si'?'contenido en Argentina (x1.0)':step3.arg==='pocos'?'poco contenido en Argentina (x0.85)':'sin contenido en Argentina (x0.7)';
   return {
@@ -1721,7 +1721,7 @@ async function runMRFinalAnalysis(){
       'Los 3 proximos pasos son concretos y acordes al veredicto (por ejemplo, si es CONVIENE SOLO SI: que hay que verificar antes de pagar el FOB, como MOQ real, muestra fisica, certificacion, posicion NCM).';
     const res=await fetch('/api/market',{method:'POST',headers:mrCabeceras(),body:JSON.stringify({step:'final',customPrompt:prompt,prompt})});
     const r=await res.json();
-    if(!res.ok) throw new Error(r.error||'Error en analisis final');
+    if(!res.ok) throw new Error(r.error||'Error en análisis final');
     renderAnalisisIA(r,decision);
   }catch(e){
     if(at) at.innerHTML='<div class="v9-note"><b>El texto ampliado con IA no carg&#243; esta vez.</b> El veredicto, las se&#241;ales y los escenarios de quiebre de arriba est&#225;n calculados con tus n&#250;meros y no dependen de la IA.</div>';
@@ -2447,7 +2447,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     var cls='media',txt='Oportunidad media';
     var satPenal=/muy alta|alta/.test(sat);
     if(score>=62&&!satPenal){cls='alta';txt='Oportunidad alta';}
-    else if(score<45||/muy alta/.test(sat)){cls='baja';txt='Requiere validacion';}
+    else if(score<45||/muy alta/.test(sat)){cls='baja';txt='Requiere validación';}
     else {cls='media';txt='Oportunidad media';}
     return {cls:cls,txt:txt};
   }
@@ -2486,7 +2486,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(cfg&&!document.querySelector('.v4-hint')){
       var h=document.createElement('div');
       h.className='v4-hint';
-      h.innerHTML='<svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> <span><b>Como se usa:</b> eleg\u00ed tu capital y nicho, y la app analiza el mercado real de MercadoLibre para mostrarte los productos con mejor potencial para importar.</span>';
+      h.innerHTML='<svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> <span><b>C\u00f3mo se usa:</b> eleg\u00ed tu capital y nicho, y la app analiza el mercado real de MercadoLibre para mostrarte los productos con mejor potencial para importar.</span>';
       cfg.parentNode.insertBefore(h,cfg);
     }
   }
@@ -2820,7 +2820,7 @@ window.addEventListener('DOMContentLoaded',()=>{
       await window.__quickRun(prod,fob,precio,ventas);
       var b=this; setTimeout(function(){ b.textContent='Analizar ahora \u2192'; b.disabled=false; },4000);
     };
-    var helps={mrCapital:'Cu\u00e1nto pod\u00e9s invertir. Ajusta las recomendaciones a tu bolsillo.',mrCanal:'D\u00f3nde vender\u00e1s. Cambia comisiones y costos.',mrModalidad:'C\u00f3mo entreg\u00e1s al comprador. Full = ML almacena y env\u00eda; Flex = envi\u00e1s vos.',mrPosicion:'Estrategia de precio frente a la competencia.',mrTipoCambio:'D\u00f3lar que us\u00e1s para tus costos. Actualiz\u00e1 si cambi\u00f3 mucho.',mrNCM:'C\u00f3digo aduanero del producto. "Auto" lo estima seg\u00fan el rubro \u2014 dej\u00e1lo as\u00ed si no lo sab\u00e9s.',mrShipMode:'C\u00f3mo traes desde China. "Auto" usa un 15% sobre FOB como estimaci\u00f3n t\u00edpica.',mrPesoKg:'Peso por unidad. Impacta el flete. Opcional.',mrDiasCap:'Cu\u00e1ntos d\u00edas tu plata queda inmovilizada hasta cobrar. Opcional.',mrTasaCap:'Costo de oportunidad de tu capital por mes. Opcional.'};
+    var helps={mrCapital:'Cu\u00e1nto pod\u00e9s invertir. Ajusta las recomendaciones a tu bolsillo.',mrCanal:'D\u00f3nde vender\u00e1s. Cambia comisiones y costos.',mrModalidad:'C\u00f3mo entreg\u00e1s al comprador. Full = ML almacena y env\u00eda; Flex = envi\u00e1s vos.',mrPosicion:'Estrategia de precio frente a la competencia.',mrTipoCambio:'D\u00f3lar que us\u00e1s para tus costos. Actualiz\u00e1 si cambi\u00f3 mucho.',mrNCM:'C\u00f3digo aduanero del producto. "Auto" lo estima seg\u00fan el rubro \u2014 dej\u00e1lo as\u00ed si no lo sab\u00e9s.',mrShipMode:'C\u00f3mo tra\u00e9s desde China. "Auto" usa un 15% sobre FOB como estimaci\u00f3n t\u00edpica.',mrPesoKg:'Peso por unidad. Impacta el flete. Opcional.',mrDiasCap:'Cu\u00e1ntos d\u00edas tu plata queda inmovilizada hasta cobrar. Opcional.',mrTasaCap:'Costo de oportunidad de tu capital por mes. Opcional.'};
     Object.keys(helps).forEach(function(id){ var el=document.getElementById(id); if(!el) return; var wrap=el.closest('.mr-param'); if(wrap&&!wrap.querySelector('.v10-help')){ var h=document.createElement('small'); h.className='v10-help'; h.textContent=helps[id]; wrap.appendChild(h); } });
   }
   var _origShowMarket = typeof showMarket==='function'? showMarket : null;
@@ -3240,7 +3240,7 @@ window.addEventListener('DOMContentLoaded',()=>{
       } else {
         var c = classify(r.pct);
         box.className = "v19-mn " + c.cls;
-        box.innerHTML = "<div class=\"v19-mn-top\"><span class=\"v19-dot\"></span>" + c.label + "<span class=\"v19-mn-pct\">" + fmtPct(r.pct) + "</span></div><div class=\"v19-mn-note\">Margen neto real: precio de venta menos costo, menos comision ML (segun categoria, ~12-16,5%), IVA neto e IIBB (~3%). Deja aprox. $" + Math.round(r.netoARS).toLocaleString("es-AR") + " por unidad." + (r.atipico ? "<br><span style='color:#e0a000'><svg class='ic' aria-hidden='true'><use href='#i-warn'></use></svg> Precio de referencia de MercadoLibre atipico (margen muy alto): revisa el precio real antes de decidir.</span>" : "") + "</div>";
+        box.innerHTML = "<div class=\"v19-mn-top\"><span class=\"v19-dot\"></span>" + c.label + "<span class=\"v19-mn-pct\">" + fmtPct(r.pct) + "</span></div><div class=\"v19-mn-note\">Margen neto real: precio de venta menos costo, menos comisión ML (según categoría, ~12-16,5%), IVA neto e IIBB (~3%). Deja aprox. $" + Math.round(r.netoARS).toLocaleString("es-AR") + " por unidad." + (r.atipico ? "<br><span style='color:#e0a000'><svg class='ic' aria-hidden='true'><use href='#i-warn'></use></svg> Precio de referencia de MercadoLibre atípico (margen muy alto): revisá el precio real antes de decidir.</span>" : "") + "</div>";
       }
       anchor.appendChild(box);
     });
@@ -3251,7 +3251,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(!grid || document.getElementById("v19-legend")) return;
     var lg = document.createElement("div");
     lg.id = "v19-legend"; lg.className = "v19-legend";
-    lg.innerHTML = "<b>\u00bfComo leer el margen neto?</b> Es lo que realmente te queda despues de descontar la comision de MercadoLibre (segun categoria), el IVA neto (debito de venta menos credito de la importacion) y IIBB del precio de venta. El IIBB varia segun la provincia; usamos un 3% como promedio estimativo entre jurisdicciones. <span class=\"v19-chip v19-mn green\"><span class=\"v19-dot\"></span>Verde \u2265 50%</span><span class=\"v19-chip v19-mn yellow\"><span class=\"v19-dot\"></span>Amarillo 25-50%</span><span class=\"v19-chip v19-mn red\"><span class=\"v19-dot\"></span>Rojo < 25%</span> Para importar desde China conviene apuntar a verde. El markup bruto (%) que figura arriba no descuenta comisiones, por eso es mucho mas alto.";
+    lg.innerHTML = "<b>\u00bfC\u00f3mo leer el margen neto?</b> Es lo que realmente te queda después de descontar la comisión de MercadoLibre (según categoría), el IVA neto (débito de venta menos crédito de la importación) y IIBB del precio de venta. El IIBB varia según la provincia; usamos un 3% como promedio estimativo entre jurisdicciones. <span class=\"v19-chip v19-mn green\"><span class=\"v19-dot\"></span>Verde \u2265 50%</span><span class=\"v19-chip v19-mn yellow\"><span class=\"v19-dot\"></span>Amarillo 25-50%</span><span class=\"v19-chip v19-mn red\"><span class=\"v19-dot\"></span>Rojo < 25%</span> Para importar desde China conviene apuntar a verde. El markup bruto (%) que figura arriba no descuenta comisiones, por eso es mucho más alto.";
     grid.parentNode.insertBefore(lg, grid.nextSibling);
   }
   var obs = new MutationObserver(function(){ setTimeout(enhance, 60); });
@@ -3376,7 +3376,7 @@ function goHome(){
       }
     } else {
       out.dolar = { valor:null, hoy: Math.round(s4.tc), aguantePct: null,
-        nota: 'Ya perdes plata al dolar de hoy: no hay margen de aguante que calcular.' };
+        nota: 'Ya perdés plata al dólar de hoy: no hay margen de aguante que calcular.' };
     }
 
     // --- Precio de quiebre: a que precio de venta el margen llega a 0 ---
@@ -3415,7 +3415,7 @@ function goHome(){
         out.ventas = { uds:null, costoMensualARS: Math.round(costoMensualARS),
           costoCicloARS: Math.round(costoCicloARS), diasCap, tasaMesPct:+(tasaMes*100).toFixed(1),
           inversionARS: Math.round(inversionARS), actuales: s4.ventas || 0,
-          nota: 'Con margen negativo no hay volumen que lo arregle: vender mas unidades pierde mas plata.' };
+          nota: 'Con margen negativo no hay volumen que lo arregle: vender más unidades pierde más plata.' };
       }
     }
     return out;
@@ -3451,9 +3451,9 @@ function goHome(){
     if (margenPct < 0){
       // Con margen negativo la regla del <25% es redundante: se emite la que
       // dice el numero exacto que se pierde.
-      criticos.push(C('Perdes '+ars(Math.abs(margenARS))+' por unidad al precio de venta que cargaste', margenPct+'% de margen'));
+      criticos.push(C('Perdés '+ars(Math.abs(margenARS))+' por unidad al precio de venta que cargaste', margenPct+'% de margen'));
     } else if (margenPct < 25){
-      criticos.push(C('Margen de '+margenPct+'%: un desvio del dolar del 10% te lo come entero', margenPct+'% ('+ars(margenARS)+' por unidad)'));
+      criticos.push(C('Margen de '+margenPct+'%: un desvío del dólar del 10% te lo come entero', margenPct+'% ('+ars(margenARS)+' por unidad)'));
     }
 
     // ---------- VALOR / PESO ----------
@@ -3472,7 +3472,7 @@ function goHome(){
       const fleteNota = fleteEstimado
         ? ' El flete es la estimación plana del 15% s/FOB: eleg&#237; el modo de env&#237;o para calcularlo por kilo.' : '';
       if (valorPorKg >= 40){
-        aFavor.push(F('Buena relacion valor/peso: el flete pesa solo '+fletePctTxt+' del FOB.'+fleteNota,
+        aFavor.push(F('Buena relación valor/peso: el flete pesa solo '+fletePctTxt+' del FOB.'+fleteNota,
           valorPorKg.toFixed(1)+' USD/kg (FOB USD '+s4.fob.toFixed(2)+' / '+pesoKg+' kg)'));
       } else if (valorPorKg < 15){
         criticos.push(C('El flete se come el '+fletePctTxt+' del FOB. Producto barato y pesado: no aguanta el costo logistico.'+fleteNota,
@@ -3494,7 +3494,7 @@ function goHome(){
       const ratio = s4.ingresoMensualARS / inversionARS;
       if (ratio >= 0.15){
         const meses = Math.max(1, Math.round(inversionARS / s4.ingresoMensualARS));
-        aFavor.push(F('Recuperas el capital en ~'+meses+' '+(meses===1?'mes':'meses'),
+        aFavor.push(F('Recuperás el capital en ~'+meses+' '+(meses===1?'mes':'meses'),
           ars(s4.ingresoMensualARS)+'/mes sobre '+ars(inversionARS)+' invertidos ('+Math.round(ratio*100)+'%/mes)'));
       }
     }
@@ -3506,30 +3506,30 @@ function goHome(){
       if (dispersionPct > 40){
         aFavor.push(M('Precios dispersos: hay lugar para posicionarse sin pelear por precio', datoDisp));
       } else if (dispersionPct < 15){
-        criticos.push(C('Todos los precios pegados dentro del '+Math.round(dispersionPct)+'%. Es guerra de precios: el unico diferencial que queda es bajar el margen', datoDisp));
+        criticos.push(C('Todos los precios pegados dentro del '+Math.round(dispersionPct)+'%. Es guerra de precios: el único diferencial que queda es bajar el margen', datoDisp));
       }
     }
     if (!s2.muestraInsuficiente && s2.envioGratisPct != null){
-      if (s2.envioGratisPct < 50) aFavor.push(M('Menos de la mitad ofrece envio gratis: el envio todavia no es tabla rasa', s2.envioGratisPct+'% de '+(s2.envioGratisTotal||0)+' publicaciones'));
-      else if (s2.envioGratisPct > 80) enContra.push(F('El '+s2.envioGratisPct+'% ofrece envio gratis: ese costo ya esta adentro del precio de todos', s2.envioGratisPct+'% de '+(s2.envioGratisTotal||0)+' publicaciones'));
+      if (s2.envioGratisPct < 50) aFavor.push(M('Menos de la mitad ofrece envío gratis: el envío todavía no es tabla rasa', s2.envioGratisPct+'% de '+(s2.envioGratisTotal||0)+' publicaciones'));
+      else if (s2.envioGratisPct > 80) enContra.push(F('El '+s2.envioGratisPct+'% ofrece envío gratis: ese costo ya está adentro del precio de todos', s2.envioGratisPct+'% de '+(s2.envioGratisTotal||0)+' publicaciones'));
     }
     if (!s2.muestraInsuficiente && Array.isArray(s2.competitors) && s2.competitors.length){
       const conVentas = s2.competitors.filter(c => (c.soldQty||0) > 0).length;
       if (conVentas > 0 && conVentas <= 5) aFavor.push(F('Pocos vendedores reales compitiendo', conVentas+' vendedores con ventas > 0'));
     }
     if (s2.saturacion === 'muy saturado' || (s2.sellersEstimados != null && s2.sellersEstimados > 30)){
-      const d = s2.sellersEstimados != null ? s2.sellersEstimados+' vendedores' : 'saturacion: '+s2.saturacion;
+      const d = s2.sellersEstimados != null ? s2.sellersEstimados+' vendedores' : 'saturación: '+s2.saturacion;
       enContra.push(F((s2.sellersEstimados!=null?s2.sellersEstimados:'Muchos')+' vendedores activos: se decide por precio, no por producto', d));
     }
 
     // ---------- TIKTOK ----------
     const scDef = s4.scDef;
     if (s3 && !s3.omitido && scDef >= 70){
-      aFavor.push(M('Traccion de contenido: '+nf.format(s3.views||0)+' vistas promedio y contenido en Argentina',
+      aFavor.push(M('Tracción de contenido: '+nf.format(s3.views||0)+' vistas promedio y contenido en Argentina',
         scDef+'/100 &#8212; '+(s3.scoreMotivo||'')));
     }
     if (!s3 || s3.omitido){
-      enContra.push(M('No mediste traccion de contenido', 'paso de TikTok salteado'));
+      enContra.push(M('No mediste tracción de contenido', 'paso de TikTok salteado'));
     }
 
     // ---------- DEMANDA ----------
@@ -3562,15 +3562,15 @@ function goHome(){
       const capitalARS = capitalUSD * s4.tc;
       const pct = (inversionARS / capitalARS) * 100;
       if (inversionARS > capitalARS * 0.5){
-        criticos.push(C('Este SKU te consume el '+Math.round(pct)+'% de tu capital. Un solo producto no deberia pasar del 30-40%',
+        criticos.push(C('Este SKU te consume el '+Math.round(pct)+'% de tu capital. Un solo producto no debería pasar del 30-40%',
           ars(inversionARS)+' de '+ars(capitalARS)+' disponibles'));
       }
     }
 
     // ---------- BREAKEVEN ----------
     if (s4.breakevenDias > 120){
-      enContra.push(F('Tardas '+s4.breakevenDias+' dias en recuperar la inversion, y el ciclo China&#8594;gondola ya son 60-90 dias. Estas poniendo plata a 6 meses',
-        s4.breakevenDias+' dias ('+(s4.breakevenUds||0)+' uds a '+(s4.ventas||0)+' uds/mes)'));
+      enContra.push(F('Tardás '+s4.breakevenDias+' días en recuperar la inversión, y el ciclo China&#8594;góndola ya son 60-90 días. Estás poniendo plata a 6 meses',
+        s4.breakevenDias+' días ('+(s4.breakevenUds||0)+' uds a '+(s4.ventas||0)+' uds/mes)'));
     }
 
     const senales = { aFavor, enContra, criticos };
@@ -3598,20 +3598,20 @@ function goHome(){
       : { t:'Demanda', c:'ambar', d:'Estimación de IA, no es un dato medido' });
     // Un cero confirmado ES un dato medido. "Sin datos" se reserva para cuando
     // MercadoLibre no dejo consultar: son cosas distintas.
-    if (s2.fuente === 'requiere-sesion') chips.push({ t:'Competencia', c:'rojo', d:'Sin medir: hace falta iniciar sesion' });
-    else if (s2.fuente === 'tope-diario') chips.push({ t:'Competencia', c:'rojo', d:'Sin medir: tope diario de busquedas pagas' });
+    if (s2.fuente === 'requiere-sesion') chips.push({ t:'Competencia', c:'rojo', d:'Sin medir: hace falta iniciar sesión' });
+    else if (s2.fuente === 'tope-diario') chips.push({ t:'Competencia', c:'rojo', d:'Sin medir: tope diario de búsquedas pagas' });
     else if (s2.consultaFallida || s2.fuente === 'no-disponible') chips.push({ t:'Competencia', c:'rojo', d:'No pude consultar MercadoLibre' });
     else if (s2.sinComparable && s2.muestra === 0) chips.push({ t:'Competencia', c:'verde', d:'Medido: 0 publicaciones en MeLi Argentina' });
     else if (s2.sinComparable) chips.push({ t:'Competencia', c:'ambar', d:'Sin comparable: solo '+(s2.muestra||0)+' publicaci'+((s2.muestra===1)?'on':'ones')+' en MeLi' });
     else if (s2.muestraInsuficiente) chips.push({ t:'Competencia', c:'ambar', d:'Sin medir: muestra de '+(s2.muestra||0)+' de un mínimo de 10' });
     else chips.push({ t:'Competencia', c:'verde', d:(s2.muestra||0)+' publicaciones reales de MeLi' });
     if (!s3 || s3.omitido) chips.push({ t:'TikTok', c:'rojo', d:'Paso salteado, sin medir' });
-    else if (!s3.views) chips.push({ t:'TikTok', c:'ambar', d:'Sin numero de vistas cargado' });
+    else if (!s3.views) chips.push({ t:'TikTok', c:'ambar', d:'Sin número de vistas cargado' });
     else chips.push({ t:'TikTok', c:'verde', d:new Intl.NumberFormat('es-AR').format(s3.views)+' vistas cargadas' });
     const dol = window.__mrDolar || null;
     if (dol && dol.ok && !dol.manual) chips.push({ t:'Tipo de cambio', c:'verde', d:(dol.tipoLabel||'')+' de dolarapi.com' });
     else if (dol && dol.manual) chips.push({ t:'Tipo de cambio', c:'ambar', d:'Cargado a mano: $'+new Intl.NumberFormat('es-AR').format(Math.round(s4.tc||0)) });
-    else chips.push({ t:'Tipo de cambio', c:'rojo', d:'No pude traer la cotizacion' });
+    else chips.push({ t:'Tipo de cambio', c:'rojo', d:'No pude traer la cotización' });
     // 8.h) Dos chips propios del modo sin comparable.
     if (md && md.sinComparable){
       const ex = md.exploracion;
@@ -3658,8 +3658,8 @@ function goHome(){
       const cert  = document.getElementById('mrvChkCert');
       const marca = document.getElementById('mrvChkMarca');
       const riesgosSinTildar = [];
-      if (!cert  || !cert.checked)  riesgosSinTildar.push('verificar si necesita certificacion (seguridad electrica, ENACOM, ANMAT, juguetes)');
-      if (!marca || !marca.checked) riesgosSinTildar.push('verificar que no sea marca registrada ni replica');
+      if (!cert  || !cert.checked)  riesgosSinTildar.push('verificar si necesita certificación (seguridad eléctrica, ENACOM, ANMAT, juguetes)');
+      if (!marca || !marca.checked) riesgosSinTildar.push('verificar que no sea marca registrada ni réplica');
       // El verde tampoco sale con los riesgos sin tildar en este modo.
       if (v.clave === 'si' && riesgosSinTildar.length){
         v.clave = 'cond';
@@ -3692,17 +3692,17 @@ function goHome(){
     const cert  = document.getElementById('mrvChkCert');
     const marca = document.getElementById('mrvChkMarca');
     const riesgosSinTildar = [];
-    if (!cert  || !cert.checked)  riesgosSinTildar.push('verificar si necesita certificacion (seguridad electrica, ENACOM, ANMAT, juguetes)');
-    if (!marca || !marca.checked) riesgosSinTildar.push('verificar que no sea marca registrada ni replica');
+    if (!cert  || !cert.checked)  riesgosSinTildar.push('verificar si necesita certificación (seguridad eléctrica, ENACOM, ANMAT, juguetes)');
+    if (!marca || !marca.checked) riesgosSinTildar.push('verificar que no sea marca registrada ni réplica');
 
     let clave, titulo, sub, condiciones = [];
 
     if (sinDemanda && sinMuestra && criticosReales === 0){
       clave = 'gris'; titulo = 'DATOS INSUFICIENTES';
-      sub = 'No emito veredicto: no tengo ni demanda medida ni muestra de competencia. Lo que falta y como conseguirlo esta abajo.';
+      sub = 'No emito veredicto: no tengo ni demanda medida ni muestra de competencia. Lo que falta y cómo conseguirlo está abajo.';
       condiciones = [
-        'Demanda: Google Trends no responde desde el servidor. Consultala vos en trends.google.com filtrando Argentina, ultimos 12 meses, y compara contra un producto que ya vendas.',
-        'Competencia: entra al listado de MercadoLibre del producto y anota precio y vendidos de las primeras 10 publicaciones. Con menos de 8 no hay precio de referencia.'
+        'Demanda: Google Trends no responde desde el servidor. Consultala vos en trends.google.com filtrando Argentina, últimos 12 meses, y compará contra un producto que ya vendas.',
+        'Competencia: entrá al listado de MercadoLibre del producto y anotá precio y vendidos de las primeras 10 publicaciones. Con menos de 10 no hay precio de referencia.'
       ];
     } else if (senales.criticos.length >= 1){
       clave = 'no'; titulo = 'NO CONVIENE';
@@ -3714,11 +3714,11 @@ function goHome(){
         : 'Faltan ' + criticosDeDato + ' datos clave sin medir (en amarillo): no pongas plata sin conseguirlos.';
     } else if (fuertesContra >= 2 && fuertesContra > aFavorTotal){
       clave = 'cond'; titulo = 'CONVIENE SOLO SI...';
-      sub = fuertesContra + ' senales fuertes en contra contra ' + aFavorTotal + ' a favor. Para darlo vuelta tendria que pasar esto:';
+      sub = fuertesContra + ' señales fuertes en contra contra ' + aFavorTotal + ' a favor. Para darlo vuelta tendría que pasar esto:';
       condiciones = condicionesParaDarloVuelta(md, senales);
     } else if (riesgosSinTildar.length){
       clave = 'cond'; titulo = 'CONVIENE SOLO SI...';
-      sub = 'Los numeros dan, pero quedan riesgos regulatorios sin verificar. Antes de pagar el FOB:';
+      sub = 'Los números dan, pero quedan riesgos regulatorios sin verificar. Antes de pagar el FOB:';
       condiciones = riesgosSinTildar;
     } else {
       clave = 'si'; titulo = 'CONVIENE';
@@ -3728,7 +3728,7 @@ function goHome(){
     // El verde nunca sale con riesgos sin tildar (6.f).
     if (clave === 'si' && riesgosSinTildar.length){
       clave = 'cond'; titulo = 'CONVIENE SOLO SI...';
-      sub = 'Los numeros dan, pero quedan riesgos regulatorios sin verificar. Antes de pagar el FOB:';
+      sub = 'Los números dan, pero quedan riesgos regulatorios sin verificar. Antes de pagar el FOB:';
       condiciones = riesgosSinTildar;
     }
     return { clave, titulo, sub, condiciones, riesgosSinTildar, fuertesContra, aFavorTotal };
@@ -3740,11 +3740,11 @@ function goHome(){
     const out = [];
     const s4 = md.step4 || {};
     senales.enContra.filter(x => x.peso === 'fuerte').forEach(function(x){
-      if (/uds\/mes: el volumen/.test(x.texto)) out.push('Que la rotacion real llegue a 20+ uds/mes (hoy ' + (s4.ventas||0) + '). Verificalo mirando "vendidos" de los top listings dos semanas seguidas.');
-      else if (/envio gratis/.test(x.texto)) out.push('Que puedas absorber el envio gratis sin bajar del margen actual, o vender por un canal donde el envio lo pague el comprador.');
-      else if (/vendedores activos/.test(x.texto)) out.push('Que tengas un diferencial que no sea precio (kit, garantia, variante que no esta): con esta cantidad de vendedores se compite por precio.');
-      else if (/dias en recuperar/.test(x.texto)) out.push('Que bajes el ciclo de recupero abajo de 120 dias: menos unidades por compra, o mas rotacion.');
-      else if (/traccion de contenido/.test(x.texto)) out.push('Que midas TikTok: busca el producto, ordena por mas vistos y anota el promedio de vistas de los 3 primeros.');
+      if (/uds\/mes: el volumen/.test(x.texto)) out.push('Que la rotación real llegue a 20+ uds/mes (hoy ' + (s4.ventas||0) + '). Verificalo mirando "vendidos" de los top listings dos semanas seguidas.');
+      else if (/env[ií]o gratis/.test(x.texto)) out.push('Que puedas absorber el envío gratis sin bajar del margen actual, o vender por un canal donde el envío lo pague el comprador.');
+      else if (/vendedores activos/.test(x.texto)) out.push('Que tengas un diferencial que no sea precio (kit, garantía, variante que no está): con esta cantidad de vendedores se compite por precio.');
+      else if (/d[ií]as en recuperar/.test(x.texto)) out.push('Que bajes el ciclo de recupero abajo de 120 días: menos unidades por compra, o más rotación.');
+      else if (/tracci[oó]n de contenido/.test(x.texto)) out.push('Que midas TikTok: buscá el producto, ordená por más vistos y anotá el promedio de vistas de los 3 primeros.');
       else out.push('Que se revierta: ' + x.texto);
     });
     return out;
@@ -3800,10 +3800,10 @@ function goHome(){
     const contraHTML = senales.criticos.map(x => itemHTML(x, true)).join('') +
                        senales.enContra.map(x => itemHTML(x, false)).join('');
     document.getElementById('mrvEnContra').innerHTML = contraHTML ||
-      '<div class="mrv-vacio">Ninguna senal en contra con los datos que hay.</div>';
+      '<div class="mrv-vacio">Ninguna señal en contra con los datos que hay.</div>';
     document.getElementById('mrvAFavor').innerHTML =
       senales.aFavor.map(x => itemHTML(x, false)).join('') ||
-      '<div class="mrv-vacio">Ninguna senal a favor con los datos que hay.</div>';
+      '<div class="mrv-vacio">Ninguna señal a favor con los datos que hay.</div>';
 
     // 8) Bloques propios del modo sin comparable (paises, categoria madre,
     // presupuesto de test) y ocultado del gauge.
@@ -4015,7 +4015,7 @@ function goHome(){
   // puede scrapear: sale de lo que contesta el usuario.
   // ---------------------------------------------------------------
   function derivarAntiguedad(s5){
-    if (!s5) return { valor:'sin-dato', motivo:'El paso de antiguedad no se completo.' };
+    if (!s5) return { valor:'sin-dato', motivo:'El paso de antigüedad no se completó.' };
     var edad = s5.tiktokEdad || '';
     var mes = s5.aliMes, anio = s5.aliAnio;
     var reviews = s5.aliReviews;
@@ -4031,28 +4031,28 @@ function goHome(){
     var reviewsViejas = mesesDesdeReview != null && mesesDesdeReview > 12;
 
     if (!edad && mesesDesdeReview == null) return { valor:'sin-dato', mesesDesdeReview:null, reviews:reviews,
-      motivo:'No cargaste ni la antiguedad de los videos ni la fecha de las reviews.' };
+      motivo:'No cargaste ni la antigüedad de los videos ni la fecha de las reviews.' };
 
     if (edad === 'recientes' && activaUltimoTrimestre){
       return { valor:'nueva', mesesDesdeReview:mesesDesdeReview, reviews:reviews,
-        motivo:'Videos de los ultimos 6 meses y reviews del ultimo trimestre' +
+        motivo:'Videos de los últimos 6 meses y reviews del último trimestre' +
                (reviews ? ' (' + nf(reviews) + ' reviews)' : '') + '.' };
     }
     if (edad === 'viejos' && reviewsViejas){
       return { valor:'vieja', mesesDesdeReview:mesesDesdeReview, reviews:reviews,
-        motivo:'Videos de 2 anos o mas y ultima review hace ' + mesesDesdeReview + ' meses.' };
+        motivo:'Videos de 2 años o más y última review hace ' + mesesDesdeReview + ' meses.' };
     }
     if (edad === 'sin-videos' && reviewsViejas){
       return { valor:'vieja', mesesDesdeReview:mesesDesdeReview, reviews:reviews,
-        motivo:'Sin videos en TikTok y ultima review hace ' + mesesDesdeReview + ' meses.' };
+        motivo:'Sin videos en TikTok y última review hace ' + mesesDesdeReview + ' meses.' };
     }
     if (edad === 'mezclados' || edad === 'recientes' || edad === 'viejos' || edad === 'sin-videos'){
       return { valor:'mixta', mesesDesdeReview:mesesDesdeReview, reviews:reviews,
-        motivo:'Senales mezcladas: videos "' + edad + '"' +
-               (mesesDesdeReview != null ? ', ultima review hace ' + mesesDesdeReview + ' meses' : ', sin fecha de reviews') + '.' };
+        motivo:'Señales mezcladas: videos "' + edad + '"' +
+               (mesesDesdeReview != null ? ', última review hace ' + mesesDesdeReview + ' meses' : ', sin fecha de reviews') + '.' };
     }
     return { valor:'sin-dato', mesesDesdeReview:mesesDesdeReview, reviews:reviews,
-      motivo:'Falta la antiguedad de los videos de TikTok.' };
+      motivo:'Falta la antigüedad de los videos de TikTok.' };
   }
   window.derivarAntiguedad = derivarAntiguedad;
 
@@ -4133,14 +4133,14 @@ function goHome(){
     let datoBase;
     if (s2.muestraDevuelta != null && s2.muestraDevuelta > 0 && s2.relevantes === 0){
       // El caso que de verdad se da: MeLi devolvio publicaciones de rescate.
-      datoBase = 'MeLi devolvio ' + s2.muestraDevuelta + ' publicaciones y NINGUNA es de este producto';
+      datoBase = 'MeLi devolvió ' + s2.muestraDevuelta + ' publicaciones y NINGUNA es de este producto';
     } else if (s2.muestraDevuelta != null && s2.ratioRelevancia != null){
       datoBase = s2.relevantes + ' de ' + s2.muestraDevuelta + ' publicaciones coinciden (' + Math.round(s2.ratioRelevancia * 100) + '%)';
     } else {
-      datoBase = (s2.muestra || 0) + ((s2.muestra === 1) ? ' publicacion encontrada' : ' publicaciones encontradas') + ' en MercadoLibre Argentina';
+      datoBase = (s2.muestra || 0) + ((s2.muestra === 1) ? ' publicación encontrada' : ' publicaciones encontradas') + ' en MercadoLibre Argentina';
     }
     senales.criticos.push(C(
-      'Sin comparable en MeLi Argentina. No hay evidencia de que este producto se venda aca.',
+      'Sin comparable en MeLi Argentina. No hay evidencia de que este producto se venda acá.',
       datoBase,
       'sin-comparable'));
 
@@ -4149,7 +4149,7 @@ function goHome(){
       if (expl.categoriaMadre){
         var cm = expl.categoriaMadre;
         senales.aFavor.push(M(
-          'La categoria madre existe y rota: hay demanda para el tipo de producto, aunque no para este modelo.',
+          'La categoría madre existe y rota: hay demanda para el tipo de producto, aunque no para este modelo.',
           '"' + cm.termino + '": ' + (cm.publicaciones != null ? nf(cm.publicaciones) + ' publicaciones' : cm.muestra + ' en la muestra') +
           (cm.precioMediano ? ', mediana ' + ars(cm.precioMediano) : '')));
       } else if (Array.isArray(expl.terminosProgresivos) && expl.terminosProgresivos.length){
@@ -4159,7 +4159,7 @@ function goHome(){
         // falso.
         if (expl.categoriaMadreAusenteConfirmada){
           senales.criticos.push(C(
-            'Ni siquiera la categoria generica existe en MeLi.',
+            'Ni siquiera la categoría genérica existe en MeLi.',
             'probados sin resultado: ' + expl.terminosProgresivos.join(' / '),
             'sin-categoria-madre'));
         }
@@ -4183,13 +4183,13 @@ function goHome(){
       var brEstimadas = relBR && relBR.estimadas != null ? relBR.estimadas : brN;
       if (e.MLB === true && brEstimadas != null && brEstimadas >= 15 && noLlegoAca){
         senales.aFavor.push(F(
-          'Se vende en Brasil y todavia no llego aca. Es la senal mas fuerte de ventana real que puedo darte.',
+          'Se vende en Brasil y todavía no llegó acá. Es la señal más fuerte de ventana real que puedo darte.',
           'Brasil ~' + nf(brEstimadas) + ' publicaciones del producto (' + (relBR ? relBR.relevantes + ' de ' + relBR.devueltas + ' de la muestra coinciden' : 'estimado') +
           ') vs Argentina ' + (arN != null ? nf(arN) : 'sin dato')));
       }
       if (e.MLA === false && e.MLB === false && e.MLM === false){
         senales.criticos.push(C(
-          'No se vende en ningun MercadoLibre de la region.',
+          'No se vende en ningún MercadoLibre de la región.',
           'Argentina 0 / Brasil 0 / México 0',
           'sin-region'));
       }
@@ -4209,16 +4209,16 @@ function goHome(){
       if (dudosos.length){
         senales.enContra.push(M(
           'En ' + dudosos.map(function(k){ return (expl.paises[k] || {}).pais || k; }).join(' y ') +
-          ' MeLi devolvio resultados parcialmente relacionados: no se puede confirmar si tu producto exacto se vende ahi.',
+          ' MeLi devolvió resultados parcialmente relacionados: no se puede confirmar si tu producto exacto se vende ahí.',
           dudosos.map(function(k){ var r = (expl.relevancia || {})[k]; return k + ' relevancia ' + (r && r.ratio != null ? r.ratio.toFixed(2) : '?'); }).join(' | ')));
       }
     }
 
     // --- 8.d) Antiguedad de la demanda ---
     if (ant.valor === 'nueva'){
-      senales.aFavor.push(F('Demanda nueva: el producto esta apareciendo ahora, no es un descarte viejo.', ant.motivo));
+      senales.aFavor.push(F('Demanda nueva: el producto está apareciendo ahora, no es un descarte viejo.', ant.motivo));
     } else if (ant.valor === 'vieja'){
-      senales.enContra.push(F('Demanda vieja: el producto ya tiene recorrido afuera y aca no esta.', ant.motivo));
+      senales.enContra.push(F('Demanda vieja: el producto ya tiene recorrido afuera y acá no está.', ant.motivo));
     } else if (ant.valor === 'sin-dato'){
       senales.enContra.push(M('No mediste la antigüedad de la demanda: sin eso no se distingue una ventana de un fracaso ajeno.', ant.motivo || 'falta completar el paso 5'));
     }
@@ -4226,16 +4226,16 @@ function goHome(){
     // --- 8.e) Test de busqueda ---
     if (test && test.suficiente === true){
       senales.aFavor.push(F(
-        'Hay categoria y la gente sabe como nombrarla: tu producto se puede encontrar.',
+        'Hay categoría y la gente sabe como nombrarla: tu producto se puede encontrar.',
         '"' + test.termino + '" devuelve ' + (test.encontradas != null ? nf(test.encontradas) : test.muestra) + ' publicaciones'));
     } else if (test && test.suficiente === false && test.encontradas === 0){
       senales.criticos.push(C(
-        'Nadie busca eso en MeLi. Aunque el producto sea bueno, no te lo van a encontrar: crear la categoria requiere contenido y pauta, que es un negocio distinto al de importar.',
+        'Nadie busca eso en MeLi. Aunque el producto sea bueno, no te lo van a encontrar: crear la categoría requiere contenido y pauta, que es un negocio distinto al de importar.',
         '"' + test.termino + '" devuelve 0 publicaciones',
         'test-busqueda-cero'));
     } else if (test && test.suficiente === false){
       senales.enContra.push(F(
-        'La busqueda que propusiste devuelve muy poco: cuesta que te encuentren.',
+        'La búsqueda que propusiste devuelve muy poco: cuesta que te encuentren.',
         '"' + test.termino + '" devuelve ' + (test.encontradas != null ? nf(test.encontradas) : test.muestra) + ' publicaciones'));
     }
 
@@ -4499,7 +4499,7 @@ function goHome(){
       // "sin publicaciones" era enganoso: casi siempre MeLi devuelve algo, solo
       // que de otra cosa. Se dice lo que realmente paso.
       else det = (p.muestraDevuelta > 0)
-        ? ('MeLi devolvio ' + p.muestraDevuelta + ', ninguna de este producto')
+        ? ('MeLi devolvió ' + p.muestraDevuelta + ', ninguna de este producto')
         : 'sin publicaciones';
       return '<div class="mrv-pais"><div class="mrv-pais-n">' + (p.pais || NOMBRE[k]) + '</div>' +
              '<div class="mrv-pais-v ' + cls + '">' + val + '</div>' +
@@ -4559,7 +4559,7 @@ function goHome(){
       var res = await fetch('/api/market', { method:'POST', headers: mrCabeceras(),
         body: JSON.stringify({ step:'testBusqueda', product: termino }) });
       var r = await res.json();
-      if (!res.ok) throw new Error(r.error || 'Error en el test de busqueda');
+      if (!res.ok) throw new Error(r.error || 'Error en el test de búsqueda');
       mrData.testBusqueda = r;
       if (out){
         if (r.suficiente === true) out.innerHTML = '<span style="color:var(--green)">Devuelve ' + nf(r.encontradas != null ? r.encontradas : r.muestra) + ' publicaciones. Hay categoría y la gente sabe cómo nombrarla.</span>';
@@ -4625,7 +4625,7 @@ function goHome(){
         // Casi nunca es literalmente "sin publicaciones": MeLi devuelve
         // resultados de rescate. Se dice lo que paso de verdad.
         else det = (p.muestraDevuelta > 0)
-          ? ('MeLi devolvio ' + p.muestraDevuelta + ', ninguna de este producto')
+          ? ('MeLi devolvió ' + p.muestraDevuelta + ', ninguna de este producto')
           : 'sin publicaciones';
         return '<div class="mrv-pais"><div class="mrv-pais-n">' + (p.pais || k) + '</div>' +
                '<div class="mrv-pais-v ' + cls + '">' + val + '</div>' +

@@ -294,7 +294,7 @@ export async function tipoDeCambio(userId) {
     const r = await fetch('https://dolarapi.com/v1/dolares/tarjeta');
     if (r.ok) {
       const j = await r.json();
-      if (j && j.venta > 0) return { valor: j.venta, fuente: 'dolar tarjeta del dia' };
+      if (j && j.venta > 0) return { valor: j.venta, fuente: 'dólar tarjeta del día' };
     }
   } catch (_) {}
   return { valor: parseFloat(process.env.USD_ARS) || 1500, fuente: 'valor por defecto' };
@@ -1371,19 +1371,19 @@ function avisoDeCupo(cupo) {
   if (cupo.motivo === 'tope-mes') {
     const fecha = fmt(cupo.reinicioCiclo || (cupo.ciclo && cupo.ciclo.hasta));
     const supuesta = cupo.ciclo && cupo.ciclo.fuente === 'mes-calendario-ar';
-    return 'Tu cuenta de Apify se quedo sin credito del mes (' + cupo.usadasMes +
-      ' de ' + cupo.topeMes + ' busquedas usadas). Se reinicia' +
-      (fecha ? ' el ' + fecha + (supuesta ? ' (fecha estimada)' : '') : ' al empezar el proximo ciclo') +
-      '. Hasta entonces puedo mostrarte lo que ya esta guardado, pero no traer productos nuevos.';
+    return 'Tu cuenta de Apify se quedó sin crédito del mes (' + cupo.usadasMes +
+      ' de ' + cupo.topeMes + ' búsquedas usadas). Se reinicia' +
+      (fecha ? ' el ' + fecha + (supuesta ? ' (fecha estimada)' : '') : ' al empezar el próximo ciclo') +
+      '. Hasta entonces puedo mostrarte lo que ya está guardado, pero no traer productos nuevos.';
   }
   if (cupo.motivo === 'tope') {
-    return 'Llegaste al tope de ' + cupo.tope + ' busquedas nuevas por dia (te quedan ' +
+    return 'Llegaste al tope de ' + cupo.tope + ' búsquedas nuevas por día (te quedan ' +
       (cupo.restantesMes != null ? cupo.restantesMes : '?') + ' en el mes). ' +
-      'Se habilita de nuevo a la medianoche. Es un freno puesto a proposito para ' +
-      'que el credito del mes no se vaya en una sola tarde.';
+      'Se habilita de nuevo a la medianoche. Es un freno puesto a propósito para ' +
+      'que el crédito del mes no se vaya en una sola tarde.';
   }
   return 'No puedo verificar cuántas búsquedas se usaron este mes, así que freno ' +
-    'el gasto por las dudas. Volve a intentar en un rato.';
+    'el gasto por las dudas. Volvé a intentar en un rato.';
 }
 
 // Muestra que se busca juntar antes de cortar la cadena de vias gratuitas, y
@@ -1483,7 +1483,7 @@ export async function buscarPublicaciones(product, token, opts) {
       if (!o.puedeGastar) {
         return {
           requiereSesion: true, results: [], fuente: 'requiere-sesion',
-          aviso: 'Para traer publicaciones reales de MercadoLibre necesitas iniciar sesion.'
+          aviso: 'Para traer publicaciones reales de MercadoLibre necesitás iniciar sesión.'
         };
       }
 
@@ -1813,7 +1813,7 @@ export async function contarPublicaciones(product, token, site, opts) {
     precioMediano: null, ventasTop3: null, moneda: null,
     motivo: null, fuente: null
   };
-  if (!product || !String(product).trim()) return { ...vacio, motivo: 'sin termino de busqueda' };
+  if (!product || !String(product).trim()) return { ...vacio, motivo: 'sin término de búsqueda' };
   if (!token) return { ...vacio, motivo: 'sin token de MercadoLibre' };
 
   let r = null;
@@ -1835,13 +1835,13 @@ export async function contarPublicaciones(product, token, site, opts) {
 
   if (!r) return { ...vacio, motivo: 'MercadoLibre ' + st.pais + ' no respondió (bloqueo o sin resultados legibles)' };
   if (r.sinTiempo) return { ...vacio, sinTiempo: true, motivo: 'no alcanzo el tiempo para consultar ' + st.pais };
-  if (r.pendiente) return { ...vacio, motivo: 'la busqueda todavia se esta preparando' };
+  if (r.pendiente) return { ...vacio, motivo: 'la búsqueda todavía se está preparando' };
   // Frenos de gasto: no se pudo consultar, y el motivo no es de MercadoLibre.
   // Va como ok:false / publicaciones:null, o sea "no pude consultar", jamas
   // como cero publicaciones.
-  if (r.sinPago) return { ...vacio, sinPago: true, motivo: r.aviso || 'esta consulta no usa la via paga' };
-  if (r.requiereSesion) return { ...vacio, requiereSesion: true, motivo: r.aviso || 'hace falta iniciar sesion para esta consulta' };
-  if (r.topeAlcanzado) return { ...vacio, topeAlcanzado: true, gasto: r.gasto || null, motivo: r.aviso || 'tope diario de busquedas pagas alcanzado' };
+  if (r.sinPago) return { ...vacio, sinPago: true, motivo: r.aviso || 'esta consulta no usa la vía paga' };
+  if (r.requiereSesion) return { ...vacio, requiereSesion: true, motivo: r.aviso || 'hace falta iniciar sesión para esta consulta' };
+  if (r.topeAlcanzado) return { ...vacio, topeAlcanzado: true, gasto: r.gasto || null, motivo: r.aviso || 'tope diario de búsquedas pagas alcanzado' };
 
   const results = Array.isArray(r.results) ? r.results : [];
   const rel = r.relevancia || null;
@@ -1874,11 +1874,11 @@ export async function contarPublicaciones(product, token, site, opts) {
   if (r.relevanciaCero && rel) {
     return { ...vacio, ok: true, estado: 'noExiste', publicaciones: 0, muestra: 0,
              relevantes: 0, muestraDevuelta: rel.muestra, ratio: 0, fuente: r.fuente || null,
-             motivo: 'MercadoLibre devolvio ' + rel.muestra + ' publicaciones pero ninguna es de este producto (resultados de rescate)' };
+             motivo: 'MercadoLibre devolvió ' + rel.muestra + ' publicaciones pero ninguna es de este producto (resultados de rescate)' };
   }
 
   if (!results.length) {
-    return { ...vacio, motivo: 'MercadoLibre ' + st.pais + ' no devolvio publicaciones legibles' };
+    return { ...vacio, motivo: 'MercadoLibre ' + st.pais + ' no devolvió publicaciones legibles' };
   }
 
   const precios = results.map(x => x && x.price).filter(p => typeof p === 'number' && p > 0).sort((a, b) => a - b);
@@ -1910,10 +1910,10 @@ export async function contarPublicaciones(product, token, site, opts) {
              precioMediano: dudoso ? mediana : null,
              fuente: r.fuente || null,
              motivo: dudoso
-               ? ('MercadoLibre devolvio resultados parcialmente relacionados (relevancia ' + ratio.toFixed(2) +
-                  '): no puedo confirmar si tu producto exacto se vende aca')
+               ? ('MercadoLibre devolvió resultados parcialmente relacionados (relevancia ' + ratio.toFixed(2) +
+                  '): no puedo confirmar si tu producto exacto se vende acá')
                : ('relevancia ' + ratio.toFixed(2) + ' sobre ' + rel.muestra +
-                  ' publicaciones: ninguna habla del producto buscado (minimo ' + RELEVANCIA_UMBRAL_BAJO + ')') };
+                  ' publicaciones: ninguna habla del producto buscado (mínimo ' + RELEVANCIA_UMBRAL_BAJO + ')') };
   }
 
   // La muestra esta topeada (30-40 ids), asi que "relevantes" satura y no
@@ -1944,6 +1944,6 @@ export async function contarPublicaciones(product, token, site, opts) {
     ventasTop3,
     moneda: st.id === 'MLA' ? 'ARS' : (st.id === 'MLB' ? 'BRL' : 'MXN'),
     fuente: r.fuente || null,
-    motivo: (typeof r.total === 'number' && r.total > 0) ? null : 'MercadoLibre no expone el total por esta via; se informa el tamano de la muestra'
+    motivo: (typeof r.total === 'number' && r.total > 0) ? null : 'MercadoLibre no expone el total por esta vía; se informa el tamaño de la muestra'
   };
 }
