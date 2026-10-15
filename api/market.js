@@ -285,7 +285,7 @@ export default async function handler(req, res) {
           fetch('https://api.mercadolibre.com/trends/MLA', { headers: auth })
         ]);
         if (!rDom.ok && !rTrend.ok) {
-          return res.status(200).json({ ok: false, error: 'MercadoLibre no respondio a la consulta.' });
+          return res.status(200).json({ ok: false, error: 'MercadoLibre no respondió a la consulta.' });
         }
 
         const dom = rDom.ok ? await rDom.json().catch(() => []) : [];
@@ -965,8 +965,19 @@ async function stepDemanda(product, ctx) {
   }
   j.monthlyData = buildRollingMonths(j.monthlyData);
   j.rangoFechas = j.monthlyData[0].label + ' - ' + j.monthlyData[11].label;
+  if (!hayTrends) {
+    // La IA devuelve la curva en meses CALENDARIO y la tendencia por separado;
+    // al rotarla a los ultimos 12 meses podian contradecirse ("subiendo" con
+    // una curva que cae de 82 a 58). La flecha se deriva de la MISMA curva que
+    // se muestra, con la misma regla que se usa para Google Trends.
+    const v = j.monthlyData.map(m => m.valor);
+    const ini = (v[0] + v[1] + v[2]) / 3, fin = (v[9] + v[10] + v[11]) / 3;
+    j.tendenciaIA = j.tendencia || null;
+    j.tendencia = fin > ini * 1.15 ? 'subiendo' : (fin < ini * 0.85 ? 'bajando' : 'estable');
+    j.curvaEstimada = true;
+  }
   j.fuenteDemanda = fuenteDemanda;
-  j.trendsMotivo = hayTrends ? null : (_ultimoMotivoTrends || 'Google Trends no respondio');
+  j.trendsMotivo = hayTrends ? null : (_ultimoMotivoTrends || 'Google Trends no respondió');
   // De cual de las dos vias salio la curva. Sin esto, "google-trends" no
   // distingue entre el scrape gratis y una corrida paga.
   if (hayTrends) j.trendsVia = trends.via || 'scrape-directo';
@@ -1013,6 +1024,66 @@ async function serieViaProveedor(product) {
     _ultimoMotivoTrends = 'fallo la consulta de la serie: ' + String((e && e.message) || e).slice(0, 140);
     return null;
   }
+}
+
+// Menos de esto no es una muestra: no se calcula precio de referencia ni se
+// concluye nada sobre el mercado (ni "saturado" ni "no se vende").
+const MUESTRA_MINIMA_COMPETENCIA = 10;
+
+function avisoSinMedir(n) {
+  return 'No pude medir la competencia: muestra insuficiente (' + n + ' ' + (n === 1 ? 'publicación' : 'publicaciones') +
+    '). Esto NO significa que no se venda: con tan pocas publicaciones no se puede concluir nada.';
+}
+
+// Descarta precios fuera de 0,3x - 3x la mediana. Solo con 5 o mas
+// publicaciones: con menos, la "mediana" es cualquiera de los dos extremos.
+function filtrarOutliersDePrecio(items) {
+  const lista = Array.isArray(items) ? items : [];
+  const precios = lista.map(x => x && x.price).filter(p => typeof p === 'number' && p > 0).sort((a, b) => a - b);
+  if (precios.length < 5) return { items: lista, descartados: 0 };
+  const m = Math.floor(precios.length / 2);
+  const mediana = precios.length % 2 ? precios[m] : (precios[m - 1] + precios[m]) / 2;
+  const dentro = lista.filter(x => x && typeof x.price === 'number' && x.price >= mediana * 0.3 && x.price <= mediana * 3);
+  return { items: dentro, descartados: lista.length - dentro.length };
+}
+
+// Un nickname que es solo el id numerico (o el "Vendedor 123" que armaban las
+// vias viejas) no es un nombre: es no saber quien vende.
+function nicknameReal(n) {
+  const t = String(n || '').trim();
+  if (!t || /^\d+$/.test(t) || /^vendedor \d+$/i.test(t)) return null;
+  return t;
+}
+
+// Fila de la tabla de competencia. Lo que no se sabe va en null y el front
+// oculta la columna: un "0 vendidos" o "N/A" en todas las filas parece un dato
+// y no lo es. El nickname y la reputacion se piden a /users/{id} (publico)
+// solo para las 5 filas que se muestran, en paralelo y con timeout corto.
+async function armarCompetidores(items, tok) {
+  const filas = items.map((x, i) => ({
+    rank: i + 1,
+    titulo: (x && x.title) || null,
+    vendedorId: (x && x.seller && x.seller.id) || null,
+    vendedor: nicknameReal(x && x.seller && x.seller.nickname),
+    price: (x && x.price) || 0,
+    soldQty: (x && typeof x.sold_quantity === 'number' && x.sold_quantity > 0) ? x.sold_quantity : null,
+    reputation: (x && x.seller && x.seller.seller_reputation && x.seller.seller_reputation.level_id) || (x && x.reputacion) || null,
+    freeShipping: !!(x && x.shipping && x.shipping.free_shipping),
+    repClass: 'comp-rep-ok'
+  }));
+  const faltan = filas.filter(f => (!f.vendedor || !f.reputation) && /^\d+$/.test(String(f.vendedorId || '')));
+  if (faltan.length) {
+    await Promise.all(faltan.map(async f => {
+      const u = await fetchJson(MELI_API + '/users/' + f.vendedorId, tok, 2500);
+      if (u.ok && u.json) {
+        f.vendedor = f.vendedor || nicknameReal(u.json.nickname);
+        f.reputation = f.reputation || (u.json.seller_reputation && u.json.seller_reputation.level_id) || null;
+      }
+    }));
+  }
+  // name se mantiene para el codigo que ya lo leia (historial, PDF).
+  filas.forEach(f => { f.name = f.titulo || f.vendedor || ('Publicación ' + f.rank); });
+  return filas;
 }
 
 async function stepCompetencia(product, ctx) {
@@ -1084,8 +1155,9 @@ async function stepCompetencia(product, ctx) {
     const rel = meli.relevancia;
     return {
       fuente: meli.fuente || 'meli-listado+items',
-      muestraInsuficiente: true, muestra: (meli.results || []).length,
-      sinComparable: true, consultaFallida: false, relevanciaDudosa: true,
+      // 'dudoso' es "no se": nunca dispara el modo sin comparable.
+      muestraInsuficiente: true, competenciaNoMedida: true, muestra: (meli.results || []).length,
+      sinComparable: false, consultaFallida: false, relevanciaDudosa: true,
       estadoRelevancia: 'dudoso',
       relevantes: rel.relevantes, muestraDevuelta: rel.muestra, ratioRelevancia: rel.ratio,
       sellersEstimados: null,
@@ -1094,13 +1166,27 @@ async function stepCompetencia(product, ctx) {
       totalCrudoMeli: (typeof meli.total === 'number') ? meli.total : null,
       categoryName: meli.categoryName || '', saturacion: null, competenciaScore: null,
       competitors: [], envioGratisPct: null,
-      aviso: 'MercadoLibre devolvio resultados parcialmente relacionados (relevancia ' +
-             rel.ratio.toFixed(2) + '): no puedo confirmar si tu producto exacto se vende aca.'
+      aviso: 'No pude medir la competencia: MercadoLibre devolvió resultados parcialmente relacionados (relevancia ' +
+             rel.ratio.toFixed(2) + '). No puedo confirmar si tu producto exacto se vende acá, y tampoco lo descarto.'
     };
   }
 
   if (meli && meli.relevanciaCero && meli.relevancia) {
     const rel = meli.relevancia;
+    // REGLA DURA: con menos de 10 publicaciones devueltas no se concluye
+    // "no se vende". Puede ser una busqueda mal resuelta, no un mercado vacio.
+    if ((rel.muestra || 0) < MUESTRA_MINIMA_COMPETENCIA) {
+      return {
+        fuente: meli.fuente || 'meli-listado+items',
+        muestraInsuficiente: true, competenciaNoMedida: true, muestra: 0, sinComparable: false, consultaFallida: false,
+        relevantes: 0, muestraDevuelta: rel.muestra, ratioRelevancia: null, relevanciaConfiable: false, estadoRelevancia: 'dudoso',
+        sellersEstimados: null, precioMinARS: null, precioMaxARS: null, precioPromedioARS: null,
+        totalResults: null, totalCatalogo: null, totalLabel: null,
+        totalCrudoMeli: (typeof meli.total === 'number') ? meli.total : null,
+        categoryName: '', saturacion: null, competenciaScore: null, competitors: [], envioGratisPct: null,
+        aviso: avisoSinMedir(rel.muestra || 0)
+      };
+    }
     return {
       fuente: meli.fuente || 'meli-listado+items',
       muestraInsuficiente: true, muestra: 0, sinComparable: true, consultaFallida: false,
@@ -1118,16 +1204,38 @@ async function stepCompetencia(product, ctx) {
 
   if (meli && meli.results && meli.results.length > 0) {
     // Los results que llegan ya vienen filtrados por relevancia desde la via
-    // de busqueda. Igual se recalcula aca para poder informar el ratio y para
-    // no depender de que toda via lo haya hecho.
+    // de busqueda. La relevancia que se informa es la de la MUESTRA DEVUELTA
+    // (meli.relevancia). Si no viene (resultado leido del cache), recalcularla
+    // sobre las publicaciones que ya pasaron el filtro da casi siempre 1.00:
+    // era el "relevancia 1.00" sobre 2 publicaciones. En ese caso no se informa.
     const relCalc = relevanciaPorTitulo(product, meli.results);
-    const rel = meli.relevancia || { relevantes: relCalc.relevantes, muestra: relCalc.muestra, ratio: relCalc.ratio };
-    const results = relCalc.items.length ? relCalc.items : meli.results;
+    const relReal = meli.relevancia || null;
+    const filtradas = relCalc.items.length ? relCalc.items : meli.results;
     const fuente = meli.fuente || 'mercadolibre-search';
+
+    // Outliers de precio: con 5 o mas publicaciones se descarta lo que este
+    // fuera de 0,3x - 3x la mediana (accesorios sueltos, kits, otro producto).
+    // Con menos no hay mediana que sirva, y la muestra igual es insuficiente.
+    const { items: results, descartados } = filtrarOutliersDePrecio(filtradas);
+
+    const muestraDevuelta = relReal ? relReal.muestra : null;
+    const relevanciaConfiable = !!relReal && muestraDevuelta >= MUESTRA_MINIMA_COMPETENCIA;
     const prices = results.map(x => x.price).filter(p => typeof p === 'number' && p > 0).sort((a,b)=>a-b);
     const sellers = new Set(results.map(x => x.seller && x.seller.id).filter(Boolean));
     const conEnvioGratis = results.filter(x => x.shipping && x.shipping.free_shipping).length;
-    const competitors = results.slice(0,5).map((x,i)=>({rank:i+1, name:(x.seller && x.seller.nickname) || ('Vendedor '+(i+1)), price:x.price||0, soldQty:x.sold_quantity||0, reputation:(x.seller && x.seller.seller_reputation && x.seller.seller_reputation.level_id) || 'N/A', repClass:'comp-rep-ok', freeShipping: !!(x.shipping && x.shipping.free_shipping)}));
+    const competitors = await armarCompetidores(results.slice(0, 5), await getMeliAccessToken().catch(() => null));
+    const camposCompetidores = {
+      hayVendedor: competitors.some(c => !!c.vendedor),
+      hayVendidos: competitors.some(c => typeof c.soldQty === 'number' && c.soldQty > 0),
+      hayReputacion: competitors.some(c => !!c.reputation)
+    };
+    const relInfo = {
+      relevantes: relReal ? relReal.relevantes : results.length,
+      muestraDevuelta, relevanciaConfiable,
+      ratioRelevancia: relReal ? relReal.ratio : null,
+      estadoRelevancia: (relReal && relReal.estado) || 'existe',
+      outliersDescartados: descartados
+    };
 
     // El "total" del catalogo NO son publicaciones activas: paging.total de
     // /products/search cuenta PRODUCTOS DE CATALOGO. Rotularlo como
@@ -1147,33 +1255,31 @@ async function stepCompetencia(product, ctx) {
       else if (total > 2000) saturacion = 'saturado';
     }
 
-    // Muestra chica: con menos de 8 publicaciones el rango, el promedio y la
-    // mediana no describen nada. Medido en produccion, el catalogo devolvia
-    // UNA publicacion y el front mostraba precioMin = precioMax como si fuera
-    // el precio de mercado. Con muestra insuficiente no se devuelve precio de
-    // referencia: se devuelve el aviso.
-    const MUESTRA_MINIMA = 8;
-    if (results.length < MUESTRA_MINIMA) {
-      // Con 2 o menos publicaciones no hay comparable: no es "poca
-      // competencia", es que el producto no se vende aca. El competenciaScore
-      // se anula a proposito, porque un score alto por ausencia de
-      // competidores premiaba justamente el caso mas riesgoso.
-      const sinComp = results.length <= 2;
+    // Muestra chica: con menos de 10 publicaciones el rango, el promedio y la
+    // mediana no describen nada, y TAMPOCO se concluye "sin comparable".
+    //
+    // REGLA DURA. Antes, con 2 o menos se marcaba sinComparable y el informe
+    // decia en rojo "no hay evidencia de que este producto se venda aca"
+    // mientras la categoria madre tenia 9.989 publicaciones. Una muestra chica
+    // es un problema de la MEDICION, no un dato del mercado.
+    if (results.length < MUESTRA_MINIMA_COMPETENCIA) {
       return {
-        fuente, muestraInsuficiente: true, muestra: results.length,
-        sinComparable: sinComp,
-        relevantes: rel.relevantes, muestraDevuelta: rel.muestra, ratioRelevancia: rel.ratio,
-        estadoRelevancia: rel.estado || 'existe',
+        fuente, fuentes: meli.fuentes || null,
+        muestraInsuficiente: true, competenciaNoMedida: true, muestra: results.length,
+        sinComparable: false,
+        ...relInfo,
         totalCrudoMeli: (typeof meli.total === 'number') ? meli.total : null,
         sellersEstimados: sellers.size || results.length,
         precioMinARS: null, precioMaxARS: null, precioPromedioARS: null,
         totalResults: total, totalCatalogo, totalLabel,
         categoryName: meli.categoryName || '',
         saturacion: null, competenciaScore: null,
-        competitors,
+        competitors, ...camposCompetidores,
         envioGratisCount: conEnvioGratis, envioGratisTotal: results.length,
         envioGratisPct: null,
-        aviso: 'Muestra insuficiente (' + results.length + ' publicaciones). No calculo precio de referencia con esto.'
+        desdeCache: !!meli.desdeCache,
+        guardadoEn: meli.guardadoEn || null,
+        aviso: avisoSinMedir(results.length)
       };
     }
 
@@ -1181,9 +1287,9 @@ async function stepCompetencia(product, ctx) {
     const max = prices[prices.length-1] || 0;
     const avg = prices.length ? Math.round(prices.reduce((a,b)=>a+b,0)/prices.length) : 0;
     return {
-      fuente, muestraInsuficiente: false, sinComparable: false, muestra: results.length,
-      relevantes: rel.relevantes, muestraDevuelta: rel.muestra, ratioRelevancia: rel.ratio,
-      estadoRelevancia: rel.estado || 'existe',
+      fuente, fuentes: meli.fuentes || null,
+      muestraInsuficiente: false, sinComparable: false, muestra: results.length,
+      ...relInfo,
       totalCrudoMeli: (typeof meli.total === 'number') ? meli.total : null,
       sellersEstimados: sellers.size || results.length,
       precioMinARS: min, precioMaxARS: max, precioPromedioARS: avg,
@@ -1191,7 +1297,7 @@ async function stepCompetencia(product, ctx) {
       categoryName: meli.categoryName || '',
       saturacion,
       competenciaScore: total != null ? Math.min(100, Math.round(total/100)) : null,
-      competitors,
+      competitors, ...camposCompetidores,
       envioGratisCount: conEnvioGratis, envioGratisTotal: results.length,
       envioGratisPct: Math.round((conEnvioGratis/results.length)*100),
       // De cuando es el dato. Con 30 dias de cache, mostrar un precio de hace
@@ -1199,8 +1305,8 @@ async function stepCompetencia(product, ctx) {
       desdeCache: !!meli.desdeCache,
       guardadoEn: meli.guardadoEn || null,
       aviso: esCatalogo
-        ? 'Este numero sale del catalogo de MercadoLibre: son productos de catalogo, no publicaciones activas. Por eso no calculo saturacion.'
-        : (total == null ? 'MercadoLibre no expone el total de publicaciones por esta via: el precio y los competidores son reales, la saturacion no se puede calcular.' : null)
+        ? 'Este número sale del catálogo de MercadoLibre: son productos de catálogo, no publicaciones activas. Por eso no calculo saturación.'
+        : (total == null ? 'MercadoLibre no expone el total de publicaciones por esta vía: el precio y los competidores son reales, la saturación no se puede calcular.' : null)
     };
   }
   // IMPORTANTE: si no hay datos reales de MeLi (API 403 o scraping fallido) NO inventamos numeros via IA.
@@ -1501,7 +1607,7 @@ async function getMeliAccessToken() {
 async function safeMeliSearch(product, ctx) {
   const c = ctx || {};
   const q = encodeURIComponent(product);
-  const url = "https://api.mercadolibre.com/sites/MLA/search?q=" + q + "&limit=20";
+  const url = "https://api.mercadolibre.com/sites/MLA/search?q=" + q + "&limit=50";
   const tok = await getMeliAccessToken();
 
   // 1) Busqueda libre con token de usuario. MeLi la tiene cerrada a terceros
@@ -1513,7 +1619,19 @@ async function safeMeliSearch(product, ctx) {
         const j = await r.json();
         const catFilter = (j.available_filters || []).find(f => f.id === "category");
         const categoryName = catFilter && catFilter.values && catFilter.values[0] ? catFilter.values[0].name : "";
-        return { fuente: "meli-api-oauth", total: (j.paging && j.paging.total) || 0, results: j.results || [], categoryName };
+        let results = j.results || [];
+        // Segunda pagina: con 50 por pagina y el filtro de relevancia y de
+        // outliers de despues, una sola pagina puede quedar corta.
+        if (results.length >= 50 && (j.paging && j.paging.total > 50)) {
+          try {
+            const r2 = await fetch(url + "&offset=50", { headers: { "Authorization": "Bearer " + tok, "Accept": "application/json" } });
+            if (r2.ok) { const j2 = await r2.json(); results = results.concat(j2.results || []); }
+          } catch (_) {}
+        }
+        const rel = relevanciaPorTitulo(product, results);
+        return { fuente: "meli-api-oauth", total: (j.paging && j.paging.total) || 0, results: rel.items,
+                 relevancia: { relevantes: rel.relevantes, muestra: rel.muestra, ratio: rel.ratio, palabras: rel.palabras, estado: rel.estado },
+                 relevanciaCero: rel.muestra > 0 && rel.relevantes === 0, categoryName };
       }
     } catch (_) {}
   }
@@ -1626,7 +1744,7 @@ async function safeGoogleTrends(product) {
   try {
     const exploreReq = JSON.stringify({comparisonItem:[{keyword:product,geo:'AR',time:'today 12-m'}],category:0,property:''});
     const r1 = await fetch('https://trends.google.com/trends/api/explore?hl=es-AR&tz=180&req=' + encodeURIComponent(exploreReq), { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    if (!r1.ok) return fallo('explore respondio HTTP ' + r1.status + (r1.status === 429 ? ' (Google bloquea IPs de datacenter)' : ''));
+    if (!r1.ok) return fallo('explore respondió HTTP ' + r1.status + (r1.status === 429 ? ' (Google bloquea IPs de datacenter)' : ''));
     const txt1 = await r1.text();
     const clean1 = txt1.replace(/^\)\]\}',?\n?/, '');
     let j1;
@@ -1635,7 +1753,7 @@ async function safeGoogleTrends(product) {
     const tw = (j1.widgets || []).find(w => w.id === 'TIMESERIES');
     if (!tw) return fallo('explore no trajo el widget TIMESERIES');
     const r2 = await fetch('https://trends.google.com/trends/api/widgetdata/multiline?hl=es-AR&tz=180&req=' + encodeURIComponent(JSON.stringify(tw.request)) + '&token=' + encodeURIComponent(tw.token), { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    if (!r2.ok) return fallo('widgetdata respondio HTTP ' + r2.status + (r2.status === 429 ? ' (Google bloquea IPs de datacenter)' : ''));
+    if (!r2.ok) return fallo('widgetdata respondió HTTP ' + r2.status + (r2.status === 429 ? ' (Google bloquea IPs de datacenter)' : ''));
     const txt2 = await r2.text();
     const clean2 = txt2.replace(/^\)\]\}',?\n?/, '');
     let j2;

@@ -1,0 +1,101 @@
+// pruebas/competencia.mjs
+// Se corre con: npm run test:competencia
+//
+// Paso 2 del Market Reader (competencia en MeLi), con fetch simulado. Cubre
+// el caso real que reporto el usuario ("soporte plegable para celular"): una
+// muestra de 2 publicaciones guardada en cache terminaba en "Sin comparable en
+// MeLi Argentina. No hay evidencia de que este producto se venda aca" con
+// relevancia 1.00, mientras la categoria madre tenia 9.989 publicaciones.
+process.env.MELI_ACCESS_TOKEN = 'token-de-prueba-123456';
+process.env.SUPABASE_SERVICE_KEY = 'supa-de-prueba';
+
+let fallos = 0, oks = 0;
+function chequear(n, c, extra) {
+  console.log((c ? '  ok    ' : '  FALLA ') + n + (extra != null ? ' -> ' + extra : ''));
+  if (c) oks++; else fallos++;
+}
+const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { 'content-type': 'application/json' } });
+
+let escenario = {};
+globalThis.fetch = async (url, init) => {
+  const u = String(url);
+  if (u.includes('supabase.co')) {
+    if ((init && init.method) && init.method !== 'GET') return new Response('', { status: 201 });
+    if (u.includes('busquedas_cache') && escenario.cache) return json([escenario.cache]);
+    return json([]);
+  }
+  if (u.includes('listado.mercadolibre.com.ar') && escenario.items) {
+    if (/_Desde_/.test(u)) return new Response('', { status: 404 });
+    const html = '<html>' + 'x'.repeat(3000) + escenario.items.map(it =>
+      '<a href="https://articulo.mercadolibre.com.ar/' + it.id.replace('MLA', 'MLA-') + '-x-_JM">x</a>').join('') + '</html>';
+    return new Response(html, { status: 200, headers: { 'content-type': 'text/html' } });
+  }
+  if (u.includes('/items?ids=') && escenario.items) {
+    const ids = decodeURIComponent(u.split('ids=')[1].split('&')[0]).split(',');
+    return json(ids.map(id => ({ code: 200, body: escenario.items.find(x => x.id === id) })).filter(x => x.body));
+  }
+  if (/\/users\/\d+/.test(u) && escenario.usuarios) {
+    const id = u.match(/\/users\/(\d+)/)[1];
+    return json({ id: Number(id), nickname: 'TIENDA' + id, seller_reputation: { level_id: '4_light_green' } });
+  }
+  if (u.includes('/domain_discovery/')) return json([{ category_id: 'MLA1', category_name: 'Soportes' }]);
+  return new Response('{}', { status: 403 });
+};
+
+const meli = await import('../api/_meli.js');
+const handler = (await import('../api/market.js')).default;
+
+async function competencia(product) {
+  // Cada caso arranca sin historial de vias falladas.
+  const est = meli.viaDeBusquedaUsada('MLA');
+  for (const k of Object.keys(est.porSitio || {})) delete est.porSitio[k];
+  let salida;
+  const res = { setHeader() {}, status(c) { this.c = c; return this; }, json(o) { salida = o; return this; }, end() { return this; } };
+  await handler({ method: 'POST', query: {}, headers: {}, body: { step: 'competencia', product } }, res);
+  return salida;
+}
+const item = (i, titulo, precio) => ({ id: 'MLA' + (1500000000 + i), title: titulo, price: precio,
+  seller_id: 3139491800 + i, shipping: { free_shipping: i % 2 === 0 }, status: 'active' });
+
+console.log('\n== 1. "para" no cuenta como palabra significativa ==');
+const pal = meli.palabrasSignificativas('soporte plegable para celular');
+chequear('palabras', JSON.stringify(pal) === JSON.stringify(['soporte', 'plegable', 'celular']), JSON.stringify(pal));
+
+console.log('\n== 2. Cache con 2 publicaciones (la prueba del usuario) ==');
+escenario = { cache: { termino: 'soporte plegable para celular', fuente: 'proveedor-apify', categoria: 'Soportes para Autos',
+  created_at: new Date().toISOString(), resultados: [
+    { id: 'MLA1111111111', title: 'Soporte Plegable Para Celular Escritorio', price: 8999, sold_quantity: 0, seller: { id: 3139491804, nickname: 'Vendedor 3139491804' } },
+    { id: 'MLA2222222222', title: 'Soporte Plegable Para Celular Tablet Premium', price: 140748, sold_quantity: 0, seller: { id: 3139491805, nickname: 'Vendedor 3139491805' } }] } };
+let r = await competencia('soporte plegable para celular');
+chequear('NO concluye sin comparable', r.sinComparable === false, r.sinComparable);
+chequear('marca competencia no medida (amarillo)', r.competenciaNoMedida === true && r.muestraInsuficiente === true);
+chequear('aviso dice "no pude medir"', /No pude medir la competencia/.test(r.aviso || ''), r.aviso);
+chequear('relevancia NO es 1.00 sobre 2', r.ratioRelevancia == null && r.relevanciaConfiable === false, r.ratioRelevancia);
+chequear('sin "Vendedor <id>" falso', r.competitors.every(c => !c.vendedor), r.competitors.map(c => c.vendedor).join(','));
+chequear('sin "0 vendidos" falso', r.competitors.every(c => c.soldQty == null) && r.hayVendidos === false);
+chequear('trae el titulo de la publicacion', r.competitors[0].titulo === 'Soporte Plegable Para Celular Escritorio');
+
+console.log('\n== 3. Listado con 45 publicaciones y dos outliers ==');
+const items = [];
+for (let i = 0; i < 45; i++) items.push(item(i, 'Soporte Celular Plegable Escritorio ' + i, i === 3 ? 140748 : (i === 7 ? 1200 : 8000 + (i * 97) % 3000)));
+escenario = { items, usuarios: true };
+r = await competencia('soporte plegable para celular');
+chequear('muestra de al menos 20', r.muestra >= 20, r.muestra);
+chequear('descarta los 2 outliers de precio', r.outliersDescartados === 2, r.outliersDescartados);
+chequear('el maximo ya no es 140.748', r.precioMaxARS < 20000, r.precioMaxARS);
+chequear('relevancia confiable', r.relevanciaConfiable === true);
+chequear('nickname real desde /users', r.competitors.every(c => /^TIENDA\d+$/.test(c.vendedor || '')), r.competitors[0].vendedor);
+chequear('reputacion desde /users', r.hayReputacion === true && r.competitors[0].reputation === '4_light_green');
+
+console.log('\n== 4. Rescate: 5 publicaciones que no son el producto ==');
+escenario = { items: [0, 1, 2, 3, 4].map(i => item(i, 'Bujia Ngk Iridium ' + i, 5000)) };
+r = await competencia('soporte plegable para celular');
+chequear('con menos de 10 devueltas NO concluye sin comparable', r.sinComparable === false && r.competenciaNoMedida === true, JSON.stringify({ s: r.sinComparable, m: r.muestraDevuelta }));
+
+console.log('\n== 5. Rescate: 15 publicaciones que no son el producto ==');
+escenario = { items: Array.from({ length: 15 }, (_, i) => item(i, 'Bujia Ngk Iridium ' + i, 5000)) };
+r = await competencia('soporte plegable para celular');
+chequear('con 15 devueltas y ninguna relevante si marca sin comparable', r.sinComparable === true, r.sinComparable);
+
+console.log('\n' + oks + ' ok, ' + fallos + ' fallas');
+process.exit(fallos ? 1 : 0);

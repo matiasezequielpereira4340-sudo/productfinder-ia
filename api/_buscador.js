@@ -501,8 +501,8 @@ export async function armarResultado(product, filas, meliToken, opts) {
         id: it.id,
         title: it.title,
         price: it.price,
-        sold_quantity: it.sold_quantity || 0,
-        seller: { id: it.seller_id || null, nickname: it.seller_id ? ('Vendedor ' + it.seller_id) : '' },
+        sold_quantity: (typeof it.sold_quantity === 'number') ? it.sold_quantity : null,
+        seller: { id: it.seller_id || null, nickname: '' },
         shipping: { free_shipping: !!(it.shipping && it.shipping.free_shipping) }
       }));
     }
@@ -656,8 +656,8 @@ export async function buscarConProveedor(product, meliToken, opts) {
         id: it.id,
         title: it.title,
         price: it.price,
-        sold_quantity: it.sold_quantity || 0,
-        seller: { id: it.seller_id || null, nickname: it.seller_id ? ('Vendedor ' + it.seller_id) : '' },
+        sold_quantity: (typeof it.sold_quantity === 'number') ? it.sold_quantity : null,
+        seller: { id: it.seller_id || null, nickname: '' },
         shipping: { free_shipping: !!(it.shipping && it.shipping.free_shipping) }
       }));
     }

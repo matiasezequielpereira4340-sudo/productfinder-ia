@@ -912,6 +912,8 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 .mrv-item-fuerte{border-left-color:#27ae60}
 .mrv-col-no .mrv-item-fuerte{border-left-color:#e0a020}
 .mrv-item-medio{border-left-color:#555}
+.mrv-item-falta{border:1px solid #b8860b;border-left:4px solid #e0a020;background:rgba(224,160,32,.08)}
+.mrv-item-falta .mrv-crit-tag{display:inline-block;font-size:.68rem;font-weight:800;letter-spacing:.08em;margin-right:6px;vertical-align:1px}
 .mrv-item-critico{border:1px solid #c0392b;border-left:4px solid #c0392b;background:rgba(192,57,43,.10)}
 .mrv-item-critico .mrv-crit-tag{display:inline-block;font-size:.68rem;font-weight:800;letter-spacing:.08em;color:#e05a4a;margin-right:6px;vertical-align:1px}
 .mrv-vacio{font-size:.82rem;color:var(--text-dim,#92929A);font-style:italic;padding:10px 2px}

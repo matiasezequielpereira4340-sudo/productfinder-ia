@@ -338,7 +338,7 @@ export async function fetchJson(url, token, timeoutMs) {
 export const SITIOS = {
   MLA: { id: 'MLA', pais: 'Argentina', dominio: 'mercadolibre.com.ar', listado: 'listado.mercadolibre.com.ar', idioma: 'es-AR' },
   MLB: { id: 'MLB', pais: 'Brasil',    dominio: 'mercadolivre.com.br', listado: 'lista.mercadolivre.com.br',   idioma: 'pt-BR' },
-  MLM: { id: 'MLM', pais: 'Mexico',    dominio: 'mercadolibre.com.mx', listado: 'listado.mercadolibre.com.mx', idioma: 'es-MX' }
+  MLM: { id: 'MLM', pais: 'México',    dominio: 'mercadolibre.com.mx', listado: 'listado.mercadolibre.com.mx', idioma: 'es-MX' }
 };
 
 export function sitio(id) {
@@ -408,11 +408,21 @@ function normalizarTitulo(s) {
   return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+// Palabras que no dicen nada del producto. "para" tiene 4 letras y pasaba el
+// corte de largo: en "soporte plegable para celular" sumaba peso por aparecer
+// en casi cualquier titulo de MeLi ("Soporte Para Auto", "Funda Para ...") e
+// inflaba la relevancia de publicaciones de otro producto.
+const PALABRAS_VACIAS = new Set(['para', 'con', 'sin', 'del', 'los', 'las', 'por', 'una', 'uno', 'unos', 'unas',
+  'que', 'como', 'mas', 'muy', 'tipo', 'estilo', 'the', 'for', 'with', 'and', 'com', 'pra', 'sem', 'dos', 'das']);
+
 // Palabras de la consulta que sirven para decidir. >3 caracteres; si la
 // consulta no tiene ninguna tan larga ("gel uv", "faja"), se baja el corte en
 // vez de quedarse sin palabras y declarar todo irrelevante.
+
 export function palabrasSignificativas(query) {
-  const t = normalizarTitulo(query).split(/\s+/).filter(Boolean);
+  const todas = normalizarTitulo(query).split(/\s+/).filter(Boolean);
+  const t = todas.filter(w => !PALABRAS_VACIAS.has(w));
+  if (!t.length) return [...new Set(todas)];
   let p = t.filter(w => w.length > 3);
   if (!p.length) p = t.filter(w => w.length > 2);
   if (!p.length) p = t;
@@ -546,7 +556,7 @@ export async function catalogSearch(product, token, opts) {
   const site = sitio(o.site).id;
   const q = encodeURIComponent(product);
   const busq = await fetchJson(
-    MELI_API + '/products/search?status=active&site_id=' + site + '&limit=10&q=' + q, token, 5000);
+    MELI_API + '/products/search?status=active&site_id=' + site + '&limit=' + (o.limite || 20) + '&q=' + q, token, 5000);
   if (!busq.ok || !busq.json) return null;
   const catalogo = Array.isArray(busq.json.results) ? busq.json.results : [];
   if (!catalogo.length) return null;
@@ -560,8 +570,11 @@ export async function catalogSearch(product, token, opts) {
 
   const porProducto = await Promise.all(ids.map(async (id) => {
     if (Date.now() > deadline) return [];
-    const titulo = nombres[id] || product;
-    const items = await fetchJson(MELI_API + '/products/' + id + '/items?limit=10', token, 4000);
+    // Antes el respaldo era el TERMINO BUSCADO: una publicacion sin nombre
+    // quedaba titulada igual que la consulta y puntuaba relevancia 1.00 por
+    // definicion. Sin nombre real, el titulo queda vacio y no cuenta.
+    const titulo = nombres[id] || '';
+    const items = await fetchJson(MELI_API + '/products/' + id + '/items?limit=20', token, 4000);
     if (items.ok && items.json && Array.isArray(items.json.results) && items.json.results.length) {
       return items.json.results
         .filter(it => it && typeof it.price === 'number' && it.price > 0)
@@ -569,8 +582,8 @@ export async function catalogSearch(product, token, opts) {
           id: it.item_id || it.id || id,
           title: titulo,
           price: it.price,
-          sold_quantity: it.sold_quantity || 0,
-          seller: { id: it.seller_id || null, nickname: it.seller_id ? ('Vendedor ' + it.seller_id) : '' },
+          sold_quantity: (typeof it.sold_quantity === 'number') ? it.sold_quantity : null,
+          seller: { id: it.seller_id || null, nickname: '' },
           shipping: { free_shipping: !!(it.shipping && it.shipping.free_shipping) }
         }));
     }
@@ -582,8 +595,8 @@ export async function catalogSearch(product, token, opts) {
         id: bb.item_id || id,
         title: (det.json && det.json.name) || titulo,
         price: bb.price,
-        sold_quantity: bb.sold_quantity || 0,
-        seller: { id: bb.seller_id || null, nickname: bb.seller_id ? ('Vendedor ' + bb.seller_id) : '' },
+        sold_quantity: (typeof bb.sold_quantity === 'number') ? bb.sold_quantity : null,
+        seller: { id: bb.seller_id || null, nickname: '' },
         shipping: { free_shipping: !!(bb.shipping && bb.shipping.free_shipping) }
       }];
     }
@@ -698,8 +711,8 @@ export async function highlightsSearch(product, token, opts) {
       id: it.id,
       title: it.title,
       price: it.price,
-      sold_quantity: it.sold_quantity || 0,
-      seller: { id: it.seller_id || null, nickname: it.seller_id ? ('Vendedor ' + it.seller_id) : '' },
+      sold_quantity: (typeof it.sold_quantity === 'number') ? it.sold_quantity : null,
+      seller: { id: it.seller_id || null, nickname: '' },
       shipping: { free_shipping: !!(it.shipping && it.shipping.free_shipping) }
     }))
   };
@@ -772,8 +785,8 @@ export async function publicIdsSearch(product, token, opts) {
       id: it.id,
       title: it.title,
       price: it.price,
-      sold_quantity: it.sold_quantity || 0,
-      seller: { id: it.seller_id || null, nickname: it.seller_id ? ('Vendedor ' + it.seller_id) : '' },
+      sold_quantity: (typeof it.sold_quantity === 'number') ? it.sold_quantity : null,
+      seller: { id: it.seller_id || null, nickname: '' },
       shipping: { free_shipping: !!(it.shipping && it.shipping.free_shipping) }
     }))
   };
@@ -1369,8 +1382,41 @@ function avisoDeCupo(cupo) {
       'Se habilita de nuevo a la medianoche. Es un freno puesto a proposito para ' +
       'que el credito del mes no se vaya en una sola tarde.';
   }
-  return 'No puedo verificar cuantas busquedas se usaron este mes, asi que freno ' +
+  return 'No puedo verificar cuántas búsquedas se usaron este mes, así que freno ' +
     'el gasto por las dudas. Volve a intentar en un rato.';
+}
+
+// Muestra que se busca juntar antes de cortar la cadena de vias gratuitas, y
+// la minima con la que se guarda en cache o se concluye algo. Antes la cadena
+// cortaba en la PRIMERA via que devolviera algo, aunque fueran 2 publicaciones,
+// y esas 2 quedaban guardadas 30 dias: cada consulta siguiente del mismo
+// producto salia "desde cache" con la misma muestra inservible.
+export const MUESTRA_OBJETIVO = 20;
+export const MUESTRA_MINIMA_CONFIABLE = 10;
+
+// Junta los resultados de varias vias sin duplicar publicaciones. La relevancia
+// se combina ponderada por la muestra devuelta de cada via.
+function fusionarResultados(previo, r) {
+  if (!previo) return { ...r, fuentes: [r.fuente].filter(Boolean), results: [...r.results] };
+  const vistos = new Set(previo.results.map(x => x && x.id).filter(Boolean));
+  const nuevos = r.results.filter(x => !(x && x.id && vistos.has(x.id)));
+  const a = previo.relevancia, b = r.relevancia;
+  let relevancia = a || b || null;
+  if (a && b && (a.muestra || 0) + (b.muestra || 0) > 0) {
+    const muestra = (a.muestra || 0) + (b.muestra || 0);
+    const ratio = ((a.ratio || 0) * (a.muestra || 0) + (b.ratio || 0) * (b.muestra || 0)) / muestra;
+    relevancia = { relevantes: (a.relevantes || 0) + (b.relevantes || 0), muestra, ratio,
+                   palabras: a.palabras || b.palabras, estado: estadoDeRelevancia(ratio) };
+  }
+  return {
+    ...previo,
+    fuentes: [...(previo.fuentes || []), r.fuente].filter(Boolean),
+    total: previo.total != null ? previo.total : (r.total != null ? r.total : null),
+    categoryName: previo.categoryName || r.categoryName || '',
+    titulosMuestra: [...(previo.titulosMuestra || []), ...(r.titulosMuestra || [])].slice(0, 8),
+    relevancia,
+    results: [...previo.results, ...nuevos]
+  };
 }
 
 export async function buscarPublicaciones(product, token, opts) {
@@ -1378,10 +1424,18 @@ export async function buscarPublicaciones(product, token, opts) {
   const o = opts || {};
   const site = sitio(o.site).id;
 
-  // 1. Resultado ya cacheado.
+  // 1. Resultado ya cacheado. Si la muestra guardada es flaca (menos de 10) y
+  //    salio de una via GRATUITA, se vuelve a intentar con las gratuitas: no
+  //    cuesta nada y puede traer mas. Si salio de la via paga no se repaga
+  //    sola: para eso esta el boton "Actualizar" (decision del usuario).
+  let cacheFlaco = null;
   if (!o.sinCache) {
     const guardado = await leerCache(product, site);
-    if (guardado) return guardado;
+    if (guardado) {
+      const pagado = /proveedor/.test(String(guardado.fuente || ''));
+      if (guardado.results.length >= MUESTRA_MINIMA_CONFIABLE || pagado) return guardado;
+      cacheFlaco = guardado;
+    }
   }
 
   // 2. Corrida arrancada antes que ya pueda estar lista. Cosecharla no cuesta
@@ -1394,7 +1448,7 @@ export async function buscarPublicaciones(product, token, opts) {
     // Si la corrida fallo, se sigue de largo y mas abajo se arranca otra.
   }
   const vias = {
-    catalogo: () => catalogSearch(product, token, { site, deadline: o.deadline, maxProductos: o.maxProductos || 6, budgetMs: o.budgetMs || 5000 }),
+    catalogo: () => catalogSearch(product, token, { site, deadline: o.deadline, maxProductos: o.maxProductos || 12, budgetMs: o.budgetMs || 5000 }),
     destacados: () => highlightsSearch(product, token, { site, deadline: o.deadline, budgetMs: o.budgetMs || 5000 }),
     listado: () => publicIdsSearch(product, token, { site, deadline: o.deadline, budgetMs: o.budgetMs || 6000, maxIds: o.maxIds || 40 }),
     // Ultima, porque es la unica que cuesta plata: solo se paga cuando ninguna
@@ -1522,10 +1576,37 @@ export async function buscarPublicaciones(product, token, opts) {
     ? ['listado', 'destacados', 'catalogo']
     : ['listado', 'destacados', 'catalogo', 'proveedor'];
   const est = viaEstado(site);
+  // Lo juntado entre vias gratuitas, y las respuestas "no esta aca" que se
+  // guardan por si ninguna otra via trae algo mejor.
+  let acumulado = null;
+  let ceroRelevancia = null;
+  const cerrarConLoJuntado = async () => {
+    if (acumulado) {
+      // Solo se guarda lo que sirve: una muestra flaca guardada 30 dias es
+      // exactamente el bug que esto corrige.
+      if (acumulado.results.length >= MUESTRA_MINIMA_CONFIABLE) await guardarCache(product, acumulado, site);
+      return acumulado;
+    }
+    if (cacheFlaco) return cacheFlaco;
+    return ceroRelevancia;
+  };
+  const inicioBusqueda = Date.now();
   for (const nombre of orden) {
-    // Se acabo el presupuesto: se devuelve "sin tiempo", que aguas arriba es
-    // "no pude consultar". Jamas un cero.
-    if (o.deadline && Date.now() > o.deadline) return { sinTiempo: true, results: [] };
+    // Sumar vias tiene un costo en tiempo: /api/analyze barre 12 productos.
+    // Pasados 8 s con algo ya juntado, se cierra con eso.
+    if (acumulado && Date.now() - inicioBusqueda > 8000) return await cerrarConLoJuntado();
+    // Antes de la via paga: si las gratuitas ya trajeron algo (aunque sea
+    // poco), no se paga sola. Mismo criterio de gasto que antes.
+    // Excepcion: el boton "Actualizar" (sinCache) es el usuario eligiendo
+    // gastar; si lo gratuito no llego a la muestra minima, se paga.
+    const pidioActualizar = !!o.sinCache && (!acumulado || acumulado.results.length < MUESTRA_MINIMA_CONFIABLE);
+    if (nombre === 'proveedor' && !pidioActualizar && (acumulado || cacheFlaco || ceroRelevancia)) return await cerrarConLoJuntado();
+    // Se acabo el presupuesto: se devuelve lo juntado o "sin tiempo", que
+    // aguas arriba es "no pude consultar". Jamas un cero.
+    if (o.deadline && Date.now() > o.deadline) {
+      const juntado = await cerrarConLoJuntado();
+      return juntado || { sinTiempo: true, results: [] };
+    }
     const fallos = est.fallos[nombre] || 0;
     // Se saltea la via que ya fallo dos veces, siempre que otra este andando.
     // El tope de 4 cubre el caso de que no ande ninguna. Si MeLi reabre una,
@@ -1535,25 +1616,33 @@ export async function buscarPublicaciones(product, token, opts) {
       const r = await vias[nombre]();
       if (r && r.pendiente) return r;
       if (r && r.results && r.results.length) {
-        est.preferida = nombre;
+        est.preferida = est.preferida || nombre;
         est.fallos[nombre] = 0;   // anduvo: se le limpia el historial
-        await guardarCache(product, r, site);
-        return r;
+        // La via paga devuelve su corrida entera: se usa tal cual.
+        if (nombre === 'proveedor') { await guardarCache(product, r, site); return r; }
+        // Las gratuitas se suman hasta juntar una muestra que sirva.
+        acumulado = fusionarResultados(acumulado, r);
+        if (acumulado.results.length >= MUESTRA_OBJETIVO) return await cerrarConLoJuntado();
+        continue;
       }
       // Cero confirmado: se entro al listado y no hay publicaciones. Eso es un
-      // dato, no una falla de la via: se devuelve tal cual, no se penaliza a la
-      // via (se entro bien) y no se prueban las siguientes.
-      if (r && r.vacioConfirmado) { est.fallos[nombre] = 0; return r; }
-      // Se hidrataron publicaciones y ninguna era del producto: eso es la
-      // respuesta ("no esta aca"), no una falla de la via. Si se siguiera de
-      // largo, la via siguiente devolveria las mismas de rescate y el dato se
-      // perderia.
-      if (r && r.relevanciaCero) { est.fallos[nombre] = 0; return r; }
+      // dato, no una falla de la via. Si otra via ya trajo publicaciones, gana
+      // lo que si existe.
+      if (r && r.vacioConfirmado) { est.fallos[nombre] = 0; return acumulado ? await cerrarConLoJuntado() : r; }
+      // Se hidrataron publicaciones y ninguna era del producto. No es una falla
+      // de la via, pero tampoco se corta aca: otra via puede traer las del
+      // producto. Si ninguna trae nada, esta es la respuesta.
+      if (r && r.relevanciaCero) { est.fallos[nombre] = 0; ceroRelevancia = ceroRelevancia || r; continue; }
       // Frenos de gasto (sin sesion, o tope diario alcanzado). No son fallas
       // de la via: la via anda, lo que pasa es que no se la deja gastar. Si se
       // contaran como falla, dos frenos seguidos la marcarian como muerta y
       // quedaria salteada aun cuando el usuario se loguee.
-      if (r && (r.requiereSesion || r.topeAlcanzado || r.sinPago)) { est.fallos[nombre] = 0; return r; }
+      // Si las gratuitas ya habian traido algo, eso gana sobre el freno: no
+      // se tira un dato real por no haber podido pagar uno mejor.
+      if (r && (r.requiereSesion || r.topeAlcanzado || r.sinPago)) {
+        est.fallos[nombre] = 0;
+        return (acumulado || cacheFlaco) ? await cerrarConLoJuntado() : r;
+      }
       // Corte por tiempo: no es culpa de la via, no se la penaliza.
       if (r && r.sinTiempo) return r;
       est.fallos[nombre] = fallos + 1;
@@ -1565,6 +1654,8 @@ export async function buscarPublicaciones(product, token, opts) {
       est.fallos[nombre] = fallos + 1;
     }
   }
+  const juntado = await cerrarConLoJuntado();
+  if (juntado) return juntado;
   // Barrido masivo sin via paga: ninguna gratuita contesto. Devolver null seria
   // "no pude consultar" a secas; con el flag se puede decir POR QUE y mandar al
   // usuario al Market Reader, que es donde el dato si se trae.
@@ -1742,7 +1833,7 @@ export async function contarPublicaciones(product, token, site, opts) {
     return { ...vacio, motivo: 'error consultando ' + st.id + ': ' + String((e && e.message) || e).slice(0, 120) };
   }
 
-  if (!r) return { ...vacio, motivo: 'MercadoLibre ' + st.pais + ' no respondio (bloqueo o sin resultados legibles)' };
+  if (!r) return { ...vacio, motivo: 'MercadoLibre ' + st.pais + ' no respondió (bloqueo o sin resultados legibles)' };
   if (r.sinTiempo) return { ...vacio, sinTiempo: true, motivo: 'no alcanzo el tiempo para consultar ' + st.pais };
   if (r.pendiente) return { ...vacio, motivo: 'la busqueda todavia se esta preparando' };
   // Frenos de gasto: no se pudo consultar, y el motivo no es de MercadoLibre.
