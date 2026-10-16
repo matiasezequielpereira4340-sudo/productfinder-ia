@@ -1366,7 +1366,7 @@ async function runMRStep2(product){
     }
     const satMap={'libre':'tag-ok','moderado':'tag-warn','saturado':'tag-bad','muy saturado':'tag-bad'};
     const satColor=satMap[r.saturacion]||'tag-info';
-    const fmt=n=>n?n.toLocaleString('es-AR'):'--';
+    const fmt=n=>n?Math.round(n).toLocaleString('es-AR'):'--';
     const compData=Array.isArray(r.competitors)?r.competitors:[];
     mrData.competitors=compData;
     // Tabla: titulo de la publicacion + vendedor real. Las columnas que la
@@ -1379,7 +1379,7 @@ async function runMRStep2(product){
     const compRows=compData.map((c,i)=>{
       const titulo=c.titulo||c.name||('Publicaci&#243;n '+(i+1));
       const vend=c.vendedor?`<div style="font-size:.75rem;color:var(--text-dim)">${esc(c.vendedor)}</div>`:'';
-      const precio=(typeof c.price==='number'&&c.price>0)?'ARS '+c.price.toLocaleString('es-AR'):'&#8212;';
+      const precio=(typeof c.price==='number'&&c.price>0)?'ARS '+Math.round(c.price).toLocaleString('es-AR'):'&#8212;';
       return `<tr><td class="comp-rank">#${c.rank||(i+1)}</td><td class="comp-name" title="${esc(titulo)}">${esc(titulo)}${vend}</td><td class="comp-price">${precio}</td>`+
         (colVend?`<td class="comp-sales">${c.soldQty?c.soldQty.toLocaleString('es-AR')+' vendidos':'&#8212;'}</td>`:'')+
         (colRep?`<td><span class="comp-rep ${c.repClass||''}">${c.reputation?esc(REP[c.reputation]||c.reputation):'&#8212;'}</span></td>`:'')+`</tr>`;

@@ -1135,7 +1135,7 @@ async function armarCompetidores(items, tok) {
     titulo: (x && x.title) || null,
     vendedorId: (x && x.seller && x.seller.id) || null,
     vendedor: nicknameReal(x && x.seller && x.seller.nickname),
-    price: (x && x.price) || 0,
+    price: Math.round((x && x.price) || 0),
     soldQty: (x && typeof x.sold_quantity === 'number' && x.sold_quantity > 0) ? x.sold_quantity : null,
     reputation: (x && x.seller && x.seller.seller_reputation && x.seller.seller_reputation.level_id) || (x && x.reputacion) || null,
     freeShipping: !!(x && x.shipping && x.shipping.free_shipping),
@@ -1368,8 +1368,9 @@ async function stepCompetencia(product, ctx) {
       };
     }
 
-    const min = prices[0] || 0;
-    const max = prices[prices.length-1] || 0;
+    // Enteros, como el resto de los precios (MeLi puede devolver 21618.3).
+    const min = Math.round(prices[0] || 0);
+    const max = Math.round(prices[prices.length-1] || 0);
     const avg = prices.length ? Math.round(prices.reduce((a,b)=>a+b,0)/prices.length) : 0;
     // La MISMA mediana que uso el filtro: no se recalcula aparte.
     const mediana = medianaFiltro != null ? medianaFiltro : null;
