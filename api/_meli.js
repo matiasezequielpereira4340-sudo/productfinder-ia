@@ -547,61 +547,108 @@ export function relevanciaPorTitulo(query, results) {
   };
 }
 
+// Corre fn sobre cada elemento con a lo sumo `limite` en vuelo. Sin esto, 50
+// productos x 2 endpoints salian juntos y MeLi empezaba a cortar con 429.
+async function enParalelo(lista, limite, fn) {
+  const out = new Array(lista.length);
+  let i = 0;
+  const trabajadores = Array.from({ length: Math.min(limite, lista.length) }, async () => {
+    while (i < lista.length) { const k = i++; out[k] = await fn(lista[k], k); }
+  });
+  await Promise.all(trabajadores);
+  return out;
+}
+
+// Pagina /products/search. MEDIDO 16/10/2026 desde Vercel con token de
+// usuario: /sites/MLA/search -> 403, listado publico -> muro anti-bot
+// (gz/account-verification), /highlights -> 403, y /products/search -> 200
+// con 10 por pagina (paging.total 10.000 para "soporte plegable para
+// celular"). Es la unica via gratuita viva, asi que se piden varias paginas.
+export async function paginasDeCatalogo(product, token, site, paginas, deadline) {
+  const q = encodeURIComponent(product);
+  const respuestas = await Promise.all(Array.from({ length: paginas }, (_, k) => {
+    if (deadline && Date.now() > deadline) return { ok: false, status: 0, json: null };
+    return fetchJson(MELI_API + '/products/search?status=active&site_id=' + site + '&limit=10&offset=' + (k * 10) + '&q=' + q, token, 5000);
+  }));
+  const vistos = new Set(), catalogo = [];
+  let total = null;
+  for (const r of respuestas) {
+    if (!r.ok || !r.json) continue;
+    if (total == null && r.json.paging && typeof r.json.paging.total === 'number') total = r.json.paging.total;
+    for (const x of (Array.isArray(r.json.results) ? r.json.results : [])) {
+      const id = (typeof x === 'string') ? x : (x && (x.id || x.catalog_product_id || x.product_id));
+      if (id && !vistos.has(id)) { vistos.add(id); catalogo.push(typeof x === 'string' ? { id: x } : x); }
+    }
+  }
+  return { catalogo, total, estados: respuestas.map(r => r.status) };
+}
+
 export async function catalogSearch(product, token, opts) {
   const o = opts || {};
-  const maxProductos = o.maxProductos || 8;
-  const deadline = Date.now() + (o.budgetMs || 6500);
   if (!token) return null;
-
+  const maxProductos = o.maxProductos || 40;
+  const deadline = Date.now() + (o.budgetMs || 9000);
   const site = sitio(o.site).id;
-  const q = encodeURIComponent(product);
-  const busq = await fetchJson(
-    MELI_API + '/products/search?status=active&site_id=' + site + '&limit=' + (o.limite || 20) + '&q=' + q, token, 5000);
-  if (!busq.ok || !busq.json) return null;
-  const catalogo = Array.isArray(busq.json.results) ? busq.json.results : [];
+
+  const pag = await paginasDeCatalogo(product, token, site, Math.ceil(maxProductos / 10), deadline);
+  const catalogo = pag.catalogo;
   if (!catalogo.length) return null;
+  const total = pag.total || catalogo.length;
 
-  const total = (busq.json.paging && busq.json.paging.total) || catalogo.length;
-  const ids = catalogo.slice(0, maxProductos).map(x =>
-    (typeof x === 'string') ? x : (x && (x.id || x.catalog_product_id || x.product_id))
-  ).filter(Boolean);
-  const nombres = {};
-  catalogo.forEach(x => { if (x && x.id) nombres[x.id] = x.name || ''; });
+  // Primero los productos de catalogo cuyo NOMBRE coincide con la busqueda:
+  // /products/search mezcla parecidos y el presupuesto de tiempo se gasta en
+  // los que sirven.
+  const palabras = palabrasSignificativas(product);
+  const ordenados = catalogo.slice(0, maxProductos)
+    .map((x, k) => ({ x, k, p: puntajeDeTitulo(x.name || '', palabras) }))
+    .sort((a, b) => (b.p - a.p) || (a.k - b.k))
+    .map(e => e.x);
 
-  const porProducto = await Promise.all(ids.map(async (id) => {
+  // Por producto se piden EN PARALELO las publicaciones (/items, varias por
+  // producto cuando responde) y el ganador de la buybox (/products/{id}).
+  // Antes iban en serie y con 5 s de presupuesto total: en frio la mayoria
+  // de los productos quedaba afuera por tiempo y salian 2 publicaciones.
+  const porProducto = await enParalelo(ordenados, 12, async (prod) => {
     if (Date.now() > deadline) return [];
-    // Antes el respaldo era el TERMINO BUSCADO: una publicacion sin nombre
-    // quedaba titulada igual que la consulta y puntuaba relevancia 1.00 por
-    // definicion. Sin nombre real, el titulo queda vacio y no cuenta.
-    const titulo = nombres[id] || '';
-    const items = await fetchJson(MELI_API + '/products/' + id + '/items?limit=20', token, 4000);
+    const id = prod.id;
+    // Sin nombre real el titulo queda vacio y no cuenta para la relevancia
+    // (antes se usaba el termino buscado y daba 1.00 por definicion).
+    const titulo = prod.name || '';
+    const restante = Math.max(800, Math.min(3500, deadline - Date.now()));
+    const [items, det] = await Promise.all([
+      fetchJson(MELI_API + '/products/' + id + '/items?limit=10', token, restante),
+      fetchJson(MELI_API + '/products/' + id, token, restante)
+    ]);
+    const nombre = (det.ok && det.json && det.json.name) || titulo;
     if (items.ok && items.json && Array.isArray(items.json.results) && items.json.results.length) {
-      return items.json.results
+      const lista = items.json.results
         .filter(it => it && typeof it.price === 'number' && it.price > 0)
+        .slice(0, 3)   // hasta 3 vendedores por producto: no dejar que uno solo domine la muestra
         .map(it => ({
           id: it.item_id || it.id || id,
-          title: titulo,
+          title: nombre,
           price: it.price,
           sold_quantity: (typeof it.sold_quantity === 'number') ? it.sold_quantity : null,
           seller: { id: it.seller_id || null, nickname: '' },
-          shipping: { free_shipping: !!(it.shipping && it.shipping.free_shipping) }
+          shipping: { free_shipping: !!(it.shipping && it.shipping.free_shipping) },
+          catalog_product_id: id
         }));
+      if (lista.length) return lista;
     }
-    if (Date.now() > deadline) return [];
-    const det = await fetchJson(MELI_API + '/products/' + id, token, 4000);
     const bb = det.ok && det.json ? det.json.buy_box_winner : null;
     if (bb && typeof bb.price === 'number' && bb.price > 0) {
       return [{
         id: bb.item_id || id,
-        title: (det.json && det.json.name) || titulo,
+        title: nombre,
         price: bb.price,
         sold_quantity: (typeof bb.sold_quantity === 'number') ? bb.sold_quantity : null,
         seller: { id: bb.seller_id || null, nickname: '' },
-        shipping: { free_shipping: !!(bb.shipping && bb.shipping.free_shipping) }
+        shipping: { free_shipping: !!(bb.shipping && bb.shipping.free_shipping) },
+        catalog_product_id: id
       }];
     }
     return [];
-  }));
+  });
 
   const results = porProducto.flat();
   if (!results.length) return null;
@@ -612,30 +659,60 @@ export async function catalogSearch(product, token, opts) {
   return {
     fuente: 'meli-catalogo',
     total,
+    productosCatalogo: catalogo.length,
+    productosConPrecio: porProducto.filter(l => l && l.length).length,
     totalEsPostRescate: true,
     relevancia: { relevantes: rel.relevantes, muestra: rel.muestra, ratio: rel.ratio, palabras: rel.palabras, estado: rel.estado },
     titulosMuestra: results.slice(0, 5).map(x => x && x.title),
     relevanciaCero: rel.muestra > 0 && rel.relevantes === 0,
     results: rel.items,
-    // domain_id.split('-').pop() devolvia "PROJECTORS": el slug interno, en
-    // ingles. Ademas de mostrarse mal, rompia el regex de comision del front
-    // (no matcheaba "electronica" y aplicaba 15% en vez de 16,5%). El nombre
-    // real de la categoria, en castellano, lo da domain_discovery.
-    categoryName: await nombreDeCategoria(product, token, catalogo[0], site)
+    categoryName: await nombreDeCategoria(product, token, null, site, ordenados)
   };
 }
 
 // Nombre de la categoria en castellano, como lo llama MercadoLibre Argentina.
+//
+// Antes se tomaba el PRIMER resultado de domain_discovery. Para "soporte
+// plegable para celular" ese primero es "Soportes para Autos" (es el soporte
+// que mas se vende), aunque la busqueda no dice auto. Ahora, de los
+// candidatos que sugiere MeLi se elige:
+//   1. el dominio que mas se repite entre los productos de catalogo que
+//      coinciden con la busqueda (lo que MeLi realmente devuelve), y si no,
+//   2. el que mas palabras comparte con la busqueda, penalizando el que trae
+//      palabras de uso especifico que la busqueda no menciona (auto, moto...).
 // Si domain_discovery no responde se devuelve cadena vacia: el front sabe
-// mostrar "sin dato", y es preferible a un slug en ingles que despues se usa
-// para elegir la comision.
-export async function nombreDeCategoria(product, token, productoCatalogo, site) {
+// mostrar "sin dato", y es preferible a un slug en ingles.
+const USOS_ESPECIFICOS = ['auto', 'autos', 'moto', 'motos', 'bicicleta', 'bicicletas', 'bebe', 'bebes', 'mascota', 'mascotas', 'cocina', 'bano'];
+export function elegirCategoria(product, candidatos, productosCatalogo) {
+  const lista = (Array.isArray(candidatos) ? candidatos : []).filter(d => d && (d.category_name || d.domain_name));
+  if (!lista.length) return null;
+  const palabras = palabrasSignificativas(product);
+  const consulta = normalizarTitulo(product);
+  // 1) Dominio mayoritario entre los productos de catalogo que coinciden.
+  const votos = {};
+  for (const p of (productosCatalogo || [])) {
+    if (!p || !p.domain_id) continue;
+    if (puntajeDeTitulo(p.name || '', palabras) <= 0) continue;
+    votos[p.domain_id] = (votos[p.domain_id] || 0) + 1;
+  }
+  const puntaje = d => {
+    const texto = normalizarTitulo((d.category_name || '') + ' ' + (d.domain_name || ''));
+    let pts = (votos[d.domain_id] || 0) * 10;
+    pts += palabras.reduce((a, w) => a + (variantesDe(w).some(v => texto.includes(v)) ? 1 : 0), 0);
+    if (USOS_ESPECIFICOS.some(u => new RegExp('\\b' + u + '\\b').test(texto) && !new RegExp('\\b' + u + '\\b').test(consulta))) pts -= 3;
+    return pts;
+  };
+  return lista.map((d, k) => ({ d, k, p: puntaje(d) }))
+    .sort((a, b) => (b.p - a.p) || (a.k - b.k))[0].d;
+}
+
+export async function nombreDeCategoria(product, token, productoCatalogo, site, productosCatalogo) {
   try {
     const q = encodeURIComponent(product);
     const s = sitio(site).id;
-    const dom = await fetchJson(MELI_API + '/sites/' + s + '/domain_discovery/search?limit=1&q=' + q, token, 3500);
-    const d0 = dom.ok && Array.isArray(dom.json) && dom.json[0] ? dom.json[0] : null;
-    const n = d0 && (d0.category_name || d0.domain_name);
+    const dom = await fetchJson(MELI_API + '/sites/' + s + '/domain_discovery/search?limit=5&q=' + q, token, 3500);
+    const elegido = dom.ok && Array.isArray(dom.json) ? elegirCategoria(product, dom.json, productosCatalogo) : null;
+    const n = elegido && (elegido.category_name || elegido.domain_name);
     if (n) return String(n);
   } catch (_) {}
   // Respaldo: el nombre del producto de catalogo dice mas que el slug del
@@ -664,8 +741,9 @@ export async function highlightsSearch(product, token, opts) {
     ? dom.json.map(d => d && d.category_id).filter(Boolean) : [];
   if (!cats.length) return null;
 
-  const nombreCat = (dom.json[0] && (dom.json[0].category_name || dom.json[0].domain_name)) || '';
-  const hl = await fetchJson(MELI_API + '/highlights/' + site + '/category/' + cats[0], token, 4000);
+  const elegida = elegirCategoria(product, dom.json, null);
+  const nombreCat = (elegida && (elegida.category_name || elegida.domain_name)) || '';
+  const hl = await fetchJson(MELI_API + '/highlights/' + site + '/category/' + ((elegida && elegida.category_id) || cats[0]), token, 4000);
   const contenido = (hl.ok && hl.json && Array.isArray(hl.json.content)) ? hl.json.content : [];
   const ids = contenido
     .filter(c => c && c.id && (!c.type || c.type === 'ITEM'))
@@ -1424,16 +1502,15 @@ export async function buscarPublicaciones(product, token, opts) {
   const o = opts || {};
   const site = sitio(o.site).id;
 
-  // 1. Resultado ya cacheado. Si la muestra guardada es flaca (menos de 10) y
-  //    salio de una via GRATUITA, se vuelve a intentar con las gratuitas: no
-  //    cuesta nada y puede traer mas. Si salio de la via paga no se repaga
-  //    sola: para eso esta el boton "Actualizar" (decision del usuario).
+  // 1. Resultado ya cacheado. Si la muestra guardada es flaca (menos de 10),
+  //    venga de donde venga, se vuelve a intentar con las vias GRATUITAS: no
+  //    cuesta nada y puede traer mas. La via paga no se dispara sola con una
+  //    cache flaca: para eso esta el boton "Actualizar" (decision del usuario).
   let cacheFlaco = null;
   if (!o.sinCache) {
     const guardado = await leerCache(product, site);
     if (guardado) {
-      const pagado = /proveedor/.test(String(guardado.fuente || ''));
-      if (guardado.results.length >= MUESTRA_MINIMA_CONFIABLE || pagado) return guardado;
+      if (guardado.results.length >= MUESTRA_MINIMA_CONFIABLE) return guardado;
       cacheFlaco = guardado;
     }
   }
@@ -1448,7 +1525,10 @@ export async function buscarPublicaciones(product, token, opts) {
     // Si la corrida fallo, se sigue de largo y mas abajo se arranca otra.
   }
   const vias = {
-    catalogo: () => catalogSearch(product, token, { site, deadline: o.deadline, maxProductos: o.maxProductos || 12, budgetMs: o.budgetMs || 5000 }),
+    // El catalogo es la unica via gratuita que hoy responde (ver
+    // paginasDeCatalogo): se le da el presupuesto que necesita para traer
+    // 20-50 publicaciones, no los 5 s de antes.
+    catalogo: () => catalogSearch(product, token, { site, deadline: o.deadline, maxProductos: o.maxProductos || 40, budgetMs: Math.max(9000, o.budgetMs || 0) }),
     destacados: () => highlightsSearch(product, token, { site, deadline: o.deadline, budgetMs: o.budgetMs || 5000 }),
     listado: () => publicIdsSearch(product, token, { site, deadline: o.deadline, budgetMs: o.budgetMs || 6000, maxIds: o.maxIds || 40 }),
     // Ultima, porque es la unica que cuesta plata: solo se paga cuando ninguna
@@ -1581,6 +1661,7 @@ export async function buscarPublicaciones(product, token, opts) {
   let acumulado = null;
   let ceroRelevancia = null;
   const cerrarConLoJuntado = async () => {
+    if (acumulado && cacheFlaco && cacheFlaco.results.length > acumulado.results.length) return cacheFlaco;
     if (acumulado) {
       // Solo se guarda lo que sirve: una muestra flaca guardada 30 dias es
       // exactamente el bug que esto corrige.

@@ -3,7 +3,7 @@
 // Datos de MercadoLibre (catalogo con token de usuario) + Anthropic para el
 // armado del informe.
 
-import { anthropicHeaders, buscarPublicaciones, contarPublicaciones, relevanciaPorTitulo, leerRelevanciaLog, registrarRelevancia, flushRelevancia, corridasPendientes, cosecharPendientes, estadoEscrituraRelevancia, palabrasSignificativas, RELEVANCIA_UMBRAL_ALTO, RELEVANCIA_UMBRAL_BAJO, SITIOS, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
+import { anthropicHeaders, buscarPublicaciones, paginasDeCatalogo, nombreDeCategoria, contarPublicaciones, relevanciaPorTitulo, leerRelevanciaLog, registrarRelevancia, flushRelevancia, corridasPendientes, cosecharPendientes, estadoEscrituraRelevancia, palabrasSignificativas, RELEVANCIA_UMBRAL_ALTO, RELEVANCIA_UMBRAL_BAJO, SITIOS, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
 import { haySesion, esAdmin, tokenDe, pedirSesion, cronAdmitido } from './_sesion.js';
 // cronAdmitido vive en _sesion.js para que este endpoint y meli-refresh compartan el
 // MISMO secreto: dos crons, una sola variable que cargar en Vercel.
@@ -788,6 +788,24 @@ export default async function handler(req, res) {
       return res.status(200).json({ termino, paso });
     }
 
+    // ?competencia=termino corre el paso 2 tal cual lo ve el usuario, pero
+    // SIN poder gastar (puedeGastar:false): para medir en un preview cuantas
+    // publicaciones trae la cadena gratuita, sin abrir la web.
+    if (req.query && typeof req.query.competencia === 'string' && req.query.competencia.length > 1) {
+      const termino = req.query.competencia.slice(0, 80);
+      const t0 = Date.now();
+      try {
+        const r = await stepCompetencia(termino, { puedeGastar: false, sinCache: req.query.sincache === '1', origen: 'diag:competencia' });
+        return res.status(200).json({ termino, ms: Date.now() - t0,
+          fuente: r.fuente, fuentes: r.fuentes, muestra: r.muestra, muestraDevuelta: r.muestraDevuelta,
+          outliersDescartados: r.outliersDescartados, muestraInsuficiente: r.muestraInsuficiente,
+          sinComparable: r.sinComparable, categoryName: r.categoryName,
+          precioMinARS: r.precioMinARS, precioMaxARS: r.precioMaxARS, precioPromedioARS: r.precioPromedioARS,
+          desdeCache: r.desdeCache, aviso: r.aviso,
+          competidores: (r.competitors || []).map(c => ({ titulo: c.titulo, vendedor: c.vendedor, precio: c.price })) });
+      } catch (e) { return res.status(200).json({ termino, error: String((e && e.message) || e).slice(0, 200) }); }
+    }
+
     // ?catinfo=MLA433655 pregunta a MercadoLibre cuantas publicaciones tiene
     // esa categoria. Es la unica via que queda para medir saturacion: el
     // scraper devuelve la publicacion pero nunca el total del mercado.
@@ -910,7 +928,9 @@ export default async function handler(req, res) {
 
 async function stepDemanda(product, ctx) {
   if (!product) throw new Error('product requerido');
-  const meli = await safeMeliSearch(product, ctx);
+  // La demanda solo usa el total y la categoria: no hace falta correr la
+  // cadena de busqueda entera (que ademas corre en paralelo en el paso 2).
+  const meli = await totalYCategoria(product);
   let trends = await safeGoogleTrends(product);
   // Google bloquea las IPs de datacenter, asi que el scrape directo falla casi
   // siempre desde Vercel. Cuando eso pasa se prueba el actor de Apify, que
@@ -982,6 +1002,16 @@ async function stepDemanda(product, ctx) {
   // distingue entre el scrape gratis y una corrida paga.
   if (hayTrends) j.trendsVia = trends.via || 'scrape-directo';
   return j;
+}
+
+async function totalYCategoria(product) {
+  try {
+    const tok = await getMeliAccessToken();
+    if (!tok) return null;
+    const pag = await paginasDeCatalogo(product, tok, 'MLA', 1, Date.now() + 5000);
+    const categoryName = await nombreDeCategoria(product, tok, null, 'MLA', pag.catalogo);
+    return { total: pag.total, categoryName };
+  } catch (_) { return null; }
 }
 
 // La serie de 12 meses pedida al proveedor pago. Devuelve la MISMA forma que
