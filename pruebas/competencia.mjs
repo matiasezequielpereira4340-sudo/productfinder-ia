@@ -38,6 +38,22 @@ globalThis.fetch = async (url, init) => {
     const id = u.match(/\/users\/(\d+)/)[1];
     return json({ id: Number(id), nickname: 'TIENDA' + id, seller_reputation: { level_id: '4_light_green' } });
   }
+  if (u.includes('/products/search') && escenario.catalogo) {
+    const off = Number((u.match(/offset=(\d+)/) || [])[1] || 0);
+    const res = [];
+    for (let k = off; k < Math.min(off + 10, 150); k++) res.push({ id: 'MLA9' + String(k).padStart(6, '0'), name: 'Soporte Celular Plegable Modelo ' + k, domain_id: 'MLA-CELLPHONE_HOLDERS' });
+    return json({ paging: { total: 10000 }, results: res });
+  }
+  if (/\/products\/MLA9\d+\/items/.test(u) && escenario.catalogo) return new Response('{}', { status: 404 });
+  if (/\/products\/MLA9\d+$/.test(u.split('?')[0]) && escenario.catalogo) {
+    const k = Number(u.match(/MLA9(\d+)/)[1]);
+    // Como en produccion: solo 1 de cada 5 productos tiene buybox.
+    return json({ id: 'MLA9' + k, name: 'Soporte Celular Plegable Modelo ' + k,
+      buy_box_winner: k % 5 === 0 ? { item_id: 'MLA77' + k, price: 8000 + k * 10, seller_id: 500 + k } : null });
+  }
+  if (u.includes('/domain_discovery/') && escenario.catalogo) return json([
+    { domain_id: 'MLA-CAR_CELLPHONE_HOLDERS', category_id: 'MLA70411', category_name: 'Soportes para Autos', domain_name: 'Soportes de celulares para autos' },
+    { domain_id: 'MLA-CELLPHONE_HOLDERS', category_id: 'MLA5', category_name: 'Porta Celulares', domain_name: 'Soportes para celulares' }]);
   if (u.includes('/domain_discovery/')) return json([{ category_id: 'MLA1', category_name: 'Soportes' }]);
   return new Response('{}', { status: 403 });
 };
@@ -96,6 +112,27 @@ console.log('\n== 5. Rescate: 15 publicaciones que no son el producto ==');
 escenario = { items: Array.from({ length: 15 }, (_, i) => item(i, 'Bujia Ngk Iridium ' + i, 5000)) };
 r = await competencia('soporte plegable para celular');
 chequear('con 15 devueltas y ninguna relevante si marca sin comparable', r.sinComparable === true, r.sinComparable);
+
+console.log('\n== 6. Categoria: no la primera de domain_discovery ==');
+const cat = meli.elegirCategoria('soporte plegable para celular', [
+  { domain_id: 'MLA-CAR_CELLPHONE_HOLDERS', category_name: 'Soportes para Autos', domain_name: 'Soportes de celulares para autos' },
+  { domain_id: 'MLA-CELLPHONE_HOLDERS', category_name: 'Porta Celulares', domain_name: 'Soportes para celulares' }], []);
+chequear('elige Porta Celulares, no Soportes para Autos', cat && cat.category_name === 'Porta Celulares', cat && cat.category_name);
+
+console.log('\n== 7. Catalogo paginado: 1 de cada 5 productos con precio (como en produccion) ==');
+escenario = { catalogo: true };
+r = await competencia('soporte plegable para celular');
+chequear('junta 20 o mas publicaciones', r.muestra >= 20, r.muestra + ' (' + JSON.stringify(r.detalleFuente) + ')');
+chequear('categoria Porta Celulares', r.categoryName === 'Porta Celulares', r.categoryName);
+
+console.log('\n== 8. Texto de la IA: cifras que no estan en los datos ==');
+const fs = await import('node:fs');
+const appSrc = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+const fnSrc = appSrc.slice(appSrc.indexOf('function mrNumerosNoRespaldados'), appSrc.indexOf('// Texto de respaldo armado'));
+const mrNumerosNoRespaldados = new Function(fnSrc + '; return mrNumerosNoRespaldados;')();
+const paq = { escenariosDeQuiebre: { dolar: { valor: 2340, hoy: 1536, aguantePct: 52 }, precio: { valor: 6557, tuyo: 9000 } }, senal: 'Margen de 18% (ARS 1.579 por unidad)' };
+chequear('detecta el "10%" inventado', JSON.stringify(mrNumerosNoRespaldados({ parrafos: ['cualquier desvío del dólar del 10% te lo liquida'] }, paq)) === '["10%"]');
+chequear('acepta las cifras de los datos', mrNumerosNoRespaldados({ parrafos: ['el dólar aguanta hasta $2.340 (52%), ganás ARS 1.579 por unidad'] }, paq).length === 0);
 
 console.log('\n' + oks + ' ok, ' + fallos + ' fallas');
 process.exit(fallos ? 1 : 0);

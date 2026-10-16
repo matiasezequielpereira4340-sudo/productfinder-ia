@@ -586,12 +586,25 @@ export async function paginasDeCatalogo(product, token, site, paginas, deadline)
 export async function catalogSearch(product, token, opts) {
   const o = opts || {};
   if (!token) return null;
-  const maxProductos = o.maxProductos || 60;
-  const deadline = Date.now() + (o.budgetMs || 10000);
+  const maxProductos = o.maxProductos || 100;
+  const deadline = Date.now() + (o.budgetMs || 14000);
   const site = sitio(o.site).id;
 
-  const pag = await paginasDeCatalogo(product, token, site, Math.ceil(maxProductos / 10), deadline);
-  const catalogo = pag.catalogo;
+  // MEDIDO 16/10/2026: de 60 productos de catalogo para "soporte plegable
+  // para celular" solo 12 tenian precio (los demas sin buybox y con /items
+  // en 404). Para juntar 20+ publicaciones hace falta recorrer mas productos:
+  // se piden mas paginas y, en paralelo, la misma busqueda con las palabras
+  // significativas en otro orden ("soporte celular plegable"), que trae
+  // productos de catalogo distintos.
+  const variante = palabrasSignificativas(product).join(' ');
+  const [pag, pagVar] = await Promise.all([
+    paginasDeCatalogo(product, token, site, Math.ceil(maxProductos / 10), deadline),
+    (!o.sinVariante && variante && normalizarTitulo(variante) !== normalizarTitulo(product))
+      ? paginasDeCatalogo(variante, token, site, 3, deadline)
+      : Promise.resolve({ catalogo: [], total: null })
+  ]);
+  const yaEsta = new Set(pag.catalogo.map(x => x.id));
+  const catalogo = pag.catalogo.concat(pagVar.catalogo.filter(x => x && !yaEsta.has(x.id)));
   if (!catalogo.length) return null;
   const total = pag.total || catalogo.length;
 
@@ -599,7 +612,7 @@ export async function catalogSearch(product, token, opts) {
   // /products/search mezcla parecidos y el presupuesto de tiempo se gasta en
   // los que sirven.
   const palabras = palabrasSignificativas(product);
-  const ordenados = catalogo.slice(0, maxProductos)
+  const ordenados = catalogo.slice(0, maxProductos + 30)
     .map((x, k) => ({ x, k, p: puntajeDeTitulo(x.name || '', palabras) }))
     .sort((a, b) => (b.p - a.p) || (a.k - b.k))
     .map(e => e.x);
@@ -608,7 +621,7 @@ export async function catalogSearch(product, token, opts) {
   // producto cuando responde) y el ganador de la buybox (/products/{id}).
   // Antes iban en serie y con 5 s de presupuesto total: en frio la mayoria
   // de los productos quedaba afuera por tiempo y salian 2 publicaciones.
-  const porProducto = await enParalelo(ordenados, 12, async (prod) => {
+  const porProducto = await enParalelo(ordenados, 16, async (prod) => {
     if (Date.now() > deadline) return [];
     const id = prod.id;
     // Sin nombre real el titulo queda vacio y no cuenta para la relevancia
@@ -1537,7 +1550,15 @@ export async function buscarPublicaciones(product, token, opts) {
     // El catalogo es la unica via gratuita que hoy responde (ver
     // paginasDeCatalogo): se le da el presupuesto que necesita para traer
     // 20-50 publicaciones, no los 5 s de antes.
-    catalogo: () => catalogSearch(product, token, { site, deadline: o.deadline, maxProductos: o.maxProductos || 60, budgetMs: Math.max(10000, o.budgetMs || 0) }),
+    // Recorrido completo solo para el paso 2 del Market Reader (un producto
+    // por vez). Los barridos (/api/analyze evalua 12 productos, el radar)
+    // usan la version liviana para no multiplicar llamadas ni tiempo.
+    catalogo: () => {
+      const completo = /^(market|diag)/.test(String(o.origen || ''));
+      return catalogSearch(product, token, completo
+        ? { site, deadline: o.deadline, maxProductos: o.maxProductos || 100, budgetMs: Math.max(14000, o.budgetMs || 0) }
+        : { site, deadline: o.deadline, maxProductos: o.maxProductos || 30, budgetMs: Math.max(7000, o.budgetMs || 0), sinVariante: true });
+    },
     destacados: () => highlightsSearch(product, token, { site, deadline: o.deadline, budgetMs: o.budgetMs || 5000 }),
     listado: () => publicIdsSearch(product, token, { site, deadline: o.deadline, budgetMs: o.budgetMs || 6000, maxIds: o.maxIds || 40 }),
     // Ultima, porque es la unica que cuesta plata: solo se paga cuando ninguna
@@ -1688,7 +1709,7 @@ export async function buscarPublicaciones(product, token, opts) {
   for (const nombre of orden) {
     // Sumar vias tiene un costo en tiempo: /api/analyze barre 12 productos.
     // Pasados 8 s con algo ya juntado, se cierra con eso.
-    if (acumulado && Date.now() - inicioBusqueda > 8000) return await cerrarConLoJuntado();
+    if (acumulado && Date.now() - inicioBusqueda > (/^(market|diag)/.test(String(o.origen || '')) ? 16000 : 8000)) return await cerrarConLoJuntado();
     // Antes de la via paga: si las gratuitas ya trajeron algo (aunque sea
     // poco), no se paga sola. Mismo criterio de gasto que antes.
     // Excepcion: el boton "Actualizar" (sinCache) es el usuario eligiendo

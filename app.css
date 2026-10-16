@@ -982,3 +982,20 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 .mfc.gris{border-color:#3a3a42}
 .mfc-score.gris{color:#8b8b93}
 .mfc-icon.gris{background:#1c1c22;color:#8b8b93}
+
+/* Desborde horizontal del resultado del Market Reader.
+   Con "1fr" una columna de grilla no puede ser mas angosta que su contenido
+   minimo, y el <canvas> de Chart.js fija ese minimo con el ancho que tuvo al
+   dibujarse: en 1024px la grilla de 3 graficos empujaba la pagina 77px a la
+   derecha y en 375px la tabla de competencia, 61px. minmax(0,1fr) deja que
+   la columna se achique y el canvas se redibuja al ancho real. */
+.mr-charts-top,.mr-charts-bottom,.mr-factor-cards,.mrv-cols{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.mr-3col{grid-template-columns:repeat(3,minmax(0,1fr))}
+.mr-chart-box,.mrv-col{min-width:0}
+.mr-chart-box canvas{max-width:100%}
+@media(max-width:900px){.mr-3col{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:780px){.mrv-cols{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:580px){.mr-charts-top,.mr-charts-bottom,.mr-factor-cards{grid-template-columns:minmax(0,1fr)}}
+.mr-comp-wrap{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.mr-comp-table .comp-name{max-width:none;white-space:normal;overflow-wrap:anywhere;min-width:140px}
+@media(max-width:580px){.mr-result{padding:16px}.mr-comp-table{font-size:.76rem}.mr-comp-table td,.mr-comp-table th{padding:6px}}

@@ -1279,6 +1279,29 @@ function mrFuenteLabel(f){
   return mapa[f]||'Datos de Mercado Libre Argentina';
 }
 
+// Respaldo cuando la muestra del producto queda corta (< 20): la mediana de
+// la categoria madre, rotulada como REFERENCIA DE CATEGORIA. Se pide al mismo
+// paso 'exploracion' que usa el modo sin comparable.
+async function mrReferenciaCategoria(product){
+  const caja=document.getElementById('mrStep2Body');
+  if(!caja||document.getElementById('mrRefCategoria')) return;
+  caja.insertAdjacentHTML('beforeend','<div id="mrRefCategoria" style="margin-top:12px;padding:10px 12px;border:1px dashed rgba(255,230,0,.35);border-radius:8px;font-size:.84rem;color:var(--text-dim)">Buscando la mediana de la categor&#237;a como referencia...</div>');
+  const out=()=>document.getElementById('mrRefCategoria');
+  try{
+    const res=await fetch('/api/market',{method:'POST',headers:mrCabeceras(),body:JSON.stringify({step:'exploracion',product})});
+    const r=await res.json();
+    const cm=r&&r.categoriaMadre;
+    if(!res.ok||!cm||!cm.precioMediano){ if(out()) out().innerHTML='No pude conseguir una referencia de categor&#237;a para comparar.'; return; }
+    if(mrData&&mrData.step2&&mrCurrentProduct===product){
+      mrData.step2.referenciaCategoria={termino:cm.termino,mediana:cm.precioMediano,publicaciones:cm.publicaciones,muestra:cm.muestra};
+      if(mrData.step4&&typeof window.renderMRDecision==='function') window.renderMRDecision(mrData);
+    }
+    if(out()) out().innerHTML='<b style="color:#FFE600">Referencia de categor&#237;a</b> ("'+cm.termino+'"): mediana <b>ARS '+Math.round(cm.precioMediano).toLocaleString('es-AR')+'</b>'+
+      (cm.publicaciones!=null?' sobre '+Number(cm.publicaciones).toLocaleString('es-AR')+' publicaciones':'')+
+      '. <span style="opacity:.85">Es el precio del rubro, no el de tu producto exacto: no lo uso como precio de mercado.</span>';
+  }catch(e){ if(out()) out().innerHTML='No pude conseguir una referencia de categor&#237;a para comparar.'; }
+}
+
 async function runMRStep2(product){
   try{
     const res=await fetch('/api/market',{method:'POST',headers:mrCabeceras(),body:JSON.stringify({step:'competencia',product})});
@@ -1358,7 +1381,7 @@ async function runMRStep2(product){
     const catInfo=r.categoryName?`<div class="mr-row"><span class="mr-row-label">Categor&#237;a principal</span><span class="mr-row-value">${r.categoryName}</span></div>`:'';
     const satInfo=r.saturacion?`<div class="mr-row"><span class="mr-row-label">Nivel de saturaci&#243;n</span><span class="mr-row-value"><span class="mr-tag ${satColor}">${r.saturacion}</span></span></div>`:`<div class="mr-row"><span class="mr-row-label">Nivel de saturaci&#243;n</span><span class="mr-row-value" style="color:var(--text-dim)">no calculable con esta fuente</span></div>`;
     const notaCols=(!colVend||!colRep)&&compRows?`<div style="font-size:.74rem;color:var(--text-dim);margin-top:4px">${[!colVend?'vendidos':'',!colRep?'reputaci&#243;n':''].filter(Boolean).join(' y ')}: MercadoLibre no los informa por esta v&#237;a, as&#237; que no los muestro.</div>`:'';
-    const tablaComp=compRows?`<table class="mr-comp-table"><thead><tr><th>#</th><th>Publicaci&#243;n / vendedor</th><th>Precio</th>${colVend?'<th>Vendidos</th>':''}${colRep?'<th>Reputaci&#243;n</th>':''}</tr></thead><tbody>${compRows}</tbody></table>${notaCols}`:'';
+    const tablaComp=compRows?`<div class="mr-comp-wrap"><table class="mr-comp-table"><thead><tr><th>#</th><th>Publicaci&#243;n / vendedor</th><th>Precio</th>${colVend?'<th>Vendidos</th>':''}${colRep?'<th>Reputaci&#243;n</th>':''}</tr></thead><tbody>${compRows}</tbody></table></div>${notaCols}`:'';
     const pieFuente=`<div style="margin-top:12px"><span class="mr-tag tag-info"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg> ${mrFuenteLabel(r.fuente)}</span></div>`;
 
     // MercadoLibre casi nunca devuelve cero: ante una busqueda sin
@@ -1418,6 +1441,7 @@ async function runMRStep2(product){
         relInfo+catInfo+extraInfo+
         `<div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">Busc&#225; el producto en MercadoLibre y anot&#225; precio y vendidos de las primeras 10 publicaciones: con eso s&#237; se puede fijar un precio de referencia.</div>`+
         botonActualizar+pieFuente+(tablaComp?`<div style="margin-top:8px;font-size:.78rem;color:#e0a020">Muestra chica: estas publicaciones pueden ser de otro producto.</div>`+tablaComp:'');
+      if(!mrData.sinComparable) mrReferenciaCategoria(product);
       return;
     }
 
@@ -1434,6 +1458,9 @@ async function runMRStep2(product){
         '</div>';
     }
     document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers &#250;nicos reales</span><span class="mr-row-value">${r.sellersEstimados}</span></div><div class="mr-row"><span class="mr-row-label">Publicaciones en la muestra</span><span class="mr-row-value">${r.muestra||compData.length}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios reales</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio real</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">ARS ${fmt(r.precioPromedioARS)}</span></div>${relInfo}${r.outliersDescartados?`<div style="margin-top:4px;font-size:.8rem;color:var(--text-dim)">Descart&#233; ${r.outliersDescartados} publicaciones con precio fuera de 0,3x&#8211;3x la mediana (otro producto, kits o repuestos).</div>`:''}${r.envioGratisPct!=null?`<div class="mr-row"><span class="mr-row-label">Ofrecen env&#237;o gratis</span><span class="mr-row-value">${r.envioGratisPct}% (${r.envioGratisCount||0} de ${r.envioGratisTotal||0})</span></div>`:''}${catInfo}${extraInfo}${satInfo}<div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.aviso?r.aviso+' ':''}${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)"><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> Oportunidad: ${r.oportunidad}</div>`:''}${pieFuente}${avisoCache}${tablaComp}`;
+    // Muestra suficiente pero chica (10-19): se suma la referencia de
+    // categoria para comparar, rotulada como tal.
+    if((r.muestra||0)<20 && !mrData.sinComparable) mrReferenciaCategoria(product);
   }catch(e){
     document.getElementById('mrStep2Body').innerHTML='<span style="color:var(--red);font-size:.82rem">Error al analizar MeLi. Continu&#225; con los pasos guiados.</span>';
     mrData.step2={fuente:'no-disponible',muestraInsuficiente:true,muestra:0,sellersEstimados:null,precioMinARS:null,precioMaxARS:null,precioPromedioARS:null,competenciaScore:null,saturacion:null,envioGratisPct:null,competitors:[]};
@@ -1768,7 +1795,7 @@ function mrAnalisisPlantilla(decision){
   const lista=a=>a.slice(0,3).map(x=>x.texto+(x.dato?' ('+x.dato+')':'')).join('; ');
   const nf=n=>new Intl.NumberFormat('es-AR').format(n);
   const p=[];
-  p.push('Veredicto: '+(v.titulo||'')+'. '+(v.sub||''));
+  p.push('Veredicto: '+String(v.titulo||'').replace(/\.+$/,'')+'. '+String(v.sub||'').replace(/:\s*$/,'.'));
   const contra=sen.criticos.concat(sen.enContra);
   if(contra.length) p.push('En contra: '+lista(contra)+'.');
   if(sen.aFavor.length) p.push('A favor: '+lista(sen.aFavor)+'.');
@@ -3444,6 +3471,9 @@ function goHome(){
           valor: Math.round(pQ),
           tuyo: Math.round(s4.venta),
           competencia: refComp ? Math.round(refComp) : null,
+          // Sin muestra propia, la mediana de la categoria madre como
+          // referencia ROTULADA: nunca reemplaza al precio del producto.
+          refCategoria: (!refComp && s2.referenciaCategoria && s2.referenciaCategoria.mediana) ? s2.referenciaCategoria : null,
           bajoCompetenciaPct: refComp ? Math.round(((refComp - pQ) / refComp) * 100) : null
         };
       }
@@ -3785,7 +3815,7 @@ function goHome(){
       // Solo faltan datos: "no se sabe" no es "no conviene". Se condiciona a
       // conseguirlos en vez de cerrar la puerta por una medicion que no se hizo.
       clave = 'cond'; titulo = 'CONVIENE SOLO SI...';
-      sub = 'Los números propios dan, pero faltan ' + criticosDeDato + (criticosDeDato === 1 ? ' dato clave' : ' datos clave') + ' sin medir (en amarillo). Antes de pagar el FOB:';
+      sub = 'Los números propios dan, pero ' + (criticosDeDato === 1 ? 'falta 1 dato clave' : 'faltan ' + criticosDeDato + ' datos clave') + ' sin medir (en amarillo). Antes de pagar el FOB:';
       condiciones = senales.criticos.filter(c => CLAVES_DE_DATO.indexOf(c.clave) !== -1).map(c =>
         c.clave === 'sin-demanda-medida'
           ? 'Medí la demanda: Google Trends (Argentina, últimos 12 meses) contra un producto que ya vendas.'
@@ -3914,7 +3944,9 @@ function goHome(){
       const p = quiebre.precio;
       const comp = p.competencia
         ? ' Hoy la competencia est&#225; en <b>ARS '+nf.format(p.competencia)+'</b>'+(p.bajoCompetenciaPct!=null?' ('+p.bajoCompetenciaPct+'% por encima de tu piso)':'')+'.'
-        : ' No tengo precio de competencia confiable con el que comparar (muestra insuficiente).';
+        : (p.refCategoria
+          ? ' No tengo muestra suficiente del producto; como <b>referencia de categor&#237;a</b> ("'+p.refCategoria.termino+'") la mediana es <b>ARS '+nf.format(p.refCategoria.mediana)+'</b>. Es del rubro, no de tu producto exacto.'
+          : ' No tengo precio de competencia confiable con el que comparar (muestra insuficiente).');
       cajas.push('<div class="mrv-qbox"><div class="mrv-qlabel">Precio de quiebre</div><div class="mrv-qval">ARS '+nf.format(p.valor)+'</div>'+
         '<div class="mrv-qtext">Si la competencia baja a <b>ARS '+nf.format(p.valor)+'</b> ya no te da. Vos cargaste ARS '+nf.format(p.tuyo)+'.'+comp+'</div></div>');
     }
