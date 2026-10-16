@@ -800,7 +800,7 @@ export default async function handler(req, res) {
           fuente: r.fuente, fuentes: r.fuentes, muestra: r.muestra, muestraDevuelta: r.muestraDevuelta,
           outliersDescartados: r.outliersDescartados, muestraInsuficiente: r.muestraInsuficiente,
           sinComparable: r.sinComparable, categoryName: r.categoryName,
-          precioMinARS: r.precioMinARS, precioMaxARS: r.precioMaxARS, precioPromedioARS: r.precioPromedioARS,
+          precioMinARS: r.precioMinARS, precioMaxARS: r.precioMaxARS, precioPromedioARS: r.precioPromedioARS, precioMedianoARS: r.precioMedianoARS,
           desdeCache: r.desdeCache, aviso: r.aviso, detalleFuente: r.detalleFuente || null,
           competidores: (r.competitors || []).map(c => ({ titulo: c.titulo, vendedor: c.vendedor, precio: c.price })) });
       } catch (e) { return res.status(200).json({ termino, error: String((e && e.message) || e).slice(0, 200) }); }
@@ -1332,6 +1332,8 @@ async function stepCompetencia(product, ctx) {
     const min = prices[0] || 0;
     const max = prices[prices.length-1] || 0;
     const avg = prices.length ? Math.round(prices.reduce((a,b)=>a+b,0)/prices.length) : 0;
+    const mid = Math.floor(prices.length / 2);
+    const mediana = prices.length ? (prices.length % 2 ? prices[mid] : Math.round((prices[mid - 1] + prices[mid]) / 2)) : null;
     return {
       fuente, fuentes: meli.fuentes || null,
       detalleFuente: (meli.productosCatalogo != null) ? { productosCatalogo: meli.productosCatalogo, productosConPrecio: meli.productosConPrecio } : null,
@@ -1339,7 +1341,7 @@ async function stepCompetencia(product, ctx) {
       ...relInfo,
       totalCrudoMeli: (typeof meli.total === 'number') ? meli.total : null,
       sellersEstimados: sellers.size || results.length,
-      precioMinARS: min, precioMaxARS: max, precioPromedioARS: avg,
+      precioMinARS: min, precioMaxARS: max, precioPromedioARS: avg, precioMedianoARS: mediana,
       totalResults: total, totalCatalogo, totalLabel,
       categoryName: meli.categoryName || '',
       saturacion,

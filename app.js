@@ -1457,7 +1457,7 @@ async function runMRStep2(product){
         '<button class="btn-secondary" style="margin-left:6px;padding:4px 10px;font-size:.78rem" onclick="mrRefrescarCompetencia()">Actualizar (usa 1 b&#250;squeda)</button>'+
         '</div>';
     }
-    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers &#250;nicos reales</span><span class="mr-row-value">${r.sellersEstimados}</span></div><div class="mr-row"><span class="mr-row-label">Publicaciones en la muestra</span><span class="mr-row-value">${r.muestra||compData.length}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios reales</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio real</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">ARS ${fmt(r.precioPromedioARS)}</span></div>${relInfo}${r.outliersDescartados?`<div style="margin-top:4px;font-size:.8rem;color:var(--text-dim)">Descart&#233; ${r.outliersDescartados} publicaciones con precio fuera de 0,3x&#8211;3x la mediana (otro producto, kits o repuestos).</div>`:''}${r.envioGratisPct!=null?`<div class="mr-row"><span class="mr-row-label">Ofrecen env&#237;o gratis</span><span class="mr-row-value">${r.envioGratisPct}% (${r.envioGratisCount||0} de ${r.envioGratisTotal||0})</span></div>`:''}${catInfo}${extraInfo}${satInfo}<div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.aviso?r.aviso+' ':''}${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)"><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> Oportunidad: ${r.oportunidad}</div>`:''}${pieFuente}${avisoCache}${tablaComp}`;
+    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers &#250;nicos reales</span><span class="mr-row-value">${r.sellersEstimados}</span></div><div class="mr-row"><span class="mr-row-label">Publicaciones en la muestra</span><span class="mr-row-value">${r.muestra||compData.length}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios reales</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio real</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">ARS ${fmt(r.precioPromedioARS)}</span></div>${r.precioMedianoARS?`<div class="mr-row"><span class="mr-row-label">Precio mediano real</span><span class="mr-row-value">ARS ${fmt(r.precioMedianoARS)}</span></div>`:''}${relInfo}${r.outliersDescartados?`<div style="margin-top:4px;font-size:.8rem;color:var(--text-dim)">Descart&#233; ${r.outliersDescartados} publicaciones con precio fuera de 0,3x&#8211;3x la mediana (otro producto, kits o repuestos).</div>`:''}${r.envioGratisPct!=null?`<div class="mr-row"><span class="mr-row-label">Ofrecen env&#237;o gratis</span><span class="mr-row-value">${r.envioGratisPct}% (${r.envioGratisCount||0} de ${r.envioGratisTotal||0})</span></div>`:''}${catInfo}${extraInfo}${satInfo}<div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.aviso?r.aviso+' ':''}${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)"><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> Oportunidad: ${r.oportunidad}</div>`:''}${pieFuente}${avisoCache}${tablaComp}`;
     // Muestra suficiente pero chica (10-19): se suma la referencia de
     // categoria para comparar, rotulada como tal.
     if((r.muestra||0)<20 && !mrData.sinComparable) mrReferenciaCategoria(product);
@@ -1556,7 +1556,11 @@ function confirmMRStep4(){
   let medianoARS=0;
   // Con muestra insuficiente no hay precio de referencia: no se calcula mediana
   // sobre 1 o 2 publicaciones ni se la muestra como si fuera el mercado.
-  if(!s2.muestraInsuficiente&&s2.competitors&&s2.competitors.length>=3){
+  // La mediana de TODA la muestra (backend). Antes salia de las 5 filas de la
+  // tabla: con 21 publicaciones daba ARS 4.999 contra un promedio de 14.191.
+  if(!s2.muestraInsuficiente&&s2.precioMedianoARS>0){
+    medianoARS=s2.precioMedianoARS;
+  } else if(!s2.muestraInsuficiente&&s2.competitors&&s2.competitors.length>=3){
     const arr=s2.competitors.map(c=>c.price).filter(p=>p>0).sort((a,b)=>a-b);
     if(arr.length){const m=Math.floor(arr.length/2);medianoARS=arr.length%2?arr[m]:Math.round((arr[m-1]+arr[m])/2);}
   }
@@ -1795,7 +1799,7 @@ function mrAnalisisPlantilla(decision){
   const lista=a=>a.slice(0,3).map(x=>x.texto+(x.dato?' ('+x.dato+')':'')).join('; ');
   const nf=n=>new Intl.NumberFormat('es-AR').format(n);
   const p=[];
-  p.push('Veredicto: '+String(v.titulo||'').replace(/\.+$/,'')+'. '+String(v.sub||'').replace(/:\s*$/,'.'));
+  p.push('Veredicto: '+String(v.titulo||'').replace(/\.+$/,'')+'. '+String(v.sub||'').replace(/\s*Antes de pagar el FOB:\s*$/,'').replace(/:\s*$/,'.'));
   const contra=sen.criticos.concat(sen.enContra);
   if(contra.length) p.push('En contra: '+lista(contra)+'.');
   if(sen.aFavor.length) p.push('A favor: '+lista(sen.aFavor)+'.');
