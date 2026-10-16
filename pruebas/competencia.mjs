@@ -119,6 +119,21 @@ const cat = meli.elegirCategoria('soporte plegable para celular', [
   { domain_id: 'MLA-CELLPHONE_HOLDERS', category_name: 'Porta Celulares', domain_name: 'Soportes para celulares' }], []);
 chequear('elige Porta Celulares, no Soportes para Autos', cat && cat.category_name === 'Porta Celulares', cat && cat.category_name);
 
+// Candidatos REALES de domain_discovery (16/10/2026) y un catalogo donde los
+// soportes para auto aparecen al fondo.
+const reales = [
+  { domain_id: 'MLA-VEHICLE_CELLPHONE_AND_GPS_MOUNTS', domain_name: 'Soportes de celulares y GPS para vehículos', category_name: 'Soportes para Autos' },
+  { domain_id: 'MLA-VEHICLE_CELLPHONE_AND_GPS_MOUNTS', domain_name: 'Soportes de celulares y GPS para vehículos', category_name: 'Soportes' },
+  { domain_id: 'MLA-CELLPHONE_HOLDERS_AND_STANDS', domain_name: 'Soportes para Celulares', category_name: 'Porta Celulares' },
+  { domain_id: 'MLA-HEADPHONE_STANDS', domain_name: 'Soportes para auriculares', category_name: 'Soportes para Auriculares' },
+  { domain_id: 'MLA-SLATWALL_PANEL_HOOKS', domain_name: 'Ganchos para paneles ranurados', category_name: 'Ménsulas y Ganchos Blisteros' }];
+const catalogoMixto = Array.from({ length: 30 }, (_, k) => ({ name: 'Soporte Celular Plegable ' + k, domain_id: 'MLA-CELLPHONE_HOLDERS_AND_STANDS' }))
+  .concat(Array.from({ length: 60 }, (_, k) => ({ name: 'Soporte Celular Auto Rejilla ' + k, domain_id: 'MLA-VEHICLE_CELLPHONE_AND_GPS_MOUNTS' })));
+const cat2 = meli.elegirCategoria('soporte plegable para celular', reales, catalogoMixto);
+chequear('con los candidatos reales elige Porta Celulares', cat2 && cat2.category_name === 'Porta Celulares', cat2 && cat2.category_name);
+const cat3 = meli.elegirCategoria('soporte celular para auto', reales, []);
+chequear('si la busqueda dice auto, si elige Soportes para Autos', cat3 && cat3.category_name === 'Soportes para Autos', cat3 && cat3.category_name);
+
 console.log('\n== 7. Catalogo paginado: 1 de cada 5 productos con precio (como en produccion) ==');
 escenario = { catalogo: true };
 r = await competencia('soporte plegable para celular');

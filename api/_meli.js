@@ -704,24 +704,39 @@ export async function catalogSearch(product, token, opts) {
 //      palabras de uso especifico que la busqueda no menciona (auto, moto...).
 // Si domain_discovery no responde se devuelve cadena vacia: el front sabe
 // mostrar "sin dato", y es preferible a un slug en ingles.
-const USOS_ESPECIFICOS = ['auto', 'autos', 'moto', 'motos', 'bicicleta', 'bicicletas', 'bebe', 'bebes', 'mascota', 'mascotas', 'cocina', 'bano'];
+// MEDIDO 16/10/2026: para "soporte plegable para celular" domain_discovery
+// devuelve primero "Soportes para Autos" y despues "Soportes", los dos del
+// dominio VEHICLE_CELLPHONE_AND_GPS_MOUNTS; "Porta Celulares" recien tercero.
+// Grupos de sinonimos: si la busqueda menciona cualquiera del grupo, ese uso
+// no se penaliza.
+const USOS_ESPECIFICOS = [
+  ['auto', 'autos', 'vehiculo', 'vehiculos', 'coche', 'auto/moto', 'camioneta'],
+  ['moto', 'motos', 'motocicleta'], ['bicicleta', 'bicicletas', 'bici'],
+  ['bebe', 'bebes'], ['mascota', 'mascotas', 'perro', 'gato'], ['cocina'], ['bano'],
+  ['auriculares', 'auricular'], ['paneles', 'panel']];
 export function elegirCategoria(product, candidatos, productosCatalogo) {
   const lista = (Array.isArray(candidatos) ? candidatos : []).filter(d => d && (d.category_name || d.domain_name));
   if (!lista.length) return null;
   const palabras = palabrasSignificativas(product);
   const consulta = normalizarTitulo(product);
   // 1) Dominio mayoritario entre los productos de catalogo que coinciden.
+  // Votan solo los 30 primeros productos (el orden de MeLi ya es por
+  // relevancia) y solo los que coinciden en serio con la busqueda: al
+  // recorrer 100, los soportes para auto del fondo inclinaban la eleccion.
   const votos = {};
-  for (const p of (productosCatalogo || [])) {
+  for (const p of (productosCatalogo || []).slice(0, 30)) {
     if (!p || !p.domain_id) continue;
-    if (puntajeDeTitulo(p.name || '', palabras) <= 0) continue;
+    if (puntajeDeTitulo(p.name || '', palabras) < 0.5) continue;
     votos[p.domain_id] = (votos[p.domain_id] || 0) + 1;
   }
   const puntaje = d => {
     const texto = normalizarTitulo((d.category_name || '') + ' ' + (d.domain_name || ''));
     let pts = (votos[d.domain_id] || 0) * 10;
     pts += palabras.reduce((a, w) => a + (variantesDe(w).some(v => texto.includes(v)) ? 1 : 0), 0);
-    if (USOS_ESPECIFICOS.some(u => new RegExp('\\b' + u + '\\b').test(texto) && !new RegExp('\\b' + u + '\\b').test(consulta))) pts -= 3;
+    // Un uso especifico que la busqueda no menciona (auto, vehiculo, moto...)
+    // no gana nunca, salvo que sea el unico candidato.
+    const esta = (t, u) => new RegExp('\\b' + u.replace('/', '\\/') + '\\b').test(t);
+    if (USOS_ESPECIFICOS.some(g => g.some(u => esta(texto, u)) && !g.some(u => esta(consulta, u)))) pts -= 1000;
     return pts;
   };
   return lista.map((d, k) => ({ d, k, p: puntaje(d) }))
