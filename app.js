@@ -1302,6 +1302,17 @@ async function mrReferenciaCategoria(product){
   }catch(e){ if(out()) out().innerHTML='No pude conseguir una referencia de categor&#237;a para comparar.'; }
 }
 
+// El aviso de outliers dice el corte en pesos y la mediana con la que se
+// calculo, que es la misma que se muestra: rango, promedio, dispersion y
+// tabla salen todos de las publicaciones que quedaron adentro.
+function mrTextoOutliers(r){
+  const n=r.outliersDescartados, c=r.corteOutliers;
+  const fmt=x=>'ARS '+Math.round(x).toLocaleString('es-AR');
+  return 'Descart&#233; '+n+' '+(n===1?'publicaci&#243;n':'publicaciones')+' con precio fuera de 0,3x&#8211;3x la mediana'+
+    (c&&r.precioMedianoARS?' de '+fmt(r.precioMedianoARS)+' (fuera de '+fmt(c.min)+' a '+fmt(c.max)+')':'')+
+    ': otro producto, kits o repuestos. Rango, promedio y tabla ya no las incluyen.';
+}
+
 async function runMRStep2(product){
   try{
     const res=await fetch('/api/market',{method:'POST',headers:mrCabeceras(),body:JSON.stringify({step:'competencia',product})});
@@ -1396,13 +1407,17 @@ async function runMRStep2(product){
     // 2 da 1.00): no se muestra como numero.
     if(r.relevanciaConfiable===false&&(r.muestraDevuelta!=null||r.muestra!=null)){
       relInfo=`<div class="mr-row"><span class="mr-row-label">Relevancia de la muestra</span><span class="mr-row-value" style="color:#e0a020;font-weight:700">no medible</span></div>`+
-        `<div style="margin-top:4px;font-size:.82rem;color:var(--text-dim)">${r.muestraDevuelta!=null?'Con '+r.muestraDevuelta+' publicaciones devueltas':'Con esta muestra'} el porcentaje de coincidencia no es confiable (m&#237;nimo 10).</div>`;
+        `<div style="margin-top:4px;font-size:.82rem;color:var(--text-dim)">${(r.muestraDevuelta!=null?r.muestraDevuelta:(r.muestra||0))<10
+          ? 'Hay '+(r.muestraDevuelta!=null?r.muestraDevuelta:(r.muestra||0))+' publicaciones y hacen falta al menos 10 para que el porcentaje de coincidencia signifique algo (con 2, por ejemplo, da 100% por definici&#243;n).'
+          : 'La fuente no trajo los t&#237;tulos necesarios para medir la coincidencia con tu b&#250;squeda.'}</div>`;
     } else if(r.ratioRelevancia!=null&&r.muestraDevuelta!=null){
       const pct=Math.round(r.ratioRelevancia*100);
       const est=r.estadoRelevancia||'existe';
       const color=est==='existe'?'var(--green)':(est==='dudoso'?'#e0a020':'var(--red)');
       relInfo=`<div class="mr-row"><span class="mr-row-label">Relevancia de la muestra</span><span class="mr-row-value" style="color:${color};font-weight:700">${r.ratioRelevancia.toFixed(2)}</span></div>`+
-        `<div style="margin-top:4px;font-size:.82rem;color:var(--text-dim)">De ${r.muestraDevuelta} publicaciones devueltas, el promedio coincide en un ${pct}% con tu b&#250;squeda (${r.relevantes} tienen al menos una palabra).${r.totalCrudoMeli?` MeLi informa ${r.totalCrudoMeli.toLocaleString('es-AR')} resultados, pero ese n&#250;mero es posterior al rescate y no dice cu&#225;ntos son tu producto.`:''}</div>`;
+        `<div style="margin-top:4px;font-size:.82rem;color:var(--text-dim)">${r.relevanciaSobre==='guardada'
+          ? `Calculada sobre las ${r.muestraDevuelta} publicaciones de la consulta guardada: los t&#237;tulos coinciden en promedio un ${pct}% con tu b&#250;squeda. Las que no coincid&#237;an con ninguna palabra ya se hab&#237;an descartado al guardarla, as&#237; que este n&#250;mero mide qu&#233; tan parecidas son, no cu&#225;ntas eran de otro producto.`
+          : `De ${r.muestraDevuelta} publicaciones devueltas, el promedio coincide en un ${pct}% con tu b&#250;squeda (${r.relevantes} tienen al menos una palabra).`}${r.totalCrudoMeli?` MeLi informa ${r.totalCrudoMeli.toLocaleString('es-AR')} resultados, pero ese n&#250;mero es posterior al rescate y no dice cu&#225;ntos son tu producto.`:''}</div>`;
       if(est==='dudoso') relInfo+=`<div class="mr-badge-estimacion" style="margin-top:8px">MercadoLibre devolvi&#243; resultados <b>parcialmente relacionados</b>: no puedo confirmar si tu producto exacto se vende ac&#225;. No calculo precio de referencia con esto.</div>`;
       else if(est==='noExiste') relInfo+=`<div class="mr-badge-estimacion" style="margin-top:8px">MercadoLibre te devolvi&#243; resultados, pero no son tu producto.</div>`;
       else if(r.ratioRelevancia<0.5) relInfo+=`<div style="margin-top:8px;font-size:.82rem;color:#e0a020">Coincidencia parcial: los precios se calculan <b>solo</b> sobre las ${r.relevantes} publicaciones que coinciden.</div>`;
@@ -1435,7 +1450,7 @@ async function runMRStep2(product){
       const nM=r.muestra||0;
       document.getElementById('mrStep2Body').innerHTML=
         `<div class="mr-badge-estimacion" style="border-color:#e0a020;color:#f0c050"><b>No pude medir la competencia: muestra insuficiente</b> (${nM} ${nM===1?'publicaci&#243;n':'publicaciones'} de un m&#237;nimo de 10). Esto <b>no</b> significa que no se venda: con tan pocas publicaciones no concluyo nada ni calculo precio de referencia.</div>`+
-        (r.outliersDescartados?`<div style="margin-top:6px;font-size:.8rem;color:var(--text-dim)">Descart&#233; ${r.outliersDescartados} publicaciones con precio fuera de 0,3x&#8211;3x la mediana.</div>`:'')+
+        (r.outliersDescartados?`<div style="margin-top:6px;font-size:.8rem;color:var(--text-dim)">${mrTextoOutliers(r)}</div>`:'')+
         `<div class="mr-row"><span class="mr-row-label">Publicaciones encontradas</span><span class="mr-row-value">${r.muestra||0}</span></div>`+
         (r.sellersEstimados!=null?`<div class="mr-row"><span class="mr-row-label">Sellers &#250;nicos en la muestra</span><span class="mr-row-value">${r.sellersEstimados}</span></div>`:'')+
         relInfo+catInfo+extraInfo+
@@ -1457,7 +1472,7 @@ async function runMRStep2(product){
         '<button class="btn-secondary" style="margin-left:6px;padding:4px 10px;font-size:.78rem" onclick="mrRefrescarCompetencia()">Actualizar (usa 1 b&#250;squeda)</button>'+
         '</div>';
     }
-    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers &#250;nicos reales</span><span class="mr-row-value">${r.sellersEstimados}</span></div><div class="mr-row"><span class="mr-row-label">Publicaciones en la muestra</span><span class="mr-row-value">${r.muestra||compData.length}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios reales</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio real</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">ARS ${fmt(r.precioPromedioARS)}</span></div>${r.precioMedianoARS?`<div class="mr-row"><span class="mr-row-label">Precio mediano real</span><span class="mr-row-value">ARS ${fmt(r.precioMedianoARS)}</span></div>`:''}${relInfo}${r.outliersDescartados?`<div style="margin-top:4px;font-size:.8rem;color:var(--text-dim)">Descart&#233; ${r.outliersDescartados} publicaciones con precio fuera de 0,3x&#8211;3x la mediana (otro producto, kits o repuestos).</div>`:''}${r.envioGratisPct!=null?`<div class="mr-row"><span class="mr-row-label">Ofrecen env&#237;o gratis</span><span class="mr-row-value">${r.envioGratisPct}% (${r.envioGratisCount||0} de ${r.envioGratisTotal||0})</span></div>`:''}${catInfo}${extraInfo}${satInfo}<div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.aviso?r.aviso+' ':''}${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)"><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> Oportunidad: ${r.oportunidad}</div>`:''}${pieFuente}${avisoCache}${tablaComp}`;
+    document.getElementById('mrStep2Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Sellers &#250;nicos reales</span><span class="mr-row-value">${r.sellersEstimados}</span></div><div class="mr-row"><span class="mr-row-label">Publicaciones en la muestra</span><span class="mr-row-value">${r.muestra||compData.length}</span></div><div class="mr-row"><span class="mr-row-label">Rango de precios reales</span><span class="mr-row-value">ARS ${fmt(r.precioMinARS)} \u2013 ${fmt(r.precioMaxARS)}</span></div><div class="mr-row"><span class="mr-row-label">Precio promedio real</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">ARS ${fmt(r.precioPromedioARS)}</span></div>${r.precioMedianoARS?`<div class="mr-row"><span class="mr-row-label">Precio mediano real</span><span class="mr-row-value">ARS ${fmt(r.precioMedianoARS)}</span></div>`:''}${relInfo}${r.outliersDescartados?`<div style="margin-top:4px;font-size:.8rem;color:var(--text-dim)">${mrTextoOutliers(r)}</div>`:''}${r.envioGratisPct!=null?`<div class="mr-row"><span class="mr-row-label">Ofrecen env&#237;o gratis</span><span class="mr-row-value">${r.envioGratisPct}% (${r.envioGratisCount||0} de ${r.envioGratisTotal||0})</span></div>`:''}${catInfo}${extraInfo}${satInfo}<div style="margin-top:8px;font-size:.82rem;color:var(--text-dim)">${r.aviso?r.aviso+' ':''}${r.descripcion||''}</div>${r.oportunidad?`<div style="margin-top:4px;font-size:.82rem;color:var(--green)"><svg class="ic" aria-hidden="true"><use href="#i-bulb"></use></svg> Oportunidad: ${r.oportunidad}</div>`:''}${pieFuente}${avisoCache}${tablaComp}`;
     // Muestra suficiente pero chica (10-19): se suma la referencia de
     // categoria para comparar, rotulada como tal.
     if((r.muestra||0)<20 && !mrData.sinComparable) mrReferenciaCategoria(product);
@@ -3612,8 +3627,16 @@ function goHome(){
 
     // ---------- COMPETENCIA (solo con muestra suficiente) ----------
     if (!s2.muestraInsuficiente && s2.precioMinARS > 0 && s2.precioMaxARS > 0){
-      const dispersionPct = ((s2.precioMaxARS - s2.precioMinARS) / s2.precioMinARS) * 100;
-      const datoDisp = Math.round(dispersionPct)+'% ('+ars(s2.precioMinARS)+' a '+ars(s2.precioMaxARS)+', '+(s2.muestra||0)+' publicaciones)';
+      // Dispersion por el 50% central (P25-P75 sobre la mediana), del mismo
+      // conjunto ya filtrado de outliers. (max-min)/min daba "856%" por un
+      // solo precio extremo.
+      const conCuartiles = s2.precioP25ARS > 0 && s2.precioP75ARS > 0 && s2.precioMedianoARS > 0;
+      const dispersionPct = conCuartiles
+        ? ((s2.precioP75ARS - s2.precioP25ARS) / s2.precioMedianoARS) * 100
+        : ((s2.precioMaxARS - s2.precioMinARS) / s2.precioMinARS) * 100;
+      const datoDisp = conCuartiles
+        ? Math.round(dispersionPct)+'% (la mitad central va de '+ars(s2.precioP25ARS)+' a '+ars(s2.precioP75ARS)+', mediana '+ars(s2.precioMedianoARS)+', '+(s2.muestra||0)+' publicaciones)'
+        : Math.round(dispersionPct)+'% ('+ars(s2.precioMinARS)+' a '+ars(s2.precioMaxARS)+', '+(s2.muestra||0)+' publicaciones)';
       if (dispersionPct > 40){
         aFavor.push(M('Precios dispersos: hay lugar para posicionarse sin pelear por precio', datoDisp));
       } else if (dispersionPct < 15){

@@ -801,6 +801,7 @@ export default async function handler(req, res) {
           outliersDescartados: r.outliersDescartados, muestraInsuficiente: r.muestraInsuficiente,
           sinComparable: r.sinComparable, categoryName: r.categoryName,
           precioMinARS: r.precioMinARS, precioMaxARS: r.precioMaxARS, precioPromedioARS: r.precioPromedioARS, precioMedianoARS: r.precioMedianoARS,
+          corteOutliers: r.corteOutliers, ratioRelevancia: r.ratioRelevancia, relevanciaSobre: r.relevanciaSobre, relevanciaConfiable: r.relevanciaConfiable,
           desdeCache: r.desdeCache, aviso: r.aviso, detalleFuente: r.detalleFuente || null,
           competidores: (r.competitors || []).map(c => ({ titulo: c.titulo, vendedor: c.vendedor, precio: c.price })) });
       } catch (e) { return res.status(200).json({ termino, error: String((e && e.message) || e).slice(0, 200) }); }
@@ -1082,14 +1083,38 @@ function avisoSinMedir(n) {
 
 // Descarta precios fuera de 0,3x - 3x la mediana. Solo con 5 o mas
 // publicaciones: con menos, la "mediana" es cualquiera de los dos extremos.
-function filtrarOutliersDePrecio(items) {
+//
+// Se repite hasta que la mediana deja de moverse. Con una sola pasada la
+// mediana se calculaba ANTES de filtrar (sobre 33 publicaciones daba mas alta)
+// y la que se mostraba se recalculaba DESPUES (sobre 21: ARS 9.600): asi un
+// precio de 45.998 pasaba el filtro aunque es casi 5x la mediana mostrada.
+// Al converger, todo lo que queda esta dentro de 0,3x-3x de la MISMA mediana
+// que se devuelve y se muestra, y rango, promedio, dispersion y tabla salen
+// de ese mismo conjunto.
+function medianaDe(precios) {
+  const p = precios.slice().sort((a, b) => a - b);
+  if (!p.length) return null;
+  const m = Math.floor(p.length / 2);
+  return p.length % 2 ? p[m] : (p[m - 1] + p[m]) / 2;
+}
+export function filtrarOutliersDePrecio(items) {
   const lista = Array.isArray(items) ? items : [];
-  const precios = lista.map(x => x && x.price).filter(p => typeof p === 'number' && p > 0).sort((a, b) => a - b);
-  if (precios.length < 5) return { items: lista, descartados: 0 };
-  const m = Math.floor(precios.length / 2);
-  const mediana = precios.length % 2 ? precios[m] : (precios[m - 1] + precios[m]) / 2;
-  const dentro = lista.filter(x => x && typeof x.price === 'number' && x.price >= mediana * 0.3 && x.price <= mediana * 3);
-  return { items: dentro, descartados: lista.length - dentro.length };
+  const conPrecio = x => x && typeof x.price === 'number' && x.price > 0;
+  if (lista.filter(conPrecio).length < 5) {
+    return { items: lista, descartados: 0, mediana: medianaDe(lista.filter(conPrecio).map(x => x.price)) };
+  }
+  let dentro = lista.filter(conPrecio);
+  let mediana = medianaDe(dentro.map(x => x.price));
+  for (let vuelta = 0; vuelta < 10; vuelta++) {
+    const siguiente = dentro.filter(x => x.price >= mediana * 0.3 && x.price <= mediana * 3);
+    if (siguiente.length === dentro.length || siguiente.length < 5) break;
+    dentro = siguiente;
+    mediana = medianaDe(dentro.map(x => x.price));
+  }
+  // Pasada final contra la mediana definitiva (garantiza la invariante aun si
+  // el corte de arriba fue por quedar menos de 5).
+  dentro = dentro.filter(x => x.price >= mediana * 0.3 && x.price <= mediana * 3);
+  return { items: dentro, descartados: lista.length - dentro.length, mediana: Math.round(mediana), corte: { min: Math.round(mediana * 0.3), max: Math.round(mediana * 3) } };
 }
 
 // Un nickname que es solo el id numerico (o el "Vendedor 123" que armaban las
@@ -1261,10 +1286,23 @@ async function stepCompetencia(product, ctx) {
     // Outliers de precio: con 5 o mas publicaciones se descarta lo que este
     // fuera de 0,3x - 3x la mediana (accesorios sueltos, kits, otro producto).
     // Con menos no hay mediana que sirva, y la muestra igual es insuficiente.
-    const { items: results, descartados } = filtrarOutliersDePrecio(filtradas);
+    const { items: results, descartados, mediana: medianaFiltro, corte: corteOutliers } = filtrarOutliersDePrecio(filtradas);
 
-    const muestraDevuelta = relReal ? relReal.muestra : null;
-    const relevanciaConfiable = !!relReal && muestraDevuelta >= MUESTRA_MINIMA_COMPETENCIA;
+    // Relevancia. Si la busqueda es nueva, viene la de la MUESTRA DEVUELTA
+    // (incluye las que no coincidian). Si sale de la cache, solo quedaron
+    // guardadas las que coincidian: se calcula igual sobre esas, con 10 o
+    // mas, y se informa que es sobre la muestra guardada (no "no medible").
+    let muestraDevuelta = relReal ? relReal.muestra : null;
+    let ratioRel = relReal ? relReal.ratio : null;
+    let estadoRel = (relReal && relReal.estado) || 'existe';
+    let relevantesRel = relReal ? relReal.relevantes : results.length;
+    let relevanciaSobre = relReal ? 'devuelta' : null;
+    if (!relReal && results.length >= MUESTRA_MINIMA_COMPETENCIA) {
+      const rc = relevanciaPorTitulo(product, results);
+      muestraDevuelta = rc.muestra; ratioRel = rc.ratio; estadoRel = rc.estado; relevantesRel = rc.relevantes;
+      relevanciaSobre = 'guardada';
+    }
+    const relevanciaConfiable = ratioRel != null && muestraDevuelta >= MUESTRA_MINIMA_COMPETENCIA;
     const prices = results.map(x => x.price).filter(p => typeof p === 'number' && p > 0).sort((a,b)=>a-b);
     const sellers = new Set(results.map(x => x.seller && x.seller.id).filter(Boolean));
     const conEnvioGratis = results.filter(x => x.shipping && x.shipping.free_shipping).length;
@@ -1275,11 +1313,12 @@ async function stepCompetencia(product, ctx) {
       hayReputacion: competitors.some(c => !!c.reputation)
     };
     const relInfo = {
-      relevantes: relReal ? relReal.relevantes : results.length,
-      muestraDevuelta, relevanciaConfiable,
-      ratioRelevancia: relReal ? relReal.ratio : null,
-      estadoRelevancia: (relReal && relReal.estado) || 'existe',
-      outliersDescartados: descartados
+      relevantes: relevantesRel,
+      muestraDevuelta, relevanciaConfiable, relevanciaSobre,
+      ratioRelevancia: ratioRel,
+      estadoRelevancia: estadoRel,
+      outliersDescartados: descartados,
+      corteOutliers: corteOutliers || null
     };
 
     // El "total" del catalogo NO son publicaciones activas: paging.total de
@@ -1332,8 +1371,12 @@ async function stepCompetencia(product, ctx) {
     const min = prices[0] || 0;
     const max = prices[prices.length-1] || 0;
     const avg = prices.length ? Math.round(prices.reduce((a,b)=>a+b,0)/prices.length) : 0;
-    const mid = Math.floor(prices.length / 2);
-    const mediana = prices.length ? (prices.length % 2 ? prices[mid] : Math.round((prices[mid - 1] + prices[mid]) / 2)) : null;
+    // La MISMA mediana que uso el filtro: no se recalcula aparte.
+    const mediana = medianaFiltro != null ? medianaFiltro : null;
+    // Cuartiles del mismo conjunto filtrado, para medir la dispersion por el
+    // 50% central y no por los dos extremos.
+    const cuartil = q => { if (!prices.length) return null; const pos = (prices.length - 1) * q, b = Math.floor(pos); return Math.round(prices[b] + (prices[Math.min(b + 1, prices.length - 1)] - prices[b]) * (pos - b)); };
+    const p25 = cuartil(0.25), p75 = cuartil(0.75);
     return {
       fuente, fuentes: meli.fuentes || null,
       detalleFuente: (meli.productosCatalogo != null) ? { productosCatalogo: meli.productosCatalogo, productosConPrecio: meli.productosConPrecio } : null,
@@ -1342,6 +1385,7 @@ async function stepCompetencia(product, ctx) {
       totalCrudoMeli: (typeof meli.total === 'number') ? meli.total : null,
       sellersEstimados: sellers.size || results.length,
       precioMinARS: min, precioMaxARS: max, precioPromedioARS: avg, precioMedianoARS: mediana,
+      precioP25ARS: p25, precioP75ARS: p75,
       totalResults: total, totalCatalogo, totalLabel,
       categoryName: meli.categoryName || '',
       saturacion,

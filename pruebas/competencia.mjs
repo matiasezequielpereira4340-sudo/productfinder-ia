@@ -140,6 +140,19 @@ r = await competencia('soporte plegable para celular');
 chequear('junta 20 o mas publicaciones', r.muestra >= 20, r.muestra + ' (' + JSON.stringify(r.detalleFuente) + ')');
 chequear('categoria Porta Celulares', r.categoryName === 'Porta Celulares', r.categoryName);
 
+console.log('\n== 9. Outliers: el filtro y la mediana mostrada son la misma ==');
+const { filtrarOutliersDePrecio } = await import('../api/market.js');
+// 21 precios "del producto" + 12 que inflan la mediana previa al filtro.
+// Con UNA sola pasada la mediana previa es 15.500 (tope 46.500) y 45.998
+// sobrevive, aunque la mediana mostrada despues es 9.600 (tope 28.800).
+const buenos = [4810, 4904, 4999, 5200, 6100, 7000, 7800, 8500, 9000, 9400, 9600, 9900, 10500, 11000, 12000, 13500, 15500, 17000, 19990, 26500, 45998];
+const raros = [50000, 52000, 54000, 55000, 58000, 60000, 61000, 62000, 65000, 70000, 80000, 90000];
+const out9 = filtrarOutliersDePrecio(buenos.concat(raros).map((p, k) => ({ id: 'X' + k, price: p })));
+const max9 = Math.max(...out9.items.map(x => x.price));
+chequear('ningun precio queda por encima de 3x la mediana devuelta', max9 <= out9.mediana * 3, 'max ' + max9 + ' / mediana ' + out9.mediana + ' (tope ' + out9.mediana * 3 + ')');
+chequear('ninguno por debajo de 0,3x', Math.min(...out9.items.map(x => x.price)) >= out9.mediana * 0.3);
+chequear('45.998 queda afuera', !out9.items.some(x => x.price === 45998), 'quedan ' + out9.items.length);
+
 console.log('\n== 8. Texto de la IA: cifras que no estan en los datos ==');
 const fs = await import('node:fs');
 const appSrc = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
