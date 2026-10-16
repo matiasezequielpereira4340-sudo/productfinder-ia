@@ -1,0 +1,1147 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#0f766e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Control de cartera</title>
+<style>
+:root{
+  --bg:#f4f6f8;--card:#fff;--ink:#14212b;--muted:#5d6b77;--line:#e2e7ec;
+  --brand:#0f766e;--brand-ink:#fff;--soft:#e6f4f2;
+  --ent:#2563eb;--cob:#16a34a;--vto:#d97706;--mora:#dc2626;
+  --ok-bg:#e8f7ee;--ok:#15803d;--warn-bg:#fff4e0;--warn:#a16207;--bad-bg:#fdecec;--bad:#b91c1c;
+  --radius:14px;--shadow:0 1px 2px rgba(0,0,0,.05),0 2px 8px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0e1418;--card:#162027;--ink:#e6edf1;--muted:#97a6b1;--line:#24323b;
+    --brand:#2dd4bf;--brand-ink:#05201d;--soft:#12302d;
+    --ent:#60a5fa;--cob:#4ade80;--vto:#fbbf24;--mora:#f87171;
+    --ok-bg:#12301f;--ok:#4ade80;--warn-bg:#33270e;--warn:#fbbf24;--bad-bg:#3a1616;--bad:#fca5a5;
+    --shadow:none;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%;padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+button,input,select,textarea{font:inherit;color:inherit}
+.wrap{max-width:640px;margin:0 auto;padding:12px 16px}
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+header.top .wrap{display:flex;align-items:center;gap:8px;padding-top:10px;padding-bottom:10px}
+header.top h1{font-size:18px;margin:0;flex:1}
+.num{font-variant-numeric:tabular-nums}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;margin:10px 0}
+.muted{color:var(--muted)}.small{font-size:13px}.tiny{font-size:12px}
+.row{display:flex;align-items:center;gap:8px}.between{justify-content:space-between}.wrapf{flex-wrap:wrap}
+.grow{flex:1;min-width:0}
+.btn{appearance:none;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:10px 14px;min-height:44px;cursor:pointer;font-weight:600}
+.btn.pri{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.sm{min-height:36px;padding:6px 10px;font-size:14px}
+.btn.block{width:100%}
+.btn:disabled{opacity:.5}
+.chip{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700;white-space:nowrap}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}.chip.warn{background:var(--warn-bg);color:var(--warn)}.chip.bad{background:var(--bad-bg);color:var(--bad)}.chip.neu{background:var(--soft);color:var(--brand)}
+.banner{border-radius:12px;padding:10px 12px;margin:10px 0;font-size:14px}
+.banner.warn{background:var(--warn-bg);color:var(--warn)}.banner.bad{background:var(--bad-bg);color:var(--bad)}.banner.info{background:var(--soft);color:var(--ink)}
+/* nav */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs .in{max-width:640px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr)}
+nav.tabs button{background:none;border:0;padding:8px 2px 9px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--muted);cursor:pointer;min-height:56px}
+nav.tabs button svg{width:22px;height:22px}
+nav.tabs button.on{color:var(--brand);font-weight:700}
+/* calendar */
+.calhead{display:flex;align-items:center;gap:6px;margin:6px 0 8px}
+.calhead h2{flex:1;margin:0;font-size:18px;text-transform:capitalize;text-align:center}
+.iconbtn{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-size:20px;cursor:pointer}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal .wd{text-align:center;font-size:12px;color:var(--muted);padding:2px 0;font-weight:600}
+.cal .d{background:var(--card);border:1px solid var(--line);border-radius:10px;min-height:54px;padding:4px 3px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;position:relative}
+.cal .d.out{visibility:hidden}
+.cal .d .n{font-size:14px;font-weight:600}
+.cal .d.today{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand)}
+.cal .d.today .n{color:var(--brand)}
+.cal .d.hasmora{background:var(--bad-bg)}
+.dots{display:flex;gap:3px;flex-wrap:wrap;justify-content:center}
+.dot{width:8px;height:8px;border-radius:50%}
+.dot.ent{background:var(--ent)}.dot.cob{background:var(--cob)}.dot.vto{background:var(--vto)}.dot.mora{background:var(--mora)}
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--muted);margin:10px 0}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+/* kpis */
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.kpi .l{font-size:12px;color:var(--muted)}
+.kpi .v{font-size:20px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums;word-break:break-word}
+.kpi .s{font-size:11px;color:var(--muted);margin-top:2px}
+.kpi.big{grid-column:1/-1}
+.kpi.bad .v{color:var(--bad)}.kpi.ok .v{color:var(--ok)}
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:none;border-radius:8px;padding:8px;min-height:38px;font-weight:600;color:var(--muted);cursor:pointer}
+.seg button.on{background:var(--brand);color:var(--brand-ink)}
+/* lists */
+.item{display:flex;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.item:last-child{border-bottom:0}
+.item .t{font-weight:700}
+.amt{font-weight:800;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.sec-t{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:16px 0 4px;font-weight:700}
+.q{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0}
+.q.mora{border-color:var(--mora)}
+.q .br{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:14px;margin-top:6px}
+.q .br div:nth-child(even){text-align:right;font-variant-numeric:tabular-nums}
+.q .tot{font-weight:800}
+/* forms */
+label.f{display:block;margin:10px 0}
+label.f>span{display:block;font-size:13px;color:var(--muted);margin-bottom:4px;font-weight:600}
+input.i,select.i,textarea.i{width:100%;min-height:46px;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px 12px;font-size:16px}
+textarea.i{min-height:70px}
+input.i:focus,select.i:focus{outline:2px solid var(--brand);outline-offset:0}
+.radios{display:flex;gap:6px;flex-wrap:wrap}
+.radios label{flex:1;min-width:70px}
+.radios input{position:absolute;opacity:0;pointer-events:none}
+.radios label span{display:block;text-align:center;border:1px solid var(--line);border-radius:10px;padding:10px 6px;font-weight:700;cursor:pointer;background:var(--bg)}
+.radios input:checked+span{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.err{color:var(--bad);font-size:13px;margin-top:4px;min-height:0}
+.prev{background:var(--bg);border-radius:10px;padding:10px;font-size:14px;margin-top:8px}
+.prev table{width:100%;border-collapse:collapse}
+.prev td{padding:3px 2px;font-variant-numeric:tabular-nums}
+.prev td:not(:first-child){text-align:right}
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20;display:none}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;max-height:92vh;overflow:auto;background:var(--card);border-radius:18px 18px 0 0;display:none;padding-bottom:env(safe-area-inset-bottom);overscroll-behavior:contain}
+.sheet .in{max-width:640px;margin:0 auto;padding:6px 16px 24px}
+.sheet .grab{width:40px;height:4px;border-radius:2px;background:var(--line);margin:8px auto 4px}
+.sheet .sh{display:flex;align-items:center;gap:8px;position:sticky;top:0;background:var(--card);padding:8px 0;z-index:1}
+.sheet .sh h3{flex:1;margin:0;font-size:18px}
+body.sheet-open{overflow:hidden}
+body.sheet-open .scrim,body.sheet-open .sheet{display:block}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(86px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;z-index:40;font-size:14px;max-width:90vw;display:none}
+/* lock */
+#lock{position:fixed;inset:0;z-index:50;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:16px}
+#lock.on{display:flex}
+.pins{display:flex;gap:14px}
+.pins i{width:16px;height:16px;border-radius:50%;border:2px solid var(--brand)}
+.pins i.f{background:var(--brand)}
+.pad{display:grid;grid-template-columns:repeat(3,72px);gap:12px}
+.pad button{height:72px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:24px;font-weight:600;cursor:pointer}
+.empty{text-align:center;color:var(--muted);padding:24px 8px}
+.search{margin:6px 0}
+hr.s{border:0;border-top:1px solid var(--line);margin:12px 0}
+.tag-confirm{display:inline-block;font-size:11px;font-weight:700;background:var(--warn-bg);color:var(--warn);border-radius:6px;padding:1px 6px;margin-left:4px}
+.sched input.i{min-height:40px;padding:6px 8px;font-size:15px}
+.sched .r{display:grid;grid-template-columns:28px 1.3fr 1fr 1fr;gap:6px;align-items:center;margin:6px 0}
+@media (min-width:560px){.kpis{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><h1 id="title">Control de cartera</h1><span id="hdrx"></span></div></header>
+<main class="wrap" id="view"></main>
+
+<nav class="tabs"><div class="in">
+  <button data-tab="cal" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Calendario</button>
+  <button data-tab="res"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Resumen</button>
+  <button data-tab="cli"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11a3 3 0 1 0 0-6M22 21c0-3-2-5-5-5.5"/></svg>Clientes</button>
+  <button data-tab="pre"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><circle cx="12" cy="12.5" r="3"/><path d="M6 10v5M18 10v5"/></svg>Préstamos</button>
+  <button data-tab="aju"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Ajustes</button>
+</div></nav>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div class="in"><div class="sh"><h3 id="sheetT"></h3><button class="iconbtn" data-act="close" aria-label="Cerrar">✕</button></div><div id="sheetB"></div></div></div>
+<div class="toast" id="toast"></div>
+<div id="lock"><div style="font-weight:700;font-size:18px">Ingresá tu PIN</div><div class="pins" id="pins"><i></i><i></i><i></i><i></i></div><div class="err" id="pinerr"></div><div class="pad" id="pad"></div></div>
+
+<script>
+'use strict';
+/* =========================================================
+   CONTROL DE CARTERA — todo local (localStorage), sin servidor.
+   ========================================================= */
+const KEY = 'cartera_v1';
+const DEF_SETTINGS = {
+  descPts: 5,            // puntos que baja la tasa si paga en efectivo
+  baseInteres: 'saldo',  // 'saldo' (sobre saldo de capital) | 'fijo' (sobre capital original)
+  unicoModo: 'completo', // pago único: 'completo' (mes empezado = mes entero) | 'fraccion' (días/30)
+  moraPct: 8,            // % diario de recargo
+  moraBase: 'saldo',     // 'saldo' (saldo impago de la cuota) | 'cuota' (monto total original de la cuota)
+  moraTope: null,        // % máximo acumulado sobre la cuota; null = sin tope
+  pinHash: null,
+  lastBackup: null
+};
+
+/* ---------- utilidades ---------- */
+const pad2 = n => String(n).padStart(2, '0');
+const r2 = x => Math.round((x + Number.EPSILON) * 100) / 100;
+const EPS = 0.005;
+function todayStr(){ const d = new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+function dnum(s){ const [y, m, d] = s.split('-').map(Number); return Math.round(Date.UTC(y, m - 1, d) / 864e5); }
+function dstr(n){ const d = new Date(n * 864e5); return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate()); }
+function addDays(s, n){ return dstr(dnum(s) + n); }
+function diffDays(a, b){ return dnum(b) - dnum(a); }
+function addMonths(s, n){
+  let [y, m, d] = s.split('-').map(Number);
+  let mm = m - 1 + n; y += Math.floor(mm / 12); mm = ((mm % 12) + 12) % 12;
+  const last = new Date(Date.UTC(y, mm + 1, 0)).getUTCDate();
+  return y + '-' + pad2(mm + 1) + '-' + pad2(Math.min(d, last));
+}
+function monthsBetween(a, b){ let m = 0; while (addMonths(a, m + 1) <= b) m++; return { m, rem: diffDays(addMonths(a, m), b) }; }
+const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(dnum(s));
+const MES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const DIA = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+function fdate(s){ if (!s) return '—'; const [y, m, d] = s.split('-'); return d + '/' + m + '/' + y.slice(2); }
+function fdateLong(s){ const n = dnum(s); const wd = new Date(n * 864e5).getUTCDay(); const [y, m, d] = s.split('-').map(Number); return DIA[wd] + ' ' + d + ' de ' + MES[m - 1] + (y !== new Date().getFullYear() ? ' de ' + y : ''); }
+const NF = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+const NF2 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
+function money(x){ x = Math.round(x || 0); return (x < 0 ? '−$' : '$') + NF.format(Math.abs(x)); }
+function pct(x){ return NF2.format(x) + '%'; }
+function parseMonto(s){
+  if (typeof s === 'number') return s;
+  s = String(s || '').replace(/[\s$]/g, '');
+  if (!s) return NaN;
+  // formato AR: 100.000,50  → miles con punto, decimales con coma
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  const n = Number(s);
+  return isFinite(n) ? n : NaN;
+}
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+/* =========================================================
+   MOTOR DE CÁLCULO (puro, sin DOM — lo usa también el autotest)
+   ========================================================= */
+
+/** Genera el cronograma de un préstamo. */
+function genSchedule(L, S){
+  const cap = L.capital, t = L.tasa / 100;
+  if (L.tipo === 'unico'){
+    const { m, rem } = monthsBetween(L.fechaEntrega, L.primerVto);
+    let meses = S.unicoModo === 'fraccion' ? m + rem / 30 : m + (rem > 0 ? 1 : 0);
+    if (S.unicoModo !== 'fraccion' && meses < 1) meses = 1;
+    return [{ n: 1, vto: L.primerVto, capital: cap, interes: Math.round(cap * t * meses), meses: r2(meses) }];
+  }
+  const n = Math.max(1, L.cuotas | 0), base = Math.floor(cap / n), out = [];
+  let saldo = cap;
+  for (let i = 0; i < n; i++){
+    const c = i === n - 1 ? r2(saldo) : base;
+    const intBase = S.baseInteres === 'fijo' ? cap : saldo;
+    out.push({ n: i + 1, vto: addMonths(L.primerVto, i), capital: c, interes: Math.round(intBase * t) });
+    saldo = r2(saldo - c);
+  }
+  return out;
+}
+
+/** Factor de efectivo: tasa reducida / tasa nominal (ej 65/70). */
+function cashFactor(L, S){
+  const d = Number(S.descPts) || 0;
+  if (d <= 0 || L.tasa <= 0) return 1;
+  return Math.max(0, L.tasa - d) / L.tasa;
+}
+
+/**
+ * Estado de un préstamo a una fecha: reproduce los pagos en orden cronológico.
+ * Recargo: interés simple diario sobre la base elegida, con tope opcional.
+ * Imputación: por cuota más antigua → recargo, interés, capital.
+ * Efectivo: el interés se cancela a tasa reducida (factor k) y la diferencia es descuento.
+ */
+function loanState(L, payments, S, asOf){
+  const pctD = (Number(S.moraPct) || 0) / 100;
+  const tope = (S.moraTope === null || S.moraTope === '' || S.moraTope === undefined) ? null : Number(S.moraTope) / 100;
+  const k = cashFactor(L, S);
+  const cs = L.schedule.map(q => ({
+    n: q.n, vto: q.vto, capital: q.capital, interes: q.interes, total: r2(q.capital + q.interes),
+    capRem: q.capital, intRem: q.interes, recAcc: 0, recPaid: 0, acc: q.vto,
+    intCash: 0, desc: 0, capPaid: 0, pagadaEl: null, topeOn: false
+  }));
+  const accrue = (c, date) => {
+    if (date <= c.vto) return;
+    if (c.capRem + c.intRem <= EPS) return;
+    const from = c.acc > c.vto ? c.acc : c.vto;
+    const days = diffDays(from, date);
+    if (days <= 0) return;
+    c.acc = date;
+    const base = S.moraBase === 'cuota' ? c.total : r2(c.capRem + c.intRem);
+    let rec = c.recAcc + base * pctD * days;
+    if (tope !== null){ const mx = r2(c.total * tope); if (rec >= mx){ rec = mx; c.topeOn = true; } }
+    c.recAcc = r2(Math.max(rec, c.recAcc));
+  };
+  const lp = payments.filter(p => p.loanId === L.id && p.fecha <= asOf)
+    .sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : (a.ts || 0) - (b.ts || 0));
+  const pays = [];
+  for (const p of lp){
+    cs.forEach(c => accrue(c, p.fecha));
+    let P = r2(p.monto);
+    const kk = p.medio === 'efectivo' ? k : 1;
+    const a = { id: p.id, fecha: p.fecha, monto: p.monto, medio: p.medio, rec: 0, int: 0, cap: 0, desc: 0, sobrante: 0, cuotas: [] };
+    for (const c of cs){
+      if (P <= EPS) break;
+      const recDue = r2(c.recAcc - c.recPaid);
+      if (c.capRem + c.intRem + recDue <= EPS) continue;
+      let used = false;
+      let x = Math.min(P, recDue);
+      if (x > 0){ c.recPaid = r2(c.recPaid + x); P = r2(P - x); a.rec = r2(a.rec + x); used = true; }
+      if (c.intRem > EPS && P > EPS){
+        const fullCash = r2(c.intRem * kk);
+        let nom, cash;
+        if (P >= fullCash){ nom = c.intRem; cash = fullCash; }
+        else { cash = P; nom = Math.min(c.intRem, r2(P / kk)); }
+        const d = r2(nom - cash);
+        c.intRem = r2(c.intRem - nom); c.intCash = r2(c.intCash + cash); c.desc = r2(c.desc + d);
+        a.int = r2(a.int + cash); a.desc = r2(a.desc + d); P = r2(P - cash); used = true;
+      }
+      x = Math.min(P, c.capRem);
+      if (x > 0){ c.capRem = r2(c.capRem - x); c.capPaid = r2(c.capPaid + x); P = r2(P - x); a.cap = r2(a.cap + x); used = true; }
+      if (used) a.cuotas.push(c.n);
+      if (c.capRem + c.intRem <= EPS && r2(c.recAcc - c.recPaid) <= EPS && !c.pagadaEl) c.pagadaEl = p.fecha;
+    }
+    a.sobrante = r2(P);
+    pays.push(a);
+  }
+  cs.forEach(c => accrue(c, asOf));
+  const T = { capital: 0, capRem: 0, intRem: 0, recRem: 0, pend: 0, pendCash: 0, mora: 0, moraCuotas: 0, recCobrado: 0, intCobrado: 0, capCobrado: 0, desc: 0, cobrado: 0, maxDias: 0 };
+  for (const c of cs){
+    c.recRem = r2(c.recAcc - c.recPaid);
+    c.pend = r2(c.capRem + c.intRem + c.recRem);
+    c.pendCash = r2(c.capRem + c.intRem * k + c.recRem);
+    c.cuotaRem = r2(c.capRem + c.intRem);
+    c.dias = 0;
+    if (c.pend <= EPS) c.estado = 'pagada';
+    else if (c.vto < asOf){ c.estado = 'mora'; c.dias = diffDays(c.vto, asOf); }
+    else if (c.vto === asOf) c.estado = 'hoy';
+    else c.estado = 'pendiente';
+    c.parcial = c.estado !== 'pagada' && (c.capPaid + c.intCash + c.recPaid) > 0;
+    T.capital += c.capital; T.capRem += c.capRem; T.intRem += c.intRem; T.recRem += c.recRem; T.pend += c.pend; T.pendCash += c.pendCash;
+    if (c.estado === 'mora'){ T.mora += c.pend; T.moraCuotas++; T.maxDias = Math.max(T.maxDias, c.dias); }
+  }
+  for (const a of pays){ T.recCobrado += a.rec; T.intCobrado += a.int; T.capCobrado += a.cap; T.desc += a.desc; T.cobrado += a.monto - a.sobrante; }
+  Object.keys(T).forEach(key => T[key] = r2(T[key]));
+  const estado = T.pend <= EPS ? 'cancelado' : T.moraCuotas ? 'mora' : 'aldia';
+  return { loan: L, k, cuotas: cs, pays, T, estado, asOf };
+}
+
+/** Monto sugerido a cobrar en una fecha y medio. scope: 'next' | 'vencido' | 'all' */
+function quote(L, payments, S, date, medio, scope){
+  const st = loanState(L, payments, S, date);
+  const cash = medio === 'efectivo';
+  const amt = c => cash ? c.pendCash : c.pend;
+  const pend = st.cuotas.filter(c => c.pend > EPS);
+  if (!pend.length) return 0;
+  if (scope === 'all') return r2(pend.reduce((s, c) => s + amt(c), 0));
+  if (scope === 'vencido'){
+    const v = pend.filter(c => c.vto <= date);
+    return r2((v.length ? v : [pend[0]]).reduce((s, c) => s + amt(c), 0));
+  }
+  return amt(pend[0]);
+}
+
+/** Simula un pago y devuelve su imputación. */
+function simulate(L, payments, S, pay){
+  const fake = Object.assign({ id: '__sim', loanId: L.id, ts: Number.MAX_SAFE_INTEGER }, pay);
+  const st = loanState(L, payments.concat([fake]), S, pay.fecha);
+  return st.pays.find(a => a.id === '__sim');
+}
+
+/* =========================================================
+   AUTOTEST — correr en consola: autotest()
+   ========================================================= */
+function autotest(silent){
+  const S = Object.assign({}, DEF_SETTINGS);
+  const res = [];
+  const check = (caso, desc, got, exp) => res.push({ caso, verificacion: desc, esperado: exp, obtenido: got, ok: Math.abs(Number(got) - Number(exp)) < 0.01 || got === exp });
+  const mk = (o) => { const L = Object.assign({ id: 't' + uid(), tipo: 'mensual' }, o); if (!L.schedule) L.schedule = genSchedule(L, S); return L; };
+
+  // 1) 60% transferencia — 100.000 en 3 cuotas sobre saldo
+  const L1 = mk({ capital: 100000, tasa: 60, fechaEntrega: '2026-01-05', primerVto: '2026-02-05', cuotas: 3 });
+  [[33333, 60000], [33333, 40000], [33334, 20000]].forEach(([c, i], ix) => {
+    check('1. 60% transferencia', 'cuota ' + (ix + 1) + ' capital', L1.schedule[ix].capital, c);
+    check('1. 60% transferencia', 'cuota ' + (ix + 1) + ' interés', L1.schedule[ix].interes, i);
+  });
+  const p1 = [{ id: 'a', loanId: L1.id, fecha: '2026-02-05', monto: 93333, medio: 'transferencia' }];
+  const s1 = loanState(L1, p1, S, '2026-02-05');
+  check('1. 60% transferencia', 'cuota 1 queda pagada', s1.cuotas[0].estado, 'pagada');
+  check('1. 60% transferencia', 'sin descuento', s1.pays[0].desc, 0);
+  check('1. 60% transferencia', 'interés cobrado', s1.pays[0].int, 60000);
+
+  // 2) 70% efectivo → tasa efectiva 65%
+  const L2 = mk({ capital: 100000, tasa: 70, fechaEntrega: '2026-01-05', primerVto: '2026-02-05', cuotas: 1 });
+  check('2. 70% efectivo', 'interés nominal 70%', L2.schedule[0].interes, 70000);
+  const q2 = quote(L2, [], S, '2026-02-05', 'efectivo', 'next');
+  check('2. 70% efectivo', 'a pagar en efectivo (100.000 + 65%)', q2, 165000);
+  const s2 = loanState(L2, [{ id: 'b', loanId: L2.id, fecha: '2026-02-05', monto: q2, medio: 'efectivo' }], S, '2026-02-05');
+  check('2. 70% efectivo', 'descuento otorgado', s2.pays[0].desc, 5000);
+  check('2. 70% efectivo', 'tasa efectiva %', r2(s2.pays[0].int / 100000 * 100), 65);
+  check('2. 70% efectivo', 'cuota pagada', s2.cuotas[0].estado, 'pagada');
+
+  // 3) Pago parcial: 50.000 sobre la cuota 1 de 93.333 (primero interés, después capital)
+  const s3 = loanState(L1, [{ id: 'c', loanId: L1.id, fecha: '2026-02-05', monto: 50000, medio: 'transferencia' }], S, '2026-02-05');
+  check('3. Pago parcial', 'imputado a interés', s3.pays[0].int, 50000);
+  check('3. Pago parcial', 'imputado a capital', s3.pays[0].cap, 0);
+  check('3. Pago parcial', 'interés pendiente cuota 1', s3.cuotas[0].intRem, 10000);
+  check('3. Pago parcial', 'saldo cuota 1', s3.cuotas[0].pend, 43333);
+  // al día siguiente arranca la mora sobre 43.333
+  const s3b = loanState(L1, [{ id: 'c', loanId: L1.id, fecha: '2026-02-05', monto: 50000, medio: 'transferencia' }], S, '2026-02-06');
+  check('3. Pago parcial', 'recargo 1 día sobre saldo impago (43.333 × 8%)', s3b.cuotas[0].recRem, 3466.64);
+
+  // 4) Mora: cuota impaga de 50.000 con 5 días de atraso → recargo 20.000, total 70.000
+  const L4 = mk({ capital: 20000, tasa: 60, fechaEntrega: '2026-02-01', primerVto: '2026-03-01', cuotas: 1, schedule: [{ n: 1, vto: '2026-03-01', capital: 20000, interes: 30000 }] });
+  const s4 = loanState(L4, [], S, '2026-03-06');
+  check('4. Mora con recargo', 'días de atraso', s4.cuotas[0].dias, 5);
+  check('4. Mora con recargo', 'recargo', s4.cuotas[0].recRem, 20000);
+  check('4. Mora con recargo', 'total a la fecha', s4.cuotas[0].pend, 70000);
+  // el recargo deja de crecer sobre lo pagado: paga 30.000 el día 5 → 20.000 recargo + 10.000 interés
+  const s4b = loanState(L4, [{ id: 'd', loanId: L4.id, fecha: '2026-03-06', monto: 30000, medio: 'transferencia' }], S, '2026-03-11');
+  check('4. Mora con recargo', 'pago imputado primero a recargo', s4b.pays[0].rec, 20000);
+  check('4. Mora con recargo', 'recargo nuevo sólo sobre 40.000 impagos (5 días)', s4b.cuotas[0].recRem, 16000);
+
+  // 5) Mora con tope 30% → recargo máximo 15.000
+  const S5 = Object.assign({}, S, { moraTope: 30 });
+  const s5 = loanState(L4, [], S5, '2026-03-06');
+  check('5. Mora con tope', 'recargo topeado (30% de 50.000)', s5.cuotas[0].recRem, 15000);
+  check('5. Mora con tope', 'total a la fecha', s5.cuotas[0].pend, 65000);
+  const s5b = loanState(L4, [], S5, '2026-04-30');
+  check('5. Mora con tope', 'no crece pasado el tope', s5b.cuotas[0].recRem, 15000);
+
+  const allOk = res.every(r => r.ok);
+  if (!silent){
+    console.log('%cAUTOTEST ' + (allOk ? 'OK ✔' : 'FALLÓ ✘'), 'font-weight:bold;color:' + (allOk ? 'green' : 'red'));
+    console.table(res);
+  }
+  return { ok: allOk, results: res };
+}
+window.autotest = autotest;
+
+/* =========================================================
+   DATOS
+   ========================================================= */
+let DB, CACHE = null;
+const S = () => DB.settings;
+function blank(){ return { v: 1, settings: Object.assign({}, DEF_SETTINGS), clients: [], loans: [], payments: [], seeded: false }; }
+function normalize(d){
+  const b = blank();
+  if (!d || typeof d !== 'object') return b;
+  b.settings = Object.assign({}, DEF_SETTINGS, d.settings || {});
+  b.clients = Array.isArray(d.clients) ? d.clients : [];
+  b.loans = Array.isArray(d.loans) ? d.loans : [];
+  b.payments = Array.isArray(d.payments) ? d.payments : [];
+  b.seeded = !!d.seeded;
+  return b;
+}
+function validBackup(d){
+  if (!d || typeof d !== 'object' || !Array.isArray(d.clients) || !Array.isArray(d.loans) || !Array.isArray(d.payments)) return 'Faltan clientes, préstamos o pagos.';
+  for (const L of d.loans){
+    if (!L.id || !L.clientId || !(L.capital > 0) || !Array.isArray(L.schedule) || !isDate(L.fechaEntrega)) return 'Hay un préstamo con datos inválidos.';
+  }
+  for (const p of d.payments){ if (!p.id || !p.loanId || !(p.monto > 0) || !isDate(p.fecha)) return 'Hay un pago con datos inválidos.'; }
+  return null;
+}
+function load(){ try { const raw = localStorage.getItem(KEY); if (raw) return normalize(JSON.parse(raw)); } catch (e) { console.error(e); } return null; }
+function save(){
+  try { localStorage.setItem(KEY, JSON.stringify(DB)); }
+  catch (e){ toast('⚠️ No se pudo guardar: ' + e.message); }
+  CACHE = null;
+}
+function client(id){ return DB.clients.find(c => c.id === id); }
+function loan(id){ return DB.loans.find(l => l.id === id); }
+
+function all(){
+  if (CACHE && CACHE.day === todayStr()) return CACHE;
+  const today = todayStr();
+  const states = new Map();
+  for (const L of DB.loans) states.set(L.id, loanState(L, DB.payments, S(), today));
+  CACHE = { day: today, states };
+  return CACHE;
+}
+function stOf(id){ return all().states.get(id); }
+function clientSummary(cid){
+  const loans = DB.loans.filter(l => l.clientId === cid);
+  let pend = 0, mora = 0, maxDias = 0, activos = 0;
+  for (const L of loans){ const st = stOf(L.id); pend += st.T.pend; mora += st.T.mora; maxDias = Math.max(maxDias, st.T.maxDias); if (st.estado !== 'cancelado') activos++; }
+  return { loans, pend: r2(pend), mora: r2(mora), maxDias, activos, estado: mora > EPS ? 'mora' : 'aldia' };
+}
+
+/* =========================================================
+   DEMO
+   ========================================================= */
+function loadDemo(){
+  const T = todayStr(), Sx = S();
+  const cl = [
+    { id: uid(), nombre: 'Carlos Gómez', tel: '11 5555-0101', tasa: 60, notas: 'Cliente de hace años', demo: true },
+    { id: uid(), nombre: 'Laura Benítez', tel: '11 5555-0202', tasa: 70, notas: '', demo: true },
+    { id: uid(), nombre: 'Diego Ríos', tel: '11 5555-0303', tasa: 60, notas: 'Paga a fin de mes', demo: true }
+  ];
+  DB.clients.push(...cl);
+  const mkL = (c, capital, tasa, entrega, primerVto, cuotas, tipo) => {
+    const L = { id: uid(), clientId: c.id, capital, tasa, fechaEntrega: entrega, primerVto, cuotas, tipo: tipo || 'mensual', notas: '', demo: true, creado: Date.now() };
+    L.schedule = genSchedule(L, Sx); DB.loans.push(L); return L;
+  };
+  const pv1 = addDays(addMonths(T, -2), 12);
+  const L1 = mkL(cl[0], 100000, 60, addMonths(pv1, -1), pv1, 3);                     // 2 cuotas pagas, 1 pendiente
+  const pv4 = addMonths(T, -4);
+  const L4 = mkL(cl[0], 80000, 60, addMonths(pv4, -1), pv4, 2);                      // cancelado
+  const pv2 = addDays(T, -4);
+  const L2 = mkL(cl[1], 150000, 70, addMonths(pv2, -1), pv2, 3);                     // cuota 1 en mora
+  const e5 = addDays(T, -3);
+  mkL(cl[1], 120000, 70, e5, addMonths(e5, 1), 6);                                    // recién entregado
+  const e3 = addDays(T, -20);
+  mkL(cl[2], 50000, 60, e3, addMonths(e3, 1), 1, 'unico');                           // pago único
+  let ts = 1;
+  const pay = (L, fecha, medio, monto) => {
+    if (monto === undefined) monto = quote(L, DB.payments, Sx, fecha, medio, 'next');
+    DB.payments.push({ id: uid(), loanId: L.id, fecha, monto, medio, nota: '', demo: true, ts: ts++ });
+  };
+  pay(L1, L1.schedule[0].vto, 'transferencia');
+  pay(L1, addDays(L1.schedule[1].vto, -1), 'efectivo');
+  pay(L4, L4.schedule[0].vto, 'efectivo');
+  pay(L4, addDays(L4.schedule[1].vto, 2), 'transferencia');   // pagó con 2 días de atraso (recargo cobrado)
+  pay(L2, L2.schedule[0].vto, 'transferencia', 100000);       // parcial; el resto quedó en mora
+  DB.seeded = true;
+  save();
+}
+function clearDemo(){
+  const ids = new Set(DB.loans.filter(l => l.demo).map(l => l.id));
+  DB.payments = DB.payments.filter(p => !p.demo && !ids.has(p.loanId));
+  DB.loans = DB.loans.filter(l => !l.demo);
+  const used = new Set(DB.loans.map(l => l.clientId));
+  DB.clients = DB.clients.filter(c => !c.demo || used.has(c.id));
+  save();
+}
+const hasDemo = () => DB.clients.some(c => c.demo) || DB.loans.some(l => l.demo);
+
+/* =========================================================
+   UI BASE
+   ========================================================= */
+const $ = (s, el) => (el || document).querySelector(s);
+const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
+let TAB = 'cal';
+const VIEW = { month: todayStr().slice(0, 7), resFiltro: 'mes', resMes: todayStr().slice(0, 7), preTab: 'activos', cliQ: '' };
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toastT); toastT = setTimeout(() => t.style.display = 'none', 2600); }
+function openSheet(title, html, after){
+  $('#sheetT').textContent = title; $('#sheetB').innerHTML = html;
+  document.body.classList.add('sheet-open'); $('#sheet').scrollTop = 0;
+  if (after) after($('#sheetB'));
+}
+function closeSheet(){ document.body.classList.remove('sheet-open'); $('#sheetB').innerHTML = ''; }
+function render(){
+  $$('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB));
+  const v = $('#view');
+  const titles = { cal: 'Calendario', res: 'Resumen', cli: 'Clientes', pre: 'Préstamos', aju: 'Ajustes' };
+  $('#title').textContent = titles[TAB];
+  $('#hdrx').innerHTML = (TAB === 'cli' ? '<button class="btn sm pri" data-act="newClient">+ Cliente</button>' : TAB === 'pre' || TAB === 'cal' ? '<button class="btn sm pri" data-act="newLoan">+ Préstamo</button>' : '');
+  v.innerHTML = ({ cal: viewCal, res: viewRes, cli: viewCli, pre: viewPre, aju: viewAju })[TAB]();
+}
+function backupBanner(){
+  const hasData = DB.loans.length > 0;
+  if (!hasData) return '';
+  const lb = S().lastBackup;
+  const days = lb ? diffDays(lb.slice(0, 10), todayStr()) : null;
+  if (days !== null && days <= 7) return '';
+  return '<div class="banner warn" data-act="goBackup" style="cursor:pointer">💾 ' + (lb ? 'Pasaron ' + days + ' días desde tu último backup.' : 'Todavía no hiciste ningún backup.') + ' Si se borran los datos del navegador, se pierde todo. <b>Exportar ahora →</b></div>';
+}
+const estadoChip = (e, dias) => e === 'mora' ? '<span class="chip bad">En mora' + (dias ? ' · ' + dias + ' d' : '') + '</span>' : e === 'cancelado' ? '<span class="chip neu">Cancelado</span>' : '<span class="chip ok">Al día</span>';
+const cuotaChip = c => c.estado === 'pagada' ? '<span class="chip ok">Pagada</span>' : c.estado === 'mora' ? '<span class="chip bad">Mora · ' + c.dias + ' d</span>' : c.estado === 'hoy' ? '<span class="chip warn">Vence hoy</span>' : c.parcial ? '<span class="chip warn">Parcial</span>' : '<span class="chip neu">Pendiente</span>';
+const medioTxt = m => m === 'efectivo' ? '💵 Efectivo' : '🏦 Transferencia';
+
+/* ---------- Calendario ---------- */
+function calIndex(){
+  const idx = {};
+  const get = d => idx[d] || (idx[d] = { ent: [], cob: [], vto: [] });
+  for (const L of DB.loans){
+    get(L.fechaEntrega).ent.push(L);
+    const st = stOf(L.id);
+    for (const c of st.cuotas) get(c.vto).vto.push({ L, c });
+  }
+  for (const p of DB.payments) get(p.fecha).cob.push(p);
+  return idx;
+}
+function viewCal(){
+  const [y, m] = VIEW.month.split('-').map(Number);
+  const offset = (new Date(Date.UTC(y, m - 1, 1)).getUTCDay() + 6) % 7;
+  const nDays = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const idx = calIndex(), today = todayStr();
+  let h = backupBanner();
+  // alerta de mora
+  let moraTot = 0, moraN = 0;
+  for (const st of all().states.values()){ moraTot += st.T.mora; moraN += st.T.moraCuotas; }
+  if (moraN) h += '<div class="banner bad" data-act="moraList" style="cursor:pointer">⚠️ <b>' + moraN + ' cuota' + (moraN > 1 ? 's' : '') + ' en mora</b> · ' + money(moraTot) + ' con recargo a hoy. Ver detalle →</div>';
+  h += '<div class="calhead"><button class="iconbtn" data-act="mPrev" aria-label="Mes anterior">‹</button><h2>' + MES[m - 1] + ' ' + y + '</h2><button class="iconbtn" data-act="mNext" aria-label="Mes siguiente">›</button><button class="btn sm" data-act="mHoy">Hoy</button></div>';
+  h += '<div class="cal">' + ['Lu','Ma','Mi','Ju','Vi','Sá','Do'].map(d => '<div class="wd">' + d + '</div>').join('');
+  for (let i = 0; i < offset; i++) h += '<div class="d out"></div>';
+  let mesVence = 0, mesCob = 0, mesEnt = 0;
+  for (let d = 1; d <= nDays; d++){
+    const ds = VIEW.month + '-' + pad2(d), e = idx[ds];
+    let dots = '', mora = false;
+    if (e){
+      if (e.ent.length) dots += '<i class="dot ent"></i>';
+      if (e.cob.length) dots += '<i class="dot cob"></i>';
+      const pend = e.vto.filter(x => x.c.estado !== 'pagada');
+      if (pend.some(x => x.c.estado === 'mora')){ dots += '<i class="dot mora"></i>'; mora = true; }
+      if (pend.some(x => x.c.estado !== 'mora')) dots += '<i class="dot vto"></i>';
+      e.vto.forEach(x => mesVence += x.c.total);
+      e.cob.forEach(p => mesCob += p.monto);
+      e.ent.forEach(L => mesEnt += L.capital);
+    }
+    h += '<div class="d' + (ds === today ? ' today' : '') + (mora ? ' hasmora' : '') + '" data-act="day" data-d="' + ds + '"><span class="n">' + d + '</span><span class="dots">' + dots + '</span></div>';
+  }
+  h += '</div>';
+  h += '<div class="legend"><span><i class="dot ent"></i>Préstamo entregado</span><span><i class="dot cob"></i>Cobro recibido</span><span><i class="dot vto"></i>Vencimiento pendiente</span><span><i class="dot mora"></i>Mora</span></div>';
+  h += '<div class="kpis"><div class="kpi"><div class="l">Prestado en ' + MES[m - 1] + '</div><div class="v">' + money(mesEnt) + '</div></div><div class="kpi"><div class="l">Cobrado en ' + MES[m - 1] + '</div><div class="v">' + money(mesCob) + '</div></div><div class="kpi big"><div class="l">Cuotas que vencen en ' + MES[m - 1] + ' (sin recargo)</div><div class="v">' + money(mesVence) + '</div></div></div>';
+  h += '<p class="muted small" style="margin-top:12px">Tocá un día para ver el detalle y cargar préstamos o cobros.</p>';
+  return h;
+}
+function dayDetail(ds){
+  const e = calIndex()[ds] || { ent: [], cob: [], vto: [] };
+  let h = '<div class="row" style="gap:8px;margin-bottom:6px"><button class="btn pri grow" data-act="newLoan" data-d="' + ds + '">+ Préstamo</button><button class="btn pri grow" data-act="newPay" data-d="' + ds + '">+ Cobro</button></div>';
+  h += '<div class="sec-t">Vencimientos</div>';
+  if (!e.vto.length) h += '<div class="muted small">Sin vencimientos.</div>';
+  for (const { L, c } of e.vto) h += cuotaBox(L, c, true);
+  h += '<div class="sec-t">Cobros recibidos</div>';
+  if (!e.cob.length) h += '<div class="muted small">Sin cobros.</div>';
+  for (const p of e.cob){
+    const L = loan(p.loanId), cl = L && client(L.clientId), a = stOf(p.loanId).pays.find(x => x.id === p.id);
+    h += '<div class="item" data-act="openLoan" data-id="' + p.loanId + '"><div class="grow"><div class="t">' + esc(cl ? cl.nombre : '?') + '</div><div class="small muted">' + medioTxt(p.medio) + (a && a.desc ? ' · descuento ' + money(a.desc) : '') + (a && a.rec ? ' · recargo ' + money(a.rec) : '') + '</div></div><div class="amt" style="color:var(--cob)">' + money(p.monto) + '</div></div>';
+  }
+  h += '<div class="sec-t">Préstamos entregados</div>';
+  if (!e.ent.length) h += '<div class="muted small">Sin préstamos entregados.</div>';
+  for (const L of e.ent){ const cl = client(L.clientId); h += '<div class="item" data-act="openLoan" data-id="' + L.id + '"><div class="grow"><div class="t">' + esc(cl ? cl.nombre : '?') + '</div><div class="small muted">' + pct(L.tasa) + ' mensual · ' + (L.tipo === 'unico' ? 'pago único' : L.cuotas + ' cuotas') + '</div></div><div class="amt" style="color:var(--ent)">' + money(L.capital) + '</div></div>'; }
+  openSheet(fdateLong(ds).replace(/^./, x => x.toUpperCase()), h);
+}
+/** Caja de una cuota con desglose cuota + recargo = total. */
+function cuotaBox(L, c, withActions){
+  const cl = client(L.clientId);
+  const st = stOf(L.id);
+  let h = '<div class="q' + (c.estado === 'mora' ? ' mora' : '') + '"><div class="row between"><div><b>' + esc(cl ? cl.nombre : '?') + '</b> <span class="muted small">cuota ' + c.n + '/' + L.schedule.length + ' · vence ' + fdate(c.vto) + '</span></div>' + cuotaChip(c) + '</div>';
+  if (c.estado === 'pagada'){
+    h += '<div class="small muted" style="margin-top:4px">Pagada el ' + fdate(c.pagadaEl) + ' · ' + money(c.capital + c.intCash + c.recPaid) + (c.desc ? ' (descuento efectivo ' + money(c.desc) + ')' : '') + '</div>';
+  } else {
+    h += '<div class="br"><div>Cuota' + (c.parcial ? ' (saldo)' : '') + '</div><div>' + money(c.cuotaRem) + '</div>';
+    if (c.recRem > 0 || c.estado === 'mora') h += '<div>Recargo ' + (c.dias ? '(' + c.dias + ' d × ' + pct(S().moraPct) + ')' : '') + (c.topeOn ? ' <span class="chip warn">tope</span>' : '') + '</div><div style="color:var(--bad)">' + money(c.recRem) + '</div>';
+    h += '<div class="tot">Total a hoy</div><div class="tot">' + money(c.pend) + '</div>';
+    if (st.k < 1) h += '<div class="muted small">En efectivo (' + pct(L.tasa - S().descPts) + ')</div><div class="muted small">' + money(c.pendCash) + '</div>';
+    h += '</div>';
+    if (withActions) h += '<div class="row" style="margin-top:8px;gap:6px"><button class="btn sm pri" data-act="newPay" data-loan="' + L.id + '">Registrar cobro</button><button class="btn sm" data-act="openLoan" data-id="' + L.id + '">Ver préstamo</button>' + (cl && cl.tel ? '<button class="btn sm" data-act="wa" data-id="' + cl.id + '">WhatsApp</button>' : '') + '</div>';
+  }
+  return h + '</div>';
+}
+function moraList(){
+  let h = '';
+  for (const st of all().states.values()) for (const c of st.cuotas) if (c.estado === 'mora') h += cuotaBox(st.loan, c, true);
+  openSheet('Cuotas en mora', h || '<div class="empty">No hay cuotas en mora.</div>');
+}
+
+/* ---------- Resumen ---------- */
+function viewRes(){
+  const f = VIEW.resFiltro, mes = VIEW.resMes;
+  const inP = d => f === 'total' || (d && d.slice(0, 7) === mes);
+  let prestado = 0, cobrado = 0, intC = 0, recC = 0, desc = 0, capC = 0, nPrest = 0;
+  let calle = 0, porCobrar = 0, mora = 0, moraN = 0, venceMes = 0;
+  for (const L of DB.loans){
+    const st = stOf(L.id);
+    if (inP(L.fechaEntrega)){ prestado += L.capital; nPrest++; }
+    for (const a of st.pays) if (inP(a.fecha)){ cobrado += a.monto - a.sobrante; intC += a.int; recC += a.rec; desc += a.desc; capC += a.cap; }
+    calle += st.T.capRem; porCobrar += st.T.pend; mora += st.T.mora; moraN += st.T.moraCuotas;
+    if (f === 'mes') for (const c of st.cuotas) if (c.vto.slice(0, 7) === mes) venceMes += c.pend;
+  }
+  const gan = intC + recC;
+  const [y, m] = mes.split('-').map(Number);
+  let h = backupBanner();
+  h += '<div class="seg" style="margin:6px 0"><button data-act="resF" data-f="mes" class="' + (f === 'mes' ? 'on' : '') + '">Por mes</button><button data-act="resF" data-f="total" class="' + (f === 'total' ? 'on' : '') + '">Total histórico</button></div>';
+  if (f === 'mes') h += '<div class="calhead"><button class="iconbtn" data-act="rPrev">‹</button><h2>' + MES[m - 1] + ' ' + y + '</h2><button class="iconbtn" data-act="rNext">›</button></div>';
+  const per = f === 'mes' ? 'en ' + MES[m - 1] : 'histórico';
+  h += '<div class="sec-t">Movimientos ' + per + '</div><div class="kpis">';
+  h += kpi('Capital prestado', prestado, nPrest + ' préstamo' + (nPrest === 1 ? '' : 's'));
+  h += kpi('Total cobrado', cobrado, 'capital ' + money(capC) + ' + ganancia ' + money(gan));
+  h += kpi('Ganancia realizada', gan, 'intereses + recargos cobrados, neta de descuentos', 'ok big');
+  h += kpi('Intereses cobrados', intC, 'ya descontado el efectivo');
+  h += kpi('Recargos por atraso cobrados', recC, '');
+  h += kpi('Descuentos por efectivo', desc, 'lo que dejaste de cobrar por los ' + S().descPts + ' puntos');
+  h += '</div><div class="sec-t">Foto a hoy (' + fdate(todayStr()) + ')</div><div class="kpis">';
+  h += kpi('Capital en la calle', calle, 'capital prestado aún no devuelto', 'big');
+  h += kpi('Plata por cobrar', porCobrar, 'capital + interés + recargos a hoy');
+  h += kpi('Plata en mora', mora, moraN + ' cuota' + (moraN === 1 ? '' : 's') + ' vencida' + (moraN === 1 ? '' : 's') + ', con recargo', mora > 0 ? 'bad' : '');
+  if (f === 'mes') h += kpi('Pendiente que vence en ' + MES[m - 1], venceMes, 'saldo de cuotas con vencimiento este mes');
+  h += '</div><p class="muted tiny" style="margin-top:12px">Ganancia realizada = intereses + recargos efectivamente cobrados (en efectivo ya incluye el descuento). El capital devuelto no es ganancia.</p>';
+  return h;
+}
+function kpi(l, v, s, cls){ return '<div class="kpi ' + (cls || '') + '"><div class="l">' + l + '</div><div class="v">' + money(v) + '</div>' + (s ? '<div class="s">' + s + '</div>' : '') + '</div>'; }
+
+/* ---------- Clientes ---------- */
+function viewCli(){
+  const q = VIEW.cliQ.trim().toLowerCase();
+  let h = backupBanner() + '<input class="i search" type="search" placeholder="Buscar cliente…" value="' + esc(VIEW.cliQ) + '" data-in="cliQ">';
+  const list = DB.clients.filter(c => !q || c.nombre.toLowerCase().includes(q))
+    .map(c => ({ c, s: clientSummary(c.id) }))
+    .sort((a, b) => (b.s.mora > 0) - (a.s.mora > 0) || b.s.pend - a.s.pend || a.c.nombre.localeCompare(b.c.nombre));
+  if (!DB.clients.length) return h + '<div class="empty">Todavía no cargaste clientes.<br><br><button class="btn pri" data-act="newClient">+ Nuevo cliente</button></div>';
+  h += '<div class="card" style="padding:0 14px">';
+  for (const { c, s } of list){
+    h += '<div class="item" data-act="openClient" data-id="' + c.id + '"><div class="grow"><div class="t">' + esc(c.nombre) + '</div><div class="small muted">Tasa ' + pct(c.tasa) + ' · ' + s.activos + ' activo' + (s.activos === 1 ? '' : 's') + '</div></div><div style="text-align:right"><div class="amt">' + money(s.pend) + '</div>' + (s.pend > EPS ? estadoChip(s.estado, s.maxDias) : '<span class="chip neu">Sin deuda</span>') + '</div></div>';
+  }
+  return h + '</div>';
+}
+function openClient(id){
+  const c = client(id); if (!c) return;
+  const s = clientSummary(id);
+  let h = '<div class="row between wrapf"><div><div class="small muted">' + (c.tel ? esc(c.tel) : 'Sin teléfono') + ' · tasa ' + pct(c.tasa) + '</div>' + (c.notas ? '<div class="small">' + esc(c.notas) + '</div>' : '') + '</div>' + (s.pend > EPS ? estadoChip(s.estado, s.maxDias) : '') + '</div>';
+  h += '<div class="kpis" style="margin-top:10px"><div class="kpi"><div class="l">Debe a hoy</div><div class="v">' + money(s.pend) + '</div></div><div class="kpi ' + (s.mora ? 'bad' : '') + '"><div class="l">En mora</div><div class="v">' + money(s.mora) + '</div></div></div>';
+  h += '<div class="row wrapf" style="gap:6px;margin-top:10px">' + (c.tel ? '<button class="btn pri" data-act="wa" data-id="' + c.id + '">WhatsApp recordatorio</button>' : '') + '<button class="btn" data-act="newLoan" data-client="' + c.id + '">+ Préstamo</button>' + (s.activos ? '<button class="btn" data-act="newPay" data-client="' + c.id + '">+ Cobro</button>' : '') + '<button class="btn" data-act="editClient" data-id="' + c.id + '">Editar</button></div>';
+  h += '<div class="sec-t">Préstamos</div>';
+  if (!s.loans.length) h += '<div class="muted small">Sin préstamos.</div>';
+  for (const L of s.loans.slice().sort((a, b) => b.fechaEntrega.localeCompare(a.fechaEntrega))) h += loanRow(L);
+  const pays = DB.payments.filter(p => s.loans.some(l => l.id === p.loanId)).sort((a, b) => b.fecha.localeCompare(a.fecha));
+  h += '<div class="sec-t">Pagos</div>' + (pays.length ? payList(pays) : '<div class="muted small">Sin pagos.</div>');
+  h += '<hr class="s"><button class="btn danger block" data-act="delClient" data-id="' + c.id + '">Borrar cliente</button>';
+  openSheet(c.nombre, h);
+}
+function payList(pays){
+  let h = '';
+  for (const p of pays){
+    const a = stOf(p.loanId).pays.find(x => x.id === p.id) || {};
+    const parts = [];
+    if (a.rec) parts.push('recargo ' + money(a.rec));
+    if (a.int) parts.push('interés ' + money(a.int));
+    if (a.cap) parts.push('capital ' + money(a.cap));
+    h += '<div class="item" style="cursor:default"><div class="grow"><div class="t">' + fdate(p.fecha) + ' · ' + medioTxt(p.medio) + '</div><div class="small muted">' + parts.join(' · ') + (a.desc ? ' · <span style="color:var(--ok)">descuento ' + money(a.desc) + '</span>' : '') + (a.cuotas && a.cuotas.length ? ' · cuota' + (a.cuotas.length > 1 ? 's ' : ' ') + a.cuotas.join(', ') : '') + (p.nota ? '<br>' + esc(p.nota) : '') + '</div></div><div class="amt">' + money(p.monto) + '<br><button class="btn sm danger" style="margin-top:4px" data-act="delPay" data-id="' + p.id + '">Borrar</button></div></div>';
+  }
+  return h;
+}
+function waLink(id){
+  const c = client(id); if (!c || !c.tel) return null;
+  let tel = String(c.tel).replace(/\D/g, '');
+  if (tel.startsWith('0')) tel = tel.slice(1);
+  if (!tel.startsWith('54')){ tel = tel.replace(/^(\d{2,4})15/, '$1'); tel = '549' + tel; }
+  const today = todayStr(), lines = [];
+  let cuota = 0, rec = 0;
+  const mora = [], next = [];
+  for (const L of DB.loans.filter(l => l.clientId === id)){
+    const st = stOf(L.id);
+    for (const q of st.cuotas){ if (q.estado === 'mora' || q.estado === 'hoy') mora.push({ L, q }); else if (q.estado === 'pendiente') next.push({ L, q }); }
+  }
+  const nombre = c.nombre.split(' ')[0];
+  if (mora.length){
+    lines.push('Hola ' + nombre + ', ¿cómo estás? Te escribo por ' + (mora.length > 1 ? 'tus cuotas' : 'tu cuota') + ':');
+    for (const { L, q } of mora){
+      cuota += q.cuotaRem; rec += q.recRem;
+      lines.push('• Cuota ' + q.n + '/' + L.schedule.length + ' (vto. ' + fdate(q.vto) + '): ' + money(q.cuotaRem) + (q.dias ? ' + recargo por ' + q.dias + ' día' + (q.dias > 1 ? 's' : '') + ' de atraso ' + money(q.recRem) : ''));
+    }
+    lines.push('Monto de cuota: ' + money(cuota));
+    lines.push('Recargo acumulado: ' + money(rec));
+    lines.push('Total a la fecha (' + fdate(today) + '): ' + money(cuota + rec));
+    lines.push('El recargo sigue sumando por día. Avisame cuándo lo pasás. ¡Gracias!');
+  } else if (next.length){
+    next.sort((a, b) => a.q.vto.localeCompare(b.q.vto));
+    const { L, q } = next[0];
+    lines.push('Hola ' + nombre + ', ¿cómo estás? Te recuerdo que el ' + fdate(q.vto) + ' vence tu cuota ' + q.n + '/' + L.schedule.length + '.');
+    lines.push('Monto de cuota: ' + money(q.cuotaRem));
+    lines.push('Recargo acumulado: ' + money(0));
+    lines.push('Total a la fecha: ' + money(q.cuotaRem));
+    lines.push('¡Gracias!');
+  } else {
+    lines.push('Hola ' + nombre + ', ¿cómo estás?');
+  }
+  return 'https://wa.me/' + tel + '?text=' + encodeURIComponent(lines.join('\n'));
+}
+function clientForm(id, back){
+  const c = id ? client(id) : { nombre: '', tel: '', tasa: 60, notas: '' };
+  const other = c.tasa !== 60 && c.tasa !== 70;
+  const h = '<form id="fCli" novalidate>' +
+    '<label class="f"><span>Nombre y apellido *</span><input class="i" name="nombre" value="' + esc(c.nombre) + '" required autocomplete="off"></label>' +
+    '<label class="f"><span>Teléfono (WhatsApp)</span><input class="i" name="tel" type="tel" inputmode="tel" placeholder="11 5555-1234" value="' + esc(c.tel) + '"></label>' +
+    tasaPicker(c.tasa, other) +
+    '<label class="f"><span>Notas</span><textarea class="i" name="notas">' + esc(c.notas) + '</textarea></label>' +
+    '<div class="err" id="eCli"></div><button class="btn pri block" style="margin-top:8px">Guardar</button>' +
+    (id ? '<p class="muted tiny">Cambiar la tasa del cliente no modifica los préstamos ya cargados.</p>' : '') + '</form>';
+  openSheet(id ? 'Editar cliente' : 'Nuevo cliente', h, el => {
+    bindTasa(el);
+    $('#fCli').onsubmit = ev => {
+      ev.preventDefault();
+      const f = ev.target, nombre = f.nombre.value.trim(), tasa = readTasa(f);
+      const tel = f.tel.value.trim();
+      if (nombre.length < 2) return $('#eCli').textContent = 'Poné el nombre del cliente.';
+      if (!(tasa > 0 && tasa <= 1000)) return $('#eCli').textContent = 'La tasa tiene que ser un número mayor a 0.';
+      if (tel && tel.replace(/\D/g, '').length < 8) return $('#eCli').textContent = 'El teléfono parece incompleto (con código de área).';
+      let cid = id;
+      if (id) Object.assign(c, { nombre, tel, tasa, notas: f.notas.value.trim() });
+      else { cid = uid(); DB.clients.push({ id: cid, nombre, tel, tasa, notas: f.notas.value.trim() }); }
+      save(); render(); toast('Cliente guardado');
+      if (back) back(cid); else openClient(cid);
+    };
+  });
+}
+function tasaPicker(t, other){
+  return '<div class="f" style="margin:10px 0"><span class="muted small" style="display:block;font-weight:600;margin-bottom:4px">Tasa mensual</span><div class="radios">' +
+    '<label><input type="radio" name="tasaOpt" value="60"' + (t === 60 && !other ? ' checked' : '') + '><span>60%</span></label>' +
+    '<label><input type="radio" name="tasaOpt" value="70"' + (t === 70 && !other ? ' checked' : '') + '><span>70%</span></label>' +
+    '<label><input type="radio" name="tasaOpt" value="otra"' + (other ? ' checked' : '') + '><span>Otra</span></label></div>' +
+    '<input class="i" name="tasaOtra" inputmode="decimal" placeholder="Ej: 50" style="margin-top:6px;' + (other ? '' : 'display:none') + '" value="' + (other ? esc(t) : '') + '"></div>';
+}
+function bindTasa(el){ $$('input[name=tasaOpt]', el).forEach(r => r.addEventListener('change', () => { const o = $('input[name=tasaOtra]', el); o.style.display = r.value === 'otra' && r.checked ? '' : (r.checked ? 'none' : o.style.display); if (r.value === 'otra' && r.checked) o.focus(); })); }
+function readTasa(f){ const o = f.querySelector('input[name=tasaOpt]:checked'); if (!o) return NaN; return o.value === 'otra' ? parseMonto(f.tasaOtra.value) : Number(o.value); }
+function setTasa(f, t){ const r = f.querySelector('input[name=tasaOpt][value="' + (t === 60 || t === 70 ? t : 'otra') + '"]'); if (r){ r.checked = true; r.dispatchEvent(new Event('change')); } if (t !== 60 && t !== 70) f.tasaOtra.value = t; }
+
+/* ---------- Préstamos ---------- */
+function viewPre(){
+  const t = VIEW.preTab;
+  let h = backupBanner() + '<div class="seg" style="margin:6px 0 10px"><button data-act="preT" data-t="activos" class="' + (t === 'activos' ? 'on' : '') + '">Activos</button><button data-act="preT" data-t="cancelados" class="' + (t === 'cancelados' ? 'on' : '') + '">Cancelados</button></div>';
+  const list = DB.loans.filter(L => (stOf(L.id).estado === 'cancelado') === (t === 'cancelados'))
+    .sort((a, b) => (stOf(b.id).estado === 'mora') - (stOf(a.id).estado === 'mora') || b.fechaEntrega.localeCompare(a.fechaEntrega));
+  if (!list.length) return h + '<div class="empty">' + (t === 'activos' ? 'No hay préstamos activos.<br><br><button class="btn pri" data-act="newLoan">+ Nuevo préstamo</button>' : 'No hay préstamos cancelados.') + '</div>';
+  return h + list.map(loanRow).join('');
+}
+function loanRow(L){
+  const st = stOf(L.id), cl = client(L.clientId);
+  const pagadas = st.cuotas.filter(c => c.estado === 'pagada').length;
+  const prog = Math.round(pagadas / st.cuotas.length * 100);
+  return '<div class="card" data-act="openLoan" data-id="' + L.id + '" style="cursor:pointer"><div class="row between"><div class="grow"><div class="t" style="font-weight:700">' + esc(cl ? cl.nombre : '?') + '</div><div class="small muted">' + money(L.capital) + ' al ' + pct(L.tasa) + ' · ' + (L.tipo === 'unico' ? 'pago único' : L.schedule.length + ' cuotas') + ' · ' + fdate(L.fechaEntrega) + '</div></div>' + estadoChip(st.estado, st.T.maxDias) + '</div>' +
+    '<div class="row between" style="margin-top:8px"><div class="small muted">' + pagadas + '/' + st.cuotas.length + ' cuotas pagas</div><div class="amt">' + (st.estado === 'cancelado' ? 'Cobrado ' + money(st.T.cobrado) : 'Saldo ' + money(st.T.pend)) + '</div></div>' +
+    '<div style="height:6px;background:var(--line);border-radius:3px;margin-top:6px;overflow:hidden"><div style="height:100%;width:' + prog + '%;background:var(--brand)"></div></div></div>';
+}
+function openLoan(id){
+  const L = loan(id); if (!L) return;
+  const st = stOf(id), cl = client(L.clientId);
+  let h = '<div class="row between wrapf"><div class="small muted">Entregado ' + fdate(L.fechaEntrega) + ' · ' + pct(L.tasa) + ' mensual' + (st.k < 1 ? ' (' + pct(L.tasa - S().descPts) + ' en efectivo)' : '') + ' · ' + (L.tipo === 'unico' ? 'pago único' : L.schedule.length + ' cuotas mensuales') + '</div>' + estadoChip(st.estado, st.T.maxDias) + '</div>';
+  h += '<div class="kpis" style="margin-top:10px"><div class="kpi"><div class="l">Capital</div><div class="v">' + money(L.capital) + '</div></div><div class="kpi"><div class="l">Saldo a hoy</div><div class="v">' + money(st.T.pend) + '</div></div><div class="kpi"><div class="l">Cobrado</div><div class="v">' + money(st.T.cobrado) + '</div></div><div class="kpi ok"><div class="l">Ganancia cobrada</div><div class="v">' + money(st.T.intCobrado + st.T.recCobrado) + '</div></div></div>';
+  h += '<div class="row wrapf" style="gap:6px;margin-top:10px">' + (st.estado !== 'cancelado' ? '<button class="btn pri" data-act="newPay" data-loan="' + id + '">Registrar cobro</button>' : '') + '<button class="btn" data-act="editSched" data-id="' + id + '">Editar cronograma</button><button class="btn" data-act="openClient" data-id="' + L.clientId + '">Ver cliente</button></div>';
+  if (L.notas) h += '<p class="small">' + esc(L.notas) + '</p>';
+  h += '<div class="sec-t">Cronograma' + (L.editado ? ' <span class="chip warn">editado a mano</span>' : '') + '</div>';
+  for (const c of st.cuotas) h += cuotaBox(L, c, false).replace('<b>' + esc(cl ? cl.nombre : '?') + '</b> ', '<b>Cuota ' + c.n + '</b> ').replace(/cuota \d+\/\d+ · /, '');
+  h += '<div class="prev small"><table><tr><td></td><td>Capital</td><td>Interés</td><td>Cuota</td></tr>' + st.cuotas.map(c => '<tr><td>#' + c.n + ' ' + fdate(c.vto) + '</td><td>' + money(c.capital) + '</td><td>' + money(c.interes) + '</td><td>' + money(c.total) + '</td></tr>').join('') + '<tr><td><b>Total</b></td><td><b>' + money(L.capital) + '</b></td><td><b>' + money(st.cuotas.reduce((s, c) => s + c.interes, 0)) + '</b></td><td><b>' + money(st.cuotas.reduce((s, c) => s + c.total, 0)) + '</b></td></tr></table><div class="muted tiny" style="margin-top:4px">Montos originales a tasa nominal, sin descuentos ni recargos.</div></div>';
+  const pays = DB.payments.filter(p => p.loanId === id).sort((a, b) => b.fecha.localeCompare(a.fecha));
+  h += '<div class="sec-t">Pagos</div>' + (pays.length ? payList(pays) : '<div class="muted small">Sin pagos.</div>');
+  h += '<hr class="s"><button class="btn danger block" data-act="delLoan" data-id="' + id + '">Borrar préstamo</button>';
+  openSheet('Préstamo · ' + (cl ? cl.nombre : ''), h);
+}
+function loanForm(opts){
+  opts = opts || {};
+  if (!DB.clients.length){ toast('Primero cargá un cliente'); return clientForm(null, cid => loanForm(Object.assign({}, opts, { client: cid }))); }
+  const fecha = opts.d || todayStr();
+  const cid = opts.client || (DB.clients.length === 1 ? DB.clients[0].id : '');
+  const c0 = cid ? client(cid) : null;
+  const t0 = c0 ? c0.tasa : 60;
+  const h = '<form id="fLoan" novalidate>' +
+    '<label class="f"><span>Cliente *</span><select class="i" name="cliente"><option value="">Elegí…</option>' + DB.clients.slice().sort((a, b) => a.nombre.localeCompare(b.nombre)).map(c => '<option value="' + c.id + '"' + (c.id === cid ? ' selected' : '') + '>' + esc(c.nombre) + '</option>').join('') + '</select></label>' +
+    '<button type="button" class="btn sm" data-act="newClientFromLoan">+ Cliente nuevo</button>' +
+    '<label class="f"><span>Capital prestado ($) *</span><input class="i" name="capital" inputmode="decimal" placeholder="100.000" autocomplete="off"></label>' +
+    tasaPicker(t0, t0 !== 60 && t0 !== 70) +
+    '<div class="f" style="margin:10px 0"><span class="muted small" style="display:block;font-weight:600;margin-bottom:4px">Forma de pago</span><div class="radios"><label><input type="radio" name="tipo" value="mensual" checked><span>Cuotas mensuales</span></label><label><input type="radio" name="tipo" value="unico"><span>Pago único al final</span></label></div></div>' +
+    '<label class="f"><span>Fecha de entrega *</span><input class="i" type="date" name="entrega" value="' + fecha + '"></label>' +
+    '<label class="f" id="wCuotas"><span>Cantidad de cuotas *</span><input class="i" name="cuotas" type="number" inputmode="numeric" min="1" max="120" value="3"></label>' +
+    '<label class="f"><span id="lVto">Primer vencimiento *</span><input class="i" type="date" name="vto" value="' + addMonths(fecha, 1) + '"></label>' +
+    '<label class="f"><span>Notas</span><input class="i" name="notas" autocomplete="off"></label>' +
+    '<div class="prev" id="pLoan"></div><div class="err" id="eLoan"></div>' +
+    '<button class="btn pri block" style="margin-top:10px">Guardar préstamo</button></form>';
+  openSheet('Nuevo préstamo', h, el => {
+    const f = $('#fLoan'); bindTasa(el);
+    let vtoTouched = false;
+    const read = () => {
+      const tipo = f.querySelector('input[name=tipo]:checked').value;
+      return { clientId: f.cliente.value, capital: parseMonto(f.capital.value), tasa: readTasa(f), tipo, fechaEntrega: f.entrega.value, cuotas: tipo === 'unico' ? 1 : parseInt(f.cuotas.value, 10), primerVto: f.vto.value, notas: f.notas.value.trim() };
+    };
+    const validate = L => {
+      if (!L.clientId) return 'Elegí el cliente.';
+      if (!(L.capital > 0)) return 'Poné el capital (número mayor a 0).';
+      if (!(L.tasa > 0 && L.tasa <= 1000)) return 'Revisá la tasa.';
+      if (!isDate(L.fechaEntrega)) return 'Revisá la fecha de entrega.';
+      if (L.tipo === 'mensual' && !(L.cuotas >= 1 && L.cuotas <= 120)) return 'Cantidad de cuotas entre 1 y 120.';
+      if (!isDate(L.primerVto)) return 'Revisá la fecha de vencimiento.';
+      if (L.primerVto <= L.fechaEntrega) return 'El vencimiento tiene que ser posterior a la entrega.';
+      return null;
+    };
+    const upd = () => {
+      const L = read();
+      $('#wCuotas').style.display = L.tipo === 'unico' ? 'none' : '';
+      $('#lVto').textContent = L.tipo === 'unico' ? 'Fecha de vencimiento (pago único) *' : 'Primer vencimiento *';
+      const e = validate(L);
+      if (e){ $('#pLoan').innerHTML = '<span class="muted">' + e + '</span>'; return; }
+      const sch = genSchedule(L, S());
+      const ti = sch.reduce((s, c) => s + c.interes, 0);
+      $('#pLoan').innerHTML = '<table><tr><td><b>Cronograma</b></td><td>Capital</td><td>Interés</td><td>Cuota</td></tr>' + sch.map(c => '<tr><td>#' + c.n + ' ' + fdate(c.vto) + '</td><td>' + money(c.capital) + '</td><td>' + money(c.interes) + '</td><td><b>' + money(c.capital + c.interes) + '</b></td></tr>').join('') + '</table><div style="margin-top:6px">Total a devolver: <b>' + money(L.capital + ti) + '</b> · ganancia ' + money(ti) + '</div><div class="muted tiny">' + (L.tipo === 'unico' ? 'Interés: ' + pct(L.tasa) + ' × ' + NF2.format(sch[0].meses) + ' mes(es) (' + (S().unicoModo === 'fraccion' ? 'proporcional por días' : 'mes empezado = mes completo') + ').' : 'Interés ' + (S().baseInteres === 'fijo' ? 'fijo sobre capital original' : 'sobre saldo de capital') + '.') + ' Lo podés editar después.</div>';
+    };
+    f.cliente.addEventListener('change', () => { const c = client(f.cliente.value); if (c) setTasa(f, c.tasa); upd(); });
+    f.entrega.addEventListener('change', () => { if (!vtoTouched && isDate(f.entrega.value)) f.vto.value = addMonths(f.entrega.value, 1); upd(); });
+    f.vto.addEventListener('change', () => { vtoTouched = true; });
+    f.capital.addEventListener('blur', () => { const n = parseMonto(f.capital.value); if (n > 0) f.capital.value = NF2.format(n); });
+    f.addEventListener('input', upd); f.addEventListener('change', upd); upd();
+    f.onsubmit = ev => {
+      ev.preventDefault();
+      const L = read(), e = validate(L);
+      if (e) return $('#eLoan').textContent = e;
+      L.id = uid(); L.creado = Date.now(); L.schedule = genSchedule(L, S());
+      DB.loans.push(L); save(); render(); toast('Préstamo guardado');
+      openLoan(L.id);
+    };
+  });
+}
+function schedForm(id){
+  const L = loan(id); if (!L) return;
+  const h = '<p class="small muted">Podés cambiar fechas y montos de cada cuota. Los pagos ya cargados se vuelven a imputar solos.</p><form id="fSch" class="sched" novalidate><div class="r tiny muted"><div>#</div><div>Vencimiento</div><div>Capital</div><div>Interés</div></div>' +
+    L.schedule.map((c, i) => '<div class="r"><div>' + c.n + '</div><input class="i" type="date" name="v' + i + '" value="' + c.vto + '"><input class="i" name="c' + i + '" inputmode="decimal" value="' + NF2.format(c.capital) + '"><input class="i" name="n' + i + '" inputmode="decimal" value="' + NF2.format(c.interes) + '"></div>').join('') +
+    '<div class="small" id="sumSch" style="margin-top:6px"></div><div class="err" id="eSch"></div><button class="btn pri block" style="margin-top:10px">Guardar cronograma</button><button type="button" class="btn block" style="margin-top:8px" data-act="regenSched" data-id="' + id + '">Regenerar automático (con ajustes actuales)</button></form>';
+  openSheet('Editar cronograma', h, () => {
+    const f = $('#fSch');
+    const read = () => L.schedule.map((c, i) => ({ n: c.n, vto: f['v' + i].value, capital: parseMonto(f['c' + i].value), interes: parseMonto(f['n' + i].value) }));
+    const upd = () => { const s = read(); const cap = r2(s.reduce((a, c) => a + (c.capital || 0), 0)); $('#sumSch').innerHTML = 'Suma de capital: <b>' + money(cap) + '</b> de ' + money(L.capital) + (Math.abs(cap - L.capital) > 0.5 ? ' <span class="chip warn">no coincide</span>' : ' ✔'); };
+    f.addEventListener('input', upd); upd();
+    f.onsubmit = ev => {
+      ev.preventDefault();
+      const s = read();
+      for (const c of s){ if (!isDate(c.vto)) return $('#eSch').textContent = 'Cuota ' + c.n + ': fecha inválida.'; if (!(c.capital >= 0) || !(c.interes >= 0)) return $('#eSch').textContent = 'Cuota ' + c.n + ': montos inválidos.'; }
+      for (let i = 1; i < s.length; i++) if (s[i].vto < s[i - 1].vto) return $('#eSch').textContent = 'Los vencimientos tienen que estar en orden.';
+      const cap = r2(s.reduce((a, c) => a + c.capital, 0));
+      if (Math.abs(cap - L.capital) > 0.5 && !confirm('La suma del capital (' + money(cap) + ') no coincide con el capital prestado (' + money(L.capital) + '). ¿Guardar igual?')) return;
+      L.schedule = s; L.editado = true; save(); render(); toast('Cronograma actualizado'); openLoan(id);
+    };
+  });
+}
+function payForm(opts){
+  opts = opts || {};
+  const active = DB.loans.filter(L => stOf(L.id).estado !== 'cancelado');
+  if (!active.length){ toast('No hay préstamos activos para cobrar'); return; }
+  const L0 = opts.loan ? loan(opts.loan) : null;
+  const cid = L0 ? L0.clientId : opts.client || '';
+  const clientsA = DB.clients.filter(c => active.some(L => L.clientId === c.id)).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const fecha = opts.d || todayStr();
+  const h = '<form id="fPay" novalidate>' +
+    '<label class="f"><span>Cliente *</span><select class="i" name="cliente"><option value="">Elegí…</option>' + clientsA.map(c => '<option value="' + c.id + '"' + (c.id === cid ? ' selected' : '') + '>' + esc(c.nombre) + '</option>').join('') + '</select></label>' +
+    '<label class="f"><span>Préstamo *</span><select class="i" name="prestamo"></select></label>' +
+    '<label class="f"><span>Fecha del cobro *</span><input class="i" type="date" name="fecha" value="' + fecha + '" max="' + todayStr() + '"></label>' +
+    '<div class="f" style="margin:10px 0"><span class="muted small" style="display:block;font-weight:600;margin-bottom:4px">Medio de pago</span><div class="radios"><label><input type="radio" name="medio" value="efectivo" checked><span>💵 Efectivo</span></label><label><input type="radio" name="medio" value="transferencia"><span>🏦 Transferencia</span></label></div></div>' +
+    '<div id="qBtns" class="row wrapf" style="gap:6px"></div>' +
+    '<label class="f"><span>Monto recibido ($) *</span><input class="i" name="monto" inputmode="decimal" placeholder="0" autocomplete="off"></label>' +
+    '<label class="f"><span>Nota</span><input class="i" name="nota" autocomplete="off"></label>' +
+    '<div class="prev" id="pPay"></div><div class="err" id="ePay"></div>' +
+    '<button class="btn pri block" style="margin-top:10px">Guardar cobro</button></form>';
+  openSheet('Registrar cobro', h, () => {
+    const f = $('#fPay');
+    const fillLoans = sel => {
+      const ls = active.filter(L => L.clientId === f.cliente.value).sort((a, b) => a.fechaEntrega.localeCompare(b.fechaEntrega));
+      f.prestamo.innerHTML = ls.map(L => '<option value="' + L.id + '"' + (L.id === sel ? ' selected' : '') + '>' + money(L.capital) + ' al ' + pct(L.tasa) + ' · ' + fdate(L.fechaEntrega) + ' · saldo ' + money(stOf(L.id).T.pend) + '</option>').join('') || '<option value="">—</option>';
+    };
+    const read = () => ({ loanId: f.prestamo.value, fecha: f.fecha.value, medio: f.querySelector('input[name=medio]:checked').value, monto: parseMonto(f.monto.value), nota: f.nota.value.trim() });
+    const upd = () => {
+      const p = read(), L = loan(p.loanId);
+      $('#ePay').textContent = '';
+      if (!L || !isDate(p.fecha)){ $('#qBtns').innerHTML = ''; $('#pPay').innerHTML = '<span class="muted">Elegí cliente y préstamo.</span>'; return; }
+      const qn = quote(L, DB.payments, S(), p.fecha, p.medio, 'next');
+      const qv = quote(L, DB.payments, S(), p.fecha, p.medio, 'vencido');
+      const qa = quote(L, DB.payments, S(), p.fecha, p.medio, 'all');
+      $('#qBtns').innerHTML = '<button type="button" class="btn sm" data-q="' + qn + '">Próxima cuota ' + money(qn) + '</button>' + (qv !== qn ? '<button type="button" class="btn sm" data-q="' + qv + '">Todo lo vencido ' + money(qv) + '</button>' : '') + (qa !== qn ? '<button type="button" class="btn sm" data-q="' + qa + '">Cancelar todo ' + money(qa) + '</button>' : '');
+      $$('#qBtns [data-q]').forEach(b => b.onclick = () => { f.monto.value = NF2.format(Number(b.dataset.q)); upd(); });
+      let ph = '';
+      const k = cashFactor(L, S());
+      if (p.medio === 'efectivo' && k < 1) ph += '<div style="margin-bottom:6px">💵 Efectivo: la tasa baja de <b>' + pct(L.tasa) + '</b> a <b>' + pct(L.tasa - S().descPts) + '</b> sobre el interés que se pague.</div>';
+      if (p.monto > 0){
+        const a = simulate(L, DB.payments, S(), p);
+        ph += '<table><tr><td>A recargo por atraso</td><td>' + money(a.rec) + '</td></tr><tr><td>A interés</td><td>' + money(a.int) + '</td></tr><tr><td>A capital</td><td>' + money(a.cap) + '</td></tr>' + (a.desc ? '<tr><td style="color:var(--ok)">Descuento por efectivo</td><td style="color:var(--ok)">' + money(a.desc) + '</td></tr>' : '') + '<tr><td>Cuota(s)</td><td>' + (a.cuotas.join(', ') || '—') + '</td></tr></table>';
+        if (a.sobrante > 0.5) ph += '<div class="err">El monto supera la deuda total en ' + money(a.sobrante) + '. Máximo: ' + money(qa) + '.</div>';
+      }
+      $('#pPay').innerHTML = ph || '<span class="muted">Elegí un monto o tocá un atajo.</span>';
+    };
+    fillLoans(L0 ? L0.id : '');
+    f.cliente.addEventListener('change', () => { fillLoans(''); upd(); });
+    f.monto.addEventListener('blur', () => { const n = parseMonto(f.monto.value); if (n > 0) f.monto.value = NF2.format(n); });
+    f.addEventListener('input', e => { if (e.target.name !== 'cliente') upd(); });
+    f.addEventListener('change', e => { if (e.target.name !== 'cliente') upd(); });
+    upd();
+    f.onsubmit = ev => {
+      ev.preventDefault();
+      const p = read(), L = loan(p.loanId);
+      if (!L) return $('#ePay').textContent = 'Elegí el préstamo.';
+      if (!isDate(p.fecha)) return $('#ePay').textContent = 'Revisá la fecha.';
+      if (p.fecha > todayStr()) return $('#ePay').textContent = 'No se puede cargar un cobro con fecha futura.';
+      if (p.fecha < L.fechaEntrega) return $('#ePay').textContent = 'La fecha es anterior a la entrega del préstamo.';
+      if (!(p.monto > 0)) return $('#ePay').textContent = 'Poné un monto mayor a 0.';
+      const a = simulate(L, DB.payments, S(), p);
+      if (a.sobrante > 0.5) return $('#ePay').textContent = 'El monto supera la deuda total del préstamo en ' + money(a.sobrante) + '.';
+      DB.payments.push({ id: uid(), loanId: L.id, fecha: p.fecha, monto: r2(p.monto), medio: p.medio, nota: p.nota, ts: Date.now() });
+      save(); render();
+      toast('Cobro guardado' + (a.desc ? ' · descuento ' + money(a.desc) : ''));
+      openLoan(L.id);
+    };
+  });
+}
+
+/* ---------- Ajustes ---------- */
+function viewAju(){
+  const s = S();
+  const lb = s.lastBackup;
+  let h = backupBanner();
+  h += '<div class="card"><div style="font-weight:800">💾 Backup</div><p class="small muted" style="margin:6px 0">Todo se guarda sólo en este celular/navegador. <b>Si borrás los datos del navegador (o el historial con "datos de sitios"), se borra todo.</b> Exportá un backup seguido y guardalo en Drive, mail o WhatsApp a vos mismo.</p><p class="small">Último backup: <b>' + (lb ? fdate(lb.slice(0, 10)) + ' (' + diffDays(lb.slice(0, 10), todayStr()) + ' días)' : 'nunca') + '</b></p><div class="row wrapf" style="gap:6px"><button class="btn pri" data-act="export">Exportar backup</button><button class="btn" data-act="import">Importar backup</button><input type="file" id="fileImp" accept="application/json,.json" style="display:none"></div></div>';
+  h += '<div class="card"><div style="font-weight:800">Tasas</div>' +
+    '<label class="f"><span>Puntos de descuento por pago en efectivo</span><input class="i" data-set="descPts" inputmode="decimal" value="' + s.descPts + '"></label><p class="tiny muted" style="margin-top:-4px">Ej: 5 → 60% pasa a 55% y 70% a 65%. Aplica al interés que se paga en efectivo. Transferencia: sin descuento.</p>' +
+    '<label class="f"><span>Base del interés mensual (préstamos nuevos)</span><select class="i" data-set="baseInteres"><option value="saldo"' + (s.baseInteres === 'saldo' ? ' selected' : '') + '>Sobre saldo de capital (baja mes a mes)</option><option value="fijo"' + (s.baseInteres === 'fijo' ? ' selected' : '') + '>Fijo sobre capital original</option></select></label>' +
+    '<label class="f"><span>Pago único al final: cómo cuenta los meses</span><select class="i" data-set="unicoModo"><option value="completo"' + (s.unicoModo === 'completo' ? ' selected' : '') + '>Mes empezado = mes completo</option><option value="fraccion"' + (s.unicoModo === 'fraccion' ? ' selected' : '') + '>Proporcional por días (días/30)</option></select></label><p class="tiny muted" style="margin-top:-4px">Los cronogramas ya generados no cambian; usá "Regenerar automático" en cada préstamo si querés aplicar el cambio.</p></div>';
+  h += '<div class="card"><div style="font-weight:800">Recargo por atraso</div><p class="tiny muted" style="margin:4px 0">Interés simple por día sobre la cuota vencida. Se recalcula solo todos los días y aplica a todas las cuotas en mora.</p>' +
+    '<label class="f"><span>% por día de atraso</span><input class="i" data-set="moraPct" inputmode="decimal" value="' + s.moraPct + '"></label>' +
+    '<label class="f"><span>Base del cálculo <span class="tag-confirm">a confirmar con el prestamista</span></span><select class="i" data-set="moraBase"><option value="saldo"' + (s.moraBase === 'saldo' ? ' selected' : '') + '>Saldo impago de la cuota</option><option value="cuota"' + (s.moraBase === 'cuota' ? ' selected' : '') + '>Monto total de la cuota original</option></select></label>' +
+    '<label class="f"><span>Tope máximo acumulado (% de la cuota) — vacío = sin tope</span><input class="i" data-set="moraTope" inputmode="decimal" placeholder="Sin tope" value="' + (s.moraTope === null ? '' : s.moraTope) + '"></label>' +
+    '<p class="tiny muted" style="margin-top:-4px">Ejemplo: cuota impaga de $50.000 con 5 días de atraso al ' + pct(s.moraPct) + ' → recargo ' + money(50000 * s.moraPct / 100 * 5) + (s.moraTope !== null ? ' (tope ' + money(50000 * s.moraTope / 100) + ')' : '') + '.</p></div>';
+  h += '<div class="card"><div style="font-weight:800">🔒 PIN</div><p class="small muted" style="margin:6px 0">' + (s.pinHash ? 'El PIN está <b>activado</b>. Se pide al abrir la app.' : 'Pedí un PIN de 4 dígitos al abrir la app.') + '</p>' + (s.pinHash ? '<button class="btn danger" data-act="pinOff">Desactivar PIN</button>' : '<button class="btn" data-act="pinOn">Activar PIN</button>') + '<p class="tiny muted">Ojo: el PIN evita miradas ajenas, pero no cifra los datos. Si te lo olvidás, no hay forma de recuperarlo salvo borrando los datos del navegador (por eso, backup).</p></div>';
+  h += '<div class="card"><div style="font-weight:800">Datos</div><div class="row wrapf" style="gap:6px;margin-top:8px">' + (hasDemo() ? '<button class="btn danger" data-act="clearDemo">Borrar datos demo</button>' : '<button class="btn" data-act="loadDemo">Cargar datos demo</button>') + '<button class="btn danger" data-act="wipe">Borrar TODO</button></div><p class="tiny muted">' + DB.clients.length + ' clientes · ' + DB.loans.length + ' préstamos · ' + DB.payments.length + ' pagos</p></div>';
+  h += '<div class="card"><div style="font-weight:800">Autotest de cálculos</div><p class="tiny muted">Corre 5 casos: 60% transferencia, 70% efectivo (65%), pago parcial, mora con recargo y mora con tope. También en la consola: <code>autotest()</code>.</p><button class="btn" data-act="runTest">Correr autotest</button><div id="testOut"></div></div>';
+  h += '<p class="tiny muted" style="text-align:center">Sin servidor · sin cuentas · nada sale de este dispositivo.</p>';
+  return h;
+}
+function exportBackup(){
+  DB.settings.lastBackup = new Date().toISOString();
+  const data = JSON.stringify(Object.assign({ exportado: new Date().toISOString(), app: 'control-cartera' }, DB), null, 1);
+  const blob = new Blob([data], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'cartera-backup-' + todayStr() + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  save(); render(); toast('Backup descargado');
+}
+function importBackup(file){
+  const r = new FileReader();
+  r.onload = () => {
+    let d;
+    try { d = JSON.parse(r.result); } catch (e){ return alert('El archivo no es un backup válido (JSON).'); }
+    const err = validBackup(d);
+    if (err) return alert('Backup inválido: ' + err);
+    if (!confirm('Vas a REEMPLAZAR todos los datos actuales por el backup (' + d.clients.length + ' clientes, ' + d.loans.length + ' préstamos, ' + d.payments.length + ' pagos). ¿Seguro?')) return;
+    const pin = DB.settings.pinHash;
+    DB = normalize(d); DB.seeded = true;
+    if (!d.settings || !('pinHash' in d.settings)) DB.settings.pinHash = pin;
+    DB.settings.lastBackup = new Date().toISOString();
+    save(); render(); toast('Backup importado');
+  };
+  r.readAsText(file);
+}
+
+/* ---------- PIN ---------- */
+async function hashPin(p){
+  const txt = 'cartera:' + p;
+  if (window.crypto && crypto.subtle){
+    const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
+    return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
+  }
+  let h = 5381; for (const ch of txt) h = ((h << 5) + h + ch.charCodeAt(0)) | 0; return 'd' + h;
+}
+function pinPad(onDone, title){
+  const lock = $('#lock'); let v = '';
+  lock.firstElementChild.textContent = title;
+  $('#pinerr').textContent = '';
+  const dots = () => $$('#pins i').forEach((i, ix) => i.classList.toggle('f', ix < v.length));
+  $('#pad').innerHTML = [1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(k => k === '' ? '<span></span>' : '<button type="button" data-k="' + k + '">' + k + '</button>').join('');
+  $('#pad').onclick = async e => {
+    const k = e.target.dataset && e.target.dataset.k; if (k === undefined) return;
+    if (k === '⌫') v = v.slice(0, -1); else if (v.length < 4) v += k;
+    dots();
+    if (v.length === 4){ const val = v; v = ''; setTimeout(dots, 150); const res = await onDone(val); if (res === false){ $('#pinerr').textContent = 'PIN incorrecto'; } }
+  };
+  dots(); lock.classList.add('on');
+}
+function requirePin(){
+  return new Promise(res => pinPad(async v => { if (await hashPin(v) === DB.settings.pinHash){ $('#lock').classList.remove('on'); res(); return true; } return false; }, 'Ingresá tu PIN'));
+}
+function setPin(){
+  closeSheet();
+  pinPad(async v1 => {
+    pinPad(async v2 => {
+      if (v1 !== v2){ $('#lock').classList.remove('on'); toast('Los PIN no coinciden. Probá de nuevo.'); return true; }
+      DB.settings.pinHash = await hashPin(v1); save(); $('#lock').classList.remove('on'); render(); toast('PIN activado'); return true;
+    }, 'Repetí el PIN');
+    return true;
+  }, 'Elegí un PIN de 4 dígitos');
+}
+
+/* ---------- eventos ---------- */
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-act],[data-tab]'); if (!t) return;
+  if (t.dataset.tab){ TAB = t.dataset.tab; closeSheet(); render(); window.scrollTo(0, 0); return; }
+  const a = t.dataset.act, d = t.dataset;
+  switch (a){
+    case 'close': closeSheet(); break;
+    case 'mPrev': VIEW.month = addMonths(VIEW.month + '-01', -1).slice(0, 7); render(); break;
+    case 'mNext': VIEW.month = addMonths(VIEW.month + '-01', 1).slice(0, 7); render(); break;
+    case 'mHoy': VIEW.month = todayStr().slice(0, 7); render(); break;
+    case 'rPrev': VIEW.resMes = addMonths(VIEW.resMes + '-01', -1).slice(0, 7); render(); break;
+    case 'rNext': VIEW.resMes = addMonths(VIEW.resMes + '-01', 1).slice(0, 7); render(); break;
+    case 'resF': VIEW.resFiltro = d.f; render(); break;
+    case 'preT': VIEW.preTab = d.t; render(); break;
+    case 'day': dayDetail(d.d); break;
+    case 'moraList': moraList(); break;
+    case 'goBackup': TAB = 'aju'; render(); break;
+    case 'newLoan': e.stopPropagation(); loanForm({ d: d.d, client: d.client }); break;
+    case 'newClientFromLoan': clientForm(null, cid => loanForm({ client: cid })); break;
+    case 'newPay': e.stopPropagation(); payForm({ d: d.d, loan: d.loan, client: d.client }); break;
+    case 'newClient': clientForm(null); break;
+    case 'editClient': clientForm(d.id); break;
+    case 'openClient': openClient(d.id); break;
+    case 'openLoan': openLoan(d.id); break;
+    case 'editSched': schedForm(d.id); break;
+    case 'regenSched': {
+      const L = loan(d.id);
+      if (L && confirm('¿Regenerar el cronograma con los ajustes actuales? Se pierden los cambios hechos a mano.')){ L.schedule = genSchedule(L, S()); L.editado = false; save(); render(); openLoan(L.id); toast('Cronograma regenerado'); }
+      break;
+    }
+    case 'wa': { const u = waLink(d.id); if (u) window.open(u, '_blank', 'noopener'); else toast('El cliente no tiene teléfono'); break; }
+    case 'delPay': {
+      const p = DB.payments.find(x => x.id === d.id);
+      if (p && confirm('¿Borrar el cobro de ' + money(p.monto) + ' del ' + fdate(p.fecha) + '? Se recalcula todo el préstamo.')){ DB.payments = DB.payments.filter(x => x.id !== d.id); save(); render(); openLoan(p.loanId); toast('Cobro borrado'); }
+      break;
+    }
+    case 'delLoan': {
+      const L = loan(d.id); const n = DB.payments.filter(p => p.loanId === d.id).length;
+      if (L && confirm('¿Borrar este préstamo de ' + money(L.capital) + ' y sus ' + n + ' pagos? No se puede deshacer.')){ DB.payments = DB.payments.filter(p => p.loanId !== d.id); DB.loans = DB.loans.filter(x => x.id !== d.id); save(); closeSheet(); render(); toast('Préstamo borrado'); }
+      break;
+    }
+    case 'delClient': {
+      const c = client(d.id); const ls = DB.loans.filter(l => l.clientId === d.id);
+      if (c && confirm('¿Borrar a ' + c.nombre + (ls.length ? ' con sus ' + ls.length + ' préstamos y pagos' : '') + '? No se puede deshacer.')){
+        const ids = new Set(ls.map(l => l.id));
+        DB.payments = DB.payments.filter(p => !ids.has(p.loanId)); DB.loans = DB.loans.filter(l => !ids.has(l.id)); DB.clients = DB.clients.filter(x => x.id !== d.id);
+        save(); closeSheet(); render(); toast('Cliente borrado');
+      }
+      break;
+    }
+    case 'export': exportBackup(); break;
+    case 'import': $('#fileImp').click(); break;
+    case 'loadDemo': if (confirm('¿Cargar datos de demostración? Se suman a tus datos y los podés borrar después.')){ loadDemo(); render(); toast('Demo cargada'); } break;
+    case 'clearDemo': if (confirm('¿Borrar los datos de demostración? Tus datos propios no se tocan.')){ clearDemo(); render(); toast('Datos demo borrados'); } break;
+    case 'wipe':
+      if (confirm('¿Borrar TODOS los datos (clientes, préstamos, pagos y ajustes)? No se puede deshacer.') && prompt('Escribí BORRAR para confirmar') === 'BORRAR'){ DB = blank(); DB.seeded = true; save(); render(); toast('Datos borrados'); }
+      break;
+    case 'pinOn': setPin(); break;
+    case 'pinOff':
+      if (confirm('¿Desactivar el PIN?')) requirePin().then(() => { DB.settings.pinHash = null; save(); render(); toast('PIN desactivado'); });
+      break;
+    case 'runTest': {
+      const r = autotest(false);
+      $('#testOut').innerHTML = '<div class="banner ' + (r.ok ? 'info' : 'bad') + '">' + (r.ok ? '✔ Todos los casos pasan' : '✘ Hay casos que fallan') + ' (' + r.results.filter(x => x.ok).length + '/' + r.results.length + ' verificaciones)</div>' + r.results.map(x => '<div class="tiny">' + (x.ok ? '✔' : '✘') + ' <b>' + esc(x.caso) + '</b> — ' + esc(x.verificacion) + ': ' + esc(typeof x.obtenido === 'number' ? NF2.format(x.obtenido) : x.obtenido) + '</div>').join('');
+      break;
+    }
+  }
+});
+document.addEventListener('input', e => {
+  if (e.target.dataset.in === 'cliQ'){ VIEW.cliQ = e.target.value; const pos = e.target.selectionStart; render(); const i = $('[data-in=cliQ]'); i.focus(); try { i.setSelectionRange(pos, pos); } catch (_){} }
+});
+document.addEventListener('change', e => {
+  const k = e.target.dataset.set;
+  if (k){
+    let v = e.target.value;
+    if (k === 'descPts' || k === 'moraPct'){ v = parseMonto(v); if (!(v >= 0 && v <= 100)){ toast('Valor inválido (0 a 100)'); render(); return; } }
+    if (k === 'moraTope'){ if (String(v).trim() === '') v = null; else { v = parseMonto(v); if (!(v > 0 && v <= 100000)){ toast('Tope inválido'); render(); return; } } }
+    DB.settings[k] = v; save(); render(); toast('Ajuste guardado');
+  }
+  if (e.target.id === 'fileImp' && e.target.files[0]){ importBackup(e.target.files[0]); e.target.value = ''; }
+});
+$('#scrim').addEventListener('click', closeSheet);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && CACHE && CACHE.day !== todayStr()) render(); });
+
+/* ---------- inicio ---------- */
+(async function boot(){
+  DB = load();
+  if (!DB){ DB = blank(); loadDemo(); }
+  const t = autotest(true);
+  console.info('Autotest de cálculos: ' + (t.ok ? 'OK ✔' : 'FALLÓ ✘') + ' — corré autotest() para ver el detalle.');
+  if (!t.ok) console.table(t.results.filter(r => !r.ok));
+  if (DB.settings.pinHash) await requirePin();
+  render();
+})();
+</script>
+</body>
+</html>
