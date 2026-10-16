@@ -586,8 +586,8 @@ export async function paginasDeCatalogo(product, token, site, paginas, deadline)
 export async function catalogSearch(product, token, opts) {
   const o = opts || {};
   if (!token) return null;
-  const maxProductos = o.maxProductos || 40;
-  const deadline = Date.now() + (o.budgetMs || 9000);
+  const maxProductos = o.maxProductos || 60;
+  const deadline = Date.now() + (o.budgetMs || 10000);
   const site = sitio(o.site).id;
 
   const pag = await paginasDeCatalogo(product, token, site, Math.ceil(maxProductos / 10), deadline);
@@ -635,7 +635,16 @@ export async function catalogSearch(product, token, opts) {
         }));
       if (lista.length) return lista;
     }
-    const bb = det.ok && det.json ? det.json.buy_box_winner : null;
+    let bb = det.ok && det.json ? det.json.buy_box_winner : null;
+    // Producto "padre" sin buybox: la buybox vive en las variantes (color,
+    // tamano). Se prueba la primera variante que la tenga.
+    const hijos = (det.ok && det.json && Array.isArray(det.json.children_ids)) ? det.json.children_ids.slice(0, 2) : [];
+    for (const hijo of hijos) {
+      if (bb && typeof bb.price === 'number' && bb.price > 0) break;
+      if (Date.now() > deadline) break;
+      const dh = await fetchJson(MELI_API + '/products/' + hijo, token, Math.max(800, Math.min(3000, deadline - Date.now())));
+      bb = dh.ok && dh.json ? dh.json.buy_box_winner : null;
+    }
     if (bb && typeof bb.price === 'number' && bb.price > 0) {
       return [{
         id: bb.item_id || id,
@@ -1528,7 +1537,7 @@ export async function buscarPublicaciones(product, token, opts) {
     // El catalogo es la unica via gratuita que hoy responde (ver
     // paginasDeCatalogo): se le da el presupuesto que necesita para traer
     // 20-50 publicaciones, no los 5 s de antes.
-    catalogo: () => catalogSearch(product, token, { site, deadline: o.deadline, maxProductos: o.maxProductos || 40, budgetMs: Math.max(9000, o.budgetMs || 0) }),
+    catalogo: () => catalogSearch(product, token, { site, deadline: o.deadline, maxProductos: o.maxProductos || 60, budgetMs: Math.max(10000, o.budgetMs || 0) }),
     destacados: () => highlightsSearch(product, token, { site, deadline: o.deadline, budgetMs: o.budgetMs || 5000 }),
     listado: () => publicIdsSearch(product, token, { site, deadline: o.deadline, budgetMs: o.budgetMs || 6000, maxIds: o.maxIds || 40 }),
     // Ultima, porque es la unica que cuesta plata: solo se paga cuando ninguna
@@ -1652,9 +1661,13 @@ export async function buscarPublicaciones(product, token, opts) {
   // como /api/analyze evalua 12 productos por consulta, y ahi la unica garantia
   // que sirve es que sea imposible por diseño llegar a pagar, no que alguien se
   // acuerde de pasar el flag correcto.
+  // MEDIDO 16/10/2026: el catalogo es la unica via gratuita que responde
+  // desde Vercel (listado -> muro anti-bot, destacados -> 403). Va primero
+  // para no gastar el presupuesto de tiempo en las bloqueadas; las otras
+  // quedan detras por si MeLi las reabre.
   const orden = o.sinPago
-    ? ['listado', 'destacados', 'catalogo']
-    : ['listado', 'destacados', 'catalogo', 'proveedor'];
+    ? ['catalogo', 'listado', 'destacados']
+    : ['catalogo', 'listado', 'destacados', 'proveedor'];
   const est = viaEstado(site);
   // Lo juntado entre vias gratuitas, y las respuestas "no esta aca" que se
   // guardan por si ninguna otra via trae algo mejor.

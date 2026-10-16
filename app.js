@@ -1646,7 +1646,7 @@ function confirmMRStep4(){
   const modLabel=modalidadLabel(modalidad);
   const advMediano=usaMediano?`<div class="mr-row"><span class="mr-row-label"><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Sugerencia</span><span class="mr-row-value" style="color:var(--gold)">Mediano ${fmtA(medianoARS)} (tu venta difiere ${Math.round((venta-medianoARS)/medianoARS*100)}%)</span></div>`:'';
   const logRow=mrData.canal==='mercadolibre'?`<div class="mr-row"><span class="mr-row-label">Log&#237;stica (${modLabel})</span><span class="mr-row-value">${logisticaARS>0?fmtA(logisticaARS):'gratis (paga comprador)'}</span></div>`:'';
-  document.getElementById('mrStep4Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Precio FOB</span><span class="mr-row-value">USD ${fob.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Costo CIF (FOB+flete+seguro)</span><span class="mr-row-value">USD ${cifUSD.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Aranceles (${Math.round(arancelRate*100)}% s/CIF)</span><span class="mr-row-value">${fmtA(arancelesARS)}</span></div><div class="mr-row"><span class="mr-row-label">Tasa de estad&#237;stica (3% s/CIF)</span><span class="mr-row-value">${fmtA(tasaEstadisticaARS)}</span></div><div class="mr-row"><span class="mr-row-label">Despachante y gastos de aduana (8% s/CIF)</span><span class="mr-row-value">${fmtA(despachoARS)}</span></div><div class="mr-row"><span class="mr-row-label">Empaque y etiquetado local (USD ${empaqueUSD.toFixed(2)}/u)</span><span class="mr-row-value">${fmtA(empaqueARS)}</span></div><div class="mr-row"><span class="mr-row-label">Costo landed total</span><span class="mr-row-value">USD ${costoLandedUSD.toFixed(2)} / ${fmtA(costoLandedARS)}</span></div><div style="font-size:.76rem;color:var(--text-dim);margin:-2px 0 6px;line-height:1.4">Landed = CIF ${fmtA(cifUSD*tc)} (FOB ${fmtA(fobARS)} + flete ${fmtA(fleteARS)} + seguro ${fmtA(seguroARS)}) + aranceles + tasa + despachante + empaque. Por eso supera a la base imponible en ${fmtA(despachoARS+empaqueARS)}: despachante y empaque no tributan IVA de importaci&#243;n.</div><div class="mr-row"><span class="mr-row-label">Base imponible de importaci&#243;n (CIF+aranceles+tasa)</span><span class="mr-row-value">${fmtA(baseImponibleARS)}</span></div><div class="mr-row"><span class="mr-row-label">IVA de importaci&#243;n (21% s/base) &#8212; cr&#233;dito fiscal</span><span class="mr-row-value">${fmtA(ivaImportacionARS)}</span></div><div class="mr-row"><span class="mr-row-label">Percepci&#243;n IVA adicional (20% s/base) &#8212; pago a cuenta</span><span class="mr-row-value">${fmtA(ivaAdicionalARS)}</span></div><div class="mr-row"><span class="mr-row-label">Capital inmovilizado por unidad</span><span class="mr-row-value" style="color:var(--gold)">${fmtA(capitalUnitarioARS)}</span></div><div class="mr-row"><span class="mr-row-label">Comisi&#243;n MeLi (${Math.round(comisionFinalPct*100)}%)</span><span class="mr-row-value">${fmtA(comisionMeLiARS)}</span></div><div class="mr-row"><span class="mr-row-label">IVA a pagar (d&#233;bito ${fmtA(ivaDebitoARS)} &#8722; cr&#233;dito ${fmtA(ivaCreditoARS)})</span><span class="mr-row-value">${fmtA(ivaARS)}</span></div><div class="mr-row"><span class="mr-row-label">IIBB (3%)</span><span class="mr-row-value">${fmtA(iibbARS)}</span></div>${logRow}<div class="mr-row"><span class="mr-row-label">Margen neto estimado</span><span class="mr-row-value" style="color:${mColor};font-size:1.1rem">${margenPct}% (${fmtA(margenARS)})</span></div><div class="mr-row"><span class="mr-row-label">ROI anualizado</span><span class="mr-row-value" style="color:var(--gold)">${isFinite(roiAnualPct)?roiAnualPct+'%':'&#8212;'}</span></div><div style="font-size:.76rem;color:var(--text-dim);margin:-2px 0 6px;line-height:1.4">C&#243;mo se calcula: ganancia de un mes (${fmtA(margenARS)} &#215; ${ventasMes} uds = ${fmtA(ingresoMensualARS)}) &#247; inversi&#243;n en un mes de stock (${Math.min(unidadesPosibles,Math.max(1,ventasMes))} uds &#215; ${fmtA(capitalUnitarioARS)} = ${fmtA(inversionARS)}), &#215; 12. Supone que rot&#225;s ese stock todos los meses.</div>${breakevenUds?`<div class="mr-row"><span class="mr-row-label">Breakeven</span><span class="mr-row-value">${breakevenUds} uds${breakevenDias?` (~${breakevenDias} d&#237;as)`:''}</span></div><div style="font-size:.76rem;color:var(--text-dim);margin:-2px 0 6px;line-height:1.4">Unidades que ten&#233;s que vender para recuperar la inversi&#243;n de ${fmtA(inversionARS)}: ${fmtA(inversionARS)} &#247; ${fmtA(margenARS)} de margen por unidad${breakevenDias?`; a ${ventasMes} uds/mes son ~${breakevenDias} d&#237;as`:''}.</div>`:''}<div class="mr-row"><span class="mr-row-label">Score reponderado</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">${mrData.step4.scoreReponderado!=null?mrData.step4.scoreReponderado+'/100':(sinComp?'no aplica (sin comparable en MeLi)':'no aplica (competencia sin medir)')}</span></div><div class="mr-row"><span class="mr-row-label">Modalidad / Posicionamiento</span><span class="mr-row-value">${modLabel} &#183; ${posicion}</span></div>${advMediano}${ventas?`<div class="mr-row"><span class="mr-row-label">Ventas/mes (tu estimaci&#243;n)</span><span class="mr-row-value">${ventas} uds</span></div>`:''}<div style="margin-top:8px"><span class="mr-tag tag-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> C&#225;lculo registrado</span></div>`;
+  document.getElementById('mrStep4Body').innerHTML=`<div class="mr-row"><span class="mr-row-label">Precio FOB</span><span class="mr-row-value">USD ${fob.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Costo CIF (FOB+flete+seguro)</span><span class="mr-row-value">USD ${cifUSD.toFixed(2)}</span></div><div class="mr-row"><span class="mr-row-label">Aranceles (${Math.round(arancelRate*100)}% s/CIF)</span><span class="mr-row-value">${fmtA(arancelesARS)}</span></div><div class="mr-row"><span class="mr-row-label">Tasa de estad&#237;stica (3% s/CIF)</span><span class="mr-row-value">${fmtA(tasaEstadisticaARS)}</span></div><div class="mr-row"><span class="mr-row-label">Despachante y gastos de aduana (8% s/CIF)</span><span class="mr-row-value">${fmtA(despachoARS)}</span></div><div class="mr-row"><span class="mr-row-label">Empaque y etiquetado local (USD ${empaqueUSD.toFixed(2)}/u)</span><span class="mr-row-value">${fmtA(empaqueARS)}</span></div><div class="mr-row"><span class="mr-row-label">Costo landed total</span><span class="mr-row-value">USD ${costoLandedUSD.toFixed(2)} / ${fmtA(costoLandedARS)}</span></div><div style="font-size:.76rem;color:var(--text-dim);margin:-2px 0 6px;line-height:1.4">Landed = CIF ${fmtA(cifUSD*tc)} (FOB ${fmtA(fobARS)} + flete ${fmtA(fleteARS)} + seguro ${fmtA(seguroARS)}) + aranceles + tasa + despachante + empaque. Por eso supera a la base imponible en ${fmtA(despachoARS+empaqueARS)}: despachante y empaque no tributan IVA de importaci&#243;n.</div><div class="mr-row"><span class="mr-row-label">Base imponible de importaci&#243;n (CIF+aranceles+tasa)</span><span class="mr-row-value">${fmtA(baseImponibleARS)}</span></div><div class="mr-row"><span class="mr-row-label">IVA de importaci&#243;n (21% s/base) &#8212; cr&#233;dito fiscal</span><span class="mr-row-value">${fmtA(ivaImportacionARS)}</span></div><div class="mr-row"><span class="mr-row-label">Percepci&#243;n IVA adicional (20% s/base) &#8212; pago a cuenta</span><span class="mr-row-value">${fmtA(ivaAdicionalARS)}</span></div><div class="mr-row"><span class="mr-row-label">Capital inmovilizado por unidad</span><span class="mr-row-value" style="color:var(--gold)">${fmtA(capitalUnitarioARS)}</span></div><div class="mr-row"><span class="mr-row-label">Comisi&#243;n MeLi (${Math.round(comisionFinalPct*100)}%)</span><span class="mr-row-value">${fmtA(comisionMeLiARS)}</span></div><div class="mr-row"><span class="mr-row-label">IVA a pagar (d&#233;bito ${fmtA(ivaDebitoARS)} &#8722; cr&#233;dito ${fmtA(ivaCreditoARS)})</span><span class="mr-row-value">${fmtA(ivaARS)}</span></div><div class="mr-row"><span class="mr-row-label">IIBB (3%)</span><span class="mr-row-value">${fmtA(iibbARS)}</span></div>${logRow}<div class="mr-row"><span class="mr-row-label">Margen neto estimado</span><span class="mr-row-value" style="color:${mColor};font-size:1.1rem">${margenPct}% (${fmtA(margenARS)})</span></div><div class="mr-row"><span class="mr-row-label">ROI anualizado</span><span class="mr-row-value" style="color:var(--gold)">${isFinite(roiAnualPct)?roiAnualPct+'%':'&#8212;'}</span></div><div style="font-size:.76rem;color:var(--text-dim);margin:-2px 0 6px;line-height:1.4">C&#243;mo se calcula: ganancia de un mes (${fmtA(margenARS)} &#215; ${ventasMes} uds = ${fmtA(ingresoMensualARS)}) &#247; inversi&#243;n en un mes de stock (${Math.min(unidadesPosibles,Math.max(1,ventasMes))} uds &#215; ${fmtA(capitalUnitarioARS)} = ${fmtA(inversionARS)}), &#215; 12. Supone que rot&#225;s ese stock todos los meses.</div>${breakevenUds?`<div class="mr-row"><span class="mr-row-label">Breakeven</span><span class="mr-row-value">${breakevenUds} uds${breakevenDias?` (~${breakevenDias} d&#237;as)`:''}</span></div><div style="font-size:.76rem;color:var(--text-dim);margin:-2px 0 6px;line-height:1.4">Unidades que ten&#233;s que vender para recuperar la inversi&#243;n de ${fmtA(inversionARS)}: ${fmtA(inversionARS)} &#247; ${fmtA(margenARS)} de margen por unidad${breakevenDias?`; a ${ventasMes} uds/mes son ~${breakevenDias} d&#237;as`:''}.</div>`:''}<div class="mr-row"><span class="mr-row-label">Score reponderado</span><span class="mr-row-value" style="color:var(--gold);font-weight:700">${mrData.step4.scoreReponderado!=null?mrData.step4.scoreReponderado+'/100':(sinComp?'no aplica (sin comparable en MeLi)':'no aplica (competencia sin medir)')}</span></div><div class="mr-row"><span class="mr-row-label">Modalidad / Posicionamiento</span><span class="mr-row-value">${modLabel} &#183; ${posicionLabel(posicion)}</span></div>${advMediano}${ventas?`<div class="mr-row"><span class="mr-row-label">Ventas/mes (tu estimaci&#243;n)</span><span class="mr-row-value">${ventas} uds</span></div>`:''}<div style="margin-top:8px"><span class="mr-tag tag-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> C&#225;lculo registrado</span></div>`;
   runMRFinalAnalysis();
 }
 
@@ -1711,7 +1711,8 @@ async function runMRFinalAnalysis(){
       '2. NO inventes ninguna cifra, porcentaje, precio ni plazo. Solo podes usar los numeros que estan en el JSON de abajo, tal cual estan.\n'+
       '3. NO agregues factores, riesgos ni ventajas que no esten en las senales que te paso.\n'+
       '4. Si te falta un dato para decir algo, deci que ese dato falta. No lo completes.\n'+
-      '5. Escribi en espanol rioplatense, directo, sin relleno y sin vender nada.\n\n'+
+      '5. Escribi en espanol rioplatense, directo, sin relleno y sin vender nada.\n'+
+      '6. Para el riesgo del dolar y del precio usa SOLO escenariosDeQuiebre (dolar.valor, dolar.aguantePct, precio.valor). No digas que un X% de dolar liquida el margen si aguantePct dice otra cosa.\n\n'+
       'DATOS:\n'+JSON.stringify(paquete)+'\n\n'+
       'Responde SOLO JSON valido sin markdown: {"parrafos":["parrafo 1","parrafo 2","parrafo 3"],"proximosPasos":["paso 1","paso 2","paso 3"]}\n'+
       (mrData.sinComparable
@@ -1722,7 +1723,17 @@ async function runMRFinalAnalysis(){
     const res=await fetch('/api/market',{method:'POST',headers:mrCabeceras(),body:JSON.stringify({step:'final',customPrompt:prompt,prompt})});
     const r=await res.json();
     if(!res.ok) throw new Error(r.error||'Error en análisis final');
-    renderAnalisisIA(r,decision);
+    // La IA tiene prohibido inventar cifras, pero se verifica: un texto que
+    // menciona un numero o porcentaje que no esta en los datos calculados no
+    // se muestra (antes decia "un desvio del dolar del 10% te lo liquida" con
+    // un dolar de quiebre 52% arriba). En ese caso va el texto de plantilla.
+    const inventados=mrNumerosNoRespaldados(r,paquete);
+    if(inventados.length){
+      console.warn('[analisis IA] descartado por cifras que no estan en los datos:', inventados);
+      renderAnalisisIA(mrAnalisisPlantilla(decision),decision,true);
+    } else {
+      renderAnalisisIA(r,decision);
+    }
   }catch(e){
     if(at) at.innerHTML='<div class="v9-note"><b>El texto ampliado con IA no carg&#243; esta vez.</b> El veredicto, las se&#241;ales y los escenarios de quiebre de arriba est&#225;n calculados con tus n&#250;meros y no dependen de la IA.</div>';
   }
@@ -1730,9 +1741,47 @@ async function runMRFinalAnalysis(){
   try{ guardarAnalisisMR(decision); }catch(_e){}
 }
 
+// Numeros del texto de la IA que no aparecen en los datos que se le pasaron.
+// Se comparan normalizados (es-AR: "2.340" = 2340, "1,5" = 1.5). Los enteros
+// chicos sin % (3 pasos, 12 meses, 90 dias...) se dejan pasar; los
+// porcentajes y los montos tienen que estar en los datos.
+function mrNumerosNoRespaldados(r,paquete){
+  const norm=t=>{ let x=String(t).replace(/[^\d.,]/g,''); if(/,\d+$/.test(x)) x=x.replace(/\./g,'').replace(',','.'); else x=x.replace(/[.,](?=\d{3}(\D|$))/g,''); return parseFloat(x); };
+  const permitidos=new Set();
+  (JSON.stringify(paquete).match(/\d[\d.,]*/g)||[]).forEach(t=>{ const n=norm(t); if(isFinite(n)){ permitidos.add(Math.round(n)); permitidos.add(n); } });
+  const texto=[].concat(r&&r.parrafos||[],r&&r.proximosPasos||[]).join(' ');
+  const malos=[];
+  const re=/(\$\s*)?(\d[\d.,]*)(\s*%)?/g; let m;
+  while((m=re.exec(texto))){
+    const n=norm(m[2]); if(!isFinite(n)) continue;
+    const esPct=!!m[3], esMonto=!!m[1]||n>=1000;
+    if(!esPct&&!esMonto&&n<=120) continue;
+    if(permitidos.has(n)||permitidos.has(Math.round(n))||permitidos.has(Math.round(n)-1)||permitidos.has(Math.round(n)+1)) continue;
+    malos.push(m[0].trim());
+  }
+  return malos;
+}
+
+// Texto de respaldo armado SOLO con las senales y escenarios calculados.
+function mrAnalisisPlantilla(decision){
+  const v=decision.veredicto||{}, sen=decision.senales||{aFavor:[],enContra:[],criticos:[]}, q=decision.quiebre||{};
+  const lista=a=>a.slice(0,3).map(x=>x.texto+(x.dato?' ('+x.dato+')':'')).join('; ');
+  const nf=n=>new Intl.NumberFormat('es-AR').format(n);
+  const p=[];
+  p.push('Veredicto: '+(v.titulo||'')+'. '+(v.sub||''));
+  const contra=sen.criticos.concat(sen.enContra);
+  if(contra.length) p.push('En contra: '+lista(contra)+'.');
+  if(sen.aFavor.length) p.push('A favor: '+lista(sen.aFavor)+'.');
+  const esc=[];
+  if(q.dolar&&q.dolar.valor) esc.push('el dólar de quiebre es $'+nf(q.dolar.valor)+' (hoy $'+nf(q.dolar.hoy)+', '+q.dolar.aguantePct+'% de aguante)');
+  if(q.precio&&q.precio.valor) esc.push('el precio de quiebre es ARS '+nf(q.precio.valor)+' contra tus ARS '+nf(q.precio.tuyo));
+  if(esc.length) p.push('Escenarios de quiebre: '+esc.join('; ')+'.');
+  return { parrafos:p, proximosPasos:(v.condiciones&&v.condiciones.length?v.condiciones:['Pedí una muestra física y el MOQ real al proveedor.','Verificá la posición NCM y si necesita certificación.','Confirmá el precio de venta mirando las primeras 10 publicaciones en MercadoLibre.']).slice(0,3) };
+}
+
 // El texto de la IA se muestra aparte del bloque de decision, y rotulado como
 // lo que es: una redaccion de senales que ya estaban calculadas.
-function renderAnalisisIA(r,decision){
+function renderAnalisisIA(r,decision,esPlantilla){
   const at=document.getElementById('mrAnalysisText');
   if(!at) return;
   const parrafos=Array.isArray(r.parrafos)?r.parrafos:[];
@@ -1742,7 +1791,9 @@ function renderAnalisisIA(r,decision){
     parrafos.map(p=>'<p style="margin:0 0 10px;line-height:1.55">'+p+'</p>').join('')+
     (pasos.length?'<h4 style="margin:14px 0 8px;font-size:.95rem;letter-spacing:.03em;text-transform:uppercase;color:var(--gold)">Pr&#243;ximos 3 pasos</h4><ol style="margin:0;padding-left:20px">'+
       pasos.map(x=>'<li style="margin-bottom:6px;line-height:1.5">'+x+'</li>').join('')+'</ol>':'')+
-    '<div style="margin-top:12px;font-size:.76rem;color:var(--text-dim)">Texto redactado por IA a partir de las se&#241;ales calculadas arriba. No agrega n&#250;meros ni factores propios.</div>';
+    '<div style="margin-top:12px;font-size:.76rem;color:var(--text-dim)">'+(esPlantilla
+      ? 'Texto armado autom&#225;ticamente con las se&#241;ales y escenarios calculados arriba (el texto de la IA se descart&#243; porque citaba cifras que no est&#225;n en los datos).'
+      : 'Texto redactado por IA a partir de las se&#241;ales calculadas arriba. Verificado: no cita cifras que no est&#233;n en los datos.')+'</div>';
 }
 
 function guardarAnalisisMR(decision){
@@ -1853,6 +1904,9 @@ function renderFactorCard(n,score,label,icon){
   else{document.getElementById('sd'+n+'r').className='sem-dot on-rojo';}
 }
 
+function posicionLabel(p){
+  return ({estandar:'Est&#225;ndar',premium:'Premium (+25%)',multifuncion:'Multifunci&#243;n (+45%)'})[p]||p;
+}
 function modalidadLabel(m){
   return ({full:'Full',flex:'Flex',estandar:'Mercado Env&#237;os est.',retiro:'Retiro / Acordar'})[m]||'Env&#237;o';
 }
@@ -3452,8 +3506,31 @@ function goHome(){
       // Con margen negativo la regla del <25% es redundante: se emite la que
       // dice el numero exacto que se pierde.
       criticos.push(C('Perdés '+ars(Math.abs(margenARS))+' por unidad al precio de venta que cargaste', margenPct+'% de margen'));
-    } else if (margenPct < 25){
-      criticos.push(C('Margen de '+margenPct+'%: un desvío del dólar del 10% te lo come entero', margenPct+'% ('+ars(margenARS)+' por unidad)'));
+    } else {
+      // Riesgo de dolar y de precio con los NUMEROS de los escenarios de
+      // quiebre, no con una regla fija. Antes decia "un desvio del dolar del
+      // 10% te lo come entero" para cualquier margen < 25%, y con FOB 1,2 /
+      // ARS 9.000 el dolar de quiebre real estaba 52% arriba: la senal era
+      // falsa y encima disparaba NO CONVIENE.
+      const q = escenariosDeQuiebre(md) || {};
+      const dq = q.dolar, pq = q.precio;
+      const aguante = (dq && dq.aguantePct != null) ? dq.aguantePct : null;
+      const colchonPrecio = (pq && pq.valor && s4.venta) ? Math.round(((s4.venta - pq.valor) / s4.venta) * 100) : null;
+      const datoQuiebre = [
+        aguante != null ? 'dólar de quiebre $' + nf.format(dq.valor) + ' (hoy $' + nf.format(dq.hoy) + ', +' + aguante + '%)' : null,
+        colchonPrecio != null ? 'precio de quiebre ' + ars(pq.valor) + ' (−' + colchonPrecio + '% vs tu ' + ars(s4.venta) + ')' : null
+      ].filter(Boolean).join(' · ');
+      if (aguante != null && aguante < 15){
+        criticos.push(C('Con una suba del dólar del ' + aguante + '% ya perdés plata', datoQuiebre));
+      } else if (colchonPrecio != null && colchonPrecio < 10){
+        criticos.push(C('Si bajás el precio un ' + colchonPrecio + '% ya no ganás: no hay lugar para competir por precio', datoQuiebre));
+      } else if (margenPct < 25){
+        enContra.push(F('Margen de ' + margenPct + '%: ajustado, poco colchón para bajar precio o absorber costos imprevistos',
+          margenPct + '% (' + ars(margenARS) + ' por unidad)' + (datoQuiebre ? ' · ' + datoQuiebre : '')));
+      }
+      if (aguante != null && aguante >= 15 && aguante < 30){
+        enContra.push(F('El dólar te aguanta solo un ' + aguante + '% de suba antes de perder plata', datoQuiebre));
+      }
     }
 
     // ---------- VALOR / PESO ----------
@@ -3704,6 +3781,17 @@ function goHome(){
         'Demanda: Google Trends no responde desde el servidor. Consultala vos en trends.google.com filtrando Argentina, últimos 12 meses, y compará contra un producto que ya vendas.',
         'Competencia: entrá al listado de MercadoLibre del producto y anotá precio y vendidos de las primeras 10 publicaciones. Con menos de 10 no hay precio de referencia.'
       ];
+    } else if (criticosReales === 0 && criticosDeDato > 0){
+      // Solo faltan datos: "no se sabe" no es "no conviene". Se condiciona a
+      // conseguirlos en vez de cerrar la puerta por una medicion que no se hizo.
+      clave = 'cond'; titulo = 'CONVIENE SOLO SI...';
+      sub = 'Los números propios dan, pero faltan ' + criticosDeDato + (criticosDeDato === 1 ? ' dato clave' : ' datos clave') + ' sin medir (en amarillo). Antes de pagar el FOB:';
+      condiciones = senales.criticos.filter(c => CLAVES_DE_DATO.indexOf(c.clave) !== -1).map(c =>
+        c.clave === 'sin-demanda-medida'
+          ? 'Medí la demanda: Google Trends (Argentina, últimos 12 meses) contra un producto que ya vendas.'
+          : 'Medí la competencia: precio y vendidos de las primeras 10 publicaciones del producto en MercadoLibre.');
+      if (fuertesContra >= 2 && fuertesContra > aFavorTotal) condiciones = condiciones.concat(condicionesParaDarloVuelta(md, senales));
+      condiciones = condiciones.concat(riesgosSinTildar);
     } else if (senales.criticos.length >= 1){
       clave = 'no'; titulo = 'NO CONVIENE';
       // Se cuentan aparte las criticas reales y las de dato faltante: "3
@@ -3745,6 +3833,8 @@ function goHome(){
       else if (/vendedores activos/.test(x.texto)) out.push('Que tengas un diferencial que no sea precio (kit, garantía, variante que no está): con esta cantidad de vendedores se compite por precio.');
       else if (/d[ií]as en recuperar/.test(x.texto)) out.push('Que bajes el ciclo de recupero abajo de 120 días: menos unidades por compra, o más rotación.');
       else if (/tracci[oó]n de contenido/.test(x.texto)) out.push('Que midas TikTok: buscá el producto, ordená por más vistos y anotá el promedio de vistas de los 3 primeros.');
+      else if (/^Margen de .*ajustado/.test(x.texto)) out.push('Que consigas mejor FOB o flete, o un precio de venta más alto, para llevar el margen arriba de 25%.');
+      else if (/d[oó]lar te aguanta/.test(x.texto)) out.push('Que te cubras del tipo de cambio: comprá los dólares del pedido antes o dejá previsto cómo ajustar el precio.');
       else out.push('Que se revierta: ' + x.texto);
     });
     return out;

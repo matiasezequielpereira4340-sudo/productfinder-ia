@@ -801,7 +801,7 @@ export default async function handler(req, res) {
           outliersDescartados: r.outliersDescartados, muestraInsuficiente: r.muestraInsuficiente,
           sinComparable: r.sinComparable, categoryName: r.categoryName,
           precioMinARS: r.precioMinARS, precioMaxARS: r.precioMaxARS, precioPromedioARS: r.precioPromedioARS,
-          desdeCache: r.desdeCache, aviso: r.aviso,
+          desdeCache: r.desdeCache, aviso: r.aviso, detalleFuente: r.detalleFuente || null,
           competidores: (r.competitors || []).map(c => ({ titulo: c.titulo, vendedor: c.vendedor, precio: c.price })) });
       } catch (e) { return res.status(200).json({ termino, error: String((e && e.message) || e).slice(0, 200) }); }
     }
@@ -1275,7 +1275,7 @@ async function stepCompetencia(product, ctx) {
     const totalCrudo = (typeof meli.total === 'number' && meli.total > 0) ? meli.total : null;
     const total = esCatalogo ? null : totalCrudo;
     const totalCatalogo = esCatalogo ? totalCrudo : null;
-    const totalLabel = esCatalogo ? 'Productos en el catalogo de MeLi' : 'Total publicaciones activas';
+    const totalLabel = esCatalogo ? 'Productos en el catálogo de MeLi' : 'Total publicaciones activas';
 
     let saturacion = null;
     if (total != null) {
@@ -1295,6 +1295,7 @@ async function stepCompetencia(product, ctx) {
     if (results.length < MUESTRA_MINIMA_COMPETENCIA) {
       return {
         fuente, fuentes: meli.fuentes || null,
+        detalleFuente: (meli.productosCatalogo != null) ? { productosCatalogo: meli.productosCatalogo, productosConPrecio: meli.productosConPrecio } : null,
         muestraInsuficiente: true, competenciaNoMedida: true, muestra: results.length,
         sinComparable: false,
         ...relInfo,
@@ -1318,6 +1319,7 @@ async function stepCompetencia(product, ctx) {
     const avg = prices.length ? Math.round(prices.reduce((a,b)=>a+b,0)/prices.length) : 0;
     return {
       fuente, fuentes: meli.fuentes || null,
+      detalleFuente: (meli.productosCatalogo != null) ? { productosCatalogo: meli.productosCatalogo, productosConPrecio: meli.productosConPrecio } : null,
       muestraInsuficiente: false, sinComparable: false, muestra: results.length,
       ...relInfo,
       totalCrudoMeli: (typeof meli.total === 'number') ? meli.total : null,
