@@ -8,6 +8,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Control de cartera</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<script src="config.js"></script>
+<script id="sbjs" src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
+<script>if (!window.supabase) document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"><\/script>');</script>
 <style>
 :root{
   --bg:#f4f6f8;--card:#fff;--ink:#14212b;--muted:#5d6b77;--line:#e2e7ec;
@@ -134,10 +140,22 @@ hr.s{border:0;border-top:1px solid var(--line);margin:12px 0}
 .sched input.i{min-height:40px;padding:6px 8px;font-size:15px}
 .sched .r{display:grid;grid-template-columns:28px 1.3fr 1fr 1fr;gap:6px;align-items:center;margin:6px 0}
 @media (min-width:560px){.kpis{grid-template-columns:repeat(3,1fr)}}
+/* nube */
+.syncw{padding-top:0!important;padding-bottom:6px!important}
+#sync{appearance:none;border:0;background:none;padding:0;font-size:12px;font-weight:700;cursor:pointer;color:var(--muted);text-align:left}
+#sync.ok{color:var(--ok)}#sync.syncing{color:var(--muted)}#sync.offline{color:var(--warn)}#sync.error{color:var(--bad)}
+#auth{position:fixed;inset:0;z-index:45;background:var(--bg);display:none;overflow:auto;padding:16px}
+#auth.on{display:block}
+#auth .box{max-width:420px;margin:8vh auto 0}
+#auth h2{margin:0 0 4px;font-size:22px}
+.linkb{appearance:none;border:0;background:none;color:var(--brand);font-weight:700;padding:10px 0;cursor:pointer;text-decoration:underline}
+#wv{position:sticky;top:0;z-index:60;margin:0;border-radius:0}
+.ok-msg{color:var(--ok);font-size:14px;margin-top:6px}
 </style>
 </head>
 <body>
-<header class="top"><div class="wrap"><h1 id="title">Control de cartera</h1><span id="hdrx"></span></div></header>
+<div id="wv" class="banner warn" style="display:none"></div>
+<header class="top"><div class="wrap"><h1 id="title">Control de cartera</h1><span id="hdrx"></span></div><div class="wrap syncw"><button id="sync" type="button" data-act="syncNow" aria-live="polite"></button></div></header>
 <main class="wrap" id="view"></main>
 
 <nav class="tabs"><div class="in">
@@ -151,14 +169,16 @@ hr.s{border:0;border-top:1px solid var(--line);margin:12px 0}
 <div class="scrim" id="scrim"></div>
 <div class="sheet" id="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div class="in"><div class="sh"><h3 id="sheetT"></h3><button class="iconbtn" data-act="close" aria-label="Cerrar">✕</button></div><div id="sheetB"></div></div></div>
 <div class="toast" id="toast"></div>
-<div id="lock"><div style="font-weight:700;font-size:18px">Ingresá tu PIN</div><div class="pins" id="pins"><i></i><i></i><i></i><i></i></div><div class="err" id="pinerr"></div><div class="pad" id="pad"></div></div>
+<div id="lock"><div style="font-weight:700;font-size:18px">Ingresá tu PIN</div><div class="pins" id="pins"><i></i><i></i><i></i><i></i></div><div class="err" id="pinerr"></div><div class="pad" id="pad"></div><button class="linkb" type="button" data-act="pinForgot">Olvidé mi PIN</button></div>
+<div id="auth" class="on"><div class="box" id="authBox"><div class="card"><h2>Control de cartera</h2><p class="muted small">Cargando…</p></div></div></div>
 
 <script>
 'use strict';
 /* =========================================================
-   CONTROL DE CARTERA — todo local (localStorage), sin servidor.
+   CONTROL DE CARTERA — datos en Supabase (nube) + copia local.
+   La URL y la clave de Supabase están en config.js.
    ========================================================= */
-const KEY = 'cartera_v1';
+const KEY = 'cartera_v1';   // versión vieja (sólo localStorage): se lee para migrar, nunca se borra
 const DEF_SETTINGS = {
   descPts: 5,            // puntos que baja la tasa si paga en efectivo
   baseInteres: 'saldo',  // 'saldo' (sobre saldo de capital) | 'fijo' (sobre capital original)
@@ -435,11 +455,14 @@ function validBackup(d){
   for (const p of d.payments){ if (!p.id || !p.loanId || !(p.monto > 0) || !isDate(p.fecha)) return 'Hay un pago con datos inválidos.'; }
   return null;
 }
-function load(){ try { const raw = localStorage.getItem(KEY); if (raw) return normalize(JSON.parse(raw)); } catch (e) { console.error(e); } return null; }
+/** Cada cambio: copia local inmediata + subida a la nube. */
 function save(){
-  try { localStorage.setItem(KEY, JSON.stringify(DB)); }
-  catch (e){ toast('⚠️ No se pudo guardar: ' + e.message); }
   CACHE = null;
+  if (!USER) return;
+  SYNC.pending++;
+  writeLocal();
+  setSync(navigator.onLine && !USER.offline ? (SYNC.state === 'error' ? 'error' : 'syncing') : 'offline');
+  scheduleSync(300);
 }
 function client(id){ return DB.clients.find(c => c.id === id); }
 function loan(id){ return DB.loans.find(l => l.id === id); }
@@ -498,15 +521,319 @@ function loadDemo(){
   DB.seeded = true;
   save();
 }
+/** Copia de los datos sin lo marcado como demo. */
+function sinDemo(d){
+  const ids = new Set(d.loans.filter(l => l.demo).map(l => l.id));
+  const loans = d.loans.filter(l => !l.demo);
+  const used = new Set(loans.map(l => l.clientId));
+  return { payments: d.payments.filter(p => !p.demo && !ids.has(p.loanId)), loans, clients: d.clients.filter(c => !c.demo || used.has(c.id)) };
+}
 function clearDemo(){
-  const ids = new Set(DB.loans.filter(l => l.demo).map(l => l.id));
-  DB.payments = DB.payments.filter(p => !p.demo && !ids.has(p.loanId));
-  DB.loans = DB.loans.filter(l => !l.demo);
-  const used = new Set(DB.loans.map(l => l.clientId));
-  DB.clients = DB.clients.filter(c => !c.demo || used.has(c.id));
+  Object.assign(DB, sinDemo(DB));
   save();
 }
 const hasDemo = () => DB.clients.some(c => c.demo) || DB.loans.some(l => l.demo);
+
+/* =========================================================
+   NUBE (Supabase) — fuente de verdad
+   · Un documento JSON por usuario (tabla carteras) con número de versión.
+   · Cada cambio se guarda primero en este dispositivo y enseguida se sube.
+   · Sin conexión: queda pendiente en localStorage y se sube al volver.
+   · Si otro dispositivo guardó antes, se combinan los cambios por id.
+   ========================================================= */
+const CFG = window.CARTERA_CONFIG || {};
+const BACKUP_KEY = 'cartera_v1_respaldo';
+const LAST_USER_KEY = 'cartera_ultimo_usuario';
+let SB = null, USER = null, UNLOCKED = false, PERSIST = null, INSTALL = null, MIG = null;
+const SYNC = { version: 0, base: null, pending: 0, state: 'syncing', err: '', timer: null, busy: false, again: false, retry: 0, lastOk: null };
+const cacheKey = () => 'cartera_nube_' + USER.id;
+const clone = o => JSON.parse(JSON.stringify(o));
+
+function initSupabase(){
+  if (!CFG.supabaseUrl || !CFG.supabaseAnonKey) return 'Falta configurar Supabase en config.js.';
+  try { if (JSON.parse(atob(CFG.supabaseAnonKey.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).role === 'service_role') return 'config.js tiene la clave service_role: NO se usa en la app. Poné la clave anon public.'; } catch (_){}
+  if (!window.supabase || !window.supabase.createClient) return null;
+  SB = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' }
+  });
+  return null;
+}
+
+function readLocal(uid){
+  try { const r = JSON.parse(localStorage.getItem('cartera_nube_' + uid)); return r && r.data ? r : null; } catch (_){ return null; }
+}
+function writeLocal(){
+  if (!USER || !DB) return;
+  try {
+    localStorage.setItem(cacheKey(), JSON.stringify({ v: 1, uid: USER.id, email: USER.email, data: DB, version: SYNC.version, base: SYNC.base, pending: SYNC.pending, lastOk: SYNC.lastOk, guardado: new Date().toISOString() }));
+    localStorage.setItem(LAST_USER_KEY, JSON.stringify({ id: USER.id, email: USER.email }));
+  } catch (e){ toast('⚠️ No se pudo guardar la copia local: ' + e.message); }
+}
+
+async function fetchRemote(){
+  if (!SB) throw new Error('Sin conexión con la nube');
+  const { data, error } = await SB.from('carteras').select('data,version').eq('user_id', USER.id).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+/** Combina por id: base = lo último que estaba en la nube, mine = este dispositivo, theirs = la nube ahora. */
+function mergeList(base, mine, theirs){
+  const byId = a => new Map((a || []).map(x => [x.id, x]));
+  const B = byId(base), M = byId(mine), T = byId(theirs);
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const ids = [...T.keys(), ...[...M.keys()].filter(id => !T.has(id))];
+  const out = [];
+  for (const id of ids){
+    const b = B.get(id), m = M.get(id), t = T.get(id);
+    let r;
+    if (m && t) r = same(b, m) ? t : m;               // si los dos cambiaron, gana este dispositivo
+    else if (m) r = b && same(b, m) ? null : m;       // borrado en la nube: se respeta salvo que acá se haya modificado
+    else r = b && same(b, t) ? null : t;              // borrado acá: se respeta salvo que en la nube se haya modificado
+    if (r) out.push(r);
+  }
+  return out;
+}
+function merge3(base, mine, theirs){
+  base = base || {}; theirs = normalize(theirs);
+  const out = normalize(theirs);
+  for (const k of ['clients', 'loans', 'payments']) out[k] = mergeList(base[k], mine[k], theirs[k]);
+  const bs = base.settings || {};
+  for (const k of Object.keys(mine.settings)) if (JSON.stringify(mine.settings[k]) !== JSON.stringify(bs[k])) out.settings[k] = mine.settings[k];
+  return out;
+}
+
+function scheduleSync(ms){ clearTimeout(SYNC.timer); SYNC.timer = setTimeout(syncNow, ms); }
+async function syncNow(){
+  if (!USER) return;
+  if (SYNC.busy){ SYNC.again = true; return; }
+  if (!SYNC.pending){ setSync(navigator.onLine ? 'ok' : 'offline'); return; }
+  if (!navigator.onLine || !SB || USER.offline){ setSync('offline'); return; }
+  SYNC.busy = true; setSync('syncing');
+  try {
+    for (let i = 0; i < 5; i++){
+      const sent = SYNC.pending, snap = clone(DB);
+      const { data: v, error } = await SB.rpc('guardar_cartera', { p_data: snap, p_version: SYNC.version });
+      if (error) throw error;
+      if (v > 0){
+        SYNC.version = v; SYNC.base = snap; SYNC.pending = Math.max(0, SYNC.pending - sent);
+        SYNC.lastOk = new Date().toISOString(); SYNC.retry = 0; SYNC.err = '';
+        writeLocal();
+        if (SYNC.pending) continue;
+        setSync('ok');
+        return;
+      }
+      // otro dispositivo guardó antes: traer, combinar y reintentar
+      const remote = await fetchRemote();
+      if (!remote){ SYNC.version = 0; continue; }
+      DB = merge3(SYNC.base, DB, remote.data);
+      SYNC.base = clone(remote.data); SYNC.version = remote.version; CACHE = null;
+      writeLocal(); render();
+      toast('Se combinaron cambios hechos en otro dispositivo');
+    }
+    throw new Error('No se pudo resolver el conflicto de versiones');
+  } catch (e){
+    console.error('sync', e);
+    const auth = e && (e.code === 'PGRST301' || e.code === 'PGRST303' || e.status === 401 || /JWT|token/i.test(e.message || ''));
+    SYNC.err = auth ? 'La sesión venció: cerrá sesión y volvé a entrar.' : (e && e.message) || String(e);
+    setSync(navigator.onLine ? 'error' : 'offline');
+    SYNC.retry++;
+    if (!auth) scheduleSync(Math.min(60000, 2000 * Math.pow(2, SYNC.retry)));
+  } finally {
+    SYNC.busy = false;
+    if (SYNC.again){ SYNC.again = false; scheduleSync(50); }
+  }
+}
+
+/** Trae de la nube si hay una versión más nueva (al volver a la app). */
+async function pull(){
+  if (!USER || USER.offline || !SB || !navigator.onLine || SYNC.busy) return;
+  try {
+    const r = await fetchRemote();
+    if (!r || r.version === SYNC.version) return;
+    if (SYNC.pending) return syncNow();
+    DB = normalize(r.data); SYNC.base = clone(r.data); SYNC.version = r.version; CACHE = null;
+    writeLocal(); render();
+  } catch (e){ console.warn('pull', e); }
+}
+
+function setSync(state){
+  SYNC.state = state;
+  const el = $('#sync'); if (!el) return;
+  const n = SYNC.pending;
+  const txt = {
+    ok: '☁️ Guardado en la nube ✓',
+    syncing: '⟳ Sincronizando…',
+    offline: '📴 Sin conexión – ' + (n ? n + ' cambio' + (n > 1 ? 's' : '') + ' sin sincronizar' : 'sin cambios pendientes'),
+    error: '⚠️ Error al guardar' + (n ? ' – ' + n + ' cambio' + (n > 1 ? 's' : '') + ' pendiente' + (n > 1 ? 's' : '') : '') + ' · tocá para reintentar'
+  }[state];
+  el.className = state; el.textContent = txt; el.title = SYNC.err || '';
+}
+
+/** Arranca con un usuario: primero la copia local (instantáneo), después la nube. */
+async function startSession(user){
+  USER = user; MIG = null;
+  const rec = readLocal(user.id);
+  if (rec){ DB = normalize(rec.data); SYNC.version = rec.version || 0; SYNC.base = rec.base || null; SYNC.pending = rec.pending || 0; SYNC.lastOk = rec.lastOk || null; }
+  else { DB = null; SYNC.version = 0; SYNC.base = null; SYNC.pending = 0; SYNC.lastOk = null; }
+  SYNC.err = ''; SYNC.retry = 0;
+  if (DB) showApp();
+  setSync(navigator.onLine && !user.offline ? 'syncing' : 'offline');
+  if (user.offline){ if (!DB){ DB = blank(); showApp(); } return; }
+  let remote;
+  try { remote = await fetchRemote(); }
+  catch (e){
+    console.error(e);
+    if (!DB){ DB = blank(); showApp(); }   // si después se guarda algo, al subir se combina con lo que haya en la nube
+    SYNC.err = (e && e.message) || String(e);
+    setSync(navigator.onLine ? 'error' : 'offline');
+    scheduleSync(5000);
+    return;
+  }
+  if (USER !== user) return;
+  if (remote){
+    if (!rec || !SYNC.pending){ DB = normalize(remote.data); SYNC.base = clone(remote.data); SYNC.version = remote.version; }
+  } else {
+    if (!rec) DB = blank();
+    else if (SYNC.version > 0){ SYNC.version = 0; SYNC.pending = Math.max(1, SYNC.pending); }   // la fila no está en la nube: volver a subir
+  }
+  CACHE = null; writeLocal(); showApp();
+  if (SYNC.pending) syncNow(); else setSync('ok');
+  offerMigration(false);
+}
+
+function showApp(){
+  $('#auth').classList.remove('on');
+  render(); setSync(SYNC.state);
+  if (!UNLOCKED && DB.settings.pinHash){ UNLOCKED = true; requirePin(); }
+}
+
+/* ---------- migración de los datos viejos de este navegador ---------- */
+function legacyData(){
+  try {
+    const raw = localStorage.getItem(KEY); if (!raw) return null;
+    if (!localStorage.getItem(BACKUP_KEY)) localStorage.setItem(BACKUP_KEY, raw);   // copia de seguridad, nunca se borra
+    const d = normalize(JSON.parse(raw)), real = sinDemo(d);
+    if (!real.clients.length && !real.loans.length && !real.payments.length) return null;
+    return { settings: d.settings, clients: real.clients, loans: real.loans, payments: real.payments };
+  } catch (e){ console.warn('legacy', e); return null; }
+}
+function offerMigration(force){
+  const old = legacyData(); if (!old || !USER) return;
+  const flag = 'cartera_v1_migrado_' + USER.id;
+  if (!force && localStorage.getItem(flag)) return;
+  const nuevos = k => old[k].filter(x => !DB[k].some(y => y.id === x.id)).length;
+  if (!force && !nuevos('clients') && !nuevos('loans') && !nuevos('payments')){ localStorage.setItem(flag, 'ya estaba'); return; }
+  MIG = { old, flag };
+  openSheet('Datos guardados en este navegador', '<p>Encontramos datos de la versión anterior guardados sólo en este navegador:</p><p><b>' + old.clients.length + ' clientes · ' + old.loans.length + ' préstamos · ' + old.payments.length + ' pagos</b></p><p class="small muted">Si los subís, quedan en tu cuenta y no se pierden aunque se borre el navegador. Lo que ya esté en tu cuenta no se toca (se suman). Los datos de ejemplo no se suben. La copia vieja de este navegador queda igual.</p><button class="btn pri block" data-act="migUp">Subir a mi cuenta</button><button class="btn block" style="margin-top:8px" data-act="migNo">Ahora no</button>');
+}
+function doMigration(){
+  if (!MIG) return;
+  const { old, flag } = MIG; MIG = null;
+  const empty = !DB.clients.length && !DB.loans.length && !DB.payments.length;
+  for (const k of ['clients', 'loans', 'payments']) for (const x of old[k]) if (!DB[k].some(y => y.id === x.id)) DB[k].push(x);
+  if (empty) DB.settings = Object.assign({}, DB.settings, old.settings, { lastBackup: DB.settings.lastBackup });
+  try { localStorage.setItem(flag, 'subido ' + new Date().toISOString()); } catch (_){}
+  save(); closeSheet(); render(); toast('Datos subidos a tu cuenta');
+}
+
+/* ---------- login ---------- */
+let AUTHMODE = 'login';
+function authErr(e){
+  const m = (e && e.message) || String(e);
+  if (/invalid login credentials/i.test(m)) return 'Email o contraseña incorrectos.';
+  if (/already registered|already exists/i.test(m)) return 'Ese email ya tiene cuenta. Entrá con tu contraseña.';
+  if (/email not confirmed/i.test(m)) return 'Falta confirmar el email: abrí el link que te mandamos por correo.';
+  if (/password should be|weak/i.test(m)) return 'La contraseña es muy débil: usá al menos 8 caracteres.';
+  if (/rate limit|too many/i.test(m)) return 'Demasiados intentos. Esperá unos minutos y probá de nuevo.';
+  if (/failed to fetch|network/i.test(m)) return 'Sin conexión. Revisá internet y probá de nuevo.';
+  return m;
+}
+function showAuth(mode, msg){
+  AUTHMODE = mode || 'login';
+  closeSheet();
+  const m = AUTHMODE;
+  let h = '<div class="card"><h2>Control de cartera</h2>';
+  if (m === 'fatal') h += '<div class="banner bad">' + esc(msg) + '</div><button class="btn pri block" onclick="location.reload()">Reintentar</button></div>';
+  else {
+    h += '<p class="muted small" style="margin-top:0">' + ({ login: 'Entrá con tu cuenta. Tus datos quedan guardados en la nube y no se pierden aunque se borre el celular.', signup: 'Creá tu cuenta con tu email y una contraseña (mínimo 8 caracteres). Anotala en un lugar seguro.', reset: 'Te mandamos un email con un link para elegir una contraseña nueva.', newpass: 'Elegí tu contraseña nueva.' })[m] + '</p>';
+    h += '<form id="fAuth" novalidate>';
+    if (m !== 'newpass') h += '<label class="f"><span>Email</span><input class="i" name="email" type="email" autocomplete="email" inputmode="email" required></label>';
+    if (m !== 'reset') h += '<label class="f"><span>' + (m === 'newpass' ? 'Contraseña nueva' : 'Contraseña') + '</span><input class="i" name="pass" type="password" autocomplete="' + (m === 'login' ? 'current-password' : 'new-password') + '" required></label>';
+    if (m === 'signup' || m === 'newpass') h += '<label class="f"><span>Repetí la contraseña</span><input class="i" name="pass2" type="password" autocomplete="new-password" required></label>';
+    h += '<div class="err" id="eAuth">' + (msg && !/^ok:/.test(msg) ? esc(msg) : '') + '</div>' + (msg && /^ok:/.test(msg) ? '<div class="ok-msg">' + esc(msg.slice(3)) + '</div>' : '');
+    h += '<button class="btn pri block" style="margin-top:8px">' + ({ login: 'Entrar', signup: 'Crear cuenta', reset: 'Mandar email', newpass: 'Guardar contraseña' })[m] + '</button></form>';
+    if (m === 'login') h += '<button class="btn block" style="margin-top:10px" data-act="authMode" data-m="signup">Crear cuenta nueva</button><button class="linkb" data-act="authMode" data-m="reset">Olvidé mi contraseña</button>';
+    else if (m !== 'newpass') h += '<button class="linkb" data-act="authMode" data-m="login">← Ya tengo cuenta, entrar</button>';
+    h += '</div>';
+  }
+  $('#authBox').innerHTML = h;
+  $('#auth').classList.add('on');
+  const f = $('#fAuth'); if (!f) return;
+  f.onsubmit = async ev => {
+    ev.preventDefault();
+    const e = $('#eAuth'), btn = f.querySelector('button'), email = f.email ? f.email.value.trim() : '', pass = f.pass ? f.pass.value : '';
+    e.textContent = '';
+    if (!SB) return e.textContent = 'No se pudo conectar con la nube. Revisá internet y recargá la página.';
+    if (f.email && !/^\S+@\S+\.\S+$/.test(email)) return e.textContent = 'Revisá el email.';
+    if ((m === 'signup' || m === 'newpass') && pass.length < 8) return e.textContent = 'La contraseña tiene que tener al menos 8 caracteres.';
+    if (f.pass2 && pass !== f.pass2.value) return e.textContent = 'Las contraseñas no coinciden.';
+    if (m === 'login' && !pass) return e.textContent = 'Poné la contraseña.';
+    btn.disabled = true;
+    try {
+      const back = location.origin + location.pathname;
+      if (m === 'login'){ const r = await SB.auth.signInWithPassword({ email, password: pass }); if (r.error) throw r.error; }
+      else if (m === 'signup'){
+        const r = await SB.auth.signUp({ email, password: pass, options: { emailRedirectTo: back } });
+        if (r.error) throw r.error;
+        if (r.data.user && Array.isArray(r.data.user.identities) && !r.data.user.identities.length) throw new Error('User already registered');
+        if (!r.data.session) return showAuth('login', 'ok:Te mandamos un email a ' + email + '. Abrí el link para confirmar la cuenta y después entrá acá.');
+      } else if (m === 'reset'){
+        const r = await SB.auth.resetPasswordForEmail(email, { redirectTo: back });
+        if (r.error) throw r.error;
+        return showAuth('login', 'ok:Listo. Si ' + email + ' tiene cuenta, te llega un email con el link.');
+      } else if (m === 'newpass'){
+        const r = await SB.auth.updateUser({ password: pass }); if (r.error) throw r.error;
+        toast('Contraseña actualizada');
+        const s = await SB.auth.getSession();
+        if (s.data.session) startSession(s.data.session.user); else showAuth('login', 'ok:Contraseña actualizada. Entrá con la nueva.');
+      }
+    } catch (err){ e.textContent = authErr(err); }
+    finally { if (btn.isConnected) btn.disabled = false; }
+  };
+}
+function onAuth(event, session){
+  if (event === 'PASSWORD_RECOVERY') return showAuth('newpass');
+  if (AUTHMODE === 'newpass' && $('#auth').classList.contains('on')) return;
+  if (session && session.user){
+    if (!USER || USER.id !== session.user.id) startSession(session.user);
+    else if (USER.offline){ USER = session.user; syncNow(); pull(); }
+    return;
+  }
+  if (event === 'INITIAL_SESSION'){
+    // sin sesión y sin internet: abrir con la copia de este dispositivo; se sincroniza al volver la conexión
+    let last = null; try { last = JSON.parse(localStorage.getItem(LAST_USER_KEY)); } catch (_){}
+    if (!navigator.onLine && last && readLocal(last.id)) return startSession({ id: last.id, email: last.email, offline: true });
+    return showAuth('login');
+  }
+  if (event === 'SIGNED_OUT'){ USER = null; DB = null; UNLOCKED = false; clearTimeout(SYNC.timer); showAuth('login'); }
+}
+
+/* ---------- app instalable / navegador interno / almacenamiento ---------- */
+function inAppBrowser(){ return /; wv\)|FBAN|FBAV|FB_IAB|Instagram|WhatsApp|Line\/|Snapchat|TikTok|musical_ly|Twitter/i.test(navigator.userAgent || ''); }
+function webviewWarning(){
+  if (!inAppBrowser()) return;
+  try { if (sessionStorage.getItem('wvOk')) return; } catch (_){}
+  const android = /Android/i.test(navigator.userAgent);
+  const url = location.href.replace(/#.*$/, '');
+  const chrome = 'intent://' + url.replace(/^https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;end';
+  const el = $('#wv');
+  el.innerHTML = '⚠️ <b>Estás dentro de otra app</b> (WhatsApp, Instagram…). Acá no se puede instalar la app y el navegador puede borrar datos. <b>Abrila en Chrome.</b><div class="row wrapf" style="gap:6px;margin-top:6px">' + (android ? '<a class="btn sm pri" href="' + esc(chrome) + '">Abrir en Chrome</a>' : '') + '<button class="btn sm" data-act="wvCopy">Copiar link</button><button class="btn sm" data-act="wvOk">Seguir acá</button></div>';
+  el.style.display = 'block';
+}
+async function storageSetup(){
+  try { if (navigator.storage && navigator.storage.persist) PERSIST = (await navigator.storage.persisted()) || (await navigator.storage.persist()); } catch (_){ PERSIST = null; }
+}
 
 /* =========================================================
    UI BASE
@@ -524,6 +851,7 @@ function openSheet(title, html, after){
 }
 function closeSheet(){ document.body.classList.remove('sheet-open'); $('#sheetB').innerHTML = ''; }
 function render(){
+  if (!DB) return;
   $$('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB));
   const v = $('#view');
   const titles = { cal: 'Calendario', res: 'Resumen', cli: 'Clientes', pre: 'Préstamos', aju: 'Ajustes' };
@@ -537,7 +865,7 @@ function backupBanner(){
   const lb = S().lastBackup;
   const days = lb ? diffDays(lb.slice(0, 10), todayStr()) : null;
   if (days !== null && days <= 7) return '';
-  return '<div class="banner warn" data-act="goBackup" style="cursor:pointer">💾 ' + (lb ? 'Pasaron ' + days + ' días desde tu último backup.' : 'Todavía no hiciste ningún backup.') + ' Si se borran los datos del navegador, se pierde todo. <b>Exportar ahora →</b></div>';
+  return '<div class="banner warn" data-act="goBackup" style="cursor:pointer">💾 ' + (lb ? 'Pasaron ' + days + ' días desde tu último backup.' : 'Todavía no hiciste ningún backup.') + ' Tus datos están en la nube, pero conviene tener también un archivo propio. <b>Exportar ahora →</b></div>';
 }
 const estadoChip = (e, dias) => e === 'mora' ? '<span class="chip bad">En mora' + (dias ? ' · ' + dias + ' d' : '') + '</span>' : e === 'cancelado' ? '<span class="chip neu">Cancelado</span>' : '<span class="chip ok">Al día</span>';
 const cuotaChip = c => c.estado === 'pagada' ? '<span class="chip ok">Pagada</span>' : c.estado === 'mora' ? '<span class="chip bad">Mora · ' + c.dias + ' d</span>' : c.estado === 'hoy' ? '<span class="chip warn">Vence hoy</span>' : c.parcial ? '<span class="chip warn">Parcial</span>' : '<span class="chip neu">Pendiente</span>';
@@ -559,6 +887,7 @@ function viewCal(){
   const [y, m] = VIEW.month.split('-').map(Number);
   const offset = (new Date(Date.UTC(y, m - 1, 1)).getUTCDay() + 6) % 7;
   const nDays = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  if (!DB.loans.length) return '<div class="card empty" style="padding:32px 16px"><div style="font-size:40px">💸</div><div style="font-size:18px;font-weight:800;color:var(--ink);margin:8px 0">Todavía no hay préstamos</div><button class="btn pri" data-act="newLoan">Cargá tu primer préstamo</button><p class="small" style="margin-top:16px">¿Querés probar primero? En <a href="#" data-act="goBackup">Ajustes</a> podés cargar datos de ejemplo.</p></div>';
   const idx = calIndex(), today = todayStr();
   let h = backupBanner();
   // alerta de mora
@@ -967,7 +1296,9 @@ function viewAju(){
   const s = S();
   const lb = s.lastBackup;
   let h = backupBanner();
-  h += '<div class="card"><div style="font-weight:800">💾 Backup</div><p class="small muted" style="margin:6px 0">Todo se guarda sólo en este celular/navegador. <b>Si borrás los datos del navegador (o el historial con "datos de sitios"), se borra todo.</b> Exportá un backup seguido y guardalo en Drive, mail o WhatsApp a vos mismo.</p><p class="small">Último backup: <b>' + (lb ? fdate(lb.slice(0, 10)) + ' (' + diffDays(lb.slice(0, 10), todayStr()) + ' días)' : 'nunca') + '</b></p><div class="row wrapf" style="gap:6px"><button class="btn pri" data-act="export">Exportar backup</button><button class="btn" data-act="import">Importar backup</button><input type="file" id="fileImp" accept="application/json,.json" style="display:none"></div></div>';
+  const ok = SYNC.lastOk ? new Date(SYNC.lastOk) : null;
+  h += '<div class="card"><div style="font-weight:800">☁️ Cuenta y nube</div><p class="small" style="margin:6px 0">Cuenta: <b>' + esc(USER && USER.email || '—') + '</b></p><p class="small muted" style="margin:6px 0">Cada cambio se guarda en la nube al instante. Sin internet queda guardado en este dispositivo y se sube solo cuando vuelve la conexión. La nube además guarda las versiones anteriores.</p><p class="small">Última sincronización: <b>' + (ok ? fdate(ok.getFullYear() + '-' + pad2(ok.getMonth() + 1) + '-' + pad2(ok.getDate())) + ' ' + pad2(ok.getHours()) + ':' + pad2(ok.getMinutes()) : '—') + '</b>' + (SYNC.pending ? ' · <span style="color:var(--warn)">' + SYNC.pending + ' cambio(s) sin subir</span>' : '') + (SYNC.err && SYNC.state === 'error' ? '<br><span style="color:var(--bad)">' + esc(SYNC.err) + '</span>' : '') + '</p><div class="row wrapf" style="gap:6px"><button class="btn" data-act="syncNow">Sincronizar ahora</button><button class="btn" data-act="history">Historial en la nube</button><button class="btn danger" data-act="logout">Cerrar sesión</button></div></div>';
+  h += '<div class="card"><div style="font-weight:800">💾 Backup en archivo</div><p class="small muted" style="margin:6px 0">Respaldo extra por si acaso: descargá un archivo cada tanto y guardalo en Drive, mail o WhatsApp a vos mismo. Importar un backup reemplaza los datos actuales y los sube a la nube (la versión anterior queda en el historial).</p><p class="small">Último backup: <b>' + (lb ? fdate(lb.slice(0, 10)) + ' (' + diffDays(lb.slice(0, 10), todayStr()) + ' días)' : 'nunca') + '</b></p><div class="row wrapf" style="gap:6px"><button class="btn pri" data-act="export">Exportar backup</button><button class="btn" data-act="import">Importar backup</button><input type="file" id="fileImp" accept="application/json,.json" style="display:none"></div></div>';
   h += '<div class="card"><div style="font-weight:800">Tasas</div>' +
     '<label class="f"><span>Puntos de descuento por pago en efectivo</span><input class="i" data-set="descPts" inputmode="decimal" value="' + s.descPts + '"></label><p class="tiny muted" style="margin-top:-4px">Ej: 5 → 60% pasa a 55% y 70% a 65%. Aplica al interés que se paga en efectivo. Transferencia: sin descuento.</p>' +
     '<label class="f"><span>Base del interés mensual (préstamos nuevos)</span><select class="i" data-set="baseInteres"><option value="saldo"' + (s.baseInteres === 'saldo' ? ' selected' : '') + '>Sobre saldo de capital (baja mes a mes)</option><option value="fijo"' + (s.baseInteres === 'fijo' ? ' selected' : '') + '>Fijo sobre capital original</option></select></label>' +
@@ -977,10 +1308,11 @@ function viewAju(){
     '<label class="f"><span>Base del cálculo <span class="tag-confirm">a confirmar con el prestamista</span></span><select class="i" data-set="moraBase"><option value="saldo"' + (s.moraBase === 'saldo' ? ' selected' : '') + '>Saldo impago de la cuota</option><option value="cuota"' + (s.moraBase === 'cuota' ? ' selected' : '') + '>Monto total de la cuota original</option></select></label>' +
     '<label class="f"><span>Tope máximo acumulado (% de la cuota) — vacío = sin tope</span><input class="i" data-set="moraTope" inputmode="decimal" placeholder="Sin tope" value="' + (s.moraTope === null ? '' : s.moraTope) + '"></label>' +
     '<p class="tiny muted" style="margin-top:-4px">Ejemplo: cuota impaga de $50.000 con 5 días de atraso al ' + pct(s.moraPct) + ' → recargo ' + money(50000 * s.moraPct / 100 * 5) + (s.moraTope !== null ? ' (tope ' + money(50000 * s.moraTope / 100) + ')' : '') + '.</p></div>';
-  h += '<div class="card"><div style="font-weight:800">🔒 PIN</div><p class="small muted" style="margin:6px 0">' + (s.pinHash ? 'El PIN está <b>activado</b>. Se pide al abrir la app.' : 'Pedí un PIN de 4 dígitos al abrir la app.') + '</p>' + (s.pinHash ? '<button class="btn danger" data-act="pinOff">Desactivar PIN</button>' : '<button class="btn" data-act="pinOn">Activar PIN</button>') + '<p class="tiny muted">Ojo: el PIN evita miradas ajenas, pero no cifra los datos. Si te lo olvidás, no hay forma de recuperarlo salvo borrando los datos del navegador (por eso, backup).</p></div>';
-  h += '<div class="card"><div style="font-weight:800">Datos</div><div class="row wrapf" style="gap:6px;margin-top:8px">' + (hasDemo() ? '<button class="btn danger" data-act="clearDemo">Borrar datos demo</button>' : '<button class="btn" data-act="loadDemo">Cargar datos demo</button>') + '<button class="btn danger" data-act="wipe">Borrar TODO</button></div><p class="tiny muted">' + DB.clients.length + ' clientes · ' + DB.loans.length + ' préstamos · ' + DB.payments.length + ' pagos</p></div>';
+  h += '<div class="card"><div style="font-weight:800">🔒 PIN</div><p class="small muted" style="margin:6px 0">' + (s.pinHash ? 'El PIN está <b>activado</b>. Se pide al abrir la app.' : 'Pedí un PIN de 4 dígitos al abrir la app.') + '</p>' + (s.pinHash ? '<button class="btn danger" data-act="pinOff">Desactivar PIN</button>' : '<button class="btn" data-act="pinOn">Activar PIN</button>') + '<p class="tiny muted">Ojo: el PIN evita miradas ajenas, pero no cifra los datos. Si te lo olvidás, en la pantalla del PIN tocá "Olvidé mi PIN" y poné la contraseña de tu cuenta.</p></div>';
+  h += '<div class="card"><div style="font-weight:800">Datos</div><div class="row wrapf" style="gap:6px;margin-top:8px">' + (hasDemo() ? '<button class="btn danger" data-act="clearDemo">Borrar datos de ejemplo</button>' : '<button class="btn" data-act="loadDemo">Cargar datos de ejemplo</button>') + (legacyData() ? '<button class="btn" data-act="migOffer">Subir datos viejos de este navegador</button>' : '') + '<button class="btn danger" data-act="wipe">Borrar TODO</button></div><p class="tiny muted">' + DB.clients.length + ' clientes · ' + DB.loans.length + ' préstamos · ' + DB.payments.length + ' pagos</p></div>';
+  h += '<div class="card"><div style="font-weight:800">📲 App</div>' + (INSTALL ? '<button class="btn pri" style="margin-top:8px" data-act="install">Instalar app en este celular</button>' : '<p class="small muted" style="margin:6px 0">' + (matchMedia('(display-mode: standalone)').matches ? 'Estás usando la app instalada ✓' : 'Para instalarla: en Chrome, menú ⋮ → "Instalar app" o "Agregar a la pantalla principal".') + '</p>') + '<p class="tiny muted">Almacenamiento persistente en este dispositivo: <b>' + (PERSIST === true ? 'sí ✓' : PERSIST === false ? 'no (el navegador puede borrarlo; igual está todo en la nube)' : 'no disponible') + '</b></p></div>';
   h += '<div class="card"><div style="font-weight:800">Autotest de cálculos</div><p class="tiny muted">Corre 5 casos: 60% transferencia, 70% efectivo (65%), pago parcial, mora con recargo y mora con tope. También en la consola: <code>autotest()</code>.</p><button class="btn" data-act="runTest">Correr autotest</button><div id="testOut"></div></div>';
-  h += '<p class="tiny muted" style="text-align:center">Sin servidor · sin cuentas · nada sale de este dispositivo.</p>';
+  h += '<p class="tiny muted" style="text-align:center">Datos guardados en tu cuenta (Supabase) + copia en este dispositivo.</p>';
   return h;
 }
 function exportBackup(){
@@ -1000,7 +1332,7 @@ function importBackup(file){
     try { d = JSON.parse(r.result); } catch (e){ return alert('El archivo no es un backup válido (JSON).'); }
     const err = validBackup(d);
     if (err) return alert('Backup inválido: ' + err);
-    if (!confirm('Vas a REEMPLAZAR todos los datos actuales por el backup (' + d.clients.length + ' clientes, ' + d.loans.length + ' préstamos, ' + d.payments.length + ' pagos). ¿Seguro?')) return;
+    if (!confirm('Vas a REEMPLAZAR todos los datos actuales por el backup (' + d.clients.length + ' clientes, ' + d.loans.length + ' préstamos, ' + d.payments.length + ' pagos) y subirlo a la nube. La versión actual queda en el historial de la nube. ¿Seguro?')) return;
     const pin = DB.settings.pinHash;
     DB = normalize(d); DB.seeded = true;
     if (!d.settings || !('pinHash' in d.settings)) DB.settings.pinHash = pin;
@@ -1047,6 +1379,39 @@ function setPin(){
   }, 'Elegí un PIN de 4 dígitos');
 }
 
+async function pinForgot(){
+  if (!DB || !DB.settings.pinHash || !USER) return;
+  if (!SB || !navigator.onLine || USER.offline) return toast('Necesitás internet para validar tu contraseña');
+  const pass = prompt('Para quitar el PIN, escribí la contraseña de tu cuenta (' + USER.email + '):');
+  if (!pass) return;
+  const r = await SB.auth.signInWithPassword({ email: USER.email, password: pass });
+  if (r.error) return toast(authErr(r.error));
+  DB.settings.pinHash = null; save();
+  $('#lock').classList.remove('on'); render(); toast('PIN quitado. Podés elegir uno nuevo en Ajustes.');
+}
+
+/* ---------- historial en la nube ---------- */
+async function showHistory(){
+  if (!SB || !navigator.onLine || USER.offline) return toast('Necesitás internet para ver el historial');
+  openSheet('Historial en la nube', '<div class="muted small">Cargando…</div>');
+  const { data, error } = await SB.rpc('historial_cartera');
+  if (error) return $('#sheetB') && ($('#sheetB').innerHTML = '<div class="banner bad">No se pudo cargar: ' + esc(error.message) + '</div>');
+  let h = '<p class="small muted">La nube guarda cada versión anterior de tus datos (las últimas 300 y una por día). Podés volver a cualquiera: la versión actual también queda guardada.</p>';
+  if (!data.length) h += '<div class="empty">Todavía no hay versiones anteriores.</div>';
+  for (const v of data){
+    const t = new Date(v.guardado_en);
+    h += '<div class="item" style="cursor:default"><div class="grow"><div class="t">' + fdate(t.getFullYear() + '-' + pad2(t.getMonth() + 1) + '-' + pad2(t.getDate())) + ' ' + pad2(t.getHours()) + ':' + pad2(t.getMinutes()) + '</div><div class="small muted">' + v.clientes + ' clientes · ' + v.prestamos + ' préstamos · ' + v.pagos + ' pagos</div></div><button class="btn sm" data-act="restoreH" data-id="' + v.id + '">Restaurar</button></div>';
+  }
+  if ($('#sheetB')) $('#sheetB').innerHTML = h;
+}
+async function restoreHistory(id){
+  const { data, error } = await SB.from('carteras_historial').select('data').eq('id', id).single();
+  if (error) return toast('No se pudo traer esa versión: ' + error.message);
+  const d = normalize(data.data);
+  if (!confirm('¿Volver a esta versión (' + d.clients.length + ' clientes, ' + d.loans.length + ' préstamos, ' + d.payments.length + ' pagos)? Lo actual queda guardado en el historial.')) return;
+  DB = d; save(); closeSheet(); render(); toast('Versión restaurada');
+}
+
 /* ---------- eventos ---------- */
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-act],[data-tab]'); if (!t) return;
@@ -1063,7 +1428,22 @@ document.addEventListener('click', e => {
     case 'preT': VIEW.preTab = d.t; render(); break;
     case 'day': dayDetail(d.d); break;
     case 'moraList': moraList(); break;
-    case 'goBackup': TAB = 'aju'; render(); break;
+    case 'goBackup': e.preventDefault(); TAB = 'aju'; render(); break;
+    case 'syncNow': SYNC.retry = 0; if (SYNC.pending) syncNow(); else { setSync('syncing'); pull().finally(() => setSync(navigator.onLine ? 'ok' : 'offline')); } if (TAB === 'aju') setTimeout(render, 1500); break;
+    case 'logout':
+      if (!confirm(SYNC.pending ? 'Hay ' + SYNC.pending + ' cambio(s) que todavía no se subieron. Quedan guardados en este dispositivo y se suben cuando vuelvas a entrar con esta cuenta. ¿Cerrar sesión igual?' : '¿Cerrar sesión?')) break;
+      if (SB) SB.auth.signOut({ scope: 'local' }).catch(() => {}); onAuth('SIGNED_OUT', null);
+      break;
+    case 'history': showHistory(); break;
+    case 'restoreH': restoreHistory(Number(d.id)); break;
+    case 'migOffer': offerMigration(true); break;
+    case 'migUp': doMigration(); break;
+    case 'migNo': if (MIG){ try { localStorage.setItem(MIG.flag, 'no ' + new Date().toISOString()); } catch (_){} MIG = null; } closeSheet(); toast('Podés subirlos después desde Ajustes'); break;
+    case 'authMode': showAuth(d.m); break;
+    case 'install': if (INSTALL){ INSTALL.prompt(); INSTALL.userChoice.finally(() => { INSTALL = null; render(); }); } break;
+    case 'wvOk': try { sessionStorage.setItem('wvOk', '1'); } catch (_){} $('#wv').style.display = 'none'; break;
+    case 'wvCopy': (navigator.clipboard ? navigator.clipboard.writeText(location.href.replace(/#.*$/, '')) : Promise.reject()).then(() => toast('Link copiado: pegalo en Chrome'), () => prompt('Copiá este link y abrilo en Chrome:', location.href.replace(/#.*$/, ''))); break;
+    case 'pinForgot': pinForgot(); break;
     case 'newLoan': e.stopPropagation(); loanForm({ d: d.d, client: d.client }); break;
     case 'newClientFromLoan': clientForm(null, cid => loanForm({ client: cid })); break;
     case 'newPay': e.stopPropagation(); payForm({ d: d.d, loan: d.loan, client: d.client }); break;
@@ -1130,17 +1510,41 @@ document.addEventListener('change', e => {
 });
 $('#scrim').addEventListener('click', closeSheet);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
-document.addEventListener('visibilitychange', () => { if (!document.hidden && CACHE && CACHE.day !== todayStr()) render(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (CACHE && CACHE.day !== todayStr()) render();
+  if (SYNC.pending) syncNow(); else pull();
+});
+window.addEventListener('online', async () => {
+  if (USER && USER.offline && !SB) return location.reload();   // la librería de la nube no había cargado; lo local ya está guardado
+  if (USER && USER.offline && SB){
+    const { data } = await SB.auth.getSession();
+    if (data.session && data.session.user.id === USER.id){ USER = data.session.user; }
+    else { setSync('offline'); return showAuth('login', 'Volviste a tener internet: entrá de nuevo para subir los cambios guardados en este dispositivo.'); }
+  }
+  SYNC.retry = 0; if (SYNC.pending) syncNow(); else { setSync('ok'); pull(); }
+});
+window.addEventListener('offline', () => { if (USER) setSync('offline'); });
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); INSTALL = e; if (TAB === 'aju') render(); });
+window.addEventListener('appinstalled', () => { INSTALL = null; toast('App instalada'); });
 
 /* ---------- inicio ---------- */
 (async function boot(){
-  DB = load();
-  if (!DB){ DB = blank(); loadDemo(); }
   const t = autotest(true);
   console.info('Autotest de cálculos: ' + (t.ok ? 'OK ✔' : 'FALLÓ ✘') + ' — corré autotest() para ver el detalle.');
   if (!t.ok) console.table(t.results.filter(r => !r.ok));
-  if (DB.settings.pinHash) await requirePin();
-  render();
+  storageSetup();
+  webviewWarning();
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW', e));
+  const err = initSupabase();
+  if (err) return showAuth('fatal', err);
+  if (!SB){
+    // no cargó la librería de Supabase (sin internet la primera vez): abrir con la copia local si existe
+    let last = null; try { last = JSON.parse(localStorage.getItem(LAST_USER_KEY)); } catch (_){}
+    if (last && readLocal(last.id)) return startSession({ id: last.id, email: last.email, offline: true });
+    return showAuth('fatal', 'No se pudo conectar con la nube. Revisá que tengas internet y recargá la página.');
+  }
+  SB.auth.onAuthStateChange((event, session) => setTimeout(() => onAuth(event, session), 0));
 })();
 </script>
 </body>

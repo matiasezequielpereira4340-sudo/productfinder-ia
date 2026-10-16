@@ -1,0 +1,8 @@
+{
+  "crons": [
+    { "path": "/api/keepalive", "schedule": "17 11 * * *" }
+  ],
+  "headers": [
+    { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
+  ]
+}
