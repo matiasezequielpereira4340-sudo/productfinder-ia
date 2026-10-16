@@ -136,7 +136,7 @@ console.log('\n== 2. Gate de sesion: sin sesion no se arranca nada ==');
 apifyArranques = 0;
 let r = await meli.buscarPublicaciones('producto de prueba sin sesion', 'tok', { puedeGastar: false, sinCache: true });
 chequear('devuelve requiereSesion', !!(r && r.requiereSesion), r && r.fuente);
-chequear('el aviso es claro, no un error generico', /iniciar sesion/i.test((r && r.aviso) || ''), r && r.aviso);
+chequear('el aviso es claro, no un error generico', /iniciar sesi[oó]n/i.test((r && r.aviso) || ''), r && r.aviso);
 chequear('NO se arranco ninguna corrida', apifyArranques === 0, 'arranques=' + apifyArranques);
 chequear('NO se reservo cupo', filas.length === 0, 'filas=' + filas.length);
 
@@ -156,7 +156,7 @@ const antes = apifyArranques;
 r = await meli.buscarPublicaciones('termino 4', 'tok', { puedeGastar: true, sinCache: true });
 chequear('devuelve topeAlcanzado', !!(r && r.topeAlcanzado), r && r.fuente);
 chequear('NO arranco corrida nueva', apifyArranques === antes, 'arranques=' + apifyArranques);
-chequear('el aviso dice el tope diario y lo que queda en el mes', /tope de 3 busquedas nuevas por dia/.test((r && r.aviso) || ''), r && r.aviso);
+chequear('el aviso dice el tope diario y lo que queda en el mes', /tope de 3 b[uú]squedas nuevas por d[ií]a/.test((r && r.aviso) || ''), r && r.aviso);
 chequear('el aviso dice cuando se reinicia', /medianoche/i.test((r && r.aviso) || ''));
 chequear('no es un error generico', !/error/i.test((r && r.aviso) || ''));
 
@@ -319,9 +319,9 @@ const quinta = await meli.buscarPublicaciones('producto del mes 5', 'tok', { pue
 chequear('la 5a NO arranca aunque el tope diario sea 99', apifyArranques === 4, 'arranques=' + apifyArranques);
 chequear('el motivo es el tope del MES', !!(quinta && quinta.gasto && quinta.gasto.motivo === 'tope-mes'),
          JSON.stringify(quinta && quinta.gasto));
-chequear('el aviso habla de credito del mes, no del dia', /credito del mes/i.test((quinta && quinta.aviso) || ''),
+chequear('el aviso habla de credito del mes, no del dia', /cr[eé]dito del mes/i.test((quinta && quinta.aviso) || ''),
          quinta && quinta.aviso);
-chequear('el aviso dice que se puede ver lo guardado', /ya esta guardado/i.test((quinta && quinta.aviso) || ''));
+chequear('el aviso dice que se puede ver lo guardado', /ya est[aá] guardado/i.test((quinta && quinta.aviso) || ''));
 chequear('el aviso dice cuando se reinicia', /Se reinicia/i.test((quinta && quinta.aviso) || ''));
 process.env.APIFY_MAX_RUNS_MES = '999';
 process.env.APIFY_MAX_RUNS_DIA = '3';
