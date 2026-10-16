@@ -3,7 +3,7 @@
 // Datos de MercadoLibre (catalogo con token de usuario) + Anthropic para el
 // armado del informe.
 
-import { anthropicHeaders, buscarPublicaciones, paginasDeCatalogo, nombreDeCategoria, contarPublicaciones, relevanciaPorTitulo, leerRelevanciaLog, registrarRelevancia, flushRelevancia, corridasPendientes, cosecharPendientes, estadoEscrituraRelevancia, palabrasSignificativas, RELEVANCIA_UMBRAL_ALTO, RELEVANCIA_UMBRAL_BAJO, SITIOS, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
+import { anthropicHeaders, buscarPublicaciones, paginasDeCatalogo, nombreDeCategoria, elegirCategoria, contarPublicaciones, relevanciaPorTitulo, leerRelevanciaLog, registrarRelevancia, flushRelevancia, corridasPendientes, cosecharPendientes, estadoEscrituraRelevancia, palabrasSignificativas, RELEVANCIA_UMBRAL_ALTO, RELEVANCIA_UMBRAL_BAJO, SITIOS, filaDeCache, viaDeBusquedaUsada, candidatosDeListado, traerPagina, extraerIdsMLA, idsPorPatron, hidratarItems, getUserToken, meliCreds, fetchJson, MELI_API } from './_meli.js';
 import { haySesion, esAdmin, tokenDe, pedirSesion, cronAdmitido } from './_sesion.js';
 // cronAdmitido vive en _sesion.js para que este endpoint y meli-refresh compartan el
 // MISMO secreto: dos crons, una sola variable que cargar en Vercel.
@@ -804,6 +804,21 @@ export default async function handler(req, res) {
           desdeCache: r.desdeCache, aviso: r.aviso, detalleFuente: r.detalleFuente || null,
           competidores: (r.competitors || []).map(c => ({ titulo: c.titulo, vendedor: c.vendedor, precio: c.price })) });
       } catch (e) { return res.status(200).json({ termino, error: String((e && e.message) || e).slice(0, 200) }); }
+    }
+
+    // ?dominios=termino muestra los candidatos de categoria que sugiere MeLi y
+    // los dominios de los productos de catalogo, para auditar cual se elige.
+    if (req.query && typeof req.query.dominios === 'string' && req.query.dominios.length > 1) {
+      const termino = req.query.dominios.slice(0, 80);
+      const tok = await getMeliAccessToken();
+      const dom = await fetchJson(MELI_API + '/sites/MLA/domain_discovery/search?limit=5&q=' + encodeURIComponent(termino), tok, 4000);
+      const pag = await paginasDeCatalogo(termino, tok, 'MLA', 3, Date.now() + 5000);
+      const dominios = {};
+      pag.catalogo.forEach(p => { if (p.domain_id) dominios[p.domain_id] = (dominios[p.domain_id] || 0) + 1; });
+      const elegido = Array.isArray(dom.json) ? elegirCategoria(termino, dom.json, pag.catalogo) : null;
+      return res.status(200).json({ termino, status: dom.status,
+        candidatos: Array.isArray(dom.json) ? dom.json.map(d => ({ domain_id: d.domain_id, domain_name: d.domain_name, category_id: d.category_id, category_name: d.category_name })) : dom.json,
+        dominiosDelCatalogo: dominios, elegido: elegido && (elegido.category_name || elegido.domain_name) });
     }
 
     // ?catinfo=MLA433655 pregunta a MercadoLibre cuantas publicaciones tiene
