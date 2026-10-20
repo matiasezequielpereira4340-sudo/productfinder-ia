@@ -273,21 +273,44 @@ export function moqTipico(fobUSD) {
   return fobUSD < 1 ? 300 : fobUSD < 3 ? 200 : fobUSD < 6 ? 100 : 50;
 }
 
+// Pedido de prueba: lo que se suele negociar como primera compra o muestra
+// ampliada cuando el MOQ de lista no entra en el capital.
+export const UNIDADES_PRUEBA = 50;
+
+// escenario: 'moq'     -> entra el pedido minimo tipico
+//            'prueba'  -> no entra el MOQ pero si un pedido de prueba de 50 u
+//            'ninguno' -> no entra ni la prueba
 export function capacidadDeCompra(costo, capitalKey) {
   const capital = CAPITAL_USD[capitalKey] || CAPITAL_USD.bajo;
   const presupuesto = capital * FRACCION_POR_PRODUCTO;
   const moq = moqTipico(costo.fobUSD);
   const inversionMoqUSD = Math.round(moq * costo.costoPuestoUSD);
   const unidadesPosibles = costo.costoPuestoUSD > 0 ? Math.floor(presupuesto / costo.costoPuestoUSD) : 0;
+  const alcanza = inversionMoqUSD <= presupuesto;
+  const prueba = {
+    unidades: Math.min(UNIDADES_PRUEBA, moq),
+    inversionUSD: Math.round(Math.min(UNIDADES_PRUEBA, moq) * costo.costoPuestoUSD)
+  };
+  prueba.alcanza = prueba.inversionUSD <= presupuesto;
   return { capitalReferenciaUSD: capital, presupuestoUSD: presupuesto, moq, inversionMoqUSD,
-    unidadesPosibles, alcanza: inversionMoqUSD <= presupuesto };
+    unidadesPosibles, alcanza, prueba,
+    escenario: alcanza ? 'moq' : (prueba.alcanza ? 'prueba' : 'ninguno') };
 }
 
 const PENAL_CERT = { ninguna: 50, poca: 35, media: 20, alta: 10 };
 
-export function puntajeRiesgo(prod, comp, certs, experiencia) {
+// Riesgo operativo Y de capital. Antes era solo operativo, y una tarjeta podia
+// decir "No te alcanza para el pedido minimo" con "Riesgo: Bajo" al lado.
+export function puntajeRiesgo(prod, comp, certs, experiencia, capacidad) {
   let v = 100;
   const notas = [];
+  if (capacidad && capacidad.escenario === 'prueba') {
+    v -= 35;
+    notas.push('el capital solo da para un pedido de prueba de ' + capacidad.prueba.unidades + ' u, no para el mínimo típico');
+  } else if (capacidad && capacidad.escenario === 'ninguno') {
+    v -= 60;
+    notas.push('el capital no alcanza ni para un pedido de prueba de ' + capacidad.prueba.unidades + ' u');
+  }
   if (prod.pesoG > 500) { v -= 20; notas.push('pesado (' + prod.pesoG + ' g): flete caro'); }
   else if (prod.pesoG > 300) { v -= 10; notas.push(prod.pesoG + ' g'); }
   if (certs.length) {
@@ -301,7 +324,7 @@ export function puntajeRiesgo(prod, comp, certs, experiencia) {
   }
   if (comp && comp.muestra > 0 && comp.muestra < 5) { v -= 15; notas.push('muestra chica (' + comp.muestra + ' publicaciones)'); }
   v = Math.max(0, Math.min(100, Math.round(v)));
-  return { valor: v, detalle: notas.length ? notas.join(' · ') : 'Liviano, sin certificaciones previas detectadas' };
+  return { valor: v, detalle: notas.length ? notas.join(' · ') : 'Te alcanza el capital, liviano y sin certificaciones previas detectadas' };
 }
 
 export function riesgoDe(valor) { return valor >= 70 ? 'Bajo' : valor >= 45 ? 'Medio' : 'Alto'; }
@@ -345,7 +368,7 @@ export function evaluar(e) {
       detalle: e.margenPct != null ? e.margenPct.toLocaleString('es-AR') + '% neto sobre el precio de venta' : 'Sin precio de venta real' },
     { clave: 'demanda', label: 'Demanda', valor: e.demanda.valor, peso: pesos.demanda, detalle: e.demanda.detalle },
     { clave: 'competencia', label: 'Competencia', valor: e.competencia.valor, peso: pesos.competencia, detalle: e.competencia.detalle },
-    { clave: 'riesgo', label: 'Riesgo operativo', valor: e.riesgo.valor, peso: pesos.riesgo, detalle: e.riesgo.detalle }
+    { clave: 'riesgo', label: 'Riesgo (operativo y de capital)', valor: e.riesgo.valor, peso: pesos.riesgo, detalle: e.riesgo.detalle }
   ];
   const usados = componentes.filter(c => c.valor != null);
   const pesoUsado = usados.reduce((a, c) => a + c.peso, 0);
@@ -354,9 +377,11 @@ export function evaluar(e) {
     c.aporte = c.valor != null && pesoUsado ? Math.round(c.valor * c.peso / pesoUsado * 10) / 10 : 0;
   });
   const ajustes = [];
-  if (e.capacidad && !e.capacidad.alcanza) {
-    ajustes.push({ label: 'El pedido mínimo (~' + e.capacidad.moq + ' u, USD ' + e.capacidad.inversionMoqUSD.toLocaleString('es-AR') +
-      ') supera el ' + Math.round(FRACCION_POR_PRODUCTO * 100) + '% de tu capital', puntos: -15 });
+  // El pedido de prueba ya pesa en el componente de riesgo. Solo cuando no
+  // entra ni la prueba se resta aparte: no hay forma de arrancar.
+  if (e.capacidad && e.capacidad.escenario === 'ninguno') {
+    ajustes.push({ label: 'Ni un pedido de prueba de ' + e.capacidad.prueba.unidades + ' u (USD ' +
+      e.capacidad.prueba.inversionUSD.toLocaleString('es-AR') + ') entra en el ' + Math.round(FRACCION_POR_PRODUCTO * 100) + '% de tu capital', puntos: -15 });
   }
 
   // Sin margen calculable no hay score: no se puede decidir una compra.
@@ -377,7 +402,8 @@ export function evaluar(e) {
   } else {
     if (e.margenPct < MARGEN_MIN_ALTA) motivos.push('Margen neto menor a ' + MARGEN_MIN_ALTA + '%.');
     if (e.demanda.valor == null) motivos.push('Falta validar la demanda.');
-    if (e.capacidad && !e.capacidad.alcanza) motivos.push('No te alcanza el capital para el pedido mínimo típico.');
+    if (e.capacidad && e.capacidad.escenario === 'prueba') motivos.push('Con tu capital arrancás con un pedido de prueba de ' + e.capacidad.prueba.unidades + ' u, no con el mínimo típico.');
+    if (e.capacidad && e.capacidad.escenario === 'ninguno') motivos.push('No te alcanza el capital ni para un pedido de prueba.');
     if (score >= 70 && motivos.length === 0) nivel = 'alta';
     else if (score >= 50) nivel = 'media';
     else { nivel = 'baja'; if (!motivos.length) motivos.push('Score menor a 50.'); }
@@ -457,7 +483,7 @@ export function evaluarProducto(prod, nichoKey, mercado, perfil, usdArs) {
   // Menos de 3 precios comparables: no alcanza para una mediana confiable.
   if (!mercado || comp.muestra < 3) {
     const compP = puntajeCompetencia(comp.muestra ? comp : (mercado ? { totalCatalogo: comp.totalCatalogo, muestra: 0 } : null));
-    const riesgo = puntajeRiesgo(prod, comp, certs, perfil.experiencia);
+    const riesgo = puntajeRiesgo(prod, comp, certs, perfil.experiencia, capacidad);
     const ev = evaluar({ margenPct: null, competencia: compP, demanda: puntajeDemanda(null, null), riesgo,
       riesgoTolerancia: perfil.riesgo, capacidad });
     return Object.assign(base, {
@@ -474,7 +500,7 @@ export function evaluarProducto(prod, nichoKey, mercado, perfil, usdArs) {
   const mn = margenNeto(cond, costo);
   const compP = puntajeCompetencia(comp);
   const dem = puntajeDemanda(comp, mercado.tendencia || null);
-  const riesgo = puntajeRiesgo(prod, comp, certs, perfil.experiencia);
+  const riesgo = puntajeRiesgo(prod, comp, certs, perfil.experiencia, capacidad);
   const ev = evaluar({ margenPct: mn.pct, competencia: compP, demanda: dem, riesgo, riesgoTolerancia: perfil.riesgo, capacidad });
   return Object.assign(base, {
     fuente: 'MercadoLibre (real)',
@@ -488,11 +514,12 @@ export function evaluarProducto(prod, nichoKey, mercado, perfil, usdArs) {
   });
 }
 
-// Orden: primero los que tienen score, despues por score, y los que no le
-// alcanzan el capital al final de su grupo.
+// Orden: primero los que tienen score; dentro, los que entran con el MOQ, despues
+// los que entran con un pedido de prueba, despues los que no entran; y por score.
+const ESC = { moq: 0, prueba: 1, ninguno: 2 };
 export function ordenar(lista) {
   const rango = p => p.veredicto && p.veredicto.nivel === 'sin_dato' ? 2 : 0;
   return lista.slice().sort((a, b) => (rango(a) - rango(b)) ||
-    ((a.capacidad.alcanza ? 0 : 1) - (b.capacidad.alcanza ? 0 : 1)) ||
+    (ESC[a.capacidad.escenario] - ESC[b.capacidad.escenario]) ||
     ((b.score || 0) - (a.score || 0)));
 }

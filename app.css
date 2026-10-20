@@ -1063,3 +1063,8 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 .pf2-ejemplo .pf2-card{max-width:520px}
 .pf2-ejemplo .pf2-card:hover{transform:none}
 @media(max-width:420px){.pf2-card{padding:14px}.pf2-card .product-name{padding-right:0;margin-top:22px}.results-header{flex-wrap:wrap;gap:10px}}
+.pf2-ok{color:#34D399;font-weight:700}
+.pf2-no{color:#FF8A3D;font-weight:700}
+.pf2-cap .pf2-lista{margin-bottom:4px}
+.v8-summary .v8-top.v8-sin-datos{border-top-color:rgba(255,138,61,.35);color:var(--text)}
+.v8-summary .v8-top.v8-sin-datos .ic{color:#FF8A3D}

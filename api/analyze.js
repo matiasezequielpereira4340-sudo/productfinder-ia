@@ -1319,7 +1319,7 @@ export default async function handler(req, res) {
     const productos = lista.map(prod => evaluarProducto(prod, nichoKey, mercadoPorQ ? (mercadoPorQ[prod.q] || null) : null, perfil, usdArs));
     let filtrados = ordenar(productos);
     // TOP PICK solo si de verdad es una oportunidad: nunca un "no conviene".
-    const top = filtrados.find(p => p.veredicto && (p.veredicto.nivel === 'alta' || p.veredicto.nivel === 'media') && p.capacidad.alcanza);
+    const top = filtrados.find(p => p.veredicto && (p.veredicto.nivel === 'alta' || p.veredicto.nivel === 'media') && p.capacidad.escenario !== 'ninguno');
     if (top) top.topPick = true;
 
     const conDato = productos.filter(p => p.score != null).length;

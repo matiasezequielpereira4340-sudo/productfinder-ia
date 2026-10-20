@@ -240,5 +240,34 @@ console.log('== 9. Mi lista ==');
   chequear('y la lee', leer.body.ok && leer.body.items.length === 1);
 }
 
+console.log('== 10. Sin sesion y sin datos (lo que se vio en el preview) ==');
+{
+  const r = await llamar({ nicho: 'tecnologia', capital: 'bajo', experiencia: 'ninguna', canal: 'mercadolibre', riesgo: 'bajo', user_id: '' }, {});
+  if (process.env.BUSCADOR_DUMP_SIN) (await import('node:fs')).writeFileSync(process.env.BUSCADOR_DUMP_SIN, JSON.stringify(r.body));
+  chequear('sin sesion de cliente: 3 de 12 (limite gratis del servidor)', r.body.products.length === 3 && r.body.productosTotales === 12,
+    r.body.products.length + ' de ' + r.body.productosTotales);
+  chequear('0 productos con datos', r.body.conDatoReal === 0);
+  chequear('sin datos no hay TOP PICK', r.body.products.every(p => !p.topPick));
+}
+
+console.log('== 11. Capital: pedido de prueba de 50 u y riesgo ==');
+{
+  const prod = { nombre: 'Medidor láser de distancia', q: 'medidor laser distancia', costoMin: 3, costoMax: 8, pesoG: 150 };
+  const merc = { results: publicaciones(60000, 12).map(x => ({ id: x.item_id, title: 'medidor laser distancia', price: x.price, seller: { id: x.seller_id },
+    shipping: x.shipping, official_store_id: null })), total: 900, comision: { porcentaje: 14, cargoFijo: 0 }, tendencia: 'medidor laser distancia' };
+  const pf = { capital: 'bajo', experiencia: 'ninguna', canal: 'mercadolibre', riesgo: 'medio' };
+  const r = op.evaluarProducto(prod, 'herramientas', merc, pf, 1500);
+  chequear('MOQ no entra pero la prueba de 50 u si', r.capacidad.escenario === 'prueba' && r.capacidad.prueba.unidades === 50 && r.capacidad.prueba.alcanza,
+    'MOQ USD ' + r.capacidad.inversionMoqUSD + ' / prueba USD ' + r.capacidad.prueba.inversionUSD + ' / presupuesto USD ' + r.capacidad.presupuestoUSD);
+  chequear('si no entra el MOQ, el riesgo no es "Bajo"', r.riesgo !== 'Bajo', r.riesgo);
+  chequear('el veredicto lo explica', r.veredicto.motivos.some(m => /prueba de 50 u/.test(m)), r.veredicto.motivos.join(' '));
+  const caro = { nombre: 'Almohada cervical', q: 'almohada cervical viscoelastica', costoMin: 6, costoMax: 14, pesoG: 1200 };
+  const r2 = op.evaluarProducto(caro, 'ortopedia', merc, pf, 1500);
+  chequear('si no entra ni la prueba: riesgo Alto y ajuste', r2.capacidad.escenario === 'ninguno' && r2.riesgo === 'Alto' && r2.ajustes.length === 1,
+    'prueba USD ' + r2.capacidad.prueba.inversionUSD + ', riesgo ' + r2.riesgo);
+  const ok = op.evaluarProducto(prod, 'herramientas', merc, { ...pf, capital: 'premium' }, 1500);
+  chequear('con capital suficiente no se penaliza', ok.capacidad.escenario === 'moq' && ok.riesgo === 'Bajo' && !ok.ajustes.length, ok.riesgo);
+}
+
 console.log('\n' + oks + ' ok, ' + fallos + ' fallas');
 process.exit(fallos ? 1 : 0);

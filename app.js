@@ -692,6 +692,16 @@ function pfLinkBtn(href, txt, title){
   return '<a class="pf2-link" href="' + pfEsc(href) + '" target="_blank" rel="noopener noreferrer"' + (title ? ' title="' + pfEsc(title) + '"' : '') + '>' + txt + ' <span aria-hidden="true">↗</span></a>';
 }
 
+// Link al Market Reader con su formato compartible (?p=...#market): precarga
+// producto, FOB y peso y NO arranca el analisis solo (no gasta busquedas).
+function pfMarketUrl(p){
+  var q = new URLSearchParams();
+  q.set('p', p.query || p.nombre || '');
+  if(p.costo && p.costo.fobUSD) q.set('fob', p.costo.fobUSD);
+  if(p.pesoG) q.set('kg', p.pesoG / 1000);
+  return location.pathname + '?' + q.toString() + '#market';
+}
+
 function pfMargenUrl(p){
   var q = new URLSearchParams();
   q.set('nombre', p.nombre || '');
@@ -785,13 +795,21 @@ function pfCard(p, opts){
 
   // Perfil: capital.
   if(cap.moq){
-    h += '<div class="pf2-bloque pf2-cap' + (cap.alcanza ? '' : ' pf2-noalc') + '"><div class="pf2-bt">Con tu capital</div><div class="pf2-nota">' +
-      'Pedido mínimo típico ~' + PF_NF.format(cap.moq) + ' u = ' + pfUsd(cap.inversionMoqUSD) + ' puesto. Con ' + pfUsd(cap.presupuestoUSD) + ' por producto (de tu capital de referencia ' + pfUsd(cap.capitalReferenciaUSD) + ') podés traer ~' + PF_NF.format(cap.unidadesPosibles) + ' u.' +
-      (cap.alcanza ? '' : ' <b>No te alcanza para el pedido mínimo.</b>') + '</div></div>';
+    var pr = cap.prueba || {};
+    var esc = cap.escenario || (cap.alcanza ? 'moq' : 'ninguno');
+    h += '<div class="pf2-bloque pf2-cap pf2-esc-' + esc + '"><div class="pf2-bt">Con tu capital <span class="pf2-tag">hasta ' + pfUsd(cap.presupuestoUSD) + ' por producto</span></div>' +
+      '<ul class="pf2-lista">' +
+      '<li><b>Pedido mínimo típico</b> ~' + PF_NF.format(cap.moq) + ' u = ' + pfUsd(cap.inversionMoqUSD) + ' puesto: ' + (cap.alcanza ? '<span class="pf2-ok">te alcanza</span>' : '<span class="pf2-no">no te alcanza</span>') + '</li>' +
+      (pr.unidades && pr.unidades < cap.moq ? '<li><b>Pedido de prueba</b> ' + pr.unidades + ' u = ' + pfUsd(pr.inversionUSD) + ' puesto: ' + (pr.alcanza ? '<span class="pf2-ok">te alcanza</span>' : '<span class="pf2-no">no te alcanza</span>') + '</li>' : '') +
+      '</ul><div class="pf2-nota">' +
+      (esc === 'moq' ? 'Podés traer hasta ~' + PF_NF.format(cap.unidadesPosibles) + ' u.' :
+       esc === 'prueba' ? 'Arrancá con la prueba de ' + pr.unidades + ' u para validar ventas; pedí al proveedor ese mínimo (en lotes chicos el FOB suele subir).' :
+       'Ni la prueba de ' + (pr.unidades || 50) + ' u entra en tu presupuesto por producto.') +
+      ' Capital de referencia ' + pfUsd(cap.capitalReferenciaUSD) + ' para tu rango; se usa hasta el 60% en un producto.</div></div>';
   }
-  h += '<div class="risk-line risk-' + String(p.riesgo || '').toLowerCase().replace(/[^a-z]/g, '') + '" title="Riesgo operativo: peso, certificaciones, dispersi\u00f3n de precios y tama\u00f1o de la muestra. No mide si conviene: eso lo dice el veredicto.">Riesgo operativo: ' + pfEsc(p.riesgo || 'Sin dato') + '</div>';
-  if(p.competenciaSinDatos){
-    h += '<div class="pf2-nota">Analiz&aacute; el producto en el <a href="#" class="pf-ir-mr" data-q="' + pfEsc(p.query || p.nombre) + '">Market Reader</a> para traer las publicaciones reales.</div>';
+  h += '<div class="risk-line risk-' + String(p.riesgo || '').toLowerCase().replace(/[^a-z]/g, '') + '" title="Suma el riesgo de capital (si entra el pedido mínimo o solo una prueba), certificaciones, peso, dispersión de precios y tamaño de la muestra. No mide si conviene: eso lo dice el veredicto.">Riesgo (operativo y de capital): ' + pfEsc(p.riesgo || 'Sin dato') + '</div>';
+  if(p.competenciaSinDatos || p.muestraInsuficiente){
+    h += '<div class="pf2-nota">Analiz&aacute; el producto en el <a href="' + pfEsc(pfMarketUrl(p)) + '" class="pf-ir-mr" data-q="' + pfEsc(p.query || p.nombre) + '" data-fob="' + pfEsc(costo.fobUSD) + '" data-kg="' + pfEsc(p.pesoG ? p.pesoG / 1000 : '') + '">Market Reader</a> para traer las publicaciones reales (queda precargado; el análisis arranca cuando tocás Analizar).</div>';
   }
 
   // Links (todos armados sin costo).
@@ -900,17 +918,18 @@ function renderResults(data){
   if(data && data.esCliente === false && data.productosTotales > products.length){
     bloqueados = data.productosTotales - products.length;
   }
+  // Antes se dibujaban siluetas vacias por cada producto bloqueado y se leian
+  // como tarjetas "cargando" para siempre. Queda solo el aviso.
   var candado = '';
   if(bloqueados > 0){
-    var lista = '';
-    for(var _b=0; _b<bloqueados; _b++){
-      lista += '<div class="product-card pf-bloqueada" aria-hidden="true"><div class="pf-bl-linea"></div><div class="pf-bl-linea corta"></div><div class="pf-bl-grid"><span></span><span></span><span></span><span></span></div></div>';
-    }
-    candado = lista +
+    candado =
       '<div class="pf-candado" role="note">' +
         '<div class="pf-candado-ico"><svg class="ic" aria-hidden="true"><use href="#i-lock"></use></svg></div>' +
-        '<h4>Te faltan ' + bloqueados + ' productos de este rubro</h4>' +
-        '<p>Est&aacute;s viendo los ' + products.length + ' primeros de ' + data.productosTotales + '. Los clientes de asesor&iacute;a ven la lista completa, con el margen detallado y la validaci&oacute;n del proveedor.</p>' +
+        '<h4>' + bloqueados + ' productos m&aacute;s de este rubro, reservados para clientes</h4>' +
+        '<p>' + (data.conDatoReal > 0
+          ? 'Analic&eacute; los ' + data.productosTotales + ' productos del rubro y te muestro los ' + products.length + ' mejor ubicados para tu perfil.'
+          : 'Sin datos de mercado no hay orden: te muestro ' + products.length + ' de los ' + data.productosTotales + ' sin ranking.') +
+          ' Los clientes de asesor&iacute;a ven la lista completa.</p>' +
         '<button class="pf-candado-btn" type="button" id="pfCandadoBtn"><svg class="ic" aria-hidden="true"><use href="#i-rocket"></use></svg> Ver c&oacute;mo trabajamos</button>' +
       '</div>';
   }
@@ -919,15 +938,21 @@ function renderResults(data){
   // que el usuario no tenga que volver a tipearlo.
   Array.prototype.forEach.call(grid.querySelectorAll('.pf-ir-mr'), function(a){
     a.style.color = 'var(--gold)'; a.style.fontWeight = '700';
-    a.onclick = function(ev){
-      ev.preventDefault();
-      var q = this.getAttribute('data-q') || '';
+    a.addEventListener('click', function(ev){
+      // Sin recargar la pagina: se abre la pantalla y se completan los campos.
+      // Si algo falla, el href lleva al mismo lugar.
       try{
-        if(typeof showMarket === 'function') showMarket();
+        if(typeof showMarket !== 'function') return;
+        ev.preventDefault();
+        showMarket();
+        [['mrProductInput', a.getAttribute('data-q')], ['mrFOB', a.getAttribute('data-fob')], ['mrPesoKg', a.getAttribute('data-kg')]].forEach(function(par){
+          var el = document.getElementById(par[0]);
+          if(el && par[1]){ el.value = par[1]; try{ el.dispatchEvent(new Event('change', { bubbles: true })); }catch(_){} }
+        });
         var inp = document.getElementById('mrProductInput');
-        if(inp){ inp.value = q; inp.focus(); }
+        if(inp) inp.focus();
       }catch(e){}
-    };
+    });
   });
   Array.prototype.forEach.call(grid.querySelectorAll('.pf2-guardar'), function(b){
     b.addEventListener('click', function(){ pfToggleLista(b.getAttribute('data-key'), b); });
@@ -1005,7 +1030,7 @@ function exportPDF(){
 
 // ===== Ejemplo ilustrativo: mismo formato que un resultado real =====
 // Numeros calculados con api/_oportunidad.js sobre un mercado de muestra.
-var PF_DEMO = {"nombre": "Alfombra de lameteo antiestrés para perros", "query": "alfombra lameteo lick mat perro", "keyword_en": "dog lick mat", "nota": "Tendencia bienestar animal", "pesoG": 150, "costo": {"fobMinUSD": 1.5, "fobMaxUSD": 3.5, "fobUSD": 2.5, "fleteUSD": 2.5, "costoPuestoUSD": 9.25, "costoPuestoARS": 13875, "ivaCreditoARS": 1937, "fuente": "estimado por categoría", "detalle": "FOB del rango típico de la categoría + flete courier por peso (USD 12/kg) × 1.85 de aranceles, tasas, IVA y gastos. No es una cotización."}, "certificaciones": [], "capacidad": {"capitalReferenciaUSD": 2000, "presupuestoUSD": 1200, "moq": 200, "inversionMoqUSD": 1850, "unidadesPosibles": 129, "alcanza": false}, "links": {"meli": "https://listado.mercadolibre.com.ar/alfombra-lameteo-lick-mat-perro", "publicacion": null, "publicacionEsMasVendida": false, "alibaba": "https://www.alibaba.com/trade/search?SearchText=dog%20lick%20mat", "s1688": "https://s.1688.com/selloffer/offer_search.htm?keywords=dog%20lick%20mat", "tendencia": "https://trends.google.com/trends/explore?geo=AR&q=alfombra%20lameteo%20lick%20mat%20perro"}, "competencia": {"muestra": 14, "totalCatalogo": 690, "precioMin": 26900, "precioMediana": 29990, "precioMax": 32490, "pctFull": 21, "pctOficiales": 0, "pctEnvioGratis": 36, "top10": 10, "vendedoresTop10": 9, "vendidosMuestra": null}, "categoria": "Mascotas", "fuente": "MercadoLibre (real)", "precioVentaARS": 29990, "precioMercadoARS": 29990, "canal": {"clave": "mercadolibre", "etiqueta": "MercadoLibre", "notaPrecio": "Mediana de las publicaciones comparables en MercadoLibre.", "notaComision": "Comisión clásica de MercadoLibre para esta categoría (dato de la API de MeLi).", "notaEnvio": "Debajo de $33.000 el envío lo paga el comprador.", "comisionPct": 14.5, "comisionReal": true}, "margen": 21.7, "margenNeto": {"pct": 21.7, "netoARS": 6506, "desglose": {"precio": 29990, "costo": 13875, "comision": 5262, "envio": 0, "iibb": 900, "iva": 3268, "devoluciones": 180}}, "demanda": "En tendencia", "demandaDetalle": "Aparece entre las búsquedas más frecuentes de MercadoLibre en su categoría (\"alfombra lameteo perro\")", "saturacion": "Media", "riesgo": "Bajo", "score": 56, "componentes": [{"clave": "margen", "label": "Margen neto", "valor": 54, "peso": 35, "detalle": "21,7% neto sobre el precio de venta", "pesoEfectivo": 35, "aporte": 18.9}, {"clave": "demanda", "label": "Demanda", "valor": 75, "peso": 20, "detalle": "Aparece entre las búsquedas más frecuentes de MercadoLibre en su categoría (\"alfombra lameteo perro\")", "pesoEfectivo": 20, "aporte": 15}, {"clave": "competencia", "label": "Competencia", "valor": 67, "peso": 25, "detalle": "690 productos en catálogo · 21% en Full · top 10 repartido en 9 vendedores", "pesoEfectivo": 25, "aporte": 16.8}, {"clave": "riesgo", "label": "Riesgo operativo", "valor": 100, "peso": 20, "detalle": "Liviano, sin certificaciones previas detectadas", "pesoEfectivo": 20, "aporte": 20}], "ajustes": [{"label": "El pedido mínimo (~200 u, USD 1.850) supera el 60% de tu capital", "puntos": -15}], "veredicto": {"nivel": "media", "label": "Oportunidad media", "motivos": ["Margen neto menor a 30%.", "No te alcanza el capital para el pedido mínimo típico."]}, "semaforo": {"color": "amarillo", "label": "Margen ajustado"}};
+var PF_DEMO = {"nombre": "Alfombra de lameteo antiestrés para perros", "query": "alfombra lameteo lick mat perro", "keyword_en": "dog lick mat", "nota": "Tendencia bienestar animal", "pesoG": 150, "costo": {"fobMinUSD": 1.5, "fobMaxUSD": 3.5, "fobUSD": 2.5, "fleteUSD": 2.5, "costoPuestoUSD": 9.25, "costoPuestoARS": 13875, "ivaCreditoARS": 1937, "fuente": "estimado por categoría", "detalle": "FOB del rango típico de la categoría + flete courier por peso (USD 12/kg) × 1.85 de aranceles, tasas, IVA y gastos. No es una cotización."}, "certificaciones": [], "capacidad": {"capitalReferenciaUSD": 2000, "presupuestoUSD": 1200, "moq": 200, "inversionMoqUSD": 1850, "unidadesPosibles": 129, "alcanza": false, "prueba": {"unidades": 50, "inversionUSD": 463, "alcanza": true}, "escenario": "prueba"}, "links": {"meli": "https://listado.mercadolibre.com.ar/alfombra-lameteo-lick-mat-perro", "publicacion": null, "publicacionEsMasVendida": false, "alibaba": "https://www.alibaba.com/trade/search?SearchText=dog%20lick%20mat", "s1688": "https://s.1688.com/selloffer/offer_search.htm?keywords=dog%20lick%20mat", "tendencia": "https://trends.google.com/trends/explore?geo=AR&q=alfombra%20lameteo%20lick%20mat%20perro"}, "competencia": {"muestra": 14, "totalCatalogo": 690, "precioMin": 26900, "precioMediana": 29990, "precioMax": 32490, "pctFull": 21, "pctOficiales": 0, "pctEnvioGratis": 36, "top10": 10, "vendedoresTop10": 9, "vendidosMuestra": null}, "categoria": "Mascotas", "fuente": "MercadoLibre (real)", "precioVentaARS": 29990, "precioMercadoARS": 29990, "canal": {"clave": "mercadolibre", "etiqueta": "MercadoLibre", "notaPrecio": "Mediana de las publicaciones comparables en MercadoLibre.", "notaComision": "Comisión clásica de MercadoLibre para esta categoría (dato de la API de MeLi).", "notaEnvio": "Debajo de $33.000 el envío lo paga el comprador.", "comisionPct": 14.5, "comisionReal": true}, "margen": 21.7, "margenNeto": {"pct": 21.7, "netoARS": 6506, "desglose": {"precio": 29990, "costo": 13875, "comision": 5262, "envio": 0, "iibb": 900, "iva": 3268, "devoluciones": 180}}, "demanda": "En tendencia", "demandaDetalle": "Aparece entre las búsquedas más frecuentes de MercadoLibre en su categoría (\"alfombra lameteo perro\")", "saturacion": "Media", "riesgo": "Medio", "score": 64, "componentes": [{"clave": "margen", "label": "Margen neto", "valor": 54, "peso": 35, "detalle": "21,7% neto sobre el precio de venta", "pesoEfectivo": 35, "aporte": 18.9}, {"clave": "demanda", "label": "Demanda", "valor": 75, "peso": 20, "detalle": "Aparece entre las búsquedas más frecuentes de MercadoLibre en su categoría (\"alfombra lameteo perro\")", "pesoEfectivo": 20, "aporte": 15}, {"clave": "competencia", "label": "Competencia", "valor": 67, "peso": 25, "detalle": "690 productos en catálogo · 21% en Full · top 10 repartido en 9 vendedores", "pesoEfectivo": 25, "aporte": 16.8}, {"clave": "riesgo", "label": "Riesgo (operativo y de capital)", "valor": 65, "peso": 20, "detalle": "el capital solo da para un pedido de prueba de 50 u, no para el mínimo típico", "pesoEfectivo": 20, "aporte": 13}], "ajustes": [], "veredicto": {"nivel": "media", "label": "Oportunidad media", "motivos": ["Margen neto menor a 30%.", "Con tu capital arrancás con un pedido de prueba de 50 u, no con el mínimo típico."]}, "semaforo": {"color": "amarillo", "label": "Margen ajustado"}};
 (function pintarEjemplo(){
   function go(){
     var box = document.getElementById('pfEjemplo');
@@ -2921,18 +2946,28 @@ window.addEventListener('DOMContentLoaded',()=>{
     var grid=document.getElementById('productsGrid');
     var d=window.__lastAnalysis; if(!grid||!d) return;
     var prods=d.products||[]; if(!prods.length) return;
-    var total=prods.length;
-    var withData=prods.filter(function(p){return p.score!=null;}).length;
-    var top=prods.filter(function(p){return p.topPick;})[0]||prods[0];
+    var evaluados=d.totalEvaluados||prods.length;
+    var withData=d.conDatoReal!=null?d.conDatoReal:prods.filter(function(p){return p.score!=null;}).length;
+    // Solo el TOP PICK que marca el servidor (score + margen + capital). Antes,
+    // si no habia ninguno, se nombraba al primero de la lista como "tu mejor
+    // oportunidad" aunque no tuviera ni un dato de mercado.
+    var top=withData>0?prods.filter(function(p){return p.topPick;})[0]:null;
     var ex=grid.querySelector('.v8-summary'); if(ex) ex.remove();
     var el=document.createElement('div'); el.className='v8-summary';
-    el.innerHTML='<h3><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> Encontramos '+total+' oportunidades para tu perfil</h3>'+
-      '<div class="v8-sub">Analizamos productos aptos para tu capital, experiencia y tolerancia al riesgo. Estos son los n\u00fameros reales de este an\u00e1lisis:</div>'+
+    var cierre;
+    if(withData===0){
+      cierre='<div class="v8-top v8-sin-datos"><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Sin datos de mercado no puedo rankear: ningún producto tiene precio real para calcular margen. Conectá MercadoLibre o probá un nicho ya analizado en las últimas '+(d.cacheHoras||24)+' h.</div>';
+    } else if(top){
+      cierre='<div class="v8-top"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> Tu mejor oportunidad ahora: <strong>'+pfEsc(top.nombre)+'</strong> · '+pfEsc(top.veredicto.label.toLowerCase())+' · score '+top.score+'/100. Es la marcada como TOP PICK abajo.</div>';
+    } else {
+      cierre='<div class="v8-top v8-sin-datos"><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Ninguno de los productos con datos llega a "oportunidad" con tu perfil: no hay TOP PICK. Mirá los motivos en cada tarjeta.</div>';
+    }
+    el.innerHTML='<h3><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Analizamos '+evaluados+' productos del rubro</h3>'+
+      '<div class="v8-sub">Ordenados con tu capital, experiencia, canal y tolerancia al riesgo.</div>'+
       '<div class="v8-stats">'+
-      '<div class="v8-stat"><div class="v8-n">'+total+'</div><div class="v8-l">Productos analizados</div></div>'+
+      '<div class="v8-stat"><div class="v8-n">'+evaluados+'</div><div class="v8-l">Productos analizados</div></div>'+
       '<div class="v8-stat"><div class="v8-n">'+withData+'</div><div class="v8-l">Con datos reales de mercado</div></div>'+
-      '</div>'+
-      (top?'<div class="v8-top"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> Tu mejor oportunidad ahora: <strong>'+top.nombre+'</strong>'+(top.riesgo?' \u00b7 riesgo '+String(top.riesgo).toLowerCase():'')+'. Est\u00e1 primera en la lista de abajo.</div>':'');
+      '</div>'+cierre;
     grid.insertBefore(el, grid.firstChild);
   }
   // Observe the products grid: when cards get rendered, add the summary
