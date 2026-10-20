@@ -1509,8 +1509,9 @@ export default async function handler(req, res) {
     // nombre y links, nada mas.
     const conDatos = ordenar(productos.filter(p => !p.sinDatos));
     const pendientes = productos.filter(p => p.sinDatos).map(p => ({ nombre: p.nombre, query: p.query, links: p.links, motivo: p.motivoSinDatos }));
-    // TOP PICK solo si de verdad es una oportunidad: nunca un "no conviene".
-    const top = conDatos.find(p => p.veredicto && (p.veredicto.nivel === 'alta' || p.veredicto.nivel === 'media') && p.capacidad.escenario !== 'ninguno');
+    // TOP PICK solo si de verdad es una oportunidad: nunca un "no conviene" ni un producto con rotacion medida baja.
+    const top = conDatos.find(p => p.veredicto && (p.veredicto.nivel === 'alta' || p.veredicto.nivel === 'media') && p.capacidad.escenario !== 'ninguno' &&
+      !(p.metricas && p.metricas.rotacion && p.metricas.rotacion.nivel === 'Baja'));
     if (top) top.topPick = true;
     const conDato = conDatos.length;
 
@@ -1538,7 +1539,7 @@ export default async function handler(req, res) {
       edadDias: edadHoras != null ? Math.floor(edadHoras / 24) : null,
       cacheHoras: CACHE_HORAS,
       products: filtrados, pendientes: pendientes,
-      disclaimer: 'Demanda, rotación, saturación, precio y comisión: datos de la API oficial de MercadoLibre (pre-analizados cada noche). El costo de importación es una ESTIMACIÓN por categoría (FOB típico + flete por peso + impuestos), no una cotización: ajustalo con la tuya en MargenClear.'
+      disclaimer: 'Demanda, rotación, saturación, precio y comisión: datos de la API oficial de MercadoLibre (pre-analizados cada noche). El costo de importación es una ESTIMACIÓN por categoría (FOB típico + logística marítima por volumen + tributos), no una cotización: ajustalo con la tuya en MargenClear.'
     });
   } catch(err) {
     return res.status(500).json({error: 'Error interno del servidor', detail: err.message});

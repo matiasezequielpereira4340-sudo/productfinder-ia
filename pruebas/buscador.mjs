@@ -213,6 +213,8 @@ console.log('== 2. Veredicto coherente y pesos ==');
   chequear('saturacion alta nunca es "alta"', satAlta.veredicto.nivel !== 'alta', satAlta.veredicto.motivos.join(' '));
   const demBaja = op.evaluar({ margenPct: 40, demanda: { valor: 30, detalle: '' }, rotacion: rot, saturacion: sat, riesgo: ries, riesgoTolerancia: 'medio' });
   chequear('demanda baja nunca es "alta"', demBaja.veredicto.nivel !== 'alta');
+  const rotBaja = op.evaluar({ margenPct: 40, demanda: dem, rotacion: { valor: 20, nivel: 'Baja', numero: '≥ 14 vendidos', detalle: '' }, saturacion: sat, riesgo: ries, riesgoTolerancia: 'medio' });
+  chequear('rotacion medida baja nunca es "alta" y lo dice', rotBaja.veredicto.nivel !== 'alta' && rotBaja.veredicto.motivos.some(m => /Rotación baja/.test(m)), rotBaja.veredicto.motivos.join(' '));
 }
 
 console.log('== 3. Saturacion relativa a la demanda ==');

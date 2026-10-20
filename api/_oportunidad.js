@@ -536,6 +536,7 @@ export function evaluar(e) {
     if (e.demanda.valor == null) motivos.push('Falta validar la demanda.');
     if (rot.valor == null) motivos.push('Rotación pendiente: sin vendidos medidos no puede ser oportunidad alta.');
     else if (e.demanda.valor < 55) motivos.push('Demanda baja: no está entre lo más buscado de su categoría.');
+    if (rot.valor != null && rot.valor <= 20) motivos.push('Rotación baja: ' + rot.numero + ' en las publicaciones top.');
     if (sat.valor != null && sat.valor >= 65) motivos.push('Mercado saturado para la demanda que tiene.');
     if (e.capacidad && e.capacidad.escenario === 'prueba') motivos.push('Con tu capital arrancás con un pedido de prueba de ' + e.capacidad.prueba.unidades + ' u, no con el mínimo típico.');
     if (e.capacidad && e.capacidad.escenario === 'ninguno') motivos.push('No te alcanza el capital ni para un pedido de prueba.');

@@ -225,6 +225,11 @@ export async function cosechar() {
     // Costo REAL de la corrida (Apify), prorrateado por producto.
     let costoReal = null;
     try { const d = await bus.detalleDeCorrida(runId, est.datasetId); costoReal = d && d.corrida && d.corrida.costo_usd; } catch (e) {}
+    // Apify asienta el cobro por publicacion unos segundos despues de terminar
+    // la corrida (medido: USD 0,00005 al terminar, USD 0,215 un minuto despues).
+    // Si todavia no se asento, vale la tarifa del actor.
+    const tarifa = costoEstimadoCorrida(crudas.length);
+    if (costoReal == null || costoReal < tarifa * 0.5) costoReal = tarifa;
     const porProducto = costoReal != null ? Math.round(costoReal / grupo.length * 10000) / 10000 : null;
     costos.push({ runId, costoRealUsd: costoReal, productos: grupo.length, itemsPedidos: grupo.reduce((a, g) => a + (g.item_ids || []).length, 0), itemsDevueltos: crudas.length });
     for (const g of grupo) {
@@ -235,7 +240,9 @@ export async function cosechar() {
         estado: items.length ? 'cosechada' : 'fallida',
         motivo: items.length ? null : 'Apify no devolvio ninguna de las publicaciones pedidas',
         items, vendidos_total: vend.length ? vend.reduce((a, i) => a + i.vendidos, 0) : null,
-        reviews_total: rev.length ? rev.reduce((a, i) => a + i.reviews, 0) : null,
+        // Las resenas son del producto de catalogo: varias publicaciones del
+        // mismo producto repiten el numero. Se suma cada valor una sola vez.
+        reviews_total: rev.length ? [...new Set(rev.map(i => i.reviews))].reduce((a, n) => a + n, 0) : null,
         costo_usd: porProducto, medido_en: new Date().toISOString()
       }) });
       if (items.length) cosechadas++; else fallidas++;
