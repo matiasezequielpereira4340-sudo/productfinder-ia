@@ -109,6 +109,7 @@ const PARES_CONOCIDOS = [
   ['hogar', 'casa'],
   ['juguetes', 'brinquedos'],
   ['ropa', 'roupas'],
+  ['ropa', 'ropa'],
   ['indumentaria', 'roupas'],
   ['belleza', 'beleza'],
   ['bebes', 'bebes'],
@@ -134,21 +135,44 @@ function parPorDiccionario(nombreAR, catsB) {
   return null;
 }
 
+// Una categoria de afuera se empareja con UN solo rubro argentino. Antes cada
+// rubro elegia su mejor pareja por su cuenta, y "Ropa y Accesorios" se quedaba
+// con "Accesorios para Vehiculos" por la palabra "accesorios" (0.9 en Mexico,
+// 0.72 en Brasil), dejando la categoria de ropa de afuera huerfana. Ahora los
+// pares se reparten de mayor a menor parecido: el de mayor similitud se queda
+// con la categoria y el otro prueba la siguiente o el diccionario.
 export function emparejarCategorias(catsA, catsB) {
-  return catsA.map(a => {
-    let mejor = null, puntaje = 0;
-    for (const b of catsB) {
-      const p = parecido(a.name, b.name);
-      if (p > puntaje) { puntaje = p; mejor = b; }
-    }
+  const candidatos = [];
+  catsA.forEach((a, ia) => catsB.forEach((b, ib) => {
+    const p = parecido(a.name, b.name);
+    if (p >= 0.6) candidatos.push({ ia, ib, p });
+  }));
+  candidatos.sort((x, y) => y.p - x.p || x.ia - y.ia);
+
+  const pareja = new Map();      // ia -> { b, p }
+  const tomadas = new Set();     // ib
+  for (const c of candidatos) {
+    if (pareja.has(c.ia) || tomadas.has(c.ib)) continue;
+    pareja.set(c.ia, { b: catsB[c.ib], p: c.p });
+    tomadas.add(c.ib);
+  }
+
+  return catsA.map((a, ia) => {
+    const par = pareja.get(ia);
+    if (par) return { ar: a, br: par.b, parecido: Math.round(par.p * 100) / 100 };
     // Por debajo de 0.6 no es el mismo rubro: mejor sin pareja que emparejado
-    // con cualquier cosa. Antes de rendirse, se prueba el diccionario.
-    if (puntaje < 0.6) {
-      const porDicc = parPorDiccionario(a.name, catsB);
-      if (porDicc) return { ar: a, br: porDicc, parecido: 1, via: 'diccionario' };
+    // con cualquier cosa. Antes de rendirse, se prueba el diccionario, sin
+    // reusar una categoria que ya tiene dueño.
+    const libres = catsB.filter((b, ib) => !tomadas.has(ib));
+    const porDicc = parPorDiccionario(a.name, libres);
+    if (porDicc) {
+      tomadas.add(catsB.indexOf(porDicc));
+      return { ar: a, br: porDicc, parecido: 1, via: 'diccionario' };
     }
+    let mejor = 0;
+    for (const b of catsB) mejor = Math.max(mejor, parecido(a.name, b.name));
     // Un rubro sin pareja no se descarta: se analiza solo con Argentina.
-    return { ar: a, br: puntaje >= 0.6 ? mejor : null, parecido: Math.round(puntaje * 100) / 100 };
+    return { ar: a, br: null, parecido: Math.round(mejor * 100) / 100 };
   });
 }
 
@@ -183,19 +207,46 @@ const MARCAS = [
   'stray kids', 'katseye', 'bts', 'blackpink'
 ];
 
-// "camara DJI" y "photocard Stray Kids" son marcas aunque tengan otra palabra
-// al lado. Se compara por palabra completa para no comer terminos legitimos:
-// "lg" no debe matchear "lg" dentro de "algo".
-export function esMarca(kw) {
-  const t = normalizar(kw);
-  if (!t) return false;
-  for (const m of MARCAS) {
+// Personajes y licencias. Traerlos de China es mercaderia trucha y la aduana la
+// retiene, asi que se filtran igual que las marcas aunque el modelo los deje
+// pasar (paso con "minions" y "bluey"). Se dejaron afuera los que chocan con
+// palabras comunes: "cars", "frozen", "encanto", "intensamente" y "sonic"
+// (cepillo sonic).
+const LICENCIAS = [
+  'disney', 'marvel', 'pokemon', 'pikachu', 'paw patrol', 'patrulla canina', 'stitch',
+  'lilo y stitch', 'hello kitty', 'kuromi', 'sanrio', 'cinnamoroll', 'spiderman', 'spider man',
+  'hombre araña', 'barbie', 'hot wheels', 'minions', 'minion', 'bluey', 'peppa pig', 'peppa',
+  'mickey', 'minnie', 'mario bros', 'super mario', 'harry potter', 'star wars', 'batman',
+  'superman', 'avengers', 'transformers', 'lego', 'my little pony', 'cocomelon', 'baby shark',
+  'toy story', 'naruto', 'dragon ball', 'one piece', 'labubu', 'stranger things', 'bob esponja',
+  'sponge bob', 'spongebob', 'princesas disney', 'capitan america', 'iron man', 'hulk',
+  'mi villano favorito'
+];
+
+function contiene(t, lista) {
+  for (const m of lista) {
     const mm = normalizar(m);
     if (t === mm) return true;
     const re = new RegExp('(^|\\s)' + mm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|\\s)');
     if (re.test(t)) return true;
   }
   return false;
+}
+
+export function esLicencia(kw) {
+  const t = normalizar(kw);
+  return !!t && contiene(t, LICENCIAS);
+}
+
+// "camara DJI" y "photocard Stray Kids" son marcas aunque tengan otra palabra
+// al lado. Se compara por palabra completa para no comer terminos legitimos:
+// "lg" no debe matchear "lg" dentro de "algo".
+// Las licencias cuentan como marcas: el resultado para el importador es el
+// mismo (no se puede traer).
+export function esMarca(kw) {
+  const t = normalizar(kw);
+  if (!t) return false;
+  return contiene(t, MARCAS) || contiene(t, LICENCIAS);
 }
 
 // Modelos de autos y motos. En el rubro de vehiculos, "polo" o "gol" a secas
@@ -272,16 +323,39 @@ export function esGenericoConocido(kw) {
 // va por "id" y no por termino: el mismo termino puede venir de dos rubros en
 // el mismo lote ("bomba de agua" en Agro de los dos paises) y con el termino
 // como clave una respuesta pisaria a la otra.
-async function clasificarLote(items) {
+// Mexico ya viene en español: no se traduce, solo se adapta la palabra cuando en
+// Argentina se dice distinto. El resto del prompt (generico, imp, fuera de
+// rubro) es el mismo para los dos origenes.
+const ES_MEXICO =
+    '- "es": el nombre de PRODUCTO con el que un argentino lo buscaria en MercadoLibre ' +
+    'Argentina. Los terminos de Mexico ya estan en español: NO los traduzcas, solo cambiá ' +
+    'las palabras que en Argentina se dicen distinto: "chamarra" -> "campera", "playera" -> ' +
+    '"remera", "pantalla" -> "televisor" (cuando es un televisor), "carriola" -> "cochecito", ' +
+    '"alberca" -> "pileta", "pluma" -> "lapicera" solo cuando es para escribir (en ' +
+    'manualidades o decoracion queda "pluma": "plumas doradas" en papeleria y merceria son ' +
+    'plumas), "unicel" -> "telgopor", "lentes" -> "anteojos", "audifonos" -> ' +
+    '"auriculares", "refri" -> "heladera". Si en Argentina se dice igual ("celular", "licuadora"), ' +
+    'devolvé el mismo termino. Sin palabras que sobren. Si la palabra sola no alcanza para ' +
+    'buscarlo, agregale la que lo hace buscable ("h7" en accesorios para vehiculos -> "lámpara ' +
+    'H7"). Nunca agregues un producto que el termino no nombra. En minuscula, salvo siglas y ' +
+    'codigos (H4, H7, USB, LED).\n';
+
+async function clasificarLote(items, origen) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY no configurada');
+  const mexico = origen === 'MLM';
+  // Para Brasil el texto queda exactamente como estaba: lo que ya esta en el
+  // cache v5 salio de este prompt.
   const prompt =
     'Sos analista de importaciones China->Argentina. Te paso terminos de busqueda ' +
-    'de MercadoLibre (algunos en portugues de Brasil, otros en español), cada uno con ' +
+    (mexico
+      ? 'de MercadoLibre Mexico y MercadoLibre Argentina (todos en español), cada uno con '
+      : 'de MercadoLibre (algunos en portugues de Brasil, otros en español), cada uno con ') +
     'el rubro de MercadoLibre donde aparecio: [{"id": 0, "t": "termino", "rubro": "rubro"}].\n' +
     'Usá el rubro para desambiguar: "polo" en un rubro de autos es el VW Polo, no una remera; ' +
     '"pa" en accesorios para vehiculos es una abreviatura, no una pala.\n' +
     'Para cada uno devolve:\n' +
+    (mexico ? ES_MEXICO : (
     '- "es": el nombre de PRODUCTO con el que un argentino lo buscaria en MercadoLibre ' +
     'Argentina, en español rioplatense. Nunca lo dejes en portugues ni lo traduzcas palabra ' +
     'por palabra: "pipoqueira" -> "maquina de pochoclos", "caixa transporte gato" -> ' +
@@ -293,7 +367,7 @@ async function clasificarLote(items) {
     'para vehiculos -> "lámpara H7". Nunca agregues un ' +
     'producto que el termino no nombra: "gwm h7" es una camioneta, no un faro. Si ya está ' +
     'en español y ya es un producto concreto, repetilo igual. En minuscula, salvo siglas y ' +
-    'codigos (H4, H7, USB, LED).\n' +
+    'codigos (H4, H7, USB, LED).\n')) +
     '- "generico": true SOLO si el termino no identifica un producto concreto: una palabra ' +
     'suelta o una categoria entera (pa, spray, retrovisor, fundas, bebes, cosas de bebé, ' +
     'halloween, embalagem, expositor, accesorios para auto). Un nombre de producto de 2 o mas ' +
@@ -435,8 +509,9 @@ export function normalizarEs(es) {
 }
 
 // Generico y fuera de rubro se guardan en "motivo" para no tocar el esquema.
-function motivoDe(v) {
-  return [v.generico ? 'generico' : null, v.fueraRubro ? 'fuera_rubro' : null].filter(Boolean).join(',') || null;
+function motivoDe(v, t) {
+  return [v.generico ? 'generico' : null, v.fueraRubro ? 'fuera_rubro' : null, ...revisionesPara(t)]
+    .filter(Boolean).join(',') || null;
 }
 
 function desdeModelo(v) {
@@ -453,9 +528,21 @@ function desdeModelo(v) {
 // ya corregido) y se pisa, sin subir de version. "crianca" salia "criatura".
 const SALIDAS_INVALIDAS = [/\bcriatura\b/i];
 
+// Terminos que se vuelven a preguntar UNA vez despues de corregir el prompt,
+// sin subir de version. La fila nueva se guarda con la marca en "motivo" y a
+// partir de ahi sale del cache como cualquier otra. Sin la marca, una
+// respuesta que el modelo repita igual se volveria a preguntar en cada barrido.
+const REVISIONES = [
+  { original: /\b(plumas?|unicel)\b/i, marca: 'rev-mx1' }   // pluma != lapicera, unicel = telgopor
+];
+function revisionesPara(t) {
+  return REVISIONES.filter(r => r.original.test(String(t || ''))).map(r => r.marca);
+}
+
 // Recibe [{t, rubro, cat}]. Devuelve un mapa por claveClasificacion(cat, t):
 // el mismo termino en dos rubros son dos clasificaciones distintas.
-export async function clasificarKeywords(entrada) {
+export async function clasificarKeywords(entrada, opts) {
+  const origen = (opts && opts.origen) || 'MLB';
   const porClave = {};
   for (const x of (entrada || [])) {
     if (!x || !x.t) continue;
@@ -471,6 +558,7 @@ export async function clasificarKeywords(entrada) {
     const g = enCache[k];
     if (!g) continue;
     if (SALIDAS_INVALIDAS.some(re => re.test(String(g.es || '')))) continue;
+    if (revisionesPara(porClave[k].t).some(m => !String(g.motivo || '').includes(m))) continue;
     const motivo = String(g.motivo || '');
     guardadas[k] = { es: g.es, imp: g.imp, generico: motivo.includes('generico'), fueraRubro: motivo.includes('fuera_rubro') };
   }
@@ -482,7 +570,7 @@ export async function clasificarKeywords(entrada) {
 
   const resultados = await Promise.all(lotes.map(async (lote) => {
     const items = lote.map((k, id) => ({ id, t: porClave[k].t, rubro: porClave[k].rubro }));
-    try { return { ok: true, lote, mapa: await clasificarLote(items) }; }
+    try { return { ok: true, lote, mapa: await clasificarLote(items, origen) }; }
     catch (e) { return { ok: false, error: String((e && e.message) || e).slice(0, 120) }; }
   }));
 
@@ -500,7 +588,7 @@ export async function clasificarKeywords(entrada) {
   }
   const paraGuardar = {};
   Object.keys(nuevas).forEach(k => {
-    paraGuardar[k] = Object.assign({}, nuevas[k], { motivo: motivoDe(nuevas[k]) });
+    paraGuardar[k] = Object.assign({}, nuevas[k], { motivo: motivoDe(nuevas[k], porClave[k].t) });
   });
   await guardarClasificaciones(paraGuardar);
 
@@ -521,7 +609,7 @@ export async function reclasificarTermino(término, cat, token) {
   const t = String(término || '').trim().slice(0, 140);
   const id = String(cat || '').trim();
   if (!t) return { error: 'falta el termino' };
-  if (!/^ML[AB]\d{3,}$/.test(id)) return { error: 'categoria invalida: va el id, ej. MLB1743 o MLA1368' };
+  if (!/^ML[ABM]\d{3,}$/.test(id)) return { error: 'categoria invalida: va el id, ej. MLB1743, MLM1747 o MLA1368' };
 
   const r = await fetchJson(MELI_API + '/categories/' + id, token, 5000);
   if (!r || !r.ok || !r.json || !r.json.name) return { error: 'MercadoLibre no devolvio la categoria ' + id };
@@ -531,11 +619,13 @@ export async function reclasificarTermino(término, cat, token) {
 
   const clave = claveClasificacion(id, t);
   const previa = (await clasificacionesGuardadas([clave]))[clave] || null;
-  const respuesta = await clasificarLote([{ id: 0, t, rubro }]);
+  // Un termino argentino que se barrio desde Mexico pudo haberse clasificado con
+  // el prompt de Mexico, pero el de Brasil es el de referencia para MLA.
+  const respuesta = await clasificarLote([{ id: 0, t, rubro }], id.startsWith('MLM') ? 'MLM' : 'MLB');
   const v = respuesta && respuesta['0'];
   if (!v || typeof v !== 'object') return { error: 'el modelo no devolvio la clasificacion' };
   const nueva = desdeModelo(v);
-  await guardarClasificaciones({ [clave]: Object.assign({}, nueva, { motivo: motivoDe(nueva) }) });
+  await guardarClasificaciones({ [clave]: Object.assign({}, nueva, { motivo: motivoDe(nueva, t) }) });
 
   return {
     clave, rubro,
@@ -761,7 +851,7 @@ function yaEstaEnArgentina(traducido, listasAR) {
 // Las tendencias son gratis, pero son dos consultas por rubro y Vercel corta a
 // los 60 segundos. Se van de a tandas y se para cuando se acaba el presupuesto:
 // mejor devolver 20 rubros barridos que morir en el intento con 40.
-async function tendenciasPorRubro(pares, token, limiteMs) {
+async function tendenciasPorRubro(pares, token, limiteMs, sitio) {
   const salida = [];
   const TANDA = 6;
   const hasta = Date.now() + (limiteMs || 25000);
@@ -769,33 +859,54 @@ async function tendenciasPorRubro(pares, token, limiteMs) {
     if (Date.now() > hasta) break;
     const tanda = pares.slice(i, i + TANDA);
     const hechas = await Promise.all(tanda.map(async (par) => {
-      const [ar, br] = await Promise.all([
+      const [ar, ext] = await Promise.all([
         tendencias('MLA', par.ar.id, token),
-        par.br ? tendencias('MLB', par.br.id, token) : Promise.resolve(partirTendencias([]))
+        par.br ? tendencias(sitio, par.br.id, token) : Promise.resolve(partirTendencias([]))
       ]);
-      return { par, ar, br };
+      return { par, ar, ext };
     }));
     salida.push(...hechas);
   }
   return salida;
 }
 
+// Sitios de donde puede venir la idea. Todo lo que dependia de Brasil sale de
+// aca: el sitio a consultar, el nombre del pais en los textos, la etiqueta del
+// origen y el campo de la posicion. Brasil conserva sus nombres de siempre
+// (BR, BR-nuevo, posicionBR) para que la respuesta no cambie.
+export const ORIGENES = {
+  MLB: { sitio: 'MLB', pais: 'Brasil', cod: 'BR', posicion: 'posicionBR' },
+  MLM: { sitio: 'MLM', pais: 'México', cod: 'MX', posicion: 'posicionMX' }
+};
+
 export async function descubrir(token, opts) {
   const o = opts || {};
+  const cfg = ORIGENES[o.origen] || ORIGENES.MLB;
+  const POS = cfg.posicion;
   // Antes eran 6 rubros. Con las clasificaciones cacheadas el barrido grande ya
   // no le cuesta a Claude lo que costaba, asi que se puede mirar mucho mas.
   const maxCategorias = o.maxCategorias || 20;
 
-  const [catsAR, catsBR] = await Promise.all([categorias('MLA', token), categorias('MLB', token)]);
+  const [catsAR, catsExt] = await Promise.all([categorias('MLA', token), categorias(cfg.sitio, token)]);
   if (!catsAR.length) return { error: 'MercadoLibre no devolvio las categorías' };
 
-  let pares = emparejarCategorias(catsAR, catsBR);
+  // "par.br" es la categoria del sitio de origen, sea Brasil o Mexico: el
+  // nombre quedo de cuando solo existia Brasil.
+  let pares = emparejarCategorias(catsAR, catsExt);
   const disponibles = pares.length;
+  // Todos los rubros que se pueden consultar desde este pais, no solo los que
+  // entran en el barrido: el selector de la pagina sale de aca.
+  const rubrosConPareja = pares.filter(p => p.br).map(p => ({ id: p.ar.id, ar: p.ar.name, origen: p.br.name }));
+  // Rubros que quedan sin pareja, de los dos lados. Los argentinos se analizan
+  // solo con Argentina; los del otro pais no se miran.
+  const sinParejaAR = pares.filter(p => !p.br).map(p => p.ar.id + ' ' + p.ar.name);
+  const usadas = new Set(pares.filter(p => p.br).map(p => p.br.id));
+  const sinParejaOrigen = catsExt.filter(c => !usadas.has(c.id)).map(c => c.id + ' ' + c.name);
   if (o.categoria) pares = pares.filter(p => p.ar.id === o.categoria);
   pares = pares.slice(0, maxCategorias);
   const pedidos = pares.length;
 
-  const porRubro = await tendenciasPorRubro(pares, token, o.presupuestoMs);
+  const porRubro = await tendenciasPorRubro(pares, token, o.presupuestoMs, cfg.sitio);
   const barridos = porRubro.length;
 
   // Una sola clasificacion para todos los rubros: traduce los brasileños y
@@ -803,15 +914,17 @@ export async function descubrir(token, opts) {
   // Cada keyword viaja con el rubro donde aparecio (el brasileño para las de
   // Brasil, el argentino para las de aca) y se clasifica por categoria: "polo"
   // en Carros es un auto y en Ropa una remera, y no comparten resultado.
+  // La clave del cache lleva el id de categoria, que ya trae el sitio (MLB...,
+  // MLM..., MLA...): lo de Mexico no se mezcla con lo de Brasil.
   const entradas = [];
   porRubro.forEach(r => {
-    const rubroBR = r.par.br ? r.par.br.name : r.par.ar.name;
-    const catBR = r.par.br ? r.par.br.id : r.par.ar.id;
-    r.br.crecimiento.forEach(t => entradas.push({ t, rubro: rubroBR, cat: catBR }));
+    const rubroExt = r.par.br ? r.par.br.name : r.par.ar.name;
+    const catExt = r.par.br ? r.par.br.id : r.par.ar.id;
+    r.ext.crecimiento.forEach(t => entradas.push({ t, rubro: rubroExt, cat: catExt }));
     r.ar.crecimiento.forEach(t => entradas.push({ t, rubro: r.par.ar.name, cat: r.par.ar.id }));
   });
   entradas.forEach(e => { e.k = claveClasificacion(e.cat, e.t); });
-  const clasif = await clasificarKeywords(entradas);
+  const clasif = await clasificarKeywords(entradas, { origen: cfg.sitio });
   const info = clasif.mapa;
   const de = (e) => info[e.k];
 
@@ -829,12 +942,14 @@ export async function descubrir(token, opts) {
   const importable = (e) => !!de(e) && de(e).imp !== false && !generico(e) && !vehiculo(e) && !marca(e);
   const sinClasificar = entradas.filter(e => !de(e)).length;
   const marcasFiltradas = entradas.filter(marca).length;
+  const licenciasFiltradas = entradas.filter(e => !!de(e) && esLicencia(de(e).es || e.t)).length;
 
   const candidatos = [];
-  for (const { par, ar, br } of porRubro) {
+  const dosMercados = 'Crece en ' + cfg.pais + ' y en Argentina a la vez: demanda confirmada en los dos mercados.';
+  for (const { par, ar, ext } of porRubro) {
     const listasAR = ar.todas;
-    const catBR = par.br ? par.br.id : par.ar.id;
-    const rubroBR = par.br ? par.br.name : par.ar.name;
+    const catExt = par.br ? par.br.id : par.ar.id;
+    const rubroExt = par.br ? par.br.name : par.ar.name;
 
     // Lo que crece en Argentina: demanda local ya despertando.
     ar.crecimiento.forEach((kw, i) => {
@@ -846,34 +961,32 @@ export async function descubrir(token, opts) {
         categoria: par.ar.id,
         categoriaNombre: par.ar.name,
         posicionAR: i + 1,
-        posicionBR: null,
+        [POS]: null,
         traducidoDe: null,
         fueraRubro: de(e).fueraRubro === true,
         senal: 'Está creciendo en las búsquedas de MercadoLibre Argentina esta semana.'
       });
     });
 
-    // Lo que crece en Brasil. Lo valioso es lo que todavia no aparece aca.
-    br.crecimiento.forEach((kw, i) => {
-      const e = { t: kw, rubro: rubroBR, k: claveClasificacion(catBR, kw) };
+    // Lo que crece afuera. Lo valioso es lo que todavia no aparece aca.
+    ext.crecimiento.forEach((kw, i) => {
+      const e = { t: kw, rubro: rubroExt, k: claveClasificacion(catExt, kw) };
       if (!importable(e)) return;
       const es = de(e).es || null;
       const llego = es ? yaEstaEnArgentina(es, listasAR) : null;
       const tambienAR = es ? ar.crecimiento.findIndex(k => normalizar(k) === normalizar(es)) : -1;
       candidatos.push({
         keyword: es || kw,
-        origen: llego === false ? 'BR-nuevo' : 'BR',
+        origen: llego === false ? cfg.cod + '-nuevo' : cfg.cod,
         categoria: par.ar.id,
         categoriaNombre: par.ar.name,
         posicionAR: tambienAR >= 0 ? tambienAR + 1 : null,
-        posicionBR: i + 1,
+        [POS]: i + 1,
         traducidoDe: es ? kw : null,
         fueraRubro: de(e).fueraRubro === true,
         senal: llego === false
-          ? 'Crece en Brasil y no aparece en las búsquedas argentinas: todavía no llegó.'
-          : (tambienAR >= 0
-              ? 'Crece en Brasil y en Argentina a la vez: demanda confirmada en los dos mercados.'
-              : 'Crece en Brasil.')
+          ? 'Crece en ' + cfg.pais + ' y no aparece en las búsquedas argentinas: todavía no llegó.'
+          : (tambienAR >= 0 ? dosMercados : 'Crece en ' + cfg.pais + '.')
       });
     });
   }
@@ -887,13 +1000,13 @@ export async function descubrir(token, opts) {
     porClave.set(clave, {
       ...previo,
       posicionAR: previo.posicionAR || c.posicionAR,
-      posicionBR: previo.posicionBR || c.posicionBR,
+      [POS]: previo[POS] || c[POS],
       traducidoDe: previo.traducidoDe || c.traducidoDe,
       // Si en alguno de los dos lados pertenece al rubro, no se marca.
       fueraRubro: previo.fueraRubro && c.fueraRubro,
-      origen: (previo.posicionAR || c.posicionAR) && (previo.posicionBR || c.posicionBR) ? 'ambos' : previo.origen,
-      senal: (previo.posicionAR || c.posicionAR) && (previo.posicionBR || c.posicionBR)
-        ? 'Crece en Brasil y en Argentina a la vez: demanda confirmada en los dos mercados.'
+      origen: (previo.posicionAR || c.posicionAR) && (previo[POS] || c[POS]) ? 'ambos' : previo.origen,
+      senal: (previo.posicionAR || c.posicionAR) && (previo[POS] || c[POS])
+        ? dosMercados
         : previo.senal
     });
   }
@@ -905,11 +1018,18 @@ export async function descubrir(token, opts) {
   const vehiculos = entradas.filter(e => de(e) && vehiculo(e));
   return {
     candidatos: lista,
-    rubros: porRubro.map(r => ({ ar: r.par.ar.name, br: r.par.br ? r.par.br.name : null, parecido: r.par.parecido, via: r.par.via })),
+    origen: cfg.sitio,
+    pais: cfg.pais,
+    rubros: porRubro.map(r => ({ ar: r.par.ar.name, [cfg.cod.toLowerCase()]: r.par.br ? r.par.br.name : null, parecido: r.par.parecido, via: r.par.via })),
+    sinParejaAR,
+    sinParejaOrigen,
+    rubrosConPareja,
     // Cuantos rubros se miraron de verdad, contra los que hay. Si el
     // presupuesto de tiempo corto el barrido, se ve en estos numeros.
     sin_clasificar: sinClasificar,
+    // Incluye las licencias; licencias_filtradas dice cuantas de esas son.
     marcas_filtradas: marcasFiltradas,
+    licencias_filtradas: licenciasFiltradas,
     rubros_barridos: barridos,
     rubros_pedidos: pedidos,
     rubros_disponibles: disponibles,
@@ -948,9 +1068,10 @@ export async function descubrir(token, opts) {
 export function scoreDemanda(c) {
   let s = 0;
   if (c.posicionAR) s += 40 - (c.posicionAR - 1) * 2;     // 40 a 22
-  if (c.posicionBR) s += 35 - (c.posicionBR - 1) * 2;     // 35 a 17
-  if (c.origen === 'BR-nuevo') s += 25;                    // todavia no llego
-  if (c.posicionAR && c.posicionBR) s += 15;               // confirmado en dos mercados
+  const ext = c.posicionBR || c.posicionMX;                // puesto en el pais de origen
+  if (ext) s += 35 - (ext - 1) * 2;                        // 35 a 17
+  if (/-nuevo$/.test(c.origen || '')) s += 25;             // todavia no llego
+  if (c.posicionAR && ext) s += 15;                        // confirmado en dos mercados
   return Math.max(0, Math.min(100, Math.round(s)));
 }
 
