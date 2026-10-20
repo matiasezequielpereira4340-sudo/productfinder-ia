@@ -766,3 +766,90 @@ cambio sale de `dolarapi.com` en vivo (`api/_dolar.js`), el IVA de importación 
 la percepción salen de la base imponible real (CIF + aranceles + tasa de
 estadística), y los precios de competencia salen de `/items?ids=` de la API
 oficial de MercadoLibre.
+
+## Buscador de oportunidades: pre-análisis nocturno
+
+El buscador ya no depende de que el visitante tenga MercadoLibre conectado. Un
+proceso de fondo usa la conexión OAuth del dueño de la app (`BUSCADOR_MELI_USER`,
+por defecto `matypereira`, con refresh del token) y deja cada nicho
+pre-analizado en `buscador_cache` con la **API oficial de MeLi, sin Apify**.
+
+- **Cuándo:** Vercel Cron `0 7 * * *` (04:00 AR) → `GET /api/analyze?precalcular=tanda`.
+  Cada tanda procesa **un** nicho (corte duro a los 50 s) y encadena la siguiente con
+  `CRON_SECRET`.
+- **Agenda:** `BUSCADOR_NICHOS_POR_NOCHE` (10) nichos por noche, así cada nicho se
+  actualiza una vez por semana. Primero los nichos que alguien buscó en los últimos
+  7 días (`buscador_busquedas`) con datos de 3 días o más; después el resto, del más
+  viejo al más nuevo, si tiene 6 días o más. El cache vale `BUSCADOR_CACHE_HORAS`
+  (168 h) y la tarjeta muestra "datos de hace X días".
+- **404:** los productos de catálogo que dan 404 en `/products/{id}/items` (sin
+  ofertas) se guardan en `buscador_sin_ofertas` y no se vuelven a pedir por 30 días.
+- **A mano:** `admin.html` → "Buscador de oportunidades: pre-análisis"
+  (correr, forzar todos, probar endpoints). Acepta `CRON_SECRET`, `ADMIN_KEY`,
+  sesión de admin o un token de corrida de un solo uso de `buscador_job_tokens`
+  (para previews, donde `CRON_SECRET`/`ADMIN_KEY` no están cargadas).
+- **Ritmo:** adaptativo, arranca en `BUSCADOR_MELI_RPS` (8/s) y se frena solo
+  ante 429. Medido el 20/10/2026: MeLi devolvió 429 a ~50/s y también a ~12/s.
+
+### Rotación con Apify (solo nocturna, con tope en USD)
+
+MeLi no da vendidos de publicaciones ajenas, así que la rotación sale del actor
+`devcake~mercadolibre-scraper`, **solo dentro del proceso nocturno** y **solo para
+el top 3 de cada nicho** que se actualizó esa noche (rankeado por demanda +
+saturación). Un visitante nunca dispara una corrida.
+
+- Una sola corrida por noche con `productIds` (hasta `BUSCADOR_ROTACION_ITEMS` = 5
+  publicaciones por producto) y `enrichDetailPage: true`: sin enriquecer, los
+  vendidos vienen en 0 (medido: 0 de 48). Tarifa: USD 0,04 por corrida + 0,004 por
+  publicación.
+- Se guarda en `buscador_vendidos`: vendidos (piso del rango que muestra MeLi,
+  "+5 mil vendidos" → 5.000), reseñas, fecha y costo real prorrateado.
+- Rotación = ventas por mes entre dos mediciones (Δ reseñas × relación
+  vendidos/reseñas, o el salto del rango, la mayor). Con una sola medición se muestra
+  el acumulado ("≥ N vendidos").
+- **Tope:** `APIFY_MONTHLY_BUDGET_USD` (5). Se mide con el uso real de la cuenta de
+  Apify del mes (incluye el Market Reader); el cron reparte lo que queda entre los
+  días que faltan. Si no alcanza, la tarjeta dice "Rotación: pendiente (tope mensual
+  alcanzado)". Sin rotación medida, un producto nunca es "oportunidad alta".
+
+### Costo puesto: carga consolidada marítima
+
+`margen-core.js` → `costoImportacion` (lo usan el buscador y la calculadora de
+`margen.html`):
+
+- logística puerta a puerta = volumen empaquetado (cm³ por unidad, estimado y
+  hardcodeado por producto en el catálogo) × `FLETE_USD_M3` (450 USD/m³)
+- derechos = (FOB + logística) × derecho de importación estimado por rubro (sin NCM)
+- tasa de estadística 3%
+- IVA 21% + IVA adicional 20%: crédito fiscal (no es costo, sí desembolso)
+- Ganancias 6% + IIBB 2,5%: pagos a cuenta (no es costo, sí desembolso)
+
+El capital y el mínimo de compra se calculan con el desembolso total. "Ajustar con mi
+cotización" abre `margen.html` con FOB, cm³, USD/m³ y derecho editables.
+
+### Qué endpoints responden con el token (medido 20/10/2026)
+
+| Endpoint | Estado | Uso |
+|---|---|---|
+| `/products/search` | 200 | total del catálogo (saturación) |
+| `/products/{id}/items` | 200 / **404 en ~70%** (sin ofertas) | vendedores, precio, Full, tienda oficial |
+| `/trends/MLA/{cat}` | 200 | demanda (posición en búsquedas top) |
+| `/categories/{id}` | 200 | nombre, publicaciones de la categoría |
+| `/users/{id}` | 200, **sin ventas de 60 días** | (ya no se usa) |
+| `/sites/MLA/listing_prices` | 200 | comisión real + cargo fijo |
+| `/sites/MLA/search` | **403** | (total de publicaciones de la búsqueda: no disponible) |
+| `/highlights/MLA/category\|product` | **403** | (más vendidos: no disponible) |
+| `/items/{id}`, `/items?ids=` | **403** en ítems ajenos | — |
+| `/reviews/item/{id}` | **403** | — |
+| `/visits/items`, `/items/{id}/visits/time_window` | **403** | — |
+
+### Métricas
+
+- **Demanda:** posición del producto en `/trends` de su categoría (exacto: 92→70;
+  búsqueda general del rubro: 70→55; ausente: 30 con "0 de N").
+- **Rotación:** vendidos reales medidos con Apify (ver arriba). El proxy de
+  MercadoLíder se sacó.
+- **Saturación:** oferta (catálogo, concentración top 10, % Full, % oficiales)
+  corregida por la demanda: `(50 − demanda) × 0,4`.
+- **Score:** demanda 25 + rotación 20 + saturación 25 (= 70) + margen 20 + riesgo/capital 10
+  (la tolerancia al riesgo mueve 5 puntos entre margen y riesgo).

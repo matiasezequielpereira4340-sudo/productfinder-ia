@@ -319,6 +319,32 @@ export async function fetchJson(url, token, timeoutMs) {
   }
 }
 
+// Comision real de MercadoLibre para un precio y una categoria, con la API
+// publica /sites/{site}/listing_prices (gratis, no pasa por el proveedor pago).
+// Devuelve el porcentaje y el cargo fijo de la publicacion clasica
+// (gold_special) o null si MeLi no contesta: el que llama decide el respaldo
+// y lo marca como estimado.
+export async function comisionMeli(precio, categoria, token, site) {
+  if (!(precio > 0)) return null;
+  let url = MELI_API + '/sites/' + (site || 'MLA') + '/listing_prices?price=' + Math.round(precio) +
+    '&listing_type_id=gold_special';
+  if (categoria) url += '&category_id=' + encodeURIComponent(categoria);
+  const r = await fetchJson(url, token, 3500);
+  if (!r.ok || !r.json) return null;
+  const lista = Array.isArray(r.json) ? r.json : [r.json];
+  const t = lista.find(x => x && x.listing_type_id === 'gold_special') || lista[0];
+  if (!t) return null;
+  const det = t.sale_fee_details || {};
+  let pct = Number(det.percentage_fee);
+  const fijo = Number(det.fixed_fee) || 0;
+  if (!isFinite(pct) || pct <= 0) {
+    const monto = Number(t.sale_fee_amount);
+    if (isFinite(monto) && monto > 0) pct = ((monto - fijo) / precio) * 100;
+  }
+  if (!isFinite(pct) || pct <= 0) return null;
+  return { porcentaje: Math.round(pct * 100) / 100, cargoFijo: Math.round(fijo), categoria: categoria || null };
+}
+
 // Busqueda sobre el catalogo de MercadoLibre.
 // /sites/MLA/search (busqueda libre) devuelve 403 desde que MeLi la cerro a
 // terceros, incluso con token de usuario. El catalogo sigue abierto:
@@ -583,6 +609,17 @@ export async function paginasDeCatalogo(product, token, site, paginas, deadline)
   return { catalogo, total, estados: respuestas.map(r => r.status) };
 }
 
+// Lo que el buscador de oportunidades necesita del envio, sacado de la misma
+// respuesta que ya se pide (no es una llamada extra). logistic_type
+// 'fulfillment' es MercadoEnvios Full. Se guarda null cuando MeLi no lo manda,
+// para distinguir "no esta en Full" de "no se sabe".
+function envioDe(sh) {
+  return {
+    free_shipping: !!(sh && sh.free_shipping),
+    logistic_type: (sh && typeof sh.logistic_type === 'string') ? sh.logistic_type : null
+  };
+}
+
 export async function catalogSearch(product, token, opts) {
   const o = opts || {};
   if (!token) return null;
@@ -643,7 +680,9 @@ export async function catalogSearch(product, token, opts) {
           price: it.price,
           sold_quantity: (typeof it.sold_quantity === 'number') ? it.sold_quantity : null,
           seller: { id: it.seller_id || null, nickname: '' },
-          shipping: { free_shipping: !!(it.shipping && it.shipping.free_shipping) },
+          shipping: envioDe(it.shipping),
+          official_store_id: it.official_store_id || null,
+          category_id: it.category_id || null,
           catalog_product_id: id
         }));
       if (lista.length) return lista;
@@ -665,7 +704,9 @@ export async function catalogSearch(product, token, opts) {
         price: bb.price,
         sold_quantity: (typeof bb.sold_quantity === 'number') ? bb.sold_quantity : null,
         seller: { id: bb.seller_id || null, nickname: '' },
-        shipping: { free_shipping: !!(bb.shipping && bb.shipping.free_shipping) },
+        shipping: envioDe(bb.shipping),
+        official_store_id: bb.official_store_id || null,
+        category_id: bb.category_id || null,
         catalog_product_id: id
       }];
     }
@@ -1126,7 +1167,7 @@ export function idsPorPatron(html, site) {
 export async function hidratarItems(ids, token, deadline) {
   // available_quantity no se pedia, con lo cual el stock llegaba siempre vacio
   // aunque la API lo tenga. Es gratis pedirlo: viaja en la misma consulta.
-  const atributos = 'id,title,price,sold_quantity,available_quantity,seller_id,shipping,category_id,status';
+  const atributos = 'id,title,price,sold_quantity,available_quantity,seller_id,shipping,category_id,status,permalink,official_store_id';
   const lotes = [];
   for (let i = 0; i < ids.length; i += 20) lotes.push(ids.slice(i, i + 20));
   const respuestas = await Promise.all(lotes.map(l => {
@@ -1543,10 +1584,18 @@ export async function buscarPublicaciones(product, token, opts) {
   //    venga de donde venga, se vuelve a intentar con las vias GRATUITAS: no
   //    cuesta nada y puede traer mas. La via paga no se dispara sola con una
   //    cache flaca: para eso esta el boton "Actualizar" (decision del usuario).
-  let cacheFlaco = null;
+  let cacheFlaco = null, cacheViejo = null;
   if (!o.sinCache) {
     const guardado = await leerCache(product, site);
-    if (guardado) {
+    // o.camposEnvio: el buscador de oportunidades necesita logistic_type y
+    // official_store_id, que las filas guardadas antes del 20/10/2026 no
+    // tienen. Esas filas se vuelven a pedir por las vias GRATUITAS (la paga
+    // no entra con sinPago); si no traen nada, se usa la guardada igual.
+    const formatoViejo = guardado && o.camposEnvio &&
+      !guardado.results.some(x => x && x.shipping && 'logistic_type' in x.shipping);
+    if (guardado && formatoViejo) {
+      cacheViejo = guardado;
+    } else if (guardado) {
       if (guardado.results.length >= MUESTRA_MINIMA_CONFIABLE) return guardado;
       cacheFlaco = guardado;
     }
@@ -1718,6 +1767,7 @@ export async function buscarPublicaciones(product, token, opts) {
       return acumulado;
     }
     if (cacheFlaco) return cacheFlaco;
+    if (cacheViejo) return cacheViejo;
     return ceroRelevancia;
   };
   const inicioBusqueda = Date.now();
@@ -1730,7 +1780,7 @@ export async function buscarPublicaciones(product, token, opts) {
     // Excepcion: el boton "Actualizar" (sinCache) es el usuario eligiendo
     // gastar; si lo gratuito no llego a la muestra minima, se paga.
     const pidioActualizar = !!o.sinCache && (!acumulado || acumulado.results.length < MUESTRA_MINIMA_CONFIABLE);
-    if (nombre === 'proveedor' && !pidioActualizar && (acumulado || cacheFlaco || ceroRelevancia)) return await cerrarConLoJuntado();
+    if (nombre === 'proveedor' && !pidioActualizar && (acumulado || cacheFlaco || cacheViejo || ceroRelevancia)) return await cerrarConLoJuntado();
     // Se acabo el presupuesto: se devuelve lo juntado o "sin tiempo", que
     // aguas arriba es "no pude consultar". Jamas un cero.
     if (o.deadline && Date.now() > o.deadline) {

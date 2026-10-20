@@ -36,7 +36,7 @@
 <title>MeLi Connect &#8212; Dej&#225; de importar a ciegas</title>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="app.css?v=20260907a">
+<link rel="stylesheet" href="app.css?v=20261020c">
 
   
 
@@ -233,23 +233,12 @@
     <div class="steps-guide">
   <div class="step-box"><div class="step-num">1</div><h4>Defin&#237; tu perfil</h4><p>Eleg&#237; capital, experiencia, canal de venta, secci&#243;n y tolerancia al riesgo. Con eso filtro los productos aptos para importar.</p></div>
   <div class="step-box"><div class="step-num">2</div><h4>Analizo el mercado real</h4><p>Consulto precios, cantidad de vendedores y saturaci&#243;n reales en MercadoLibre para cada producto de la secci&#243;n.</p></div>
-  <div class="step-box"><div class="step-num">3</div><h4>Recib&#237; las oportunidades</h4><p>Te muestro los productos ordenados por su potencial, con margen estimado, demanda y riesgo. El <svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> TOP PICK es el mejor.</p></div>
+  <div class="step-box"><div class="step-num">3</div><h4>Recib&#237; las oportunidades</h4><p>Te muestro los productos ordenados por su potencial, con margen neto, competencia y demanda medidas, y links a MercadoLibre y proveedores. El <svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> TOP PICK es el mejor que te alcanza.</p></div>
 </div>
     <div class="example-preview" style="margin-bottom:20px">
       <div class="hhd-top" style="margin-bottom:10px"><span class="hhd-label">As&iacute; se ve un resultado</span><span class="hhd-demo">Ejemplo ilustrativo</span></div>
-      <div class="hhd-card">
-        <div class="hhd-head">
-          <div><div class="hhd-name">Collar GPS para mascotas</div><div class="hhd-meta">Tecnolog&iacute;a &middot; Argentina</div></div>
-          <span class="hhd-pick"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> Top pick</span>
-        </div>
-        <div class="hhd-grid">
-          <div class="hhd-kpi is-good"><b>31%</b><span>Margen</span></div>
-          <div class="hhd-kpi is-accent"><b>Alta</b><span>Demanda</span></div>
-          <div class="hhd-kpi is-good"><b>Baja</b><span>Competencia</span></div>
-          <div class="hhd-kpi is-good"><b>Bajo</b><span>Riesgo</span></div>
-        </div>
-        <div class="hhd-foot">N&uacute;meros de muestra para explicar el formato del resultado. Abajo analizo productos reales seg&uacute;n tu perfil.</div>
-      </div>
+      <div id="pfEjemplo" class="pf2-ejemplo"></div>
+      <div class="hhd-foot" style="margin-top:8px">N&uacute;meros de muestra, calculados con la misma f&oacute;rmula que los resultados reales. Abajo analizo productos reales seg&uacute;n tu perfil.</div>
     </div>
     <div class="config-card">
       <h3><svg class="ic" aria-hidden="true"><use href="#i-gear"></use></svg> Configuraci&#243;n</h3>
@@ -276,7 +265,7 @@
       <div class="email-input-row"><input type="email" id="emailInput" placeholder="tu@email.com" onkeydown="if(event.key==='Enter')unlockResults()"><button class="btn-unlock" onclick="unlockResults()">Ver An&#225;lisis &#8594;</button></div>
     </div>
     <div id="resultsSection">
-      <div class="results-header"><h2><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Productos Recomendados</h2><button class="btn-pdf" onclick="exportPDF()"><svg class="ic" aria-hidden="true"><use href="#i-down"></use></svg> Exportar PDF</button></div>
+      <div class="results-header"><h2><svg class="ic" aria-hidden="true"><use href="#i-box"></use></svg> Productos Recomendados</h2><div class="pf2-hbtns"><button class="btn-pdf" type="button" id="pfListaBtn" onclick="pfMostrarLista()">Mi lista</button><button class="btn-pdf" type="button" onclick="exportCSV()"><svg class="ic" aria-hidden="true"><use href="#i-down"></use></svg> CSV</button><button class="btn-pdf" type="button" onclick="exportPDF()"><svg class="ic" aria-hidden="true"><use href="#i-down"></use></svg> PDF</button></div></div>
       <div class="products-grid" id="productsGrid"></div>
     </div>
     <div class="chat-section">
@@ -502,7 +491,7 @@
   <button class="mc-bltab" id="mcBlTab" data-mc-cta="contacto"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg> Hablar por WhatsApp</button>
 
   
-<script defer src="app.js?v=20260908a"></script>
+<script defer src="app.js?v=20261020d"></script>
 <script defer src="mc-ui.js?v=20260908a"></script>
 </body>
 </html>

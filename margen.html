@@ -287,7 +287,7 @@ body.modo-simple [data-nivel="avanzado"]{ display:none !important; }
   <div class="grid4">
     <div class="field">
       <label for="tipoCambio">Tipo de cambio USD → ARS</label>
-      <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="tipoCambio" value="1250" min="1" oninput="tcEditadoAMano=true; recalcAll()"></div>
+      <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="tipoCambio" value="1250" min="1" oninput="tcEditadoAMano=true; calcularCostoImport(); recalcAll()"></div>
       <div class="hint" id="tcOrigen">Buscando la cotizaci&oacute;n de hoy&hellip;</div>
     </div>
     <div data-nivel="avanzado" class="field">
@@ -453,6 +453,31 @@ body.modo-simple [data-nivel="avanzado"]{ display:none !important; }
       <div class="hint">Si comprás en USD multiplicá por el tipo de cambio arriba.</div>
     </div>
   </div>
+  <details id="calcImport" style="margin:0 0 12px;border:1px solid var(--border,#333);border-radius:10px;padding:10px 12px">
+    <summary style="cursor:pointer;font-weight:700">Calcular el costo desde el FOB (importación marítima consolidada)</summary>
+    <div class="grid4" style="margin-top:10px">
+      <div class="field">
+        <label for="ciFob">FOB por unidad (USD)</label>
+        <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="ciFob" min="0" step="0.01" placeholder="2.75" oninput="calcularCostoImport()"></div>
+      </div>
+      <div class="field">
+        <label for="ciVol">Volumen empaquetado (cm³/u)</label>
+        <input type="number" id="ciVol" min="0" step="10" placeholder="1000" oninput="calcularCostoImport()">
+        <div class="hint">Caja de venta de 10×10×10 cm = 1.000 cm³.</div>
+      </div>
+      <div class="field">
+        <label for="ciM3">Logística puerta a puerta (USD/m³)</label>
+        <div class="pfx"><span class="pfx-sym">$</span><input type="number" id="ciM3" min="0" step="10" value="450" oninput="calcularCostoImport()"></div>
+        <div class="hint">Flete + despacho + gastos, carga consolidada.</div>
+      </div>
+      <div class="field">
+        <label for="ciDi">Derecho de importación (%)</label>
+        <div class="pfx"><span class="sfx-sym">%</span><input type="number" class="has-sfx" id="ciDi" min="0" max="50" step="1" value="20" oninput="calcularCostoImport()"></div>
+        <div class="hint">Depende de la posición arancelaria (NCM).</div>
+      </div>
+    </div>
+    <div class="hint" id="ciDetalle" style="margin-top:6px">Completá el FOB y el volumen: el costo del producto se calcula solo (FOB + logística + derechos + tasa de estadística 3%; IVA y percepciones van aparte porque se recuperan).</div>
+  </details>
   <div class="grid4" style="margin-bottom:12px">
     <div class="field">
       <label for="pStock">Stock disponible (uds)</label>
@@ -530,6 +555,7 @@ body.modo-simple [data-nivel="avanzado"]{ display:none !important; }
 </div>
 
 </main>
+<script src="margen-core.js?v=20261020b"></script>
 <script>
 // ========== STATE ==========
 let products = [];
@@ -608,6 +634,7 @@ let tcEditadoAMano = false;
     if (!isFinite(venta) || venta <= 0) throw new Error('sin valor');
     if (!tcEditadoAMano && campo) {
       campo.value = Math.round(venta);
+      if (typeof calcularCostoImport === 'function') calcularCostoImport();
       if (typeof recalcAll === 'function') recalcAll();
     }
     if (origen) origen.textContent = 'D\u00f3lar tarjeta de hoy, tra\u00eddo en vivo. Pod\u00e9s cambiarlo si compr\u00e1s a otro tipo de cambio.';
@@ -623,7 +650,81 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('fechaInforme').value = new Date().toLocaleDateString('es-AR');
   loadFromStorage();
   recalcAll();
+  precargarDesdeURL();
 });
+// ========== COSTO DESDE FOB ==========
+// Misma cuenta que el Buscador de oportunidades (MargenCore.costoImportacion):
+// logistica por volumen x USD/m3 + derechos + tasa. IVA 21% + IVA adicional
+// 20% (credito) y Ganancias 6% + IIBB 2,5% (pagos a cuenta) se informan aparte.
+function calcularCostoImport() {
+  const fob = parseFloat(document.getElementById('ciFob').value);
+  const vol = parseFloat(document.getElementById('ciVol').value);
+  const out = document.getElementById('ciDetalle');
+  if (!(fob > 0) || !(vol > 0)) return;
+  const tc = parseFloat(document.getElementById('tipoCambio').value) || 1250;
+  const c = MargenCore.costoImportacion({
+    fobUSD: fob, volCm3: vol,
+    fleteUsdM3: parseFloat(document.getElementById('ciM3').value) || 0,
+    diPct: parseFloat(document.getElementById('ciDi').value) || 0, usdArs: tc
+  });
+  document.getElementById('pCosto').value = c.costoARS;
+  const u = n => 'USD ' + n.toLocaleString('es-AR', { maximumFractionDigits: 2 });
+  if (out) out.innerHTML = 'Costo del producto: FOB ' + u(c.fobUSD) + ' + logística ' + u(c.logisticaUSD) + ' + derechos ' + u(c.derechosUSD) +
+    ' + tasa ' + u(c.tasaUSD) + ' = <b>' + u(c.costoUSD) + ' ($' + c.costoARS.toLocaleString('es-AR') + ')</b>, cargado en "Costo del producto". ' +
+    'Aparte: IVA ' + u(c.creditoIvaUSD) + ' (crédito) y percepciones ' + u(c.pagosACuentaUSD) + ' (pagos a cuenta). Desembolso total por unidad: ' + u(c.desembolsoUSD) + '.';
+}
+
+// ========== PRECARGA DESDE EL BUSCADOR ==========
+// "Ajustar con mi cotizacion" del Buscador de oportunidades abre esta pagina
+// con ?nombre=...&precio=...&costo=...&fob=... El costo que manda es una
+// estimacion por categoria: se precarga para que lo reemplaces por el de tu
+// proveedor, no para darlo por bueno. No se agrega solo a la tabla.
+function precargarDesdeURL() {
+  let q;
+  try { q = new URLSearchParams(window.location.search); } catch (e) { return; }
+  const nombre = (q.get('nombre') || '').slice(0, 120);
+  const precio = Math.round(Number(q.get('precio')));
+  const costo = Math.round(Number(q.get('costo')));
+  const fob = q.get('fob') ? String(q.get('fob')).slice(0, 30) : '';
+  const comision = Number(q.get('comision'));
+  const iva = Math.round(Number(q.get('iva')));
+  const margenBuscador = Number(q.get('margen'));
+  if (!nombre && !(precio > 0)) return;
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+  set('pNombre', nombre);
+  if (precio > 0) set('pPrecioVenta', precio);
+  if (costo > 0) set('pCosto', costo);
+  // Datos de importacion (editables): si vienen, se abre el calculo y se
+  // recalcula el costo con el tipo de cambio de esta pagina.
+  const fobu = Number(q.get('fobu')), vol = Number(q.get('vol')), m3 = Number(q.get('m3')), di = Number(q.get('di'));
+  if (fobu > 0 && vol > 0) {
+    set('ciFob', fobu); set('ciVol', vol);
+    if (m3 > 0) set('ciM3', m3);
+    if (di >= 0 && q.get('di') !== null) set('ciDi', di);
+    const det = document.getElementById('calcImport'); if (det) det.open = true;
+    calcularCostoImport();
+  }
+  const campo = document.getElementById('pNombre');
+  const seccion = campo && campo.closest('.section');
+  if (seccion && !document.getElementById('avisoPrecarga')) {
+    const av = document.createElement('div');
+    av.id = 'avisoPrecarga';
+    av.className = 'hint warn destacado';
+    av.style.margin = '0 0 12px';
+    av.textContent = 'Datos que trajimos del Buscador de oportunidades. El precio de venta es la mediana de MercadoLibre; ' +
+      'el costo es una ESTIMACIÓN por categoría' + (fob ? ' (FOB USD ' + fob + ')' : '') +
+      '. Ajustá FOB, volumen, USD/m³ y derecho de importación con tu cotización (abajo) y tocá "Agregar producto".' +
+      (isFinite(margenBuscador) && q.get('margen') ? ' El buscador te dio ' + margenBuscador.toLocaleString('es-AR') + '% de margen neto' +
+        (comision > 0 ? ' con ' + comision.toLocaleString('es-AR') + '% de comisión' : '') +
+        (iva > 0 ? ' y descontando $' + iva.toLocaleString('es-AR') + ' de IVA neto por unidad (responsable inscripto)' : '') +
+        '. Acá el IVA de la venta no se descuenta y la comisión es la del tipo de publicación que elijas arriba, así que el número puede dar distinto.' : '');
+    const titulo = seccion.querySelector('.section-title');
+    if (titulo) titulo.insertAdjacentElement('afterend', av); else seccion.prepend(av);
+    try { seccion.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
+    const pc = document.getElementById('pCosto');
+    if (pc) setTimeout(() => { try { pc.focus(); pc.select(); } catch (e) {} }, 400);
+  }
+}
 function saveToStorage() { try { localStorage.setItem('mc2_products', JSON.stringify(products)); } catch(e){} }
 function loadFromStorage() { try { const d = JSON.parse(localStorage.getItem('mc2_products')||'[]'); products = d; nextId = products.length ? Math.max(...products.map(p=>p.id))+1 : 1; } catch(e){ products=[]; } }
 
@@ -719,27 +820,17 @@ function calcProduct(p, g) {
   const comisionBaseProd = p.tipoPub ? getTipoPubComision(p.tipoPub) : getComisionBase();
   const comisionTotalProd = comisionBaseProd * (1 + g.iva/100) + g.cargoCuotas;
   const envio = (p.envioPropio !== null && p.envioPropio >= 0) ? p.envioPropio : g.costoEnvio;
-  // Por unidad — todos los descuentos
-  const comisionARS   = precio * comisionTotalProd / 100;           // comisión + IVA + cuotas
-  const iibbARS       = precio * g.iibb / 100;                      // IIBB sobre venta
-  const percAfipARS   = precio * g.percAfip / 100;                  // Percepción AFIP
-  const otrosVarARS   = precio * g.otrosVar / 100;                  // Otros variables
-  const envioARS      = envio;                                       // Costo envío
-  // Desglose comisión para mostrar
-  const comisionPura  = precio * comisionBaseProd / 100;
-  const ivaComisionARS= precio * comisionBaseProd * g.iva/100 / 100;
-  const cargoCuotasARS= precio * g.cargoCuotas / 100;
-  // Ganancia antes de ganancias e impacto devoluciones
-  const costosTotalesARS = costo + comisionARS + iibbARS + percAfipARS + otrosVarARS + envioARS + (p.empaqueARS||0);
-  const ganBruta      = precio - costo;
-  const ganAntesDev   = precio - costosTotalesARS;
-  // Impacto devoluciones: en % de ventas, si devuelven el comprador ya no paga pero vos perdiste el costo
-  const impactoDevARS = precio * g.devoluciones / 100 * 0.3; // aprox 30% del valor en pérdida neta por devolución
-  const ganNeta       = ganAntesDev - impactoDevARS;
-  const impGanARS     = ganNeta > 0 ? ganNeta * g.impGan / 100 : 0;
-  const ganReal       = ganNeta - impGanARS;
-  const margenPct     = precio > 0 ? (ganReal / precio) * 100 : 0;
-  const roi           = costo > 0 ? (ganReal / costo) * 100 : 0;
+  // Por unidad: la cuenta vive en margen-core.js, la misma que usa el
+  // Buscador de oportunidades. MargenClear no descuenta IVA de venta
+  // (ivaVentaPct 0), igual que antes.
+  const u = MargenCore.calcularUnidad({
+    precio, costo, comisionBasePct: comisionBaseProd, ivaComisionPct: g.iva,
+    cargoCuotasPct: g.cargoCuotas, iibbPct: g.iibb, percAfipPct: g.percAfip,
+    otrosVarPct: g.otrosVar, envio, empaque: (p.empaqueARS||0),
+    devolucionesPct: g.devoluciones, impGananciasPct: g.impGan
+  });
+  const { comisionARS, iibbARS, percAfipARS, otrosVarARS, envioARS, comisionPura, ivaComisionARS,
+          cargoCuotasARS, costosTotalesARS, ganBruta, impactoDevARS, ganNeta, impGanARS, ganReal, margenPct, roi } = u;
   // Período
   const unidadesPeriodo = Math.min(ventasDia * g.dias, p.stock > 0 ? p.stock : Infinity);
   const ingresosPeriodo   = precio * unidadesPeriodo;
