@@ -110,14 +110,16 @@ export function limpiarMuestra(results) {
     .filter(x => !esMarca(x.title || ''));
 }
 
-// Precios fuera de [0,8 x costo, 5 x costo] casi siempre son otro producto
-// (repuestos, packs, kits premium). Antes el piso era 1,3 x costo, lo que
-// escondia justamente el caso que importa: el mercado vende por debajo de lo
-// que te cuesta traerlo.
+// Precios por encima de 5 x costo casi siempre son otro producto (kits,
+// packs, versiones premium) y se descartan. Por ABAJO no hay piso: medido con
+// datos reales, el "juguete de plumas para gato" se vende a $3.400-9.000 con un
+// costo estimado de $12.000; con el piso viejo (0,8 x costo) quedaba como
+// "sin ofertas comparables" cuando el dato real es que se vende por debajo de
+// lo que cuesta traerlo.
 export function acotarPorCosto(results, costoPuestoARS) {
   if (!(costoPuestoARS > 0)) return results;
-  const min = costoPuestoARS * 0.8, max = costoPuestoARS * 5;
-  return results.filter(x => x.price >= min && x.price <= max);
+  const max = costoPuestoARS * 5;
+  return results.filter(x => x.price <= max);
 }
 
 export function estadisticasCompetencia(results, total) {
