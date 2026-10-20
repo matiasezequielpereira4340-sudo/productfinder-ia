@@ -11,7 +11,7 @@
 // Este archivo NO es un endpoint: lo llama api/analyze.js (api/ ya tiene 12
 // funciones, el tope del plan Hobby).
 
-import { MELI_API, fetchJson, relevanciaPorTitulo } from './_meli.js';
+import { MELI_API, fetchJson, palabrasSignificativas, puntajeDeTitulo } from './_meli.js';
 
 export const MELI_USER_PRECALCULO = () => process.env.BUSCADOR_MELI_USER || 'matypereira';
 
@@ -122,9 +122,9 @@ export async function probarEndpoints(token, q, itemForzado) {
 // Por eso no hay vendidos, reseñas ni visitas por publicacion: la rotacion se
 // aproxima con las ventas de 60 dias de los vendedores que ofrecen el producto.
 
-export const VERSION_MERCADO = 2;
-const CATALOGO_PAGINAS = 2;          // 2 x 10 productos de catalogo
-const MAX_PRODUCTOS_CON_ITEMS = 12;  // a cuantos productos se les piden ofertas
+export const VERSION_MERCADO = 3;
+const CATALOGO_PAGINAS = 3;          // 3 x 10 productos de catalogo
+const MAX_PRODUCTOS_CON_ITEMS = 20;  // a cuantos productos se les piden ofertas (medido: ~75% da 404, sin ofertas)
 const OFERTAS_OBJETIVO = 25;
 const VENDEDORES_TOP = 5;
 
@@ -185,8 +185,10 @@ async function datosCategoria(cli, catId) {
   return p;
 }
 
-// Reputacion publica del vendedor: ventas completadas en los ultimos 60 dias
-// (todas sus publicaciones, no solo este producto).
+// Reputacion publica del vendedor. MEDIDO 20/10/2026: /users/{id} con token
+// de terceros NO trae metrics.sales (ventas de 60 dias); trae transacciones
+// historicas, nivel de reputacion y estado de MercadoLider (platinum, gold,
+// silver), que MeLi otorga por volumen de ventas reciente.
 async function datosVendedor(cli, sellerId) {
   if (!sellerId) return null;
   if (cli.cacheVendedores.has(sellerId)) return cli.cacheVendedores.get(sellerId);
@@ -198,8 +200,8 @@ async function datosVendedor(cli, sellerId) {
     return {
       id: sellerId,
       ventas60d: ventas && typeof ventas.completed === 'number' ? ventas.completed : null,
-      periodo: ventas && ventas.period || null,
-      transacciones: rep.transactions && typeof rep.transactions.total === 'number' ? rep.transactions.total : null,
+      transacciones: rep.transactions && typeof rep.transactions.completed === 'number' ? rep.transactions.completed
+        : (rep.transactions && typeof rep.transactions.total === 'number' ? rep.transactions.total : null),
       nivel: rep.level_id || null,
       lider: rep.power_seller_status || null
     };
@@ -208,22 +210,29 @@ async function datosVendedor(cli, sellerId) {
   return p;
 }
 
-// Posicion del producto en las tendencias de su categoria. MeLi ordena los 50
-// terminos: 1-10 son los de mayor crecimiento, 11-30 los mas buscados, 31-50
-// los populares.
+// Posicion del producto en las tendencias de su categoria (/trends/MLA/{cat}).
+// Coincide si comparten al menos 2 palabras significativas y esas cubren el
+// 60% de las palabras de la busqueda en tendencia. Antes alcanzaba con las 2
+// primeras palabras y "cepillo quita pelos mascotas" coincidia con "cepillo
+// quita pelusas para ropa".
 export function posicionEnTendencias(q, lista) {
   if (!Array.isArray(lista) || !lista.length) return null;
-  const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  const ignorar = new Set(['de', 'para', 'con', 'set', 'pack', 'mini', 'y', 'la', 'el', 'en', 'sin', 'los', 'las']);
-  const palabras = norm(q).split(/\s+/).filter(w => w.length > 2 && !ignorar.has(w));
-  const nucleo = palabras.slice(0, 2).map(w => w.replace(/(es|s)$/, ''));
-  if (!nucleo.length) return null;
+  const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const ignorar = new Set(['de', 'para', 'con', 'set', 'pack', 'mini', 'y', 'la', 'el', 'en', 'sin', 'los', 'las', 'del', 'por', 'x']);
+  const raiz = w => w.replace(/s$/, '');
+  const sig = t => Array.from(new Set(norm(t).split(/[^a-z0-9ñ]+/).filter(w => w.length > 2 && !ignorar.has(w)).map(raiz)));
+  const Q = new Set(sig(q));
+  if (Q.size < 2) return null;
   for (let i = 0; i < lista.length; i++) {
-    const kn = norm(lista[i]);
-    if (nucleo.every(w => kn.includes(w))) {
-      const pos = i + 1;
-      return { keyword: lista[i], posicion: pos, total: lista.length,
-        lista: pos <= 10 ? 'crecimiento' : pos <= 30 ? 'mas_buscadas' : 'populares' };
+    const K = sig(lista[i]);
+    if (!K.length) continue;
+    const comunes = K.filter(w => Q.has(w)).length;
+    if (comunes >= 2 && comunes / K.length >= 0.6) {
+      // "exacto": la busqueda en tendencia cubre la mayor parte del producto.
+      // "generico": es la busqueda general del rubro ("comederos para perros"
+      // para un comedero antivoracidad): demanda de la categoria, no del item.
+      return { keyword: lista[i], posicion: i + 1, total: lista.length,
+        tipo: comunes / Q.size >= 0.75 ? 'exacto' : 'generico' };
     }
   }
   return null;
@@ -244,13 +253,16 @@ export async function analizarProducto(cli, prod) {
     for (const x of (r.json.results || [])) if (x && x.id && !vistos.has(x.id)) { vistos.add(x.id); catalogo.push({ id: x.id, name: x.name || '' }); }
   }
   if (!catalogo.length) return null;
-  // Primero los que se llaman como el producto buscado.
-  const rel = relevanciaPorTitulo(q, catalogo.map(c => ({ id: c.id, title: c.name, price: 1 })));
-  const relevantes = new Set((rel.items || []).map(x => x.id));
-  // Solo los relevantes cuando hay suficientes: /products/search mezcla
-  // parecidos ("comedero automatico" para "comedero antivoracidad").
-  const base = relevantes.size >= 3 ? catalogo.filter(c => relevantes.has(c.id)) : catalogo;
-  const ordenados = base.slice(0, MAX_PRODUCTOS_CON_ITEMS);
+  // Solo los productos de catalogo cuyo nombre se parece de verdad al buscado
+  // (puntaje >= 0,5 de las palabras significativas). /products/search mezcla
+  // parecidos: para "comedero antivoracidad" trae comederos automaticos de
+  // $85.000. Si no quedan 3, se baja la vara a cualquier coincidencia.
+  const palabras = palabrasSignificativas(q);
+  const puntuados = catalogo.map(c => ({ c, p: puntajeDeTitulo(c.name, palabras) }));
+  let base = puntuados.filter(x => x.p >= 0.5);
+  if (base.length < 3) base = puntuados.filter(x => x.p > 0);
+  if (base.length < 3) base = puntuados;
+  const ordenados = base.sort((a, b) => b.p - a.p).map(x => x.c).slice(0, MAX_PRODUCTOS_CON_ITEMS);
 
   // 2. Ofertas activas por producto de catalogo (404 = sin ofertas).
   const ofertas = [];

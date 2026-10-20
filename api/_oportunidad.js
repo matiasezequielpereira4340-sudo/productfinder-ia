@@ -166,12 +166,17 @@ export function puntajeDemanda(c, mercado) {
       como: 'Suma de vendidos que informa MercadoLibre en las publicaciones comparables.' };
   }
   if (tend && tend.posicion) {
-    const p = tend.posicion;
-    const v = tend.lista === 'crecimiento' ? 92 - p : tend.lista === 'mas_buscadas' ? Math.round(80 - (p - 11) * 0.5) : Math.round(65 - (p - 31) * 0.5);
-    const listaTxt = tend.lista === 'crecimiento' ? 'mayor crecimiento' : tend.lista === 'mas_buscadas' ? 'más buscadas' : 'populares';
-    return { valor: v, nivel: nivel3(v, 75, 55), numero: '#' + p + ' de ' + tend.total,
-      detalle: '"' + tend.keyword + '" está #' + p + ' de ' + tend.total + ' en las búsquedas de ' + nombreCat + ' (' + listaTxt + ')',
-      como: 'Posición del producto en /trends de MercadoLibre para su categoría: 1-10 son las búsquedas de mayor crecimiento de la semana, 11-30 las más buscadas, 31-50 las populares. Más arriba, más demanda.' };
+    // Posicion relativa dentro de la lista de la categoria (MeLi devuelve
+    // entre ~5 y 50 busquedas segun la categoria): #1 vale 92, la ultima 60.
+    // Si la coincidencia es la busqueda general del rubro, 15 puntos menos.
+    const p = tend.posicion, n = Math.max(tend.total || 1, 1);
+    let v = Math.round(92 - (n > 1 ? (p - 1) / (n - 1) : 0) * 32);
+    const generico = tend.tipo === 'generico';
+    if (generico) v -= 15;
+    return { valor: v, nivel: nivel3(v, 75, 55), numero: '#' + p + ' de ' + n + ' búsquedas',
+      detalle: '"' + tend.keyword + '" está #' + p + ' de ' + n + ' en las búsquedas top de ' + nombreCat +
+        (generico ? ' (es la búsqueda general del rubro, no la de este producto)' : ''),
+      como: 'Posición en /trends de MercadoLibre para la categoría del producto (las búsquedas más frecuentes y de mayor crecimiento de la semana). #1 = 92 puntos, la última de la lista = 60; si coincide con la búsqueda general del rubro y no con la del producto, 15 menos. MeLi no informa vendidos por publicación y /highlights (más vendidos) responde 403.' };
   }
   if (cat && cat.tendenciasRevisadas) {
     return { valor: 30, nivel: 'Baja', numero: '0 de ' + cat.tendenciasRevisadas,
@@ -189,19 +194,39 @@ export function puntajeDemanda(c, mercado) {
 // productos de catalogo revisados tienen ofertas activas.
 // ------------------------------------------------------------
 export function puntajeRotacion(mercado) {
-  const vs = (mercado && Array.isArray(mercado.vendedores) ? mercado.vendedores : []).filter(v => v && typeof v.ventas60d === 'number');
-  if (!vs.length) {
-    return { valor: null, nivel: 'Sin dato', numero: '—', detalle: 'MercadoLibre no informó las ventas de los vendedores top.',
-      como: 'Se miran las ventas de 60 días de los vendedores que ofrecen el producto (reputación pública).' };
-  }
-  const med = Math.round(mediana(vs.map(v => v.ventas60d)));
-  const sv = med >= 3000 ? 85 : med >= 1000 ? 70 : med >= 300 ? 55 : med >= 60 ? 40 : 25;
-  const rev = mercado.catalogoRevisados || 0, con = mercado.conOfertas || 0;
+  const vs = (mercado && Array.isArray(mercado.vendedores) ? mercado.vendedores : []).filter(Boolean);
+  const rev = mercado && mercado.catalogoRevisados || 0, con = mercado && mercado.conOfertas || 0;
   const ratio = rev ? con / rev : null;
+  if (!vs.length) {
+    return { valor: null, nivel: 'Sin dato', numero: '\u2014', detalle: 'MercadoLibre no informó la reputación de los vendedores.',
+      como: 'Se mira la reputación pública de los vendedores que ofrecen el producto.' };
+  }
+  // Si algun dia MeLi vuelve a mandar ventas de 60 dias, se usan.
+  const con60 = vs.filter(v => typeof v.ventas60d === 'number');
+  let sv, numero, detalleV;
+  if (con60.length) {
+    const med = Math.round(mediana(con60.map(v => v.ventas60d)));
+    sv = med >= 3000 ? 85 : med >= 1000 ? 70 : med >= 300 ? 55 : med >= 60 ? 40 : 25;
+    numero = fmt(med) + ' ventas/60 d';
+    detalleV = 'mediana de ' + fmt(med) + ' ventas en 60 días de ' + con60.length + ' vendedores';
+  } else {
+    // MercadoLider: MeLi lo otorga por volumen de ventas de los ultimos meses
+    // (platinum > gold > silver). Es la unica señal reciente que es publica.
+    const PUNTOS = { platinum: 90, gold: 75, silver: 60 };
+    const lideres = vs.filter(v => PUNTOS[v.lider]);
+    const tx = vs.map(v => v.transacciones).filter(x => typeof x === 'number');
+    const medTx = tx.length ? Math.round(mediana(tx)) : null;
+    const base = vs.map(v => PUNTOS[v.lider] || (typeof v.transacciones === 'number' ? (v.transacciones >= 10000 ? 50 : v.transacciones >= 1000 ? 40 : 25) : 25));
+    sv = Math.round(base.reduce((a, b) => a + b, 0) / base.length);
+    numero = lideres.length + ' de ' + vs.length + ' MercadoLíder';
+    detalleV = lideres.length + ' de ' + vs.length + ' vendedores top son MercadoLíder' +
+      (lideres.length ? ' (' + lideres.map(v => v.lider).join(', ') + ')' : '') +
+      (medTx != null ? ' · mediana de ' + fmt(medTx) + ' ventas históricas' : '');
+  }
   const v = Math.round(ratio == null ? sv : sv * 0.7 + ratio * 100 * 0.3);
-  return { valor: v, nivel: nivel3(v, 65, 45), numero: fmt(med) + ' ventas/60 d',
-    detalle: 'Mediana de ' + fmt(med) + ' ventas en 60 días de ' + vs.length + ' vendedores top' + (ratio != null ? ' · ' + con + ' de ' + rev + ' productos del catálogo con ofertas activas' : ''),
-    como: 'Proxy: 70% ventas completadas en 60 días (mediana de los vendedores que ofrecen este producto, de todas sus publicaciones) + 30% proporción de productos del catálogo con ofertas activas. MercadoLibre no da reseñas ni visitas de publicaciones ajenas.' };
+  return { valor: v, nivel: nivel3(v, 65, 45), numero,
+    detalle: detalleV + (ratio != null ? ' · ' + con + ' de ' + rev + ' productos del catálogo con ofertas activas' : ''),
+    como: 'Proxy de rotación, porque MercadoLibre no da vendidos, reseñas ni visitas de publicaciones ajenas (403). 70%: estado MercadoLíder de los vendedores que ofrecen el producto (platinum 90, gold 75, silver 60; sin estado, según sus ventas históricas), que MeLi otorga por volumen de ventas reciente. 30%: proporción de productos del catálogo con ofertas activas.' };
 }
 
 // ------------------------------------------------------------

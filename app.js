@@ -737,6 +737,22 @@ function pfCard(p, opts){
     }).join('') + '</div>';
   }
 
+  // Lo que decide la compra va primero: demanda, rotacion y saturacion.
+  // Cada una con su nivel, el numero que la respalda y como se calculo.
+  if(p.metricas){
+    var orden = [['demanda', 'Demanda', true], ['rotacion', 'Rotación', true], ['saturacion', 'Saturación', false]];
+    h += '<div class="pf2-metricas">' + orden.map(function(o){
+      var m = p.metricas[o[0]] || {};
+      // Para demanda y rotacion "Alta" es bueno; para saturacion, malo.
+      var tono = m.nivel === 'Sin dato' ? 'nd' : ((m.nivel === 'Alta') === o[2] ? 'bien' : (m.nivel === 'Media' ? 'medio' : 'mal'));
+      var tip = (m.detalle || '') + (m.como ? '\n\nCómo se calcula: ' + m.como : '');
+      return '<div class="pf2-met pf2-met-' + tono + '" title="' + pfEsc(tip) + '" tabindex="0" aria-label="' + pfEsc(o[1] + ': ' + (m.nivel || 'Sin dato') + '. ' + tip) + '">' +
+        '<span class="pf2-met-l">' + o[1] + ' <span class="pf2-met-i" aria-hidden="true">?</span></span>' +
+        '<b class="pf2-met-v">' + pfEsc(m.nivel || 'Sin dato') + '</b>' +
+        '<span class="pf2-met-n">' + pfEsc(m.numero || '—') + '</span></div>';
+    }).join('') + '</div>';
+  }
+
   // Veredicto + score + semaforo: los tres de la misma funcion.
   h += '<div class="pf2-verdict">';
   h += '<span class="pf2-badge pf2-badge-' + pfEsc(v.nivel) + '">' + pfEsc(v.label) + '</span>';
@@ -761,9 +777,9 @@ function pfCard(p, opts){
     h += '</table></details>';
   }
 
-  // Numeros de plata: UN solo margen.
+  // Numeros de plata: UN solo margen. Va despues de las metricas y mas chico.
   var mn = p.margenNeto;
-  h += '<div class="product-stats">';
+  h += '<div class="product-stats pf2-plata">';
   h += '<div class="stat"><span class="stat-l" title="' + pfEsc((p.canal && p.canal.notaPrecio) || 'Mediana de publicaciones comparables en MercadoLibre') + '">Precio de venta</span><span class="stat-v">' + (p.precioVentaARS ? pfArs(p.precioVentaARS) : 'Sin dato') + '</span></div>';
   h += '<div class="stat pf2-sem pf2-sem-' + pfEsc(sem.color) + '"><span class="stat-l">Margen neto</span><span class="stat-v">' + (mn ? pfPct(mn.pct) : '—') + '</span><span class="pf2-sub">' + (mn ? pfArs(mn.netoARS) + ' por unidad · ' + pfEsc(sem.label) : 'Sin precio real') + '</span></div>';
   h += '<div class="stat"><span class="stat-l" title="' + pfEsc(costo.detalle || '') + '">FOB estimado</span><span class="stat-v">USD ' + pfNum(costo.fobMinUSD) + '\u2013' + pfNum(costo.fobMaxUSD) + '</span><span class="pf2-sub">estimado por categoría</span></div>';
@@ -778,20 +794,15 @@ function pfCard(p, opts){
       (p.canal && p.canal.clave !== 'mercadolibre' ? '<br>' + pfEsc(p.canal.etiqueta + ': ' + p.canal.notaPrecio + ' ' + p.canal.notaComision) : '') + '</div>';
   }
 
-  // Competencia y demanda, con numeros.
-  h += '<div class="pf2-bloque"><div class="pf2-bt">Competencia <span class="pf2-tag">' + pfEsc(p.saturacion || 'Sin dato') + '</span></div>';
+  // Detalle de la oferta (los numeros detras de la saturacion).
   if(c.muestra){
-    h += '<ul class="pf2-lista">' +
-      '<li>' + (c.totalCatalogo != null ? PF_NF.format(c.totalCatalogo) + ' productos en el catálogo de MeLi' : 'Total de catálogo: sin dato') + ' · muestra de ' + c.muestra + ' publicaciones</li>' +
+    h += '<div class="pf2-bloque"><div class="pf2-bt">Detalle de la oferta</div><ul class="pf2-lista">' +
+      '<li>' + (c.totalCatalogo != null ? PF_NF.format(c.totalCatalogo) + ' productos en el catálogo de MeLi' : 'Total de catálogo: sin dato') + ' · ' + c.muestra + ' ofertas activas revisadas' + (c.vendedoresDistintos ? ' de ' + c.vendedoresDistintos + ' vendedores' : '') + '</li>' +
       '<li>Precio mín / mediana / máx: ' + pfArs(c.precioMin) + ' / ' + pfArs(c.precioMediana) + ' / ' + pfArs(c.precioMax) + '</li>' +
       '<li>En Full: ' + (c.pctFull != null ? c.pctFull + '%' : 'sin dato') + ' · Tiendas oficiales: ' + (c.pctOficiales != null ? c.pctOficiales + '%' : 'sin dato') + '</li>' +
       '<li>Concentración: ' + (c.vendedoresTop10 != null ? 'las top ' + c.top10 + ' son de ' + c.vendedoresTop10 + ' vendedores' : 'sin dato') + '</li>' +
-      '</ul>';
-  } else {
-    h += '<div class="pf2-nota">' + (p.muestraInsuficiente ? 'Menos de 3 publicaciones comparables: no alcanza para medir.' : 'Sin datos de MercadoLibre para este producto.') + '</div>';
+      '</ul></div>';
   }
-  h += '</div>';
-  h += '<div class="pf2-bloque"><div class="pf2-bt">Demanda <span class="pf2-tag">' + pfEsc(p.demanda || 'Sin dato') + '</span></div><div class="pf2-nota">' + pfEsc(p.demandaDetalle || 'MercadoLibre no informa vendidos para estas publicaciones: validá la demanda antes de comprar.') + '</div></div>';
 
   // Perfil: capital.
   if(cap.moq){
@@ -808,7 +819,7 @@ function pfCard(p, opts){
       ' Capital de referencia ' + pfUsd(cap.capitalReferenciaUSD) + ' para tu rango; se usa hasta el 60% en un producto.</div></div>';
   }
   h += '<div class="risk-line risk-' + String(p.riesgo || '').toLowerCase().replace(/[^a-z]/g, '') + '" title="Suma el riesgo de capital (si entra el pedido mínimo o solo una prueba), certificaciones, peso, dispersión de precios y tamaño de la muestra. No mide si conviene: eso lo dice el veredicto.">Riesgo (operativo y de capital): ' + pfEsc(p.riesgo || 'Sin dato') + '</div>';
-  if(p.competenciaSinDatos || p.muestraInsuficiente){
+  if(p.sinDatos){
     h += '<div class="pf2-nota">Analiz&aacute; el producto en el <a href="' + pfEsc(pfMarketUrl(p)) + '" class="pf-ir-mr" data-q="' + pfEsc(p.query || p.nombre) + '" data-fob="' + pfEsc(costo.fobUSD) + '" data-kg="' + pfEsc(p.pesoG ? p.pesoG / 1000 : '') + '">Market Reader</a> para traer las publicaciones reales (queda precargado; el análisis arranca cuando tocás Analizar).</div>';
   }
 
@@ -902,13 +913,18 @@ function renderResults(data){
   if(data.nichoAproximado && data.nichoSolicitado){
     banner += '<div class="ml-banner pf2-banner">No tengo un cat&#225;logo propio para <strong>'+pfEsc(data.nichoSolicitado)+'</strong>, as&#237; que te muestro <strong>'+pfEsc(data.nichoLabel)+'</strong>, que es lo m&#225;s parecido que puedo analizar hoy.</div>';
   }
-  if(!data.meliConectado){
-    const motivo = data.meliTokenExpirado ? 'tu conexi&#243;n con MercadoLibre expir&#243;' : 'no ten&#233;s MercadoLibre conectado';
-    banner += '<div class="ml-banner pf2-banner pf2-banner-warn"><strong><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Sin datos de mercado:</strong> como '+motivo+' y nadie analiz&oacute; este nicho en las &uacute;ltimas '+(data.cacheHoras||24)+' h, no hay precios reales para calcular margen ni score. Te muestro costo estimado, certificaciones y links. <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">Conectar MercadoLibre →</a></div>';
-  } else {
+  var pendientes = (data && data.pendientes) || [];
+  // Nicho entero sin datos: un mensaje claro y nada mas (ni tarjetas vacias ni
+  // listas de nombres sin numeros).
+  if(!products.length){
+    grid.innerHTML = banner + '<div class="ml-banner pf2-banner pf2-banner-warn pf2-vacio"><strong><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Este rubro todav&iacute;a no tiene datos de MercadoLibre.</strong><br>Los rubros se analizan cada noche con la API oficial de MercadoLibre. Prob&aacute; con otro rubro o volv&eacute; ma&ntilde;ana' +
+      (data.meliTokenExpirado ? '. Tu conexi&oacute;n con MercadoLibre expir&oacute;: <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">reconectala</a> para analizarlo ahora.' : (!pfTieneSesion() ? '.' : ', o <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">conect&aacute; tu MercadoLibre</a> para analizarlo ahora.')) + '</div>';
+    return;
+  }
+  {
     var edad = data.edadHoras;
     var edadTxt = edad == null ? '' : (edad < 1 ? 'de hace menos de 1 h' : 'de hace ' + nf.format(Math.round(edad)) + ' h');
-    banner += '<div class="ml-banner pf2-banner pf2-banner-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Datos de MercadoLibre '+edadTxt+(data.desdeCache?' (guardados: se renuevan cada '+(data.cacheHoras||24)+' h, sin costo)':'')+'. <strong>'+data.conDatoReal+'</strong> de <strong>'+data.totalEvaluados+'</strong> productos con precio real. 1 USD ≈ $'+nf.format(data.usdArs)+'. Perfil: capital '+pfEsc(data.perfil && data.perfil.capitalLabel)+', '+pfEsc(data.perfil && data.perfil.experiencia)+' experiencia, canal '+pfEsc(data.perfil && data.perfil.canal)+', riesgo '+pfEsc(data.perfil && data.perfil.riesgo)+'.</div>';
+    banner += '<div class="ml-banner pf2-banner pf2-banner-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Datos de la API oficial de MercadoLibre '+edadTxt+(data.desdeCache?' (se actualizan cada noche)':'')+'. <strong>'+data.conDatoReal+'</strong> de <strong>'+data.totalEvaluados+'</strong> productos con datos. 1 USD ≈ $'+nf.format(data.usdArs)+'. Perfil: capital '+pfEsc(data.perfil && data.perfil.capitalLabel)+', '+pfEsc(data.perfil && data.perfil.experiencia)+' experiencia, canal '+pfEsc(data.perfil && data.perfil.canal)+', riesgo '+pfEsc(data.perfil && data.perfil.riesgo)+'.</div>';
   }
   banner += '<div id="pfListaPanel" class="pf2-panel" hidden></div>';
   const cards = products.map(function(p){ return pfCard(p); }).join('');
@@ -933,7 +949,17 @@ function renderResults(data){
         '<button class="pf-candado-btn" type="button" id="pfCandadoBtn"><svg class="ic" aria-hidden="true"><use href="#i-rocket"></use></svg> Ver c&oacute;mo trabajamos</button>' +
       '</div>';
   }
-  grid.innerHTML = banner + cards + candado;
+  // Pendientes: solo nombre y links, sin numeros inventados.
+  var pend = '';
+  if(pendientes.length){
+    pend = '<div class="pf2-pendientes"><div class="pf2-bt">Pendientes de an\u00e1lisis <span class="pf2-tag">se actualizan cada noche</span></div><ul>' +
+      pendientes.map(function(x){
+        var L = x.links || {};
+        return '<li><span class="pf2-pn" title="' + pfEsc(x.motivo || '') + '">' + pfEsc(x.nombre) + '</span>' +
+          pfLinkBtn(L.meli, 'MeLi') + pfLinkBtn(L.alibaba, 'Alibaba') + pfLinkBtn(L.tendencia, 'Tendencia') + '</li>';
+      }).join('') + '</ul></div>';
+  }
+  grid.innerHTML = banner + cards + candado + pend;
   // El link "Market Reader" arranca el flujo con ese producto ya escrito, para
   // que el usuario no tenga que volver a tipearlo.
   Array.prototype.forEach.call(grid.querySelectorAll('.pf-ir-mr'), function(a){
