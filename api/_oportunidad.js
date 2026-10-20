@@ -24,30 +24,42 @@ import { esMarca } from './_radar.js';
 // El FOB sale del rango cargado a mano por producto en el catalogo (por
 // categoria de producto), NO de una cotizacion. Se muestra como rango y con
 // la fuente, y la tarjeta ofrece ajustarlo con la cotizacion propia.
-export const USD_KG_COURIER = 12;      // flete aereo puerta a puerta, USD por kilo
-export const MIN_FLETE_USD = 2.5;      // ningun envio sale menos que esto
-export const RECARGO_IMPUESTOS = 1.85; // aranceles + tasa + IVA + percepciones + gastos sobre (FOB + flete)
-// De ese 1,85, la parte que es IVA de importacion (21% sobre CIF + arancel +
-// tasa, ~1,23): es credito fiscal y se descuenta del IVA de la venta.
-const BASE_IVA_IMPORTACION = 1.23;
+//
+// Logistica: carga consolidada maritima, USD por m3 puerta a puerta
+// (FLETE_USD_M3, 450 por defecto: flete + despacho + gastos) x el volumen
+// empaquetado de cada producto (volCm3 en el catalogo, estimado). Tributos
+// aparte, en margen-core.js. Reemplaza el modelo courier (minimo USD 2,50/u x
+// 1,85), que hacia inviable cualquier producto barato.
+export const FLETE_USD_M3 = () => Number(process.env.FLETE_USD_M3 || 450);
 
-export function costoImportacion(prod, usdArs) {
+// Derecho de importacion estimado POR RUBRO (sin NCM no hay posicion exacta):
+// la tarjeta lo dice y en "Ajustar con mi cotizacion" se cambia.
+const DI_POR_RUBRO = {
+  juguetes: 35, moda: 35, calzado: 35, textil: 26, tejido: 26, bebes: 25,
+  tecnologia: 16, celulares: 16, informatica: 14, audio: 20, fotografia: 16, smartwatch: 16, domotica: 16, seguridad: 16,
+  drones: 20, gaming: 20, energiasolar: 14, agro: 14, ortopedia: 14
+};
+export const DI_DEFAULT = 20;
+export function derechoImportacion(nichoKey) { return DI_POR_RUBRO[nichoKey] != null ? DI_POR_RUBRO[nichoKey] : DI_DEFAULT; }
+
+export function costoImportacion(prod, usdArs, nichoKey) {
   const fobMin = Number(prod.costoMin) || 0;
   const fobMax = Number(prod.costoMax) || fobMin;
   const fob = (fobMin + fobMax) / 2;
-  const kg = Math.max(0.02, (prod.pesoG || 200) / 1000);
-  const fleteUSD = Math.max(MIN_FLETE_USD, kg * USD_KG_COURIER);
-  const puestoUSD = (fob + fleteUSD) * RECARGO_IMPUESTOS;
-  return {
-    fobMinUSD: fobMin, fobMaxUSD: fobMax, fobUSD: Math.round(fob * 100) / 100,
-    fleteUSD: Math.round(fleteUSD * 100) / 100,
-    costoPuestoUSD: Math.round(puestoUSD * 100) / 100,
-    costoPuestoARS: Math.round(puestoUSD * usdArs),
-    ivaCreditoARS: Math.round((fob + fleteUSD) * BASE_IVA_IMPORTACION * 0.21 * usdArs),
+  const vol = Number(prod.volCm3) > 0 ? Number(prod.volCm3) : 1000;
+  const di = derechoImportacion(nichoKey);
+  const c = MargenCore.costoImportacion({ fobUSD: fob, volCm3: vol, fleteUsdM3: FLETE_USD_M3(), diPct: di, usdArs });
+  return Object.assign(c, {
+    fobMinUSD: fobMin, fobMaxUSD: fobMax,
+    // Compatibilidad con el resto del modulo: costo que NO se recupera.
+    costoPuestoUSD: c.costoUSD, costoPuestoARS: c.costoARS,
+    ivaCreditoARS: c.creditoIvaARS,
+    volEstimado: !(Number(prod.volCm3) > 0),
     fuente: 'estimado por categoría',
-    detalle: 'FOB del rango típico de la categoría + flete courier por peso (USD ' + USD_KG_COURIER +
-      '/kg) × ' + RECARGO_IMPUESTOS + ' de aranceles, tasas, IVA y gastos. No es una cotización.'
-  };
+    detalle: 'FOB del rango típico de la categoría + logística marítima consolidada (' + vol.toLocaleString('es-AR') + ' cm³/u estimado × USD ' +
+      FLETE_USD_M3() + '/m³ puerta a puerta) + derecho de importación ' + di + '% (estimado por rubro, sin NCM) + tasa de estadística 3%. ' +
+      'IVA 21% e IVA adicional 20% son crédito fiscal; Ganancias 6% e IIBB 2,5% son pagos a cuenta. No es una cotización.'
+  });
 }
 
 // ------------------------------------------------------------
@@ -110,15 +122,17 @@ export function limpiarMuestra(results) {
     .filter(x => !esMarca(x.title || ''));
 }
 
-// Precios por encima de 5 x costo casi siempre son otro producto (kits,
-// packs, versiones premium) y se descartan. Por ABAJO no hay piso: medido con
-// datos reales, el "juguete de plumas para gato" se vende a $3.400-9.000 con un
-// costo estimado de $12.000; con el piso viejo (0,8 x costo) quedaba como
-// "sin ofertas comparables" cuando el dato real es que se vende por debajo de
-// lo que cuesta traerlo.
+// Precios por encima de 12 x costo casi siempre son otro producto (kits,
+// packs, versiones premium) y se descartan. Era 5 x con el costo courier; con
+// el maritimo consolidado el costo puesto baja mucho y un markup de 5-10x es
+// normal en importacion chica (medidor laser: FOB USD 5,5 -> $55.000).
+// Por ABAJO no hay piso: medido con datos reales, el "juguete de plumas para
+// gato" se vendia por debajo de lo que costaba traerlo; con piso quedaba como
+// "sin ofertas comparables" en vez de mostrar ese dato.
+export const TOPE_PRECIO_X_COSTO = 12;
 export function acotarPorCosto(results, costoPuestoARS) {
   if (!(costoPuestoARS > 0)) return results;
-  const max = costoPuestoARS * 5;
+  const max = costoPuestoARS * TOPE_PRECIO_X_COSTO;
   return results.filter(x => x.price <= max);
 }
 
@@ -192,45 +206,76 @@ export function puntajeDemanda(c, mercado) {
 }
 
 // ------------------------------------------------------------
-// ROTACION: proxy. Reseñas y visitas por publicacion dan 403 con el token,
-// asi que se usa lo publico que si responde: las ventas de los ultimos 60
-// dias de los vendedores que ofrecen el producto (reputacion) y cuantos de los
-// productos de catalogo revisados tienen ofertas activas.
+// ROTACION: vendidos reales (Apify, proceso nocturno, top 3 por nicho)
 // ------------------------------------------------------------
-export function puntajeRotacion(mercado) {
-  const vs = (mercado && Array.isArray(mercado.vendedores) ? mercado.vendedores : []).filter(Boolean);
-  const rev = mercado && mercado.catalogoRevisados || 0, con = mercado && mercado.conOfertas || 0;
-  const ratio = rev ? con / rev : null;
-  if (!vs.length) {
-    return { valor: null, nivel: 'Sin dato', numero: '\u2014', detalle: 'MercadoLibre no informó la reputación de los vendedores.',
-      como: 'Se mira la reputación pública de los vendedores que ofrecen el producto.' };
+// hist = { ultimo: {estado, motivo}, cosechadas: [mas nueva, anterior] } de
+// api/_rotacion.js. MeLi muestra los vendidos en rangos ("+100", "+5 mil") y
+// sin fecha de publicacion: con UNA medicion solo hay acumulado; con DOS, la
+// variacion. Las reseñas son exactas: ventas del periodo por publicacion =
+// max(salto de rango, delta reseñas x vendidos/reseñas de esa publicacion).
+const fechaCorta = d => { const x = new Date(d); return String(x.getUTCDate()).padStart(2, '0') + '/' + String(x.getUTCMonth() + 1).padStart(2, '0'); };
+
+export function ventasEntreMediciones(nueva, anterior) {
+  const dias = (new Date(nueva.medido_en) - new Date(anterior.medido_en)) / 86400e3;
+  if (!(dias >= 2)) return null;
+  const antes = {};
+  (anterior.items || []).forEach(i => { if (i && i.id) antes[i.id] = i; });
+  let ventas = 0, comparadas = 0;
+  for (const i of (nueva.items || [])) {
+    const a = antes[i.id];
+    if (!a) continue;
+    comparadas++;
+    const saltoRango = (typeof i.vendidos === 'number' && typeof a.vendidos === 'number') ? Math.max(0, i.vendidos - a.vendidos) : 0;
+    let porResenas = 0;
+    if (typeof i.reviews === 'number' && typeof a.reviews === 'number' && i.reviews > a.reviews) {
+      // Vendidos por reseña de ESA publicacion (piso del rango / reseñas); si no
+      // hay como calcularlo, 10 (conservador).
+      const ratio = (i.vendidos && i.reviews) ? Math.max(1, i.vendidos / i.reviews) : 10;
+      porResenas = (i.reviews - a.reviews) * ratio;
+    }
+    ventas += Math.max(saltoRango, porResenas);
   }
-  // Si algun dia MeLi vuelve a mandar ventas de 60 dias, se usan.
-  const con60 = vs.filter(v => typeof v.ventas60d === 'number');
-  let sv, numero, detalleV;
-  if (con60.length) {
-    const med = Math.round(mediana(con60.map(v => v.ventas60d)));
-    sv = med >= 3000 ? 85 : med >= 1000 ? 70 : med >= 300 ? 55 : med >= 60 ? 40 : 25;
-    numero = fmt(med) + ' ventas/60 d';
-    detalleV = 'mediana de ' + fmt(med) + ' ventas en 60 días de ' + con60.length + ' vendedores';
-  } else {
-    // MercadoLider: MeLi lo otorga por volumen de ventas de los ultimos meses
-    // (platinum > gold > silver). Es la unica señal reciente que es publica.
-    const PUNTOS = { platinum: 90, gold: 75, silver: 60 };
-    const lideres = vs.filter(v => PUNTOS[v.lider]);
-    const tx = vs.map(v => v.transacciones).filter(x => typeof x === 'number');
-    const medTx = tx.length ? Math.round(mediana(tx)) : null;
-    const base = vs.map(v => PUNTOS[v.lider] || (typeof v.transacciones === 'number' ? (v.transacciones >= 10000 ? 50 : v.transacciones >= 1000 ? 40 : 25) : 25));
-    sv = Math.round(base.reduce((a, b) => a + b, 0) / base.length);
-    numero = lideres.length + ' de ' + vs.length + ' MercadoLíder';
-    detalleV = lideres.length + ' de ' + vs.length + ' vendedores top son MercadoLíder' +
-      (lideres.length ? ' (' + lideres.map(v => v.lider).join(', ') + ')' : '') +
-      (medTx != null ? ' · mediana de ' + fmt(medTx) + ' ventas históricas' : '');
+  if (!comparadas) return null;
+  return { ventasMes: Math.round(ventas / dias * 30), dias: Math.round(dias), comparadas,
+    desde: anterior.medido_en, hasta: nueva.medido_en };
+}
+
+export function puntajeRotacion(hist) {
+  const h = hist || {};
+  const ult = h.ultimo || null;
+  const cos = h.cosechadas || [];
+  const comoBase = 'Vendidos reales de las publicaciones top del producto (Apify, página de detalle de MercadoLibre), medidos de noche para los 3 mejores productos de cada rubro por demanda + saturación. MeLi muestra los vendidos en rangos ("+100", "+5 mil"): se toma el piso. ';
+  if (cos.length >= 2) {
+    const v = ventasEntreMediciones(cos[0], cos[1]);
+    if (v) {
+      const m = v.ventasMes;
+      const valor = m >= 300 ? 90 : m >= 100 ? 75 : m >= 30 ? 55 : m >= 10 ? 40 : 20;
+      return { valor, nivel: nivel3(valor, 70, 45), numero: '≈ ' + fmt(m) + ' ventas/mes',
+        detalle: '≈ ' + fmt(m) + ' ventas/mes en ' + v.comparadas + ' publicaciones top, medido entre el ' + fechaCorta(v.desde) + ' y el ' + fechaCorta(v.hasta) + ' (' + v.dias + ' días)',
+        como: comoBase + 'Ventas/mes = ventas entre dos mediciones ÷ días × 30. Por publicación: el salto de rango de vendidos o, si es mayor, el aumento de reseñas (exactas) × vendidos/reseñas de esa publicación. Es una estimación: MeLi no publica vendidos exactos.',
+        tipo: 'variacion' };
+    }
   }
-  const v = Math.round(ratio == null ? sv : sv * 0.7 + ratio * 100 * 0.3);
-  return { valor: v, nivel: nivel3(v, 65, 45), numero,
-    detalle: detalleV + (ratio != null ? ' · ' + con + ' de ' + rev + ' productos del catálogo con ofertas activas' : ''),
-    como: 'Proxy de rotación, porque MercadoLibre no da vendidos, reseñas ni visitas de publicaciones ajenas (403). 70%: estado MercadoLíder de los vendedores que ofrecen el producto (platinum 90, gold 75, silver 60; sin estado, según sus ventas históricas), que MeLi otorga por volumen de ventas reciente. 30%: proporción de productos del catálogo con ofertas activas.' };
+  if (cos.length >= 1) {
+    const c = cos[0];
+    const t = c.vendidos_total;
+    if (typeof t === 'number') {
+      const valor = t >= 5000 ? 80 : t >= 1000 ? 65 : t >= 250 ? 50 : t >= 50 ? 35 : 20;
+      const n = (c.items || []).length;
+      return { valor, nivel: nivel3(valor, 65, 45), numero: '≥ ' + fmt(t) + ' vendidos',
+        detalle: '≥ ' + fmt(t) + ' vendidos acumulados en ' + n + ' publicaciones top (medido el ' + fechaCorta(c.medido_en) + '). Las ventas por mes salen de la segunda medición, en una semana.',
+        como: comoBase + 'Con una sola medición hay acumulado, no ventas por mes (MeLi no informa la fecha de publicación); a la semana se vuelve a medir y se calcula la variación.',
+        tipo: 'acumulado' };
+    }
+  }
+  const estado = ult && ult.estado;
+  const motivo = estado === 'sin_presupuesto' ? 'tope mensual alcanzado'
+    : (estado === 'en_cola' || estado === 'arrancada') ? 'medición en curso'
+    : estado === 'fallida' ? 'la medición falló, se reintenta'
+    : 'se mide para los 3 mejores de cada rubro';
+  return { valor: null, nivel: 'Pendiente', numero: motivo, pendiente: motivo,
+    detalle: 'Rotación: pendiente (' + motivo + ').',
+    como: comoBase + (estado === 'sin_presupuesto' ? 'Se alcanzó el tope mensual de gasto en Apify (APIFY_MONTHLY_BUDGET_USD): no se piden más vendidos hasta el próximo ciclo.' : '') };
 }
 
 // ------------------------------------------------------------
@@ -358,16 +403,19 @@ export const UNIDADES_PRUEBA = 50;
 // escenario: 'moq'     -> entra el pedido minimo tipico
 //            'prueba'  -> no entra el MOQ pero si un pedido de prueba de 50 u
 //            'ninguno' -> no entra ni la prueba
+// Para el capital se usa el DESEMBOLSO por unidad (costo + IVA + percepciones):
+// esos tributos se recuperan despues, pero hay que tenerlos para nacionalizar.
 export function capacidadDeCompra(costo, capitalKey) {
+  const porUnidad = costo.desembolsoUSD || costo.costoPuestoUSD;
   const capital = CAPITAL_USD[capitalKey] || CAPITAL_USD.bajo;
   const presupuesto = capital * FRACCION_POR_PRODUCTO;
   const moq = moqTipico(costo.fobUSD);
-  const inversionMoqUSD = Math.round(moq * costo.costoPuestoUSD);
-  const unidadesPosibles = costo.costoPuestoUSD > 0 ? Math.floor(presupuesto / costo.costoPuestoUSD) : 0;
+  const inversionMoqUSD = Math.round(moq * porUnidad);
+  const unidadesPosibles = porUnidad > 0 ? Math.floor(presupuesto / porUnidad) : 0;
   const alcanza = inversionMoqUSD <= presupuesto;
   const prueba = {
     unidades: Math.min(UNIDADES_PRUEBA, moq),
-    inversionUSD: Math.round(Math.min(UNIDADES_PRUEBA, moq) * costo.costoPuestoUSD)
+    inversionUSD: Math.round(Math.min(UNIDADES_PRUEBA, moq) * porUnidad)
   };
   prueba.alcanza = prueba.inversionUSD <= presupuesto;
   return { capitalReferenciaUSD: capital, presupuestoUSD: presupuesto, moq, inversionMoqUSD,
@@ -486,6 +534,7 @@ export function evaluar(e) {
   } else {
     if (e.margenPct < MARGEN_MIN_ALTA) motivos.push('Margen neto menor a ' + MARGEN_MIN_ALTA + '%.');
     if (e.demanda.valor == null) motivos.push('Falta validar la demanda.');
+    if (rot.valor == null) motivos.push('Rotación pendiente: sin vendidos medidos no puede ser oportunidad alta.');
     else if (e.demanda.valor < 55) motivos.push('Demanda baja: no está entre lo más buscado de su categoría.');
     if (sat.valor != null && sat.valor >= 65) motivos.push('Mercado saturado para la demanda que tiene.');
     if (e.capacidad && e.capacidad.escenario === 'prueba') motivos.push('Con tu capital arrancás con un pedido de prueba de ' + e.capacidad.prueba.unidades + ' u, no con el mínimo típico.');
@@ -553,8 +602,8 @@ export function enTendencias(q, keywords) {
 // ------------------------------------------------------------
 // mercado = { results, total, categoryName, comision, tendencia, guardadoEn } o null
 // mercado: lo que arma api/_precalculo.js (analizarProducto) o null.
-export function evaluarProducto(prod, nichoKey, mercado, perfil, usdArs) {
-  const costo = costoImportacion(prod, usdArs);
+export function evaluarProducto(prod, nichoKey, mercado, perfil, usdArs, historial) {
+  const costo = costoImportacion(prod, usdArs, nichoKey);
   const certs = certificaciones(prod, nichoKey);
   const capacidad = capacidadDeCompra(costo, perfil.capital);
   const limpios = mercado ? limpiarMuestra(mercado.results) : [];
@@ -578,7 +627,7 @@ export function evaluarProducto(prod, nichoKey, mercado, perfil, usdArs) {
   const cond = condicionesCanal(perfil.canal, comp.precioMediana, prod.pesoG, mercado.comision);
   const mn = margenNeto(cond, costo);
   const dem = puntajeDemanda(comp, mercado);
-  const rot = puntajeRotacion(mercado);
+  const rot = puntajeRotacion(historial);
   const sat = puntajeSaturacion(comp, dem.valor);
   const riesgo = puntajeRiesgo(prod, comp, certs, perfil.experiencia, capacidad);
   const ev = evaluar({ margenPct: mn.pct, demanda: dem, rotacion: rot, saturacion: sat, riesgo, riesgoTolerancia: perfil.riesgo, capacidad });

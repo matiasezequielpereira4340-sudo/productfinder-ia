@@ -80,9 +80,50 @@
     };
   }
 
+  // Costo de importacion por unidad, carga consolidada maritima.
+  //
+  // Reemplaza el modelo courier (flete minimo USD 2,50/u x 1,85 de todo), que
+  // hacia inviable cualquier producto barato. Ahora:
+  //   logistica  = volumen empaquetado (m3) x USD por m3 puerta a puerta
+  //                (FLETE_USD_M3, 450 por defecto: flete + despacho + gastos)
+  //   base       = FOB + logistica (conservador: el CIF real es menor, porque
+  //                despacho y gastos locales no tributan)
+  //   derechos   = base x derecho de importacion de la posicion (diPct)
+  //   tasa       = base x tasa de estadistica (3%)
+  //   IVA 21% e IVA adicional 20% sobre base + derechos + tasa: credito fiscal
+  //   Ganancias 6% e IIBB 2,5% sobre lo mismo: pagos a cuenta (se recuperan
+  //   contra tus impuestos, pero inmovilizan plata)
+  // costo = FOB + logistica + derechos + tasa (lo que no se recupera).
+  function costoImportacion(e) {
+    var fob = num(e.fobUSD, 0);
+    var vol = Math.max(0, num(e.volCm3, 0)) / 1e6;
+    var fleteM3 = num(e.fleteUsdM3, 450);
+    var tc = num(e.usdArs, 1);
+    var logistica = vol * fleteM3;
+    var base = fob + logistica;
+    var derechos = base * num(e.diPct, 20) / 100;
+    var tasa = base * num(e.tasaEstPct, 3) / 100;
+    var baseIva = base + derechos + tasa;
+    var iva = baseIva * num(e.ivaPct, 21) / 100;
+    var ivaAdic = baseIva * num(e.ivaAdicPct, 20) / 100;
+    var ganancias = baseIva * num(e.gananciasPct, 6) / 100;
+    var iibb = baseIva * num(e.iibbPct, 2.5) / 100;
+    var costo = fob + logistica + derechos + tasa;
+    var r2 = function (x) { return Math.round(x * 100) / 100; };
+    return {
+      fobUSD: r2(fob), volCm3: Math.round(vol * 1e6), fleteUsdM3: fleteM3, logisticaUSD: r2(logistica),
+      baseUSD: r2(base), derechosUSD: r2(derechos), diPct: num(e.diPct, 20), tasaUSD: r2(tasa),
+      ivaUSD: r2(iva), ivaAdicUSD: r2(ivaAdic), gananciasUSD: r2(ganancias), iibbUSD: r2(iibb),
+      costoUSD: r2(costo), creditoIvaUSD: r2(iva + ivaAdic), pagosACuentaUSD: r2(ganancias + iibb),
+      desembolsoUSD: r2(costo + iva + ivaAdic + ganancias + iibb),
+      costoARS: Math.round(costo * tc), creditoIvaARS: Math.round((iva + ivaAdic) * tc),
+      pagosACuentaARS: Math.round((ganancias + iibb) * tc), desembolsoARS: Math.round((costo + iva + ivaAdic + ganancias + iibb) * tc)
+    };
+  }
+
   // Los valores por defecto de MargenClear. El buscador arranca de los mismos
   // para que "Ajustar con mi cotizacion" de el mismo numero de entrada.
   var DEFAULTS = { ivaComisionPct: 21, cargoCuotasPct: 0, iibbPct: 3, percAfipPct: 0, otrosVarPct: 0, devolucionesPct: 2, impGananciasPct: 0 };
 
-  return { calcularUnidad: calcularUnidad, DEFAULTS: DEFAULTS };
+  return { calcularUnidad: calcularUnidad, costoImportacion: costoImportacion, DEFAULTS: DEFAULTS };
 });

@@ -120,10 +120,10 @@ export async function probarEndpoints(token, q, itemForzado) {
 //   403 /sites/MLA/search, /highlights/MLA/category|product, /items/{id},
 //       /items?ids= (403 por item ajeno), /reviews/item, /visits/items,
 //       /items/{id}/visits/time_window
-// Por eso no hay vendidos, reseñas ni visitas por publicacion: la rotacion se
-// aproxima con las ventas de 60 dias de los vendedores que ofrecen el producto.
+// Por eso no hay vendidos, reseñas ni visitas por publicacion con la API
+// oficial: la rotacion (vendidos reales) sale de Apify, ver api/_rotacion.js.
 
-export const VERSION_MERCADO = 3;
+export const VERSION_MERCADO = 4;
 const CATALOGO_PAGINAS = 2;          // 2 x 10 productos de catalogo
 const MAX_PRODUCTOS_CON_ITEMS = 12;  // a cuantos productos se les piden ofertas (medido: ~70% da 404, sin ofertas)
 const OFERTAS_OBJETIVO = 15;
@@ -179,7 +179,7 @@ export function crearCliente(token, opts) {
       return { ok: false, status: 429, json: null };
     } finally { liberar(); }
   }
-  return { get, estado, cacheVendedores: new Map(), cacheCategorias: new Map(), intervaloActual: () => intervalo };
+  return { get, estado, cacheCategorias: new Map(), intervaloActual: () => intervalo };
 }
 
 function mediana(arr) {
@@ -208,31 +208,6 @@ async function datosCategoria(cli, catId) {
     };
   })();
   cli.cacheCategorias.set(catId, p);
-  return p;
-}
-
-// Reputacion publica del vendedor. MEDIDO 20/10/2026: /users/{id} con token
-// de terceros NO trae metrics.sales (ventas de 60 dias); trae transacciones
-// historicas, nivel de reputacion y estado de MercadoLider (platinum, gold,
-// silver), que MeLi otorga por volumen de ventas reciente.
-async function datosVendedor(cli, sellerId) {
-  if (!sellerId) return null;
-  if (cli.cacheVendedores.has(sellerId)) return cli.cacheVendedores.get(sellerId);
-  const p = (async () => {
-    const r = await cli.get('users', MELI_API + '/users/' + sellerId);
-    if (!r.ok || !r.json) return null;
-    const rep = r.json.seller_reputation || {};
-    const ventas = rep.metrics && rep.metrics.sales;
-    return {
-      id: sellerId,
-      ventas60d: ventas && typeof ventas.completed === 'number' ? ventas.completed : null,
-      transacciones: rep.transactions && typeof rep.transactions.completed === 'number' ? rep.transactions.completed
-        : (rep.transactions && typeof rep.transactions.total === 'number' ? rep.transactions.total : null),
-      nivel: rep.level_id || null,
-      lider: rep.power_seller_status || null
-    };
-  })();
-  cli.cacheVendedores.set(sellerId, p);
   return p;
 }
 
@@ -265,6 +240,38 @@ export function posicionEnTendencias(q, lista) {
   return null;
 }
 
+// ------------------------------------------------------------
+// Productos de catalogo sin ofertas (404): se saltean 30 dias
+// ------------------------------------------------------------
+// MEDIDO 20/10/2026: ~70% de las llamadas a /products/{id}/items daban 404
+// (productos de catalogo sin ofertas activas). Se guardan y no se repiten.
+const DIAS_SIN_OFERTAS = 30;
+function supaEnv() {
+  return { url: process.env.SUPABASE_URL || 'https://qglieqpcmmffgxijbysb.supabase.co', key: process.env.SUPABASE_SERVICE_KEY || '' };
+}
+export async function conocidosSinOfertas(ids) {
+  const { url, key } = supaEnv();
+  if (!key || !ids.length) return new Set();
+  try {
+    const desde = new Date(Date.now() - DIAS_SIN_OFERTAS * 86400e3).toISOString();
+    const r = await fetch(url + '/rest/v1/buscador_sin_ofertas?select=producto_id&visto=gte.' + encodeURIComponent(desde) +
+      '&producto_id=in.(' + ids.map(encodeURIComponent).join(',') + ')', { headers: { apikey: key, Authorization: 'Bearer ' + key } });
+    if (!r.ok) return new Set();
+    return new Set((await r.json()).map(f => f.producto_id));
+  } catch (e) { return new Set(); }
+}
+export async function anotarSinOfertas(ids) {
+  const { url, key } = supaEnv();
+  if (!key || !ids.length) return;
+  try {
+    await fetch(url + '/rest/v1/buscador_sin_ofertas?on_conflict=producto_id', {
+      method: 'POST',
+      headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(ids.map(id => ({ producto_id: id, visto: new Date().toISOString() })))
+    });
+  } catch (e) {}
+}
+
 export async function analizarProducto(cli, prod) {
   const q = prod.q;
   const qq = encodeURIComponent(q);
@@ -289,16 +296,21 @@ export async function analizarProducto(cli, prod) {
   let base = puntuados.filter(x => x.p >= 0.5);
   if (base.length < 3) base = puntuados.filter(x => x.p > 0);
   if (base.length < 3) base = puntuados;
-  const ordenados = base.sort((a, b) => b.p - a.p).map(x => x.c).slice(0, MAX_PRODUCTOS_CON_ITEMS);
+  // Los que ya dieron 404 en los ultimos 30 dias no se vuelven a pedir.
+  const sin404 = await conocidosSinOfertas(base.map(x => x.c.id));
+  cli.estado.salteados404 = (cli.estado.salteados404 || 0) + sin404.size;
+  const ordenados = base.filter(x => !sin404.has(x.c.id)).sort((a, b) => b.p - a.p).map(x => x.c).slice(0, MAX_PRODUCTOS_CON_ITEMS);
 
   // 2. Ofertas activas por producto de catalogo (404 = sin ofertas).
   const ofertas = [];
+  const nuevos404 = [];
   let conOfertas = 0, revisados = 0;
   for (let i = 0; i < ordenados.length && ofertas.length < OFERTAS_OBJETIVO; i += 4) {
     const lote = ordenados.slice(i, i + 4);
     const rs = await Promise.all(lote.map(c => cli.get('products/items', MELI_API + '/products/' + c.id + '/items?limit=10')));
     rs.forEach((r, k) => {
       revisados++;
+      if (r.status === 404) nuevos404.push(lote[k].id);
       const lista = r.ok && r.json && Array.isArray(r.json.results) ? r.json.results : [];
       if (lista.length) conOfertas++;
       lista.filter(it => it && typeof it.price === 'number' && it.price > 0).forEach(it => ofertas.push({
@@ -312,21 +324,20 @@ export async function analizarProducto(cli, prod) {
       }));
     });
   }
+  if (nuevos404.length) await anotarSinOfertas(nuevos404);
   if (!ofertas.length) {
     return { v: VERSION_MERCADO, catalogoTotal, catalogoRevisados: revisados, conOfertas: 0, results: [] };
   }
 
-  // 3. Categoria (la mas repetida), comision real y vendedores top.
+  // 3. Categoria (la mas repetida) y comision real.
   const cuenta = {};
   let catId = null;
   for (const o of ofertas) if (o.category_id) { cuenta[o.category_id] = (cuenta[o.category_id] || 0) + 1; if (!catId || cuenta[o.category_id] > cuenta[catId]) catId = o.category_id; }
   const precioRef = Math.round(mediana(ofertas.map(o => o.price)));
-  const vendedoresIds = [];
-  for (const o of ofertas) { const id = o.seller.id; if (id && vendedoresIds.indexOf(id) < 0) vendedoresIds.push(id); if (vendedoresIds.length >= VENDEDORES_TOP) break; }
-  const [cat, lp, vendedores] = await Promise.all([
+  // (Ya no se piden /users: la rotacion sale de vendidos reales, ver _rotacion.js.)
+  const [cat, lp] = await Promise.all([
     datosCategoria(cli, catId),
-    cli.get('listing_prices', MELI_API + '/sites/MLA/listing_prices?price=' + precioRef + '&listing_type_id=gold_special' + (catId ? '&category_id=' + catId : '')),
-    Promise.all(vendedoresIds.map(id => datosVendedor(cli, id)))
+    cli.get('listing_prices', MELI_API + '/sites/MLA/listing_prices?price=' + precioRef + '&listing_type_id=gold_special' + (catId ? '&category_id=' + catId : ''))
   ]);
   let comision = null;
   if (lp.ok && lp.json) {
@@ -341,7 +352,6 @@ export async function analizarProducto(cli, prod) {
     categoria: cat ? { id: cat.id, nombre: cat.nombre, totalPublicaciones: cat.totalPublicaciones, tendenciasRevisadas: cat.tendencias ? cat.tendencias.length : null } : null,
     categoryName: cat && cat.nombre || null,
     tendencia: cat ? posicionEnTendencias(q, cat.tendencias) : null,
-    vendedores: vendedores.filter(Boolean),
     comision,
     guardadoEn: new Date().toISOString()
   };

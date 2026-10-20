@@ -708,6 +708,12 @@ function pfMargenUrl(p){
   if(p.precioVentaARS) q.set('precio', Math.round(p.precioVentaARS));
   if(p.costo && p.costo.costoPuestoARS) q.set('costo', Math.round(p.costo.costoPuestoARS));
   if(p.costo) q.set('fob', p.costo.fobMinUSD + '-' + p.costo.fobMaxUSD);
+  // Para recalcular el costo en MargenClear con tus numeros: FOB medio,
+  // volumen empaquetado, USD por m3 y derecho de importacion (todos editables).
+  if(p.costo && p.costo.fobUSD != null) q.set('fobu', p.costo.fobUSD);
+  if(p.costo && p.costo.volCm3) q.set('vol', p.costo.volCm3);
+  if(p.costo && p.costo.fleteUsdM3) q.set('m3', p.costo.fleteUsdM3);
+  if(p.costo && p.costo.diPct != null) q.set('di', p.costo.diPct);
   // Lo que el buscador desconto y MargenClear calcula distinto: se informa,
   // no se pisa la configuracion de MargenClear.
   if(p.canal && p.canal.comisionPct != null) q.set('comision', p.canal.comisionPct);
@@ -744,7 +750,7 @@ function pfCard(p, opts){
     h += '<div class="pf2-metricas">' + orden.map(function(o){
       var m = p.metricas[o[0]] || {};
       // Para demanda y rotacion "Alta" es bueno; para saturacion, malo.
-      var tono = m.nivel === 'Sin dato' || !m.nivel ? 'nd' : m.nivel === 'Media' ? 'medio' : ((m.nivel === 'Alta') === o[2] ? 'bien' : 'mal');
+      var tono = m.nivel === 'Sin dato' || m.nivel === 'Pendiente' || !m.nivel ? 'nd' : m.nivel === 'Media' ? 'medio' : ((m.nivel === 'Alta') === o[2] ? 'bien' : 'mal');
       var tip = (m.detalle || '') + (m.como ? '\n\nCómo se calcula: ' + m.como : '');
       return '<div class="pf2-met pf2-met-' + tono + '" title="' + pfEsc(tip) + '" tabindex="0" aria-label="' + pfEsc(o[1] + ': ' + (m.nivel || 'Sin dato') + '. ' + tip) + '">' +
         '<span class="pf2-met-l">' + o[1] + ' <span class="pf2-met-i" aria-hidden="true">?</span></span>' +
@@ -783,8 +789,14 @@ function pfCard(p, opts){
   h += '<div class="stat"><span class="stat-l" title="' + pfEsc((p.canal && p.canal.notaPrecio) || 'Mediana de publicaciones comparables en MercadoLibre') + '">Precio de venta</span><span class="stat-v">' + (p.precioVentaARS ? pfArs(p.precioVentaARS) : 'Sin dato') + '</span></div>';
   h += '<div class="stat pf2-sem pf2-sem-' + pfEsc(sem.color) + '"><span class="stat-l">Margen neto</span><span class="stat-v">' + (mn ? pfPct(mn.pct) : '—') + '</span><span class="pf2-sub">' + (mn ? pfArs(mn.netoARS) + ' por unidad · ' + pfEsc(sem.label) : 'Sin precio real') + '</span></div>';
   h += '<div class="stat"><span class="stat-l" title="' + pfEsc(costo.detalle || '') + '">FOB estimado</span><span class="stat-v">USD ' + pfNum(costo.fobMinUSD) + '\u2013' + pfNum(costo.fobMaxUSD) + '</span><span class="pf2-sub">estimado por categoría</span></div>';
-  h += '<div class="stat"><span class="stat-l" title="' + pfEsc(costo.detalle || '') + '">Costo puesto</span><span class="stat-v">' + pfArs(costo.costoPuestoARS) + '</span><span class="pf2-sub">' + pfUsd(costo.costoPuestoUSD) + ' · estimado</span></div>';
+  h += '<div class="stat"><span class="stat-l" title="' + pfEsc(costo.detalle || '') + '">Costo puesto</span><span class="stat-v">' + pfArs(costo.costoPuestoARS) + '</span><span class="pf2-sub">' + pfUsd(costo.costoPuestoUSD) + ' \u00b7 flete: ' + PF_NF.format(costo.volCm3 || 0) + ' cm\u00b3/u estimado</span></div>';
   h += '</div>';
+  // De donde sale el costo puesto (maritimo consolidado, tributos aparte).
+  if(costo.logisticaUSD != null){
+    h += '<div class="pf2-cuenta pf2-costo">Costo por unidad: FOB ' + pfUsd(costo.fobUSD) + ' + log\u00edstica ' + pfUsd(costo.logisticaUSD) +
+      ' (' + PF_NF.format(costo.volCm3) + ' cm\u00b3 \u00d7 USD ' + PF_NF.format(costo.fleteUsdM3) + '/m\u00b3) + derechos ' + pfUsd(costo.derechosUSD) + ' (' + costo.diPct + '%, estimado por rubro) + tasa ' + pfUsd(costo.tasaUSD) +
+      ' = <b>' + pfUsd(costo.costoUSD) + '</b>. Adem\u00e1s ' + pfUsd(costo.creditoIvaUSD) + ' de IVA (cr\u00e9dito) y ' + pfUsd(costo.pagosACuentaUSD) + ' de percepciones (pagos a cuenta): recuperables, pero hay que tenerlos.</div>';
+  }
   if(mn && mn.desglose){
     var d = mn.desglose;
     h += '<div class="pf2-cuenta">' + pfArs(d.precio) + ' venta − ' + pfArs(d.costo) + ' costo − ' + pfArs(d.comision) + ' comisión' +
@@ -917,14 +929,15 @@ function renderResults(data){
   // Nicho entero sin datos: un mensaje claro y nada mas (ni tarjetas vacias ni
   // listas de nombres sin numeros).
   if(!products.length){
-    grid.innerHTML = banner + '<div class="ml-banner pf2-banner pf2-banner-warn pf2-vacio"><strong><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Este rubro todav&iacute;a no tiene datos de MercadoLibre.</strong><br>Los rubros se analizan cada noche con la API oficial de MercadoLibre. Prob&aacute; con otro rubro o volv&eacute; ma&ntilde;ana' +
+    grid.innerHTML = banner + '<div class="ml-banner pf2-banner pf2-banner-warn pf2-vacio"><strong><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Este rubro todav&iacute;a no tiene datos de MercadoLibre.</strong><br>Cada noche se analizan unos 10 rubros con la API oficial de MercadoLibre, primero los m&aacute;s buscados: tu b&uacute;squeda ya puso este en la cola. Prob&aacute; con otro rubro o volv&eacute; ma&ntilde;ana' +
       (data.meliTokenExpirado ? '. Tu conexi&oacute;n con MercadoLibre expir&oacute;: <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">reconectala</a> para analizarlo ahora.' : (!pfTieneSesion() ? '.' : ', o <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">conect&aacute; tu MercadoLibre</a> para analizarlo ahora.')) + '</div>';
     return;
   }
   {
     var edad = data.edadHoras;
-    var edadTxt = edad == null ? '' : (edad < 1 ? 'de hace menos de 1 h' : 'de hace ' + nf.format(Math.round(edad)) + ' h');
-    banner += '<div class="ml-banner pf2-banner pf2-banner-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Datos de la API oficial de MercadoLibre '+edadTxt+(data.desdeCache?' (se actualizan cada noche)':'')+'. <strong>'+data.conDatoReal+'</strong> de <strong>'+data.totalEvaluados+'</strong> productos con datos. 1 USD ≈ $'+nf.format(data.usdArs)+'. Perfil: capital '+pfEsc(data.perfil && data.perfil.capitalLabel)+', '+pfEsc(data.perfil && data.perfil.experiencia)+' experiencia, canal '+pfEsc(data.perfil && data.perfil.canal)+', riesgo '+pfEsc(data.perfil && data.perfil.riesgo)+'.</div>';
+    // El cache dura 7 dias: se muestra en dias (en horas el primer dia).
+    var edadTxt = edad == null ? '' : (edad < 1 ? 'de hace menos de 1 h' : edad < 24 ? 'de hace ' + nf.format(Math.round(edad)) + ' h' : 'de hace ' + nf.format(Math.floor(edad / 24)) + (Math.floor(edad / 24) === 1 ? ' d\u00eda' : ' d\u00edas'));
+    banner += '<div class="ml-banner pf2-banner pf2-banner-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Datos de la API oficial de MercadoLibre '+edadTxt+(data.desdeCache?' (cada rubro se actualiza una vez por semana)':'')+'. <strong>'+data.conDatoReal+'</strong> de <strong>'+data.totalEvaluados+'</strong> productos con datos. 1 USD ≈ $'+nf.format(data.usdArs)+'. Perfil: capital '+pfEsc(data.perfil && data.perfil.capitalLabel)+', '+pfEsc(data.perfil && data.perfil.experiencia)+' experiencia, canal '+pfEsc(data.perfil && data.perfil.canal)+', riesgo '+pfEsc(data.perfil && data.perfil.riesgo)+'.</div>';
   }
   banner += '<div id="pfListaPanel" class="pf2-panel" hidden></div>';
   const cards = products.map(function(p){ return pfCard(p); }).join('');
@@ -952,7 +965,7 @@ function renderResults(data){
   // Pendientes: solo nombre y links, sin numeros inventados.
   var pend = '';
   if(pendientes.length){
-    pend = '<div class="pf2-pendientes"><div class="pf2-bt">Pendientes de an\u00e1lisis <span class="pf2-tag">se actualizan cada noche</span></div><ul>' +
+    pend = '<div class="pf2-pendientes"><div class="pf2-bt">Pendientes de an\u00e1lisis <span class="pf2-tag">se analizan por la noche, ~10 rubros por noche</span></div><ul>' +
       pendientes.map(function(x){
         var L = x.links || {};
         return '<li><span class="pf2-pn" title="' + pfEsc(x.motivo || '') + '">' + pfEsc(x.nombre) + '</span>' +

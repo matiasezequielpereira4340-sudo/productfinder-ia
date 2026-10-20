@@ -44,3 +44,46 @@ CREATE TABLE IF NOT EXISTS buscador_job_tokens (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE buscador_job_tokens ENABLE ROW LEVEL SECURITY;
+
+-- Rotacion real (vendidos) con Apify, solo en el proceso nocturno y solo para
+-- el top 3 de cada nicho. Una fila por producto y por medicion. La variacion
+-- entre dos mediciones cosechadas es la rotacion.
+--   estado: en_cola | arrancada | cosechada | fallida | sin_presupuesto
+CREATE TABLE IF NOT EXISTS buscador_vendidos (
+  id             BIGSERIAL PRIMARY KEY,
+  query          TEXT NOT NULL,
+  nicho          TEXT,
+  estado         TEXT NOT NULL,
+  item_ids       TEXT[],
+  run_id         TEXT,
+  dataset_id     TEXT,
+  gasto_id       BIGINT,
+  items          JSONB,             -- [{id, vendidos, vendidos_texto, reviews, rating, precio, titulo}]
+  vendidos_total INTEGER,           -- suma del piso de cada rango ("+100" = 100)
+  reviews_total  INTEGER,
+  costo_usd      NUMERIC,           -- costo real de la corrida, prorrateado por producto
+  motivo         TEXT,
+  creado         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  medido_en      TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_buscador_vendidos_query ON buscador_vendidos(query, creado DESC);
+CREATE INDEX IF NOT EXISTS idx_buscador_vendidos_estado ON buscador_vendidos(estado);
+ALTER TABLE buscador_vendidos ENABLE ROW LEVEL SECURITY;
+
+-- Productos de catalogo que dieron 404 en /products/{id}/items (sin ofertas):
+-- se saltean 30 dias para no repetir la llamada (~70% de las llamadas eran 404).
+CREATE TABLE IF NOT EXISTS buscador_sin_ofertas (
+  producto_id TEXT PRIMARY KEY,
+  visto       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE buscador_sin_ofertas ENABLE ROW LEVEL SECURITY;
+
+-- Busquedas de visitantes por nicho: el proceso nocturno prioriza los nichos
+-- buscados en los ultimos 7 dias.
+CREATE TABLE IF NOT EXISTS buscador_busquedas (
+  id    BIGSERIAL PRIMARY KEY,
+  nicho TEXT NOT NULL,
+  ts    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_buscador_busquedas_ts ON buscador_busquedas(ts DESC);
+ALTER TABLE buscador_busquedas ENABLE ROW LEVEL SECURITY;
