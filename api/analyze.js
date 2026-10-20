@@ -10,7 +10,7 @@
 import { resolveUserId, anthropicHeaders } from './_meli.js';
 import { esCliente, tokenDe, leerToken, esAdmin, cronAdmitido } from './_sesion.js';
 import { cotizacionDolar, tipoDeCambio, DOLAR_TIPO_DEFAULT } from './_dolar.js';
-import { evaluarProducto, ordenar, CAPITAL_LABEL, estadisticasCompetencia, limpiarMuestra, puntajeDemanda, puntajeSaturacion } from './_oportunidad.js';
+import { evaluarProducto, ordenar, CAPITAL_LABEL, estadisticasCompetencia, limpiarMuestra, puntajeDemanda, puntajeSaturacion, costoImportacion, acotarPorCosto } from './_oportunidad.js';
 import { cosechar, encolar, arrancarCola, historialDe, ITEMS_POR_PRODUCTO, estadoPresupuesto } from './_rotacion.js';
 import { probarEndpoints, tokenDeCorridaValido, MELI_USER_PRECALCULO, crearCliente, analizarNicho, VERSION_MERCADO } from './_precalculo.js';
 
@@ -1260,7 +1260,10 @@ function rankingParaRotacion(nichoKey, mercado) {
     const m = mercado[prod.q];
     if (!m || !Array.isArray(m.results)) continue;
     const limpios = limpiarMuestra(m.results);
-    if (limpios.length < 3) continue;
+    // Mismo filtro que la tarjeta: si no quedan 3 ofertas comparables con su
+    // costo, el producto va a "Pendientes" y medirle vendidos es plata tirada.
+    const usdArs = parseFloat(process.env.USD_ARS) || USD_ARS_FALLBACK;
+    if (acotarPorCosto(limpios, costoImportacion(prod, usdArs, nichoKey).costoPuestoARS).length < 3) continue;
     const comp = estadisticasCompetencia(limpios, m.catalogoTotal);
     const dem = puntajeDemanda(comp, m);
     const sat = puntajeSaturacion(comp, dem.valor);
