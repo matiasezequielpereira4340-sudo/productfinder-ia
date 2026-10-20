@@ -1146,6 +1146,15 @@ async function manejarPrecalculo(req, res, url) {
   if (!via) return res.status(401).json({ ok: false, error: 'No autorizado.' });
   const sp = (new URL(url, 'http://x')).searchParams;
   const modo = sp.get('precalcular');
+  // Lecturas gratis de Apify (no arranca nada): esquema del actor y uso del ciclo.
+  if (modo === 'apify') {
+    const bus = await import('./_buscador.js');
+    const [esquema, cuenta] = await Promise.all([
+      bus.esquemaDeActor(sp.get('actor') || process.env.APIFY_ACTOR || 'devcake~mercadolibre-scraper').catch(e => ({ error: e.message })),
+      bus.estadoCuentaApify().catch(e => ({ error: e.message }))
+    ]);
+    return res.status(200).json({ ok: true, via, esquema, cuenta });
+  }
   const tk = await getMeliToken(MELI_USER_PRECALCULO());
   if (!tk || !tk.token) {
     return res.status(503).json({ ok: false, error: 'No hay token vigente de MercadoLibre para ' + MELI_USER_PRECALCULO() + (tk && tk.expired ? ' (vencido y no se pudo renovar)' : '') + '.' });
