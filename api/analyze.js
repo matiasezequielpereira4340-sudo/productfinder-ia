@@ -1153,7 +1153,17 @@ async function manejarPrecalculo(req, res, url) {
       bus.esquemaDeActor(sp.get('actor') || process.env.APIFY_ACTOR || 'devcake~mercadolibre-scraper').catch(e => ({ error: e.message })),
       bus.estadoCuentaApify().catch(e => ({ error: e.message }))
     ]);
-    return res.status(200).json({ ok: true, via, esquema, cuenta });
+    // dataset/run ya pagados: leerlos es gratis. Sirve para ver los campos
+    // crudos del actor (vendidos, fechas) y el costo real facturado.
+    let muestra = null, corrida = null;
+    if (sp.get('dataset')) {
+      const filas = await bus.itemsDeCorrida(sp.get('dataset'), { limite: 48 });
+      const claves = {};
+      filas.forEach(f => Object.keys(f || {}).forEach(k => { claves[k] = (claves[k] || 0) + (f[k] != null && f[k] !== '' ? 1 : 0); }));
+      muestra = { filas: filas.length, campos_con_dato: claves, primeras: filas.slice(0, 2) };
+    }
+    if (sp.get('apifyRun')) corrida = await bus.detalleDeCorrida(sp.get('apifyRun'), sp.get('dataset'));
+    return res.status(200).json({ ok: true, via, esquema: sp.get('dataset') ? undefined : esquema, cuenta, muestra, corrida });
   }
   const tk = await getMeliToken(MELI_USER_PRECALCULO());
   if (!tk || !tk.token) {
