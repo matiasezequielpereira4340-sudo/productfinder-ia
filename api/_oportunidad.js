@@ -167,16 +167,18 @@ export function puntajeDemanda(c, mercado) {
   }
   if (tend && tend.posicion) {
     // Posicion relativa dentro de la lista de la categoria (MeLi devuelve
-    // entre ~5 y 50 busquedas segun la categoria): #1 vale 92, la ultima 60.
-    // Si la coincidencia es la busqueda general del rubro, 15 puntos menos.
+    // entre ~5 y 50 busquedas segun la categoria). Si coincide con el producto:
+    // 92 (#1) a 70 (ultima). Si coincide con la busqueda general del rubro
+    // ("comederos para perros" para un comedero antivoracidad): 70 a 55, o sea
+    // Media: hay demanda de la categoria, no esta medida la del producto.
     const p = tend.posicion, n = Math.max(tend.total || 1, 1);
-    let v = Math.round(92 - (n > 1 ? (p - 1) / (n - 1) : 0) * 32);
+    const rel = n > 1 ? (p - 1) / (n - 1) : 0;
     const generico = tend.tipo === 'generico';
-    if (generico) v -= 15;
-    return { valor: v, nivel: nivel3(v, 75, 55), numero: '#' + p + ' de ' + n + ' búsquedas',
+    const v = Math.round(generico ? 70 - rel * 15 : 92 - rel * 22);
+    return { valor: v, nivel: nivel3(v, 70, 55), numero: (generico ? 'rubro #' : '#') + p + ' de ' + n + ' búsquedas',
       detalle: '"' + tend.keyword + '" está #' + p + ' de ' + n + ' en las búsquedas top de ' + nombreCat +
         (generico ? ' (es la búsqueda general del rubro, no la de este producto)' : ''),
-      como: 'Posición en /trends de MercadoLibre para la categoría del producto (las búsquedas más frecuentes y de mayor crecimiento de la semana). #1 = 92 puntos, la última de la lista = 60; si coincide con la búsqueda general del rubro y no con la del producto, 15 menos. MeLi no informa vendidos por publicación y /highlights (más vendidos) responde 403.' };
+      como: 'Posición en /trends de MercadoLibre para la categoría del producto (sus búsquedas más frecuentes y de mayor crecimiento de la semana). Si la búsqueda es la del producto: #1 = 92 puntos, la última = 70. Si es la búsqueda general del rubro: 70 a 55. MeLi no informa vendidos por publicación y /highlights (más vendidos) responde 403.' };
   }
   if (cat && cat.tendenciasRevisadas) {
     return { valor: 30, nivel: 'Baja', numero: '0 de ' + cat.tendenciasRevisadas,

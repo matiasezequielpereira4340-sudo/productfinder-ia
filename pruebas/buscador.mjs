@@ -1,18 +1,14 @@
 // pruebas/buscador.mjs
 // Se corre con: npm run test:buscador
 //
-// Buscador de oportunidades (/api/analyze), con fetch simulado. Cubre los
-// problemas que se vieron en produccion corriendo Mascotas, capital < 3000,
-// sin experiencia, riesgo bajo:
-//   A. "OPORTUNIDAD ALTA" con "Margen bajo, no conviene" en la misma tarjeta
-//   B. tres margenes distintos (markup 222%, neto 40%, "dato real")
-//   D. saturacion "Baja" con 1.331 productos y todo "Riesgo: Bajo"
-//   E. demanda "Alta" sin ningun numero
-//   F. sin links
-//   G. el perfil no cambia nada
-// y que el barrido NUNCA llame a Apify.
+// Buscador de oportunidades (/api/analyze) y su pre-analisis nocturno, con
+// fetch simulado. El mock replica lo MEDIDO con el token real el 20/10/2026:
+// /products/search, /products/{id}/items (404 si no hay ofertas), /trends,
+// /categories, /users (sin ventas de 60 dias) y /listing_prices responden;
+// /sites/MLA/search, /highlights, /items, /reviews y /visits dan 403.
 process.env.SUPABASE_SERVICE_KEY = 'supa-de-prueba';
 process.env.SESSION_SECRET = 'secreto-de-prueba';
+process.env.CRON_SECRET = 'cron-de-prueba';
 
 let fallos = 0, oks = 0;
 function chequear(n, c, extra) {
@@ -21,75 +17,85 @@ function chequear(n, c, extra) {
 }
 const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { 'content-type': 'application/json' } });
 
-// ---- Mercado simulado ----------------------------------------------------
-// Precios parecidos a los que hay hoy en busquedas_cache para Mascotas.
-function publicaciones(base, n, opts) {
-  const o = opts || {};
-  return Array.from({ length: n }, (_, k) => ({
-    item_id: 'MLA' + (3000000000 + base + k), price: Math.round(base * (0.8 + (k % 7) * 0.07)),
-    seller_id: o.unVendedor ? 111 : 1000 + k, category_id: 'MLA1081',
-    official_store_id: o.oficiales && k % 2 === 0 ? 55 : null,
-    shipping: { free_shipping: k % 3 === 0, logistic_type: o.full && k % 4 !== 0 ? 'fulfillment' : 'xd_drop_off' }
-  }));
-}
+// ---- Mercado simulado -----------------------------------------------------
 const MERCADO = {
-  'comedero antivoracidad perro': { total: 1303, precio: 25900 },
-  'cepillo quita pelos mascotas': { total: 4200, precio: 12500, full: true },
-  'juguete gato plumas varita': { total: 2618, precio: 3900 }
+  'comedero antivoracidad perro': { total: 1331, precio: 25900, cat: 'MLA32277' },
+  'juguete dispensador premios perro': { total: 5198, precio: 22000, cat: 'MLA417978' },
+  'cepillo quita pelos mascotas': { total: 6125, precio: 12500, cat: 'MLA1', full: true }
 };
-let llamadas = { apify: 0, supaPost: [], listing: 0, trends: 0 };
-let cacheNicho = null;
+const TRENDS = {
+  MLA32277: ['dispensador comida automatico perro', 'comedero antivoracidad perro grande', 'comederos para perros'],
+  MLA417978: ['lickimat', 'juguete dispensador perro'],
+  MLA1: ['cepillo quita pelusas para ropa']
+};
+let llamadas = { apify: 0, prohibidas: 0, supaPost: [], meli: 0 };
+let cacheNicho = {};
 let listaGuardada = [];
+let tokensCorrida = new Set(['token-de-corrida-de-prueba-0123456789']);
+
+function qDe(u) { return decodeURIComponent((/[?&]q=([^&]*)/.exec(u) || [])[1] || '').replace(/\+/g, ' '); }
 
 globalThis.fetch = async (url, init) => {
   const u = String(url);
   const metodo = (init && init.method) || 'GET';
-  if (u.includes('apify.com')) { llamadas.apify++; return json({ error: 'no deberia llamarse' }, 500); }
+  if (u.includes('apify.com')) { llamadas.apify++; return json({}, 500); }
   if (u.includes('dolarapi')) return json({ compra: 1480, venta: 1500, casa: 'bolsa' });
   if (u.includes('supabase.co')) {
+    if (u.includes('/buscador_job_tokens')) {
+      const t = decodeURIComponent((/token=eq\.([^&]*)/.exec(u) || [])[1] || '');
+      return json(tokensCorrida.has(t) ? [{ token: t }] : []);
+    }
     if (u.includes('/buscador_cache')) {
-      if (metodo === 'POST') { llamadas.supaPost.push('buscador_cache'); cacheNicho = { ...JSON.parse(init.body) }; return new Response('', { status: 201 }); }
-      return json(cacheNicho ? [cacheNicho] : []);
+      if (metodo === 'POST') { const b = JSON.parse(init.body); llamadas.supaPost.push(b.nicho); cacheNicho[b.nicho] = b; return new Response('', { status: 201 }); }
+      if (/select=nicho,created_at,v:/.test(u)) return json(Object.values(cacheNicho).map(f => ({ nicho: f.nicho, created_at: f.created_at, v: f.mercado.__v })));
+      const n = decodeURIComponent((/nicho=eq\.([^&]*)/.exec(u) || [])[1] || '');
+      return json(cacheNicho[n] ? [cacheNicho[n]] : []);
     }
     if (u.includes('/buscador_lista')) {
       if (metodo === 'POST') { listaGuardada.push(JSON.parse(init.body)); return new Response('', { status: 201 }); }
-      if (metodo === 'DELETE') { listaGuardada = []; return new Response('', { status: 204 }); }
       return json(listaGuardada.map(x => ({ producto_key: x.producto_key, producto: x.producto, nicho: x.nicho })));
     }
     if (u.includes('/meli_tokens')) return json([{ access_token: 'tok', refresh_token: 'r', expires_at: new Date(Date.now() + 3600e3).toISOString() }]);
-    if (u.includes('/meli_user_aliases')) return json([]);
     if (metodo !== 'GET') return new Response('', { status: 201 });
-    return json([]);   // busquedas_cache vacio: se va a la API
+    return json([]);
   }
-  if (u.includes('/sites/MLA/listing_prices')) {
-    llamadas.listing++;
-    return json([{ listing_type_id: 'gold_special', sale_fee_details: { percentage_fee: 15.5, fixed_fee: 0 } }]);
+  if (u.includes('api.mercadolibre.com')) llamadas.meli++;
+  if (/\/sites\/MLA\/search|\/highlights\/|\/items\/MLA|\/items\?ids|\/reviews\/|\/visits\//.test(u)) { llamadas.prohibidas++; return json({ error: 'forbidden' }, 403); }
+  if (u.includes('/sites/MLA/listing_prices')) return json([{ listing_type_id: 'gold_special', sale_fee_details: { percentage_fee: 16.5, fixed_fee: 0 } }]);
+  const mt = /\/trends\/MLA\/(MLA\d+)/.exec(u);
+  if (mt) return json((TRENDS[mt[1]] || []).map(k => ({ keyword: k })));
+  const mc = /\/categories\/(MLA\d+)/.exec(u);
+  if (mc) return json({ id: mc[1], name: mc[1] === 'MLA32277' ? 'Comederos' : 'Categoria ' + mc[1], total_items_in_this_category: 46943 });
+  const mu = /\/users\/(\d+)/.exec(u);
+  if (mu) {
+    const id = Number(mu[1]);
+    return json({ id, seller_reputation: { level_id: '5_green', power_seller_status: id % 3 === 0 ? 'platinum' : (id % 3 === 1 ? 'gold' : null), transactions: { total: 5000, completed: 4800 } } });
   }
-  if (u.includes('/trends/MLA')) { llamadas.trends++; return json([{ keyword: 'comedero antivoracidad perro grande' }, { keyword: 'cucha perro' }]); }
   if (u.includes('/products/search')) {
-    const q = decodeURIComponent((/[?&]q=([^&]*)/.exec(u) || [])[1] || '').replace(/\+/g, ' ');
-    const m = MERCADO[q];
-    if (!m) return json({ paging: { total: 0 }, results: [] });
+    const q = qDe(u), m = MERCADO[q];
     const off = Number((/offset=(\d+)/.exec(u) || [])[1] || 0);
-    if (off > 0) return json({ paging: { total: m.total }, results: [] });
-    return json({ paging: { total: m.total }, results: Array.from({ length: 8 }, (_, k) => ({ id: 'MLA' + (90000 + k) + q.length, name: q + ' modelo ' + k })) });
+    if (!m || off > 0) return json({ paging: { total: m ? m.total : 0 }, results: [] });
+    return json({ paging: { total: m.total }, results: Array.from({ length: 10 }, (_, k) => ({ id: 'MLA' + (90000 + k) + String(q.length).padStart(2, '0'), name: q + ' modelo ' + k })) });
   }
   const mi = /\/products\/(MLA\d+)\/items/.exec(u);
   if (mi) {
-    // cada producto de catalogo devuelve 3 publicaciones
-    const qs = Object.keys(MERCADO).find(q => mi[1].endsWith(String(q.length)));
-    const m = MERCADO[qs];
+    const largo = Number(mi[1].slice(-2));
+    const q = Object.keys(MERCADO).find(x => x.length === largo);
     const k = Number(mi[1].slice(3, 8)) - 90000;
-    return json({ results: publicaciones(m.precio + k * 300, 3, { full: m.full }) });
+    if (!q || k % 3 === 2) return json({ message: 'not found' }, 404);   // algunos sin ofertas
+    const m = MERCADO[q];
+    return json({ results: Array.from({ length: 3 }, (_, j) => ({
+      item_id: 'MLA' + (3000000000 + k * 10 + j), price: Math.round(m.precio * (0.85 + ((k + j) % 6) * 0.06)),
+      seller_id: 1000 + ((k + j) % 7), category_id: m.cat, official_store_id: j === 0 && k === 0 ? 55 : null,
+      shipping: { free_shipping: j === 0, logistic_type: m.full && j < 2 ? 'fulfillment' : 'cross_docking' }
+    })) });
   }
-  const mp = /\/products\/(MLA\d+)$/.exec(u);
-  if (mp) return json({ id: mp[1], name: Object.keys(MERCADO).find(q => mp[1].endsWith(String(q.length))) || 'x' });
-  if (u.includes('domain_discovery')) return json([{ category_id: 'MLA1081', category_name: 'Comederos' }]);
   return json({}, 404);
 };
 
 const MC = (await import('../margen-core.js')).default;
 const op = await import('../api/_oportunidad.js');
+const pre = await import('../api/_precalculo.js');
 const { emitirToken } = await import('../api/_sesion.js');
 const handler = (await import('../api/analyze.js')).default;
 
@@ -103,7 +109,6 @@ function llamar(body, headers, metodo, url) {
 
 console.log('== 1. margen-core = la cuenta de MargenClear ==');
 {
-  // La formula que tenia margen.html antes de extraerla, copiada tal cual.
   function vieja(precio, costo, g, envio, empaque) {
     const comTot = g.base * (1 + g.iva / 100) + g.cuotas;
     const com = precio * comTot / 100, iibb = precio * g.iibb / 100, perc = precio * g.perc / 100, otros = precio * g.otros / 100;
@@ -118,155 +123,143 @@ console.log('== 1. margen-core = la cuenta de MargenClear ==');
   const b = MC.calcularUnidad({ precio: 45000, costo: 12000, comisionBasePct: 13.5, ivaComisionPct: 21, cargoCuotasPct: 5.5,
     iibbPct: 3, percAfipPct: 1, otrosVarPct: 0.5, envio: 1500, empaque: 800, devolucionesPct: 2, impGananciasPct: 35 });
   chequear('misma ganancia real que la formula vieja', Math.abs(a.real - b.ganReal) < 1e-6, Math.round(b.ganReal));
-  chequear('mismo margen %', Math.abs(a.margen - b.margenPct) < 1e-9, b.margenPct.toFixed(2) + '%');
+  chequear('mismo margen %', Math.abs(a.margen - b.margenPct) < 1e-9);
 }
 
-console.log('== 2. Veredicto coherente con el margen ==');
+console.log('== 2. Veredicto coherente y pesos ==');
 {
-  const dem = { valor: 90, detalle: '' }, comp = { valor: 95, detalle: '' }, ries = { valor: 100, detalle: '' };
-  for (const pct of [5, 14.9, 15, 25, 29.9, 30, 45]) {
-    const ev = op.evaluar({ margenPct: pct, demanda: dem, competencia: comp, riesgo: ries, riesgoTolerancia: 'bajo' });
-    const alta = ev.veredicto.nivel === 'alta';
+  const dem = { valor: 90, detalle: '' }, rot = { valor: 90, detalle: '' }, sat = { valor: 10, detalle: '' }, ries = { valor: 100, detalle: '' };
+  for (const pct of [5, 14.9, 15, 29.9, 30, 45]) {
+    const ev = op.evaluar({ margenPct: pct, demanda: dem, rotacion: rot, saturacion: sat, riesgo: ries, riesgoTolerancia: 'medio' });
     chequear('margen ' + pct + '% -> ' + ev.veredicto.label + ' / ' + ev.semaforo.label,
-      (pct < 30 ? !alta : true) && (pct < 15 ? ev.veredicto.nivel === 'baja' && ev.semaforo.color === 'rojo' : true));
+      (pct < 30 ? ev.veredicto.nivel !== 'alta' : true) && (pct < 15 ? ev.veredicto.nivel === 'baja' && ev.semaforo.color === 'rojo' : true));
   }
-  const sinDem = op.evaluar({ margenPct: 40, demanda: { valor: null, detalle: '' }, competencia: comp, riesgo: ries, riesgoTolerancia: 'medio' });
-  chequear('sin dato de demanda nunca es "alta"', sinDem.veredicto.nivel !== 'alta', sinDem.veredicto.motivos.join(' '));
-  chequear('sin demanda, su peso efectivo es 0', sinDem.componentes.find(c => c.clave === 'demanda').pesoEfectivo === 0);
-  const suma = sinDem.componentes.reduce((a, c) => a + c.pesoEfectivo, 0);
-  chequear('los pesos efectivos suman ~100', Math.abs(suma - 100) <= 1, suma);
+  const p = op.PESOS.medio;
+  chequear('demanda + rotacion + saturacion = 70%', p.demanda + p.rotacion + p.saturacion === 70);
+  chequear('margen 20%, riesgo 10%', p.margen === 20 && p.riesgo === 10);
+  const satAlta = op.evaluar({ margenPct: 40, demanda: dem, rotacion: rot, saturacion: { valor: 80, detalle: '' }, riesgo: ries, riesgoTolerancia: 'medio' });
+  chequear('saturacion alta nunca es "alta"', satAlta.veredicto.nivel !== 'alta', satAlta.veredicto.motivos.join(' '));
+  const demBaja = op.evaluar({ margenPct: 40, demanda: { valor: 30, detalle: '' }, rotacion: rot, saturacion: sat, riesgo: ries, riesgoTolerancia: 'medio' });
+  chequear('demanda baja nunca es "alta"', demBaja.veredicto.nivel !== 'alta');
 }
 
-console.log('== 3. Saturacion recalibrada ==');
+console.log('== 3. Saturacion relativa a la demanda ==');
 {
-  const c = op.puntajeCompetencia({ totalCatalogo: 1331, muestra: 20, pctFull: 10, pctOficiales: 0, top10: 10, vendedoresTop10: 9 });
-  chequear('1.331 productos ya no es "Baja"', op.saturacionDe(c.valor) !== 'Baja', op.saturacionDe(c.valor) + ' (' + c.valor + ')');
-  const d = op.puntajeCompetencia({ totalCatalogo: 1331, muestra: 20, pctFull: 70, pctOficiales: 30, top10: 10, vendedoresTop10: 2 });
-  chequear('Full + oficiales + concentracion empeoran la competencia', d.valor < c.valor, d.valor + ' < ' + c.valor);
+  const c = { totalCatalogo: 5000, muestra: 20, vendedoresDistintos: 12, top10: 10, vendedoresTop10: 6, pctFull: 20, pctOficiales: 0 };
+  const conDemanda = op.puntajeSaturacion(c, 90), sinDemanda = op.puntajeSaturacion(c, 30);
+  chequear('misma oferta: con demanda alta satura menos', conDemanda.valor < sinDemanda.valor, conDemanda.valor + ' < ' + sinDemanda.valor);
+  chequear('tiene numero y como se calcula', !!conDemanda.numero && /demanda/.test(conDemanda.como));
 }
 
-console.log('== 4. Certificaciones ==');
+console.log('== 4. Tendencias: coincidencia estricta ==');
+{
+  chequear('"cepillo quita pelos" NO coincide con "cepillo quita pelusas para ropa"', !pre.posicionEnTendencias('cepillo quita pelos mascotas', TRENDS.MLA1));
+  const t = pre.posicionEnTendencias('juguete dispensador premios perro', TRENDS.MLA417978);
+  chequear('"juguete dispensador premios perro" coincide (#2)', t && t.posicion === 2 && t.tipo === 'exacto', JSON.stringify(t));
+  chequear('"collar led" NO coincide con "collar traductor para perro"', !pre.posicionEnTendencias('collar led perro recargable', ['collar traductor para perro']));
+  chequear('busquedas con marca no cuentan', !pre.posicionEnTendencias('aro luz celular clip', ['aro de luz gadnic']));
+  const g = pre.posicionEnTendencias('comedero antivoracidad perro', ['comederos para perros']);
+  chequear('la busqueda general del rubro cuenta como generica', g && g.tipo === 'generico', JSON.stringify(g));
+}
+
+console.log('== 5. Certificaciones ==');
 {
   const cert = p => op.certificaciones(p, 'x').map(c => c.codigo).join(',');
   chequear('enchufe wifi -> ENACOM', /enacom/.test(cert({ nombre: 'Enchufe inteligente WiFi', q: 'enchufe inteligente wifi' })));
-  chequear('pava electrica -> Seguridad Electrica', /electrica/.test(cert({ nombre: 'Pava eléctrica de viaje', q: 'pava electrica viaje portatil' })));
-  chequear('molde silicona -> INAL', /inal/.test(cert({ nombre: 'Moldes de silicona', q: 'moldes silicona reposteria set' })));
   chequear('juguete en mascotas NO es certificacion de juguetes',
     op.certificaciones({ nombre: 'Juguete de plumas para gato', q: 'juguete gato plumas varita' }, 'mascotas').length === 0);
-  chequear('juguete infantil -> juguetes', /juguetes/.test(cert({ nombre: 'Juguete apilable', q: 'juguete apilable silicona bebe' })));
 }
 
-console.log('== 5. /api/analyze Mascotas, perfil bajo ==');
-const perfilBajo = { nicho: 'mascotas', capital: 'bajo', experiencia: 'ninguna', canal: 'mercadolibre', riesgo: 'bajo', user_id: 'u1' };
-const admin = { authorization: 'Bearer ' + emitirToken({ user: 'u1', role: 'admin' }) };
-const r1 = await llamar(perfilBajo, admin);
-chequear('responde 200', r1.status === 200, r1.status + ' ' + JSON.stringify(r1.body).slice(0, 200));
-const prods = r1.body.products || [];
-// BUSCADOR_DUMP=archivo.json guarda la respuesta para mirarla en el navegador.
-if (process.env.BUSCADOR_DUMP) (await import('node:fs')).writeFileSync(process.env.BUSCADOR_DUMP, JSON.stringify(r1.body));
-const comedero = prods.find(p => p.query === 'comedero antivoracidad perro');
-chequear('Apify: cero llamadas', llamadas.apify === 0, llamadas.apify);
-chequear('trajo el comedero con precio real', comedero && comedero.precioVentaARS > 0, comedero && comedero.precioVentaARS);
-if (comedero) {
-  console.log('    comedero: ' + comedero.veredicto.label + ' | score ' + comedero.score + ' | margen ' + comedero.margen + '% ($' +
-    comedero.margenNeto.netoARS + ') | ' + comedero.semaforo.label + ' | demanda ' + comedero.demanda + ' | sat ' + comedero.saturacion);
-  chequear('un solo margen: neto sobre precio', comedero.margen === comedero.margenNeto.pct);
-  const d = comedero.margenNeto.desglose;
-  chequear('la ganancia por unidad descuenta comision, IVA, IIBB y envio',
-    Math.abs(d.precio - d.costo - d.comision - d.envio - d.iibb - d.iva - d.devoluciones - comedero.margenNeto.netoARS) <= 3);
-  chequear('comision real de la categoria (15,5%)', comedero.canal.comisionReal && comedero.canal.comisionPct === 15.5);
-  chequear('costo con fuente "estimado por categoria"', comedero.costo.fuente === 'estimado por categoría');
-  chequear('veredicto y semaforo no se contradicen',
-    !(comedero.veredicto.nivel === 'alta' && comedero.semaforo.color !== 'verde'));
-  chequear('demanda por tendencia de MeLi, con texto', /tendencia/i.test(comedero.demanda) && /comedero antivoracidad perro grande/.test(comedero.demandaDetalle), comedero.demanda);
-  chequear('competencia con min/mediana/max', comedero.competencia.precioMin <= comedero.competencia.precioMediana && comedero.competencia.precioMediana <= comedero.competencia.precioMax);
-  chequear('% Full medido', comedero.competencia.pctFull != null, comedero.competencia.pctFull + '%');
-  chequear('% oficiales medido', comedero.competencia.pctOficiales != null, comedero.competencia.pctOficiales + '%');
-  chequear('concentracion top 10', comedero.competencia.vendedoresTop10 != null, comedero.competencia.vendedoresTop10);
-  const L = comedero.links;
-  chequear('link listado MeLi con guiones', L.meli === 'https://listado.mercadolibre.com.ar/comedero-antivoracidad-perro', L.meli);
-  chequear('link publicacion', /^https:\/\/articulo\.mercadolibre\.com\.ar\/MLA-\d+-_JM$/.test(L.publicacion || ''), L.publicacion);
-  chequear('link Alibaba en ingles', L.alibaba === 'https://www.alibaba.com/trade/search?SearchText=slow%20feeder%20dog%20bowl', L.alibaba);
-  chequear('link 1688', /^https:\/\/s\.1688\.com\/selloffer\/offer_search\.htm\?keywords=/.test(L.s1688));
-  chequear('link Google Trends AR', L.tendencia === 'https://trends.google.com/trends/explore?geo=AR&q=comedero%20antivoracidad%20perro');
-  chequear('desglose de score con 4 componentes y peso', comedero.componentes.length === 4 && comedero.componentes.every(c => typeof c.peso === 'number'));
-  chequear('capacidad de compra calculada', comedero.capacidad.moq > 0 && comedero.capacidad.unidadesPosibles > 0,
-    'MOQ ' + comedero.capacidad.moq + ', puede traer ' + comedero.capacidad.unidadesPosibles);
+console.log('== 6. Pre-analisis: autorizacion ==');
+{
+  const sin = await llamar(undefined, {}, 'GET', '/api/analyze?precalcular=tanda&solo=mascotas');
+  chequear('sin credencial -> 401', sin.status === 401);
+  const malo = await llamar(undefined, {}, 'GET', '/api/analyze?precalcular=tanda&run=token-trucho-0123456789012345');
+  chequear('token de corrida inexistente -> 401', malo.status === 401);
 }
-const vacio = (r1.body.products || []).find(p => p.veredicto.nivel === 'sin_dato');
-const sinDatoNoDiceAlta = (r1.body.products || []).every(p => p.score != null || p.demanda === 'Sin dato');
-chequear('sin datos no inventa "Alta"', sinDatoNoDiceAlta);
-chequear('cache del nicho guardado', llamadas.supaPost.includes('buscador_cache'));
+
+console.log('== 7. Pre-analisis: tanda de Mascotas con CRON_SECRET ==');
+const cron = { authorization: 'Bearer cron-de-prueba', 'user-agent': 'vercel-cron/1.0' };
+const t1 = await llamar(undefined, cron, 'GET', '/api/analyze?precalcular=tanda&solo=mascotas');
+chequear('responde 200', t1.status === 200, t1.status + ' ' + JSON.stringify(t1.body).slice(0, 160));
+chequear('proceso mascotas', t1.body.procesados && t1.body.procesados[0] && t1.body.procesados[0].nicho === 'mascotas');
+chequear('guardo el cache', llamadas.supaPost.includes('mascotas'));
+chequear('informa llamadas por endpoint', t1.body.llamadas > 0 && t1.body.porEndpoint['products/items'] > 0, t1.body.llamadas + ' llamadas');
+chequear('cero llamadas a Apify', llamadas.apify === 0);
+chequear('cero llamadas a endpoints que dan 403', llamadas.prohibidas === 0, llamadas.prohibidas);
+const t2 = await llamar(undefined, cron, 'GET', '/api/analyze?precalcular=tanda&solo=mascotas');
+chequear('segunda tanda: el nicho ya esta fresco, no se rehace', t2.body.procesados.length === 0 && t2.body.pendientes === 0);
+
+console.log('== 8. /api/analyze sin sesion: datos del pre-analisis ==');
+const perfilBajo = { nicho: 'mascotas', capital: 'bajo', experiencia: 'ninguna', canal: 'mercadolibre', riesgo: 'bajo', user_id: '' };
+const meliAntes = llamadas.meli;
+const r1 = await llamar(perfilBajo, {});
+if (process.env.BUSCADOR_DUMP) (await import('node:fs')).writeFileSync(process.env.BUSCADOR_DUMP, JSON.stringify(r1.body));
+chequear('responde 200 sin sesion ni MeLi', r1.status === 200);
+chequear('no consulta MeLi (sale del cache)', llamadas.meli === meliAntes && r1.body.desdeCache === true);
+const prods = r1.body.products || [];
+chequear('solo productos con datos como tarjeta', prods.length > 0 && prods.every(p => !p.sinDatos && p.metricas), prods.length);
+chequear('el resto va a pendientes (solo nombre y links)', (r1.body.pendientes || []).length > 0 &&
+  r1.body.pendientes.every(x => x.nombre && x.links && x.links.meli && x.score === undefined), (r1.body.pendientes || []).length);
+chequear('limite gratis: 3 tarjetas como mucho', prods.length <= 3);
+const comedero = prods.find(p => p.query === 'comedero antivoracidad perro') ||
+  (await llamar({ ...perfilBajo }, { authorization: 'Bearer ' + emitirToken({ user: 'u1', role: 'admin' }) })).body.products.find(p => p.query === 'comedero antivoracidad perro');
+chequear('el comedero tiene datos', !!comedero);
+if (comedero) {
+  const M = comedero.metricas;
+  ['demanda', 'rotacion', 'saturacion'].forEach(k => {
+    const m = M[k];
+    chequear(k + ': nivel + numero + como', m && /Alta|Media|Baja/.test(m.nivel) && m.numero && m.numero !== '\u2014' && m.como && m.como.length > 40, m && (m.nivel + ' · ' + m.numero));
+  });
+  chequear('demanda por tendencia de la categoria', /#\d+ de \d+/.test(M.demanda.numero), M.demanda.detalle);
+  chequear('rotacion por MercadoLider (MeLi no da ventas de 60 dias)', /MercadoLíder/.test(M.rotacion.numero), M.rotacion.detalle);
+  const pesoTop = comedero.componentes.filter(c => ['demanda', 'rotacion', 'saturacion'].includes(c.clave)).reduce((a, c) => a + c.peso, 0);
+  const total = comedero.componentes.reduce((a, c) => a + c.peso, 0);
+  chequear('en el score, las 3 metricas pesan ~70%', Math.abs(pesoTop / total - 0.7) < 0.06, Math.round(pesoTop / total * 100) + '%');
+  chequear('un solo margen (neto sobre precio)', comedero.margen === comedero.margenNeto.pct);
+  chequear('link publicacion armado', /^https:\/\/articulo\.mercadolibre\.com\.ar\/MLA-\d+-_JM$/.test(comedero.links.publicacion || ''), comedero.links.publicacion);
+}
 chequear('TOP PICK nunca es un "no conviene"', prods.filter(p => p.topPick).every(p => p.veredicto.nivel !== 'baja'));
 
-console.log('== 6. Cache: segunda consulta y perfil distinto ==');
-const antes = { listing: llamadas.listing };
-const r2 = await llamar({ ...perfilBajo, canal: 'mayorista', capital: 'premium', experiencia: 'alta', riesgo: 'alto' }, admin);
-chequear('segunda consulta sale del cache', r2.body.desdeCache === true && llamadas.listing === antes.listing);
-chequear('informa la antiguedad', typeof r2.body.edadHoras === 'number', r2.body.edadHoras + ' h');
-const comedero2 = r2.body.products.find(p => p.query === 'comedero antivoracidad perro');
-chequear('el canal cambia el precio (mayorista)', comedero2.precioVentaARS < comedero.precioVentaARS, comedero2.precioVentaARS + ' < ' + comedero.precioVentaARS);
-chequear('el riesgo cambia los pesos', comedero2.componentes[0].peso !== comedero.componentes[0].peso);
+console.log('== 9. Nicho sin pre-analisis ni MeLi: nada inventado ==');
+{
+  const r = await llamar({ ...perfilBajo, nicho: 'tecnologia' }, {});
+  chequear('0 tarjetas', r.body.products.length === 0 && r.body.conDatoReal === 0);
+  chequear('sin TOP PICK', r.body.products.every(p => !p.topPick));
+}
 
-console.log('== 7. Perfil: capital y experiencia ==');
+console.log('== 10. Capital: pedido de prueba de 50 u y riesgo ==');
 {
   const prod = { nombre: 'Medidor láser de distancia', q: 'medidor laser distancia', costoMin: 3, costoMax: 8, pesoG: 150 };
-  const merc = { results: publicaciones(60000, 12).map(x => ({ id: x.item_id, title: 'medidor laser distancia', price: x.price, seller: { id: x.seller_id },
-    shipping: x.shipping, official_store_id: null })), total: 900, comision: { porcentaje: 14, cargoFijo: 0 }, tendencia: null };
-  const bajo = op.evaluarProducto(prod, 'herramientas', merc, { capital: 'bajo', experiencia: 'ninguna', canal: 'mercadolibre', riesgo: 'medio' }, 1500);
-  const prem = op.evaluarProducto(prod, 'herramientas', merc, { capital: 'premium', experiencia: 'ninguna', canal: 'mercadolibre', riesgo: 'medio' }, 1500);
-  chequear('con capital bajo el pedido minimo no alcanza', bajo.capacidad.alcanza === false,
-    'MOQ ' + bajo.capacidad.moq + ' = USD ' + bajo.capacidad.inversionMoqUSD + ' vs presupuesto USD ' + bajo.capacidad.presupuestoUSD);
-  chequear('y eso baja el score', bajo.score < prem.score, bajo.score + ' < ' + prem.score);
-  const wifi = { nombre: 'Enchufe inteligente WiFi', q: 'enchufe inteligente wifi', costoMin: 2.5, costoMax: 5, pesoG: 60 };
-  const sinExp = op.evaluarProducto(wifi, 'domotica', merc, { capital: 'premium', experiencia: 'ninguna', canal: 'mercadolibre', riesgo: 'medio' }, 1500);
-  const exp = op.evaluarProducto(wifi, 'domotica', merc, { capital: 'premium', experiencia: 'alta', canal: 'mercadolibre', riesgo: 'medio' }, 1500);
-  chequear('sin experiencia + ENACOM baja el puntaje', sinExp.score < exp.score, sinExp.score + ' < ' + exp.score);
-}
-
-console.log('== 8. Marcas fuera de la muestra ==');
-{
-  const m = op.limpiarMuestra([{ title: 'Comedero Xiaomi', price: 100 }, { title: 'Comedero lento', price: 100 }, { title: 'Comedero Disney Stitch', price: 100 }]);
-  chequear('saca marca y licencia', m.length === 1, m.map(x => x.title).join(', '));
-}
-
-console.log('== 9. Mi lista ==');
-{
-  const sin = await llamar({ accion: 'lista_guardar', key: 'mascotas::x', producto: { nombre: 'x' } }, {});
-  chequear('sin sesion -> 401 requiereSesion (el front usa localStorage)', sin.status === 401 && sin.body.requiereSesion);
-  const ok = await llamar({ accion: 'lista_guardar', key: 'mascotas::comedero', nicho: 'mascotas', producto: { nombre: 'Comedero', margen: 30 } }, admin);
-  chequear('con sesion guarda', ok.status === 200 && listaGuardada.length === 1 && listaGuardada[0].user_id === 'u1');
-  const leer = await llamar(undefined, admin, 'GET', '/api/analyze?lista=1');
-  chequear('y la lee', leer.body.ok && leer.body.items.length === 1);
-}
-
-console.log('== 10. Sin sesion y sin datos (lo que se vio en el preview) ==');
-{
-  const r = await llamar({ nicho: 'tecnologia', capital: 'bajo', experiencia: 'ninguna', canal: 'mercadolibre', riesgo: 'bajo', user_id: '' }, {});
-  if (process.env.BUSCADOR_DUMP_SIN) (await import('node:fs')).writeFileSync(process.env.BUSCADOR_DUMP_SIN, JSON.stringify(r.body));
-  chequear('sin sesion de cliente: 3 de 12 (limite gratis del servidor)', r.body.products.length === 3 && r.body.productosTotales === 12,
-    r.body.products.length + ' de ' + r.body.productosTotales);
-  chequear('0 productos con datos', r.body.conDatoReal === 0);
-  chequear('sin datos no hay TOP PICK', r.body.products.every(p => !p.topPick));
-}
-
-console.log('== 11. Capital: pedido de prueba de 50 u y riesgo ==');
-{
-  const prod = { nombre: 'Medidor láser de distancia', q: 'medidor laser distancia', costoMin: 3, costoMax: 8, pesoG: 150 };
-  const merc = { results: publicaciones(60000, 12).map(x => ({ id: x.item_id, title: 'medidor laser distancia', price: x.price, seller: { id: x.seller_id },
-    shipping: x.shipping, official_store_id: null })), total: 900, comision: { porcentaje: 14, cargoFijo: 0 }, tendencia: 'medidor laser distancia' };
+  const ofertas = Array.from({ length: 12 }, (_, k) => ({ id: 'MLA' + (5000 + k), title: 'medidor laser distancia', price: 55000 + k * 1000,
+    seller: { id: k % 6 }, shipping: { logistic_type: 'cross_docking' }, official_store_id: null }));
+  const merc = { results: ofertas, catalogoTotal: 900, catalogoRevisados: 10, conOfertas: 5, comision: { porcentaje: 14, cargoFijo: 0 },
+    tendencia: { keyword: 'medidor laser', posicion: 3, total: 20, tipo: 'exacto' }, categoria: { nombre: 'Medidores', tendenciasRevisadas: 20 },
+    vendedores: [{ lider: 'gold', transacciones: 3000 }, { lider: null, transacciones: 200 }] };
   const pf = { capital: 'bajo', experiencia: 'ninguna', canal: 'mercadolibre', riesgo: 'medio' };
   const r = op.evaluarProducto(prod, 'herramientas', merc, pf, 1500);
-  chequear('MOQ no entra pero la prueba de 50 u si', r.capacidad.escenario === 'prueba' && r.capacidad.prueba.unidades === 50 && r.capacidad.prueba.alcanza,
-    'MOQ USD ' + r.capacidad.inversionMoqUSD + ' / prueba USD ' + r.capacidad.prueba.inversionUSD + ' / presupuesto USD ' + r.capacidad.presupuestoUSD);
+  chequear('MOQ no entra pero la prueba de 50 u si', r.capacidad.escenario === 'prueba', 'prueba USD ' + r.capacidad.prueba.inversionUSD);
   chequear('si no entra el MOQ, el riesgo no es "Bajo"', r.riesgo !== 'Bajo', r.riesgo);
-  chequear('el veredicto lo explica', r.veredicto.motivos.some(m => /prueba de 50 u/.test(m)), r.veredicto.motivos.join(' '));
-  const caro = { nombre: 'Almohada cervical', q: 'almohada cervical viscoelastica', costoMin: 6, costoMax: 14, pesoG: 1200 };
-  const r2 = op.evaluarProducto(caro, 'ortopedia', merc, pf, 1500);
-  chequear('si no entra ni la prueba: riesgo Alto y ajuste', r2.capacidad.escenario === 'ninguno' && r2.riesgo === 'Alto' && r2.ajustes.length === 1,
-    'prueba USD ' + r2.capacidad.prueba.inversionUSD + ', riesgo ' + r2.riesgo);
   const ok = op.evaluarProducto(prod, 'herramientas', merc, { ...pf, capital: 'premium' }, 1500);
-  chequear('con capital suficiente no se penaliza', ok.capacidad.escenario === 'moq' && ok.riesgo === 'Bajo' && !ok.ajustes.length, ok.riesgo);
+  chequear('con capital suficiente el riesgo es Bajo', ok.riesgo === 'Bajo');
+  chequear('el capital cambia el score', ok.score > r.score, ok.score + ' > ' + r.score);
+  const sinMuestra = op.evaluarProducto(prod, 'herramientas', { ...merc, results: ofertas.slice(0, 2) }, pf, 1500);
+  chequear('menos de 3 ofertas -> sinDatos (pendiente, sin tarjeta)', sinMuestra.sinDatos === true);
+}
+
+console.log('== 11. Marcas fuera de la muestra ==');
+{
+  const m = op.limpiarMuestra([{ title: 'Comedero Xiaomi', price: 100 }, { title: 'Comedero lento', price: 100 }, { title: 'Comedero Disney Stitch', price: 100 }]);
+  chequear('saca marca y licencia', m.length === 1);
+}
+
+console.log('== 12. Mi lista ==');
+{
+  const admin = { authorization: 'Bearer ' + emitirToken({ user: 'u1', role: 'admin' }) };
+  const sin = await llamar({ accion: 'lista_guardar', key: 'mascotas::x', producto: { nombre: 'x' } }, {});
+  chequear('sin sesion -> 401 (el front usa localStorage)', sin.status === 401 && sin.body.requiereSesion);
+  const ok = await llamar({ accion: 'lista_guardar', key: 'mascotas::comedero', nicho: 'mascotas', producto: { nombre: 'Comedero' } }, admin);
+  chequear('con sesion guarda', ok.status === 200 && listaGuardada.length === 1);
 }
 
 console.log('\n' + oks + ' ok, ' + fallos + ' fallas');

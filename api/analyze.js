@@ -1155,15 +1155,15 @@ async function manejarPrecalculo(req, res, url) {
   }
   if (modo === 'tanda' || modo === '1') {
     const solo = sp.get('solo') ? sp.get('solo').split(',').map(x => x.trim()).filter(x => CATALOGO[x]) : null;
-    const hop = Math.max(0, Math.min(60, Number(sp.get('hop')) || 0));
+    const hop = Math.max(0, Math.min(100, Number(sp.get('hop')) || 0));
     // antes=<ISO>: rehace todo lo guardado antes de esa fecha ("Forzar todos"
     // del admin, que corre en varias tandas con la misma fecha de corte).
     const antes = sp.get('antes') && !isNaN(Date.parse(sp.get('antes'))) ? Date.parse(sp.get('antes')) : null;
-    const r = await precalcularTanda({ token: tk.token, solo, antes, presupuestoMs: 38000 });
+    const r = await precalcularTanda({ token: tk.token, solo, antes, presupuestoMs: 30000 });
     // El cron encadena la tanda siguiente hasta terminar el catalogo. Cada
     // invocacion es una funcion nueva con sus 60 s: asi no se pasa el timeout.
     let encadenada = false;
-    if (via === 'cron' && r.pendientes > 0 && hop < 40) encadenada = await encadenarTanda(hop + 1, solo);
+    if (via === 'cron' && r.pendientes > 0 && hop < 80) encadenada = await encadenarTanda(hop + 1, solo);
     return res.status(200).json({ ok: true, via, usuario: MELI_USER_PRECALCULO(), hop, encadenada, ...r });
   }
   return res.status(400).json({ ok: false, error: 'Modo desconocido.' });

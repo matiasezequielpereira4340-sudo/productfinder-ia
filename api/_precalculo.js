@@ -12,6 +12,7 @@
 // funciones, el tope del plan Hobby).
 
 import { MELI_API, fetchJson, palabrasSignificativas, puntajeDeTitulo } from './_meli.js';
+import { esMarca } from './_radar.js';
 
 export const MELI_USER_PRECALCULO = () => process.env.BUSCADOR_MELI_USER || 'matypereira';
 
@@ -131,22 +132,34 @@ const VENDEDORES_TOP = 5;
 // Cliente con contador de llamadas, reintento unico ante 429 y concurrencia
 // limitada: el barrido nocturno hace miles de llamadas y no tiene que pegarle
 // a MeLi en rafaga.
+// MEDIDO 20/10/2026: a ~50 llamadas/s MeLi empezo a devolver 429 (6 de
+// 1.026). Se limita el ritmo a ~20/s (una salida cada 50 ms) y ante un 429 se
+// espera y se reintenta hasta 2 veces.
 export function crearCliente(token, opts) {
   const o = opts || {};
   const estado = { llamadas: 0, porEndpoint: {}, errores: {}, limitado: 0 };
   let activos = 0;
   const cola = [];
   const MAX = o.concurrencia || 6;
+  const INTERVALO = o.intervaloMs != null ? o.intervaloMs : 50;
+  let proximaSalida = 0;
   function liberar() { activos--; const sig = cola.shift(); if (sig) sig(); }
+  async function turno() {
+    const ahora = Date.now();
+    const espera = Math.max(0, proximaSalida - ahora);
+    proximaSalida = Math.max(ahora, proximaSalida) + INTERVALO;
+    if (espera) await new Promise(z => setTimeout(z, espera));
+  }
   async function get(nombre, url, timeoutMs) {
     if (activos >= MAX) await new Promise(r => cola.push(r));
     activos++;
     try {
-      for (let intento = 0; intento < 2; intento++) {
+      for (let intento = 0; intento < 3; intento++) {
+        await turno();
         estado.llamadas++;
         estado.porEndpoint[nombre] = (estado.porEndpoint[nombre] || 0) + 1;
         const r = await fetchJson(url, token, timeoutMs || 6000);
-        if (r.status === 429) { estado.limitado++; await new Promise(z => setTimeout(z, 1500)); continue; }
+        if (r.status === 429) { estado.limitado++; await new Promise(z => setTimeout(z, 2000 * (intento + 1))); continue; }
         if (!r.ok) estado.errores[nombre + ' ' + r.status] = (estado.errores[nombre + ' ' + r.status] || 0) + 1;
         return r;
       }
@@ -211,10 +224,11 @@ async function datosVendedor(cli, sellerId) {
 }
 
 // Posicion del producto en las tendencias de su categoria (/trends/MLA/{cat}).
-// Coincide si comparten al menos 2 palabras significativas y esas cubren el
-// 60% de las palabras de la busqueda en tendencia. Antes alcanzaba con las 2
-// primeras palabras y "cepillo quita pelos mascotas" coincidia con "cepillo
-// quita pelusas para ropa".
+// Coincide solo si TODAS las palabras significativas de la busqueda en
+// tendencia estan en el producto (minimo 2), y la busqueda no tiene marca.
+// Medido con datos reales: con una regla mas laxa "collar led perro" coincidia
+// con "collar traductor para perro" y "soporte tablet escritorio" con
+// "soporte tablet auto".
 export function posicionEnTendencias(q, lista) {
   if (!Array.isArray(lista) || !lista.length) return null;
   const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -225,9 +239,9 @@ export function posicionEnTendencias(q, lista) {
   if (Q.size < 2) return null;
   for (let i = 0; i < lista.length; i++) {
     const K = sig(lista[i]);
-    if (!K.length) continue;
+    if (K.length < 2 || esMarca(lista[i])) continue;
     const comunes = K.filter(w => Q.has(w)).length;
-    if (comunes >= 2 && comunes / K.length >= 0.6) {
+    if (comunes === K.length) {
       // "exacto": la busqueda en tendencia cubre la mayor parte del producto.
       // "generico": es la busqueda general del rubro ("comederos para perros"
       // para un comedero antivoracidad): demanda de la categoria, no del item.
