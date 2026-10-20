@@ -468,6 +468,8 @@ export default async function handler(req, res) {
           descartados_genericos: r.descartadosGenericos,
           ejemplo_generico: r.ejemploGenerico,
           descartados_vehiculos: r.descartadosVehiculos,
+          fuera_rubro: r.fueraRubro,
+          tendencias_vistas: r.tendenciasVistas,
           clasificaciones: r.clasificaciones,
           // Si la clasificacion fallo se dice, en vez de devolver una lista sin
           // traducir y sin filtrar como si estuviera todo bien.
@@ -524,7 +526,9 @@ export default async function handler(req, res) {
       const catsBR = await fetchJson(MELI_API + '/sites/MLB/categories', tok, 6000);
       salida.categorias_MLB = {
         status: catsBR.status,
-        cantidad: Array.isArray(catsBR.json) ? catsBR.json.length : 0
+        cantidad: Array.isArray(catsBR.json) ? catsBR.json.length : 0,
+        // Los nombres completos sirven para revisar el emparejamiento de rubros.
+        nombres: (Array.isArray(catsBR.json) ? catsBR.json : []).map(c => c.id + ' ' + c.name)
       };
       if (Array.isArray(catsBR.json) && catsBR.json[0]) rutas.push('/trends/MLB/' + catsBR.json[0].id);
 
