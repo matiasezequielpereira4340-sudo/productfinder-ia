@@ -151,6 +151,21 @@
           </div>
         </div>
 
+        <!-- Pre-analisis del Buscador de oportunidades -->
+        <div class="section">
+          <div class="section-title">
+            <span>Buscador de oportunidades: pre-an&aacute;lisis</span>
+            <span style="color:#555;font-size:12px;text-transform:none;font-weight:400">API oficial de MercadoLibre con tu cuenta. No usa Apify.</span>
+          </div>
+          <div style="padding:12px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <button class="btn btn-yellow" type="button" id="btnPrecalc" onclick="correrPrecalculo(false)">Correr ahora (nichos vencidos)</button>
+            <button class="btn btn-ghost" type="button" onclick="correrPrecalculo(true)">Forzar todos</button>
+            <input type="text" id="precalcSolo" placeholder="solo: mascotas,hogar (opcional)" style="flex:1;min-width:180px;background:#0f0f0f;border:1px solid #333;color:#ddd;border-radius:8px;padding:8px 10px">
+            <button class="btn btn-ghost" type="button" onclick="probarEndpointsMeli()">Probar endpoints de MeLi</button>
+          </div>
+          <div id="precalcOut" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;word-break:break-word;background:#0f0f0f;color:#ddd;border-radius:8px;padding:12px;max-height:60vh;overflow:auto">Corre todas las noches a las 04:00 (Argentina). Este bot&oacute;n hace lo mismo a mano, por tandas, hasta terminar.</div>
+        </div>
+
         <!-- Gasto del proveedor pago (Apify) -->
         <div class="section">
           <div class="section-title">
@@ -220,6 +235,37 @@
   // Diagnosticos de gasto. Van con adminFetch, o sea con la ADMIN_KEY que ya
   // esta guardada en este navegador: no hay que escribir ningun comando ni
   // pegar la clave en una URL.
+  // Pre-analisis del buscador: llama tandas de ~40 s hasta que no queden
+  // nichos pendientes. Cada tanda es una funcion nueva (no se pasa el timeout).
+  async function correrPrecalculo(forzar){
+    var out=document.getElementById('precalcOut'), btn=document.getElementById('btnPrecalc');
+    var solo=(document.getElementById('precalcSolo').value||'').replace(/\s+/g,'');
+    var log=[], total=0, nichos=0, antes=forzar?new Date().toISOString():null;
+    if(btn) btn.disabled=true;
+    try{
+      for(var i=0;i<60;i++){
+        var url='/api/analyze?precalcular=tanda'+(antes?'&antes='+encodeURIComponent(antes):'')+(solo?'&solo='+encodeURIComponent(solo):'');
+        out.textContent=log.concat(['Tanda '+(i+1)+'...']).join('\n');
+        var res=await adminFetch(url), j=await res.json();
+        if(!res.ok){ log.push('Error '+res.status+': '+(j&&j.error||'')); break; }
+        total+=j.llamadas||0;
+        (j.procesados||[]).forEach(function(p){ nichos++; log.push(p.nicho+': '+p.conDatos+'/'+p.de+' con datos, '+p.llamadas+' llamadas, '+(p.ms/1000).toFixed(1)+' s'+(p.guardado?'':' (no guardado)')); });
+        if(j.respuestas429) log.push('OJO: MeLi limito '+j.respuestas429+' pedidos (429).');
+        if(!j.pendientes || !(j.procesados||[]).length){ log.push('\nListo: '+nichos+' nichos, '+total+' llamadas a la API. Pendientes: '+(j.pendientes||0)); break; }
+      }
+    }catch(e){ log.push('Error: '+e.message); }
+    out.textContent=log.join('\n');
+    if(btn) btn.disabled=false;
+  }
+  async function probarEndpointsMeli(){
+    var out=document.getElementById('precalcOut');
+    out.textContent='Probando...';
+    try{
+      var res=await adminFetch('/api/analyze?precalcular=probar'), j=await res.json();
+      if(!res.ok){ out.textContent='Error '+res.status+': '+(j&&j.error||''); return; }
+      out.textContent=(j.endpoints||[]).map(function(e){ return (e.ok?'OK  ':'NO  ')+e.status+'  '+e.endpoint; }).join('\n');
+    }catch(e){ out.textContent='Error: '+e.message; }
+  }
   function pintarGasto(txt){ var el=document.getElementById('gastoOut'); if(el) el.textContent = txt; }
 
   async function verGasto(){

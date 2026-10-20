@@ -11,7 +11,7 @@
 // Este archivo NO es un endpoint: lo llama api/analyze.js (api/ ya tiene 12
 // funciones, el tope del plan Hobby).
 
-import { MELI_API, fetchJson } from './_meli.js';
+import { MELI_API, fetchJson, relevanciaPorTitulo } from './_meli.js';
 
 export const MELI_USER_PRECALCULO = () => process.env.BUSCADOR_MELI_USER || 'matypereira';
 
@@ -108,4 +108,212 @@ export async function probarEndpoints(token, q, itemForzado) {
     await probar('users/{seller}', MELI_API + '/users/' + sellerId, j => ({ nick: j.nickname, rep: j.seller_reputation && j.seller_reputation.transactions && j.seller_reputation.transactions.total, level: j.seller_reputation && j.seller_reputation.level_id }));
   }
   return { consulta, prodId, itemId, catId, sellerId, endpoints: out };
+}
+
+// ------------------------------------------------------------
+// Recolector por producto (solo endpoints que responden con el token)
+// ------------------------------------------------------------
+// Probado el 20/10/2026 con la cuenta 207450852, desde Vercel:
+//   OK  /products/search, /products/{id}/items, /products/{id},
+//       /trends/MLA/{cat}, /categories/{cat}, /users/{id}, /listing_prices
+//   403 /sites/MLA/search, /highlights/MLA/category|product, /items/{id},
+//       /items?ids= (403 por item ajeno), /reviews/item, /visits/items,
+//       /items/{id}/visits/time_window
+// Por eso no hay vendidos, reseñas ni visitas por publicacion: la rotacion se
+// aproxima con las ventas de 60 dias de los vendedores que ofrecen el producto.
+
+export const VERSION_MERCADO = 2;
+const CATALOGO_PAGINAS = 2;          // 2 x 10 productos de catalogo
+const MAX_PRODUCTOS_CON_ITEMS = 12;  // a cuantos productos se les piden ofertas
+const OFERTAS_OBJETIVO = 25;
+const VENDEDORES_TOP = 5;
+
+// Cliente con contador de llamadas, reintento unico ante 429 y concurrencia
+// limitada: el barrido nocturno hace miles de llamadas y no tiene que pegarle
+// a MeLi en rafaga.
+export function crearCliente(token, opts) {
+  const o = opts || {};
+  const estado = { llamadas: 0, porEndpoint: {}, errores: {}, limitado: 0 };
+  let activos = 0;
+  const cola = [];
+  const MAX = o.concurrencia || 6;
+  function liberar() { activos--; const sig = cola.shift(); if (sig) sig(); }
+  async function get(nombre, url, timeoutMs) {
+    if (activos >= MAX) await new Promise(r => cola.push(r));
+    activos++;
+    try {
+      for (let intento = 0; intento < 2; intento++) {
+        estado.llamadas++;
+        estado.porEndpoint[nombre] = (estado.porEndpoint[nombre] || 0) + 1;
+        const r = await fetchJson(url, token, timeoutMs || 6000);
+        if (r.status === 429) { estado.limitado++; await new Promise(z => setTimeout(z, 1500)); continue; }
+        if (!r.ok) estado.errores[nombre + ' ' + r.status] = (estado.errores[nombre + ' ' + r.status] || 0) + 1;
+        return r;
+      }
+      return { ok: false, status: 429, json: null };
+    } finally { liberar(); }
+  }
+  return { get, estado, cacheVendedores: new Map(), cacheCategorias: new Map() };
+}
+
+function mediana(arr) {
+  const s = arr.filter(x => typeof x === 'number' && isFinite(x)).sort((a, b) => a - b);
+  if (!s.length) return null;
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+// Datos de la categoria: tendencias (con posicion) y total de publicaciones.
+// Se piden una vez por categoria y por corrida.
+async function datosCategoria(cli, catId) {
+  if (!catId) return null;
+  if (cli.cacheCategorias.has(catId)) return cli.cacheCategorias.get(catId);
+  const p = (async () => {
+    const [tr, ca] = await Promise.all([
+      cli.get('trends/category', MELI_API + '/trends/MLA/' + catId),
+      cli.get('categories', MELI_API + '/categories/' + catId)
+    ]);
+    const tendencias = tr.ok && Array.isArray(tr.json) ? tr.json.map(x => x && x.keyword).filter(Boolean) : null;
+    return {
+      id: catId,
+      nombre: ca.ok && ca.json ? ca.json.name : null,
+      totalPublicaciones: ca.ok && ca.json && typeof ca.json.total_items_in_this_category === 'number' ? ca.json.total_items_in_this_category : null,
+      tendencias
+    };
+  })();
+  cli.cacheCategorias.set(catId, p);
+  return p;
+}
+
+// Reputacion publica del vendedor: ventas completadas en los ultimos 60 dias
+// (todas sus publicaciones, no solo este producto).
+async function datosVendedor(cli, sellerId) {
+  if (!sellerId) return null;
+  if (cli.cacheVendedores.has(sellerId)) return cli.cacheVendedores.get(sellerId);
+  const p = (async () => {
+    const r = await cli.get('users', MELI_API + '/users/' + sellerId);
+    if (!r.ok || !r.json) return null;
+    const rep = r.json.seller_reputation || {};
+    const ventas = rep.metrics && rep.metrics.sales;
+    return {
+      id: sellerId,
+      ventas60d: ventas && typeof ventas.completed === 'number' ? ventas.completed : null,
+      periodo: ventas && ventas.period || null,
+      transacciones: rep.transactions && typeof rep.transactions.total === 'number' ? rep.transactions.total : null,
+      nivel: rep.level_id || null,
+      lider: rep.power_seller_status || null
+    };
+  })();
+  cli.cacheVendedores.set(sellerId, p);
+  return p;
+}
+
+// Posicion del producto en las tendencias de su categoria. MeLi ordena los 50
+// terminos: 1-10 son los de mayor crecimiento, 11-30 los mas buscados, 31-50
+// los populares.
+export function posicionEnTendencias(q, lista) {
+  if (!Array.isArray(lista) || !lista.length) return null;
+  const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const ignorar = new Set(['de', 'para', 'con', 'set', 'pack', 'mini', 'y', 'la', 'el', 'en', 'sin', 'los', 'las']);
+  const palabras = norm(q).split(/\s+/).filter(w => w.length > 2 && !ignorar.has(w));
+  const nucleo = palabras.slice(0, 2).map(w => w.replace(/(es|s)$/, ''));
+  if (!nucleo.length) return null;
+  for (let i = 0; i < lista.length; i++) {
+    const kn = norm(lista[i]);
+    if (nucleo.every(w => kn.includes(w))) {
+      const pos = i + 1;
+      return { keyword: lista[i], posicion: pos, total: lista.length,
+        lista: pos <= 10 ? 'crecimiento' : pos <= 30 ? 'mas_buscadas' : 'populares' };
+    }
+  }
+  return null;
+}
+
+export async function analizarProducto(cli, prod) {
+  const q = prod.q;
+  const qq = encodeURIComponent(q);
+  // 1. Catalogo: total y productos.
+  const paginas = await Promise.all(Array.from({ length: CATALOGO_PAGINAS }, (_, k) =>
+    cli.get('products/search', MELI_API + '/products/search?status=active&site_id=MLA&limit=10&offset=' + (k * 10) + '&q=' + qq)));
+  let catalogoTotal = null;
+  const catalogo = [];
+  const vistos = new Set();
+  for (const r of paginas) {
+    if (!r.ok || !r.json) continue;
+    if (catalogoTotal == null && r.json.paging && typeof r.json.paging.total === 'number') catalogoTotal = r.json.paging.total;
+    for (const x of (r.json.results || [])) if (x && x.id && !vistos.has(x.id)) { vistos.add(x.id); catalogo.push({ id: x.id, name: x.name || '' }); }
+  }
+  if (!catalogo.length) return null;
+  // Primero los que se llaman como el producto buscado.
+  const rel = relevanciaPorTitulo(q, catalogo.map(c => ({ id: c.id, title: c.name, price: 1 })));
+  const relevantes = new Set((rel.items || []).map(x => x.id));
+  // Solo los relevantes cuando hay suficientes: /products/search mezcla
+  // parecidos ("comedero automatico" para "comedero antivoracidad").
+  const base = relevantes.size >= 3 ? catalogo.filter(c => relevantes.has(c.id)) : catalogo;
+  const ordenados = base.slice(0, MAX_PRODUCTOS_CON_ITEMS);
+
+  // 2. Ofertas activas por producto de catalogo (404 = sin ofertas).
+  const ofertas = [];
+  let conOfertas = 0, revisados = 0;
+  for (let i = 0; i < ordenados.length && ofertas.length < OFERTAS_OBJETIVO; i += 4) {
+    const lote = ordenados.slice(i, i + 4);
+    const rs = await Promise.all(lote.map(c => cli.get('products/items', MELI_API + '/products/' + c.id + '/items?limit=10')));
+    rs.forEach((r, k) => {
+      revisados++;
+      const lista = r.ok && r.json && Array.isArray(r.json.results) ? r.json.results : [];
+      if (lista.length) conOfertas++;
+      lista.filter(it => it && typeof it.price === 'number' && it.price > 0).forEach(it => ofertas.push({
+        id: it.item_id, title: lote[k].name, price: it.price,
+        seller: { id: it.seller_id || null },
+        shipping: { free_shipping: !!(it.shipping && it.shipping.free_shipping),
+          logistic_type: it.shipping && typeof it.shipping.logistic_type === 'string' ? it.shipping.logistic_type : null },
+        official_store_id: it.official_store_id || null,
+        category_id: it.category_id || null,
+        catalog_product_id: lote[k].id
+      }));
+    });
+  }
+  if (!ofertas.length) {
+    return { v: VERSION_MERCADO, catalogoTotal, catalogoRevisados: revisados, conOfertas: 0, results: [] };
+  }
+
+  // 3. Categoria (la mas repetida), comision real y vendedores top.
+  const cuenta = {};
+  let catId = null;
+  for (const o of ofertas) if (o.category_id) { cuenta[o.category_id] = (cuenta[o.category_id] || 0) + 1; if (!catId || cuenta[o.category_id] > cuenta[catId]) catId = o.category_id; }
+  const precioRef = Math.round(mediana(ofertas.map(o => o.price)));
+  const vendedoresIds = [];
+  for (const o of ofertas) { const id = o.seller.id; if (id && vendedoresIds.indexOf(id) < 0) vendedoresIds.push(id); if (vendedoresIds.length >= VENDEDORES_TOP) break; }
+  const [cat, lp, vendedores] = await Promise.all([
+    datosCategoria(cli, catId),
+    cli.get('listing_prices', MELI_API + '/sites/MLA/listing_prices?price=' + precioRef + '&listing_type_id=gold_special' + (catId ? '&category_id=' + catId : '')),
+    Promise.all(vendedoresIds.map(id => datosVendedor(cli, id)))
+  ]);
+  let comision = null;
+  if (lp.ok && lp.json) {
+    const t = Array.isArray(lp.json) ? lp.json[0] : lp.json;
+    const d = t && t.sale_fee_details;
+    if (d && Number(d.percentage_fee) > 0) comision = { porcentaje: Number(d.percentage_fee), cargoFijo: Math.round(Number(d.fixed_fee) || 0), precioConsultado: precioRef };
+  }
+  return {
+    v: VERSION_MERCADO,
+    catalogoTotal, catalogoRevisados: revisados, conOfertas,
+    results: ofertas,
+    categoria: cat ? { id: cat.id, nombre: cat.nombre, totalPublicaciones: cat.totalPublicaciones, tendenciasRevisadas: cat.tendencias ? cat.tendencias.length : null } : null,
+    categoryName: cat && cat.nombre || null,
+    tendencia: cat ? posicionEnTendencias(q, cat.tendencias) : null,
+    vendedores: vendedores.filter(Boolean),
+    comision,
+    guardadoEn: new Date().toISOString()
+  };
+}
+
+export async function analizarNicho(cli, productos) {
+  const out = {};
+  for (let i = 0; i < productos.length; i += 4) {
+    const lote = productos.slice(i, i + 4);
+    const rs = await Promise.all(lote.map(p => analizarProducto(cli, p).catch(() => null)));
+    lote.forEach((p, k) => { out[p.q] = rs[k]; });
+  }
+  return out;
 }

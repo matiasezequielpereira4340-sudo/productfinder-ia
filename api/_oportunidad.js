@@ -128,6 +128,7 @@ export function estadisticasCompetencia(results, total) {
   const conVendidos = r.filter(x => typeof x.sold_quantity === 'number' && x.sold_quantity > 0);
   const top10 = r.slice(0, 10);
   const vendTop = new Set(top10.map(x => x.seller && x.seller.id).filter(Boolean));
+  const vendTodos = new Set(r.map(x => x.seller && x.seller.id).filter(Boolean));
   return {
     muestra: r.length,
     totalCatalogo: (typeof total === 'number' && total > 0) ? total : null,
@@ -141,54 +142,102 @@ export function estadisticasCompetencia(results, total) {
     pctEnvioGratis: r.length ? Math.round(r.filter(x => x.shipping && x.shipping.free_shipping).length / r.length * 100) : null,
     top10: top10.length,
     vendedoresTop10: top10.length && vendTop.size ? vendTop.size : null,
+    vendedoresDistintos: vendTodos.size || null,
     vendidosMuestra: conVendidos.length ? conVendidos.reduce((a, x) => a + x.sold_quantity, 0) : null
   };
 }
 
-// Componente "competencia" (100 = poca competencia). Recalibrado: con el
-// umbral viejo (<2.000 = "Baja") un producto con 1.331 productos de catalogo
-// salia "saturacion baja" y casi todo terminaba en riesgo bajo.
-export function puntajeCompetencia(c) {
-  if (!c || (c.totalCatalogo == null && !c.muestra)) return { valor: null, detalle: 'Sin datos de competencia' };
-  const t = c.totalCatalogo;
-  let v = t == null ? 50 : t < 100 ? 90 : t < 300 ? 78 : t < 800 ? 62 : t < 2000 ? 45 : t < 5000 ? 30 : 15;
-  const notas = [];
-  if (t != null) notas.push(t.toLocaleString('es-AR') + ' productos en catálogo');
-  if (c.pctFull != null) {
-    if (c.pctFull >= 50) { v -= 15; notas.push(c.pctFull + '% en Full (vendedores profesionales)'); }
-    else if (c.pctFull >= 25) { v -= 7; notas.push(c.pctFull + '% en Full'); }
-    else notas.push(c.pctFull + '% en Full');
-  }
-  if (c.pctOficiales != null && c.pctOficiales >= 20) { v -= 10; notas.push(c.pctOficiales + '% tiendas oficiales'); }
-  if (c.vendedoresTop10 != null && c.top10 >= 5) {
-    if (c.vendedoresTop10 <= 3) { v -= 10; notas.push('top ' + c.top10 + ' en manos de ' + c.vendedoresTop10 + ' vendedores'); }
-    else if (c.vendedoresTop10 >= 8) { v += 5; notas.push('top ' + c.top10 + ' repartido en ' + c.vendedoresTop10 + ' vendedores'); }
-  }
-  v = Math.max(0, Math.min(100, Math.round(v)));
-  return { valor: v, detalle: notas.join(' · ') };
-}
+const fmt = n => Number(n).toLocaleString('es-AR');
+function nivel3(v, alto, medio) { return v == null ? 'Sin dato' : v >= alto ? 'Alta' : v >= medio ? 'Media' : 'Baja'; }
 
-export function saturacionDe(valor) {
-  if (valor == null) return 'Sin dato';
-  return valor >= 70 ? 'Baja' : valor >= 50 ? 'Media' : valor >= 30 ? 'Alta' : 'Muy alta';
-}
-
-// Componente "demanda". Sin vendidos ni tendencia no se inventa: queda null y
-// el score se arma con los otros componentes, avisandolo.
-export function puntajeDemanda(c, enTendencia) {
+// ------------------------------------------------------------
+// DEMANDA: tendencias de busqueda de MeLi en la categoria (+ vendidos si
+// MeLi los devolviera). /highlights (mas vendidos) da 403 con el token.
+// ------------------------------------------------------------
+export function puntajeDemanda(c, mercado) {
+  const tend = mercado && mercado.tendencia;
+  const cat = mercado && mercado.categoria;
+  const nombreCat = cat && cat.nombre ? '"' + cat.nombre + '"' : 'su categoría';
   if (c && c.vendidosMuestra != null) {
     const s = c.vendidosMuestra;
     const v = s >= 500 ? 90 : s >= 100 ? 70 : s >= 20 ? 50 : 25;
-    return { valor: v, nivel: v >= 70 ? 'Alta' : v >= 50 ? 'Media' : 'Baja',
-      detalle: s.toLocaleString('es-AR') + ' vendidos en las ' + c.muestra + ' publicaciones de la muestra' };
+    return { valor: v, nivel: nivel3(v, 70, 50), numero: fmt(s) + ' vendidos',
+      detalle: fmt(s) + ' vendidos en las ' + c.muestra + ' publicaciones de la muestra',
+      como: 'Suma de vendidos que informa MercadoLibre en las publicaciones comparables.' };
   }
-  if (enTendencia) {
-    return { valor: 75, nivel: 'En tendencia',
-      detalle: 'Aparece entre las búsquedas más frecuentes de MercadoLibre en su categoría ("' + enTendencia + '")' };
+  if (tend && tend.posicion) {
+    const p = tend.posicion;
+    const v = tend.lista === 'crecimiento' ? 92 - p : tend.lista === 'mas_buscadas' ? Math.round(80 - (p - 11) * 0.5) : Math.round(65 - (p - 31) * 0.5);
+    const listaTxt = tend.lista === 'crecimiento' ? 'mayor crecimiento' : tend.lista === 'mas_buscadas' ? 'más buscadas' : 'populares';
+    return { valor: v, nivel: nivel3(v, 75, 55), numero: '#' + p + ' de ' + tend.total,
+      detalle: '"' + tend.keyword + '" está #' + p + ' de ' + tend.total + ' en las búsquedas de ' + nombreCat + ' (' + listaTxt + ')',
+      como: 'Posición del producto en /trends de MercadoLibre para su categoría: 1-10 son las búsquedas de mayor crecimiento de la semana, 11-30 las más buscadas, 31-50 las populares. Más arriba, más demanda.' };
   }
-  return { valor: null, nivel: 'Sin dato',
-    detalle: 'MercadoLibre no informa vendidos para estas publicaciones y no aparece en sus tendencias: validá la demanda antes de comprar.' };
+  if (cat && cat.tendenciasRevisadas) {
+    return { valor: 30, nivel: 'Baja', numero: '0 de ' + cat.tendenciasRevisadas,
+      detalle: 'No aparece entre las ' + cat.tendenciasRevisadas + ' búsquedas top de ' + nombreCat,
+      como: 'Se buscó el producto en las ' + cat.tendenciasRevisadas + ' búsquedas que MercadoLibre informa para su categoría (/trends). No estar ahí no es cero demanda, pero sí que no es de lo más buscado. MeLi no informa vendidos por publicación.' };
+  }
+  return { valor: null, nivel: 'Sin dato', numero: '—', detalle: 'Sin datos de búsqueda de MercadoLibre para su categoría.',
+    como: 'MercadoLibre no devolvió tendencias para la categoría y no informa vendidos por publicación.' };
 }
+
+// ------------------------------------------------------------
+// ROTACION: proxy. Reseñas y visitas por publicacion dan 403 con el token,
+// asi que se usa lo publico que si responde: las ventas de los ultimos 60
+// dias de los vendedores que ofrecen el producto (reputacion) y cuantos de los
+// productos de catalogo revisados tienen ofertas activas.
+// ------------------------------------------------------------
+export function puntajeRotacion(mercado) {
+  const vs = (mercado && Array.isArray(mercado.vendedores) ? mercado.vendedores : []).filter(v => v && typeof v.ventas60d === 'number');
+  if (!vs.length) {
+    return { valor: null, nivel: 'Sin dato', numero: '—', detalle: 'MercadoLibre no informó las ventas de los vendedores top.',
+      como: 'Se miran las ventas de 60 días de los vendedores que ofrecen el producto (reputación pública).' };
+  }
+  const med = Math.round(mediana(vs.map(v => v.ventas60d)));
+  const sv = med >= 3000 ? 85 : med >= 1000 ? 70 : med >= 300 ? 55 : med >= 60 ? 40 : 25;
+  const rev = mercado.catalogoRevisados || 0, con = mercado.conOfertas || 0;
+  const ratio = rev ? con / rev : null;
+  const v = Math.round(ratio == null ? sv : sv * 0.7 + ratio * 100 * 0.3);
+  return { valor: v, nivel: nivel3(v, 65, 45), numero: fmt(med) + ' ventas/60 d',
+    detalle: 'Mediana de ' + fmt(med) + ' ventas en 60 días de ' + vs.length + ' vendedores top' + (ratio != null ? ' · ' + con + ' de ' + rev + ' productos del catálogo con ofertas activas' : ''),
+    como: 'Proxy: 70% ventas completadas en 60 días (mediana de los vendedores que ofrecen este producto, de todas sus publicaciones) + 30% proporción de productos del catálogo con ofertas activas. MercadoLibre no da reseñas ni visitas de publicaciones ajenas.' };
+}
+
+// ------------------------------------------------------------
+// SATURACION: oferta comparada contra la demanda (100 = muy saturado)
+// ------------------------------------------------------------
+// Mucha oferta con mucha demanda no es lo mismo que mucha oferta con poca:
+// la demanda corrige el indice de oferta.
+export function puntajeSaturacion(c, demandaValor) {
+  if (!c || (c.totalCatalogo == null && !c.muestra)) {
+    return { valor: null, nivel: 'Sin dato', numero: '—', detalle: 'Sin datos de oferta.', como: '' };
+  }
+  const t = c.totalCatalogo;
+  let oferta = t == null ? 50 : t < 100 ? 15 : t < 300 ? 30 : t < 800 ? 45 : t < 2000 ? 60 : t < 5000 ? 75 : 90;
+  const notas = [];
+  if (t != null) notas.push(fmt(t) + ' productos en catálogo');
+  if (c.vendedoresDistintos != null) notas.push(c.vendedoresDistintos + ' vendedores en la muestra');
+  if (c.vendedoresTop10 != null && c.top10 >= 5) {
+    notas.push('top ' + c.top10 + ' en ' + c.vendedoresTop10 + ' vendedores');
+    if (c.vendedoresTop10 <= 3) oferta += 10;
+  }
+  if (c.pctFull != null) { notas.push(c.pctFull + '% en Full'); if (c.pctFull >= 50) oferta += 10; else if (c.pctFull >= 25) oferta += 5; }
+  if (c.pctOficiales != null) { notas.push(c.pctOficiales + '% tiendas oficiales'); if (c.pctOficiales >= 20) oferta += 10; }
+  let v = oferta;
+  let ajuste = '';
+  if (demandaValor != null) {
+    const d = Math.round((50 - demandaValor) * 0.4);
+    v += d;
+    ajuste = d < 0 ? ' · la demanda alta la compensa (' + d + ')' : d > 0 ? ' · la demanda baja la agrava (+' + d + ')' : '';
+  }
+  v = Math.max(0, Math.min(100, Math.round(v)));
+  return { valor: v, nivel: nivel3(v, 65, 40), numero: t != null ? fmt(t) + ' en catálogo' : c.muestra + ' ofertas',
+    detalle: notas.join(' · ') + ajuste,
+    como: 'Índice de oferta: productos en el catálogo de MeLi (/products/search; el total de publicaciones de la búsqueda da 403), +10 si el top 10 está en 3 vendedores o menos, +5/+10 por % en Full, +10 si 20% o más son tiendas oficiales. Después se corrige por demanda: (50 − demanda) × 0,4. Más alto = más saturado.' };
+}
+
+export function saturacionDe(valor) { return nivel3(valor, 65, 40); }
 
 // ------------------------------------------------------------
 // Canal de venta: cambia precio, comision y envio
@@ -332,10 +381,12 @@ export function riesgoDe(valor) { return valor >= 70 ? 'Bajo' : valor >= 45 ? 'M
 // ------------------------------------------------------------
 // Score y veredicto: UNA funcion
 // ------------------------------------------------------------
+// Demanda + rotacion + saturacion ~70%, margen ~20%, riesgo/capital ~10%.
+// La tolerancia al riesgo mueve 5 puntos entre margen y riesgo.
 export const PESOS = {
-  bajo:  { margen: 35, demanda: 20, competencia: 25, riesgo: 20 },
-  medio: { margen: 40, demanda: 25, competencia: 25, riesgo: 10 },
-  alto:  { margen: 45, demanda: 25, competencia: 25, riesgo: 5 }
+  bajo:  { demanda: 25, rotacion: 20, saturacion: 25, margen: 15, riesgo: 15 },
+  medio: { demanda: 25, rotacion: 20, saturacion: 25, margen: 20, riesgo: 10 },
+  alto:  { demanda: 25, rotacion: 20, saturacion: 25, margen: 25, riesgo: 5 }
 };
 export const MARGEN_MIN_ALTA = 30;   // por debajo, nunca "Oportunidad alta"
 export const MARGEN_MIN_VIABLE = 15; // por debajo, "no conviene"
@@ -363,11 +414,15 @@ export function semaforoMargen(pct) {
 //       riesgo:{valor,detalle}, riesgoTolerancia, capacidad }
 export function evaluar(e) {
   const pesos = PESOS[e.riesgoTolerancia] || PESOS.medio;
+  // Saturacion entra invertida: 100 = nada saturado suma todo.
+  const sat = e.saturacion || { valor: null, detalle: '' };
+  const rot = e.rotacion || { valor: null, detalle: '' };
   const componentes = [
+    { clave: 'demanda', label: 'Demanda', valor: e.demanda.valor, peso: pesos.demanda, detalle: e.demanda.detalle },
+    { clave: 'rotacion', label: 'Rotación', valor: rot.valor, peso: pesos.rotacion, detalle: rot.detalle },
+    { clave: 'saturacion', label: 'Saturación (invertida)', valor: sat.valor == null ? null : 100 - sat.valor, peso: pesos.saturacion, detalle: sat.detalle },
     { clave: 'margen', label: 'Margen neto', valor: puntajeMargen(e.margenPct), peso: pesos.margen,
       detalle: e.margenPct != null ? e.margenPct.toLocaleString('es-AR') + '% neto sobre el precio de venta' : 'Sin precio de venta real' },
-    { clave: 'demanda', label: 'Demanda', valor: e.demanda.valor, peso: pesos.demanda, detalle: e.demanda.detalle },
-    { clave: 'competencia', label: 'Competencia', valor: e.competencia.valor, peso: pesos.competencia, detalle: e.competencia.detalle },
     { clave: 'riesgo', label: 'Riesgo (operativo y de capital)', valor: e.riesgo.valor, peso: pesos.riesgo, detalle: e.riesgo.detalle }
   ];
   const usados = componentes.filter(c => c.valor != null);
@@ -402,6 +457,8 @@ export function evaluar(e) {
   } else {
     if (e.margenPct < MARGEN_MIN_ALTA) motivos.push('Margen neto menor a ' + MARGEN_MIN_ALTA + '%.');
     if (e.demanda.valor == null) motivos.push('Falta validar la demanda.');
+    else if (e.demanda.valor < 55) motivos.push('Demanda baja: no está entre lo más buscado de su categoría.');
+    if (sat.valor != null && sat.valor >= 65) motivos.push('Mercado saturado para la demanda que tiene.');
     if (e.capacidad && e.capacidad.escenario === 'prueba') motivos.push('Con tu capital arrancás con un pedido de prueba de ' + e.capacidad.prueba.unidades + ' u, no con el mínimo típico.');
     if (e.capacidad && e.capacidad.escenario === 'ninguno') motivos.push('No te alcanza el capital ni para un pedido de prueba.');
     if (score >= 70 && motivos.length === 0) nivel = 'alta';
@@ -466,50 +523,47 @@ export function enTendencias(q, keywords) {
 // Armado final de un producto
 // ------------------------------------------------------------
 // mercado = { results, total, categoryName, comision, tendencia, guardadoEn } o null
+// mercado: lo que arma api/_precalculo.js (analizarProducto) o null.
 export function evaluarProducto(prod, nichoKey, mercado, perfil, usdArs) {
   const costo = costoImportacion(prod, usdArs);
   const certs = certificaciones(prod, nichoKey);
   const capacidad = capacidadDeCompra(costo, perfil.capital);
   const limpios = mercado ? limpiarMuestra(mercado.results) : [];
   const acotados = acotarPorCosto(limpios, costo.costoPuestoARS);
-  const comp = estadisticasCompetencia(acotados, mercado ? mercado.total : null);
   const links = linksDe(prod, acotados.length ? acotados : limpios);
   const base = {
     nombre: prod.nombre, query: prod.q, keyword_en: prod.keyword_en || null, nota: prod.nota, pesoG: prod.pesoG,
-    costo, certificaciones: certs, capacidad, links, competencia: comp,
+    costo, certificaciones: certs, capacidad, links,
     categoria: (mercado && mercado.categoryName) || null
   };
-
-  // Menos de 3 precios comparables: no alcanza para una mediana confiable.
-  if (!mercado || comp.muestra < 3) {
-    const compP = puntajeCompetencia(comp.muestra ? comp : (mercado ? { totalCatalogo: comp.totalCatalogo, muestra: 0 } : null));
-    const riesgo = puntajeRiesgo(prod, comp, certs, perfil.experiencia, capacidad);
-    const ev = evaluar({ margenPct: null, competencia: compP, demanda: puntajeDemanda(null, null), riesgo,
-      riesgoTolerancia: perfil.riesgo, capacidad });
-    return Object.assign(base, {
-      fuente: mercado ? 'MercadoLibre (muestra insuficiente)' : 'Sin datos de mercado',
-      precioVentaARS: null, margen: null, margenNeto: null,
-      demanda: 'Sin dato', saturacion: saturacionDe(compP.valor), riesgo: riesgoDe(riesgo.valor),
-      score: null, componentes: ev.componentes, ajustes: ev.ajustes, veredicto: ev.veredicto, semaforo: ev.semaforo,
-      competenciaSinDatos: !mercado,
-      muestraInsuficiente: !!mercado
-    });
+  // Sin 3 ofertas comparables con precio no hay producto para mostrar: va a
+  // "Pendientes de analisis" (solo nombre y links), no a una tarjeta vacia.
+  if (!mercado || acotados.length < 3) {
+    return Object.assign(base, { sinDatos: true,
+      motivoSinDatos: !mercado ? 'Todavía no se analizó.' : 'MercadoLibre no tiene suficientes ofertas comparables (' + acotados.length + ').' });
   }
-
+  // Oferta: toda la muestra limpia (el filtro por costo es para el precio).
+  const oferta = estadisticasCompetencia(limpios, mercado.catalogoTotal);
+  const precios = estadisticasCompetencia(acotados, mercado.catalogoTotal);
+  const comp = Object.assign({}, oferta, { precioMin: precios.precioMin, precioMediana: precios.precioMediana, precioMax: precios.precioMax, muestraPrecios: precios.muestra });
   const cond = condicionesCanal(perfil.canal, comp.precioMediana, prod.pesoG, mercado.comision);
   const mn = margenNeto(cond, costo);
-  const compP = puntajeCompetencia(comp);
-  const dem = puntajeDemanda(comp, mercado.tendencia || null);
+  const dem = puntajeDemanda(comp, mercado);
+  const rot = puntajeRotacion(mercado);
+  const sat = puntajeSaturacion(comp, dem.valor);
   const riesgo = puntajeRiesgo(prod, comp, certs, perfil.experiencia, capacidad);
-  const ev = evaluar({ margenPct: mn.pct, competencia: compP, demanda: dem, riesgo, riesgoTolerancia: perfil.riesgo, capacidad });
+  const ev = evaluar({ margenPct: mn.pct, demanda: dem, rotacion: rot, saturacion: sat, riesgo, riesgoTolerancia: perfil.riesgo, capacidad });
+  const m = x => ({ nivel: x.nivel, valor: x.valor, numero: x.numero, detalle: x.detalle, como: x.como });
   return Object.assign(base, {
-    fuente: 'MercadoLibre (real)',
+    fuente: 'MercadoLibre (API oficial)',
+    competencia: comp,
+    metricas: { demanda: m(dem), rotacion: m(rot), saturacion: m(sat) },
     precioVentaARS: cond.precio, precioMercadoARS: comp.precioMediana,
     canal: { clave: cond.canal, etiqueta: cond.etiqueta, notaPrecio: cond.notaPrecio, notaComision: cond.notaComision,
-      notaEnvio: cond.notaEnvio || null, comisionPct: cond.comisionBasePct, comisionReal: !!cond.comisionReal },
+      notaEnvio: cond.notaEnvio || null, comisionPct: cond.comisionBasePct, cargoFijo: cond.cargoFijo, comisionReal: !!cond.comisionReal },
     margen: mn.pct, margenNeto: mn,
-    demanda: dem.nivel, demandaDetalle: dem.detalle,
-    saturacion: saturacionDe(compP.valor), riesgo: riesgoDe(riesgo.valor),
+    demanda: dem.nivel, demandaDetalle: dem.detalle, rotacion: rot.nivel, saturacion: sat.nivel,
+    riesgo: riesgoDe(riesgo.valor),
     score: ev.score, componentes: ev.componentes, ajustes: ev.ajustes, veredicto: ev.veredicto, semaforo: ev.semaforo
   });
 }
@@ -518,8 +572,8 @@ export function evaluarProducto(prod, nichoKey, mercado, perfil, usdArs) {
 // los que entran con un pedido de prueba, despues los que no entran; y por score.
 const ESC = { moq: 0, prueba: 1, ninguno: 2 };
 export function ordenar(lista) {
-  const rango = p => p.veredicto && p.veredicto.nivel === 'sin_dato' ? 2 : 0;
+  const rango = p => p.sinDatos ? 2 : 0;
   return lista.slice().sort((a, b) => (rango(a) - rango(b)) ||
-    (ESC[a.capacidad.escenario] - ESC[b.capacidad.escenario]) ||
+    (a.sinDatos || b.sinDatos ? 0 : (ESC[a.capacidad.escenario] - ESC[b.capacidad.escenario])) ||
     ((b.score || 0) - (a.score || 0)));
 }

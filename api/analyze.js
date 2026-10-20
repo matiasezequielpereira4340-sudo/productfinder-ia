@@ -7,12 +7,11 @@
 // datos como estimados y nunca inventa precios reales.
 // ============================================================
 
-import { resolveUserId, buscarPublicaciones, anthropicHeaders, comisionMeli } from './_meli.js';
+import { resolveUserId, anthropicHeaders } from './_meli.js';
 import { esCliente, tokenDe, leerToken, esAdmin, cronAdmitido } from './_sesion.js';
 import { cotizacionDolar, tipoDeCambio, DOLAR_TIPO_DEFAULT } from './_dolar.js';
-import { tendencias } from './_radar.js';
-import { evaluarProducto, ordenar, enTendencias, CAPITAL_LABEL } from './_oportunidad.js';
-import { probarEndpoints, tokenDeCorridaValido, MELI_USER_PRECALCULO } from './_precalculo.js';
+import { evaluarProducto, ordenar, CAPITAL_LABEL } from './_oportunidad.js';
+import { probarEndpoints, tokenDeCorridaValido, MELI_USER_PRECALCULO, crearCliente, analizarNicho, VERSION_MERCADO } from './_precalculo.js';
 
 const USD_ARS_FALLBACK = 1510;
 const LIMITE_GRATIS = 3;
@@ -1032,70 +1031,9 @@ async function getMeliToken(userIdEntrada){
   }catch(e){ return null; }
 }
 
-// ------------------------------------------------------------
-// Mercado de un producto: lo que ya se trae gratis
-// ------------------------------------------------------------
-// sinPago: ESTE BARRIDO NO PAGA NUNCA. No es un tope, es una exclusion: la via
-// paga (Apify) ni siquiera esta en la lista de vias. Medido el 5/9: un barrido
-// de 12 productos podia costar USD 2,30 mientras el Market Reader paga USD 0,19
-// por el unico producto que la persona evalua de verdad.
-//
-// Ademas de las publicaciones se piden dos cosas gratis a la API publica de
-// MeLi: la comision real de la categoria (/listing_prices) y las tendencias de
-// la categoria (/trends), una vez por categoria y por consulta.
-function compactar(x) {
-  const o = {
-    id: x.id, title: x.title, price: x.price,
-    sold_quantity: (typeof x.sold_quantity === 'number') ? x.sold_quantity : null,
-    seller: { id: (x.seller && x.seller.id) || x.seller_id || null },
-    shipping: {
-      free_shipping: !!(x.shipping && x.shipping.free_shipping),
-      logistic_type: (x.shipping && typeof x.shipping.logistic_type === 'string') ? x.shipping.logistic_type : null
-    },
-    catalog_product_id: x.catalog_product_id || null,
-    category_id: x.category_id || null
-  };
-  // Solo si vino el campo: distinguir "no es tienda oficial" de "no se sabe".
-  if ('official_store_id' in x) o.official_store_id = x.official_store_id || null;
-  if (x.permalink) o.permalink = x.permalink;
-  if (!('logistic_type' in (x.shipping || {}))) delete o.shipping.logistic_type;
-  return o;
-}
-
-function modal(arr) {
-  const c = {};
-  let mejor = null;
-  for (const v of arr) { if (!v) continue; c[v] = (c[v] || 0) + 1; if (!mejor || c[v] > c[mejor]) mejor = v; }
-  return mejor;
-}
-
-async function mercadoDe(prod, token, tendPorCat) {
-  if (!token) return null;
-  try {
-    const r = await buscarPublicaciones(prod.q, token, {
-      budgetMs: 5000, maxIds: 25, sinPago: true, origen: 'analyze', camposEnvio: true
-    });
-    if (!r || r.sinPago || !Array.isArray(r.results) || !r.results.length) return null;
-    const results = r.results.filter(x => x && typeof x.price === 'number' && x.price > 0).map(compactar);
-    if (!results.length) return null;
-    const cat = modal(results.map(x => x.category_id));
-    const precios = results.map(x => x.price).sort((a, b) => a - b);
-    const precioRef = precios[Math.floor(precios.length / 2)];
-    if (cat && !tendPorCat.has(cat)) {
-      tendPorCat.set(cat, tendencias('MLA', cat, token).then(t => t.todas || []).catch(() => []));
-    }
-    const [comision, tend] = await Promise.all([
-      comisionMeli(precioRef, cat, token).catch(() => null),
-      cat ? tendPorCat.get(cat) : Promise.resolve([])
-    ]);
-    return {
-      results, total: (typeof r.total === 'number' && r.total > 0) ? r.total : null,
-      categoryName: r.categoryName || null, categoriaId: cat,
-      comision, tendencia: enTendencias(prod.q, tend),
-      guardadoEn: r.guardadoEn || new Date().toISOString()
-    };
-  } catch (e) { return null; }
-}
+// El mercado de cada producto lo arma api/_precalculo.js (analizarNicho), con
+// los endpoints de MeLi que responden de verdad. Lo usan el proceso nocturno y
+// la consulta en vivo de un visitante con MeLi conectado.
 
 // ------------------------------------------------------------
 // Cache por nicho (24 h) en Supabase: buscador_cache
@@ -1215,7 +1153,88 @@ async function manejarPrecalculo(req, res, url) {
   if (modo === 'probar') {
     return res.status(200).json({ ok: true, via, usuario: MELI_USER_PRECALCULO(), ...(await probarEndpoints(tk.token, sp.get('q'), sp.get('item'))) });
   }
+  if (modo === 'tanda' || modo === '1') {
+    const solo = sp.get('solo') ? sp.get('solo').split(',').map(x => x.trim()).filter(x => CATALOGO[x]) : null;
+    const hop = Math.max(0, Math.min(60, Number(sp.get('hop')) || 0));
+    // antes=<ISO>: rehace todo lo guardado antes de esa fecha ("Forzar todos"
+    // del admin, que corre en varias tandas con la misma fecha de corte).
+    const antes = sp.get('antes') && !isNaN(Date.parse(sp.get('antes'))) ? Date.parse(sp.get('antes')) : null;
+    const r = await precalcularTanda({ token: tk.token, solo, antes, presupuestoMs: 38000 });
+    // El cron encadena la tanda siguiente hasta terminar el catalogo. Cada
+    // invocacion es una funcion nueva con sus 60 s: asi no se pasa el timeout.
+    let encadenada = false;
+    if (via === 'cron' && r.pendientes > 0 && hop < 40) encadenada = await encadenarTanda(hop + 1, solo);
+    return res.status(200).json({ ok: true, via, usuario: MELI_USER_PRECALCULO(), hop, encadenada, ...r });
+  }
   return res.status(400).json({ ok: false, error: 'Modo desconocido.' });
+}
+
+// Estado del cache de todos los nichos: fecha y version del formato.
+async function fechasCacheNichos() {
+  const out = {};
+  if (!SUPA_KEY) return out;
+  try {
+    const r = await fetch(SUPA_URL + '/rest/v1/buscador_cache?select=nicho,created_at,v:mercado->__v', { headers: supaHeaders() });
+    if (!r.ok) return out;
+    for (const f of await r.json()) out[f.nicho] = { creado: f.created_at, v: f.v };
+  } catch (e) {}
+  return out;
+}
+
+// Una tanda: procesa nichos (los que faltan primero, despues los mas viejos)
+// hasta agotar el presupuesto de tiempo. Si un nicho no trae nada, no se pisa
+// el cache que hubiera.
+const FRESCO_HORAS = 20;
+async function precalcularTanda({ token, solo, antes, presupuestoMs }) {
+  const inicio = Date.now();
+  const cli = crearCliente(token, { concurrencia: 6 });
+  const fechas = await fechasCacheNichos();
+  const edad = k => fechas[k] && fechas[k].v === VERSION_MERCADO ? (Date.now() - new Date(fechas[k].creado).getTime()) : Infinity;
+  let cola = Object.keys(CATALOGO);
+  if (solo && solo.length) cola = cola.filter(k => solo.indexOf(k) > -1);
+  const creado = k => fechas[k] && fechas[k].v === VERSION_MERCADO ? new Date(fechas[k].creado).getTime() : 0;
+  cola = antes != null
+    ? cola.filter(k => creado(k) < antes)
+    : cola.filter(k => edad(k) > FRESCO_HORAS * 3600 * 1000);
+  cola.sort((a, b) => edad(b) - edad(a));
+  const hechos = [];
+  for (const k of cola) {
+    if (Date.now() - inicio > presupuestoMs) break;
+    const t0 = Date.now();
+    const antes = cli.estado.llamadas;
+    const mercado = await analizarNicho(cli, CATALOGO[k].productos);
+    const conDatos = Object.values(mercado).filter(m => m && Array.isArray(m.results) && m.results.length >= 3).length;
+    let guardado = false;
+    if (conDatos > 0) {
+      mercado.__v = VERSION_MERCADO;
+      guardado = await guardarCacheNicho(k, mercado);
+    }
+    hechos.push({ nicho: k, conDatos, de: CATALOGO[k].productos.length, llamadas: cli.estado.llamadas - antes, ms: Date.now() - t0, guardado });
+  }
+  return {
+    procesados: hechos, pendientes: cola.length - hechos.length,
+    nichosTotales: Object.keys(CATALOGO).length,
+    llamadas: cli.estado.llamadas, porEndpoint: cli.estado.porEndpoint, errores: cli.estado.errores,
+    respuestas429: cli.estado.limitado, ms: Date.now() - inicio
+  };
+}
+
+async function encadenarTanda(hop, solo) {
+  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL || 'productfinder-ia.vercel.app';
+  const qs = 'precalcular=tanda&hop=' + hop + (solo ? '&solo=' + encodeURIComponent(solo.join(',')) : '');
+  const ctrl = new AbortController();
+  const corte = setTimeout(() => ctrl.abort(), 3000);
+  try {
+    // No se espera la respuesta: alcanza con que el pedido salga. La tanda
+    // siguiente corre en su propia invocacion.
+    await fetch('https://' + host + '/api/analyze?' + qs, {
+      headers: { Authorization: 'Bearer ' + (process.env.CRON_SECRET || ''), 'user-agent': 'vercel-cron/1.0 (encadenado)' },
+      signal: ctrl.signal
+    });
+    return true;
+  } catch (e) {
+    return e && e.name === 'AbortError';   // abortar por tiempo es lo esperado
+  } finally { clearTimeout(corte); }
 }
 
 // ProductFinder IA - API Handler
@@ -1324,44 +1343,48 @@ export default async function handler(req, res) {
     const _tc = await tipoDeCambio(DOLAR_TIPO_DEFAULT);
     if (_tc.valor != null) usdArs = _tc.valor;
 
-    // 1. Cache del nicho (24 h). Si esta, no se le pide nada a MercadoLibre.
+    // 1. Cache del nicho (lo llena el pre-analisis nocturno; 24 h). Si esta, no
+    //    se le pide nada a MercadoLibre. Solo vale el formato actual: un cache
+    //    del formato anterior no tiene demanda/rotacion y se trata como pendiente.
     const lista = niche.productos;
     let mercadoPorQ = null, datosDe = null, desdeCache = false;
     const enCache = await leerCacheNicho(nichoKey);
-    if (enCache) { mercadoPorQ = enCache.mercado; datosDe = enCache.creadoEn; desdeCache = true; }
+    if (enCache && enCache.mercado.__v === VERSION_MERCADO) { mercadoPorQ = enCache.mercado; datosDe = enCache.creadoEn; desdeCache = true; }
 
-    const tk = enCache ? null : await getMeliToken(user_id);
+    const tk = mercadoPorQ ? null : await getMeliToken(user_id);
     const token = tk && tk.token ? tk.token : null;
     const tokenExpired = tk && tk.expired ? true : false;
 
-    // 2. Sin cache: barrido gratuito (nunca paga, ver mercadoDe).
+    // 2. Sin cache y con MeLi conectado: el mismo recolector del proceso
+    //    nocturno, con el token del visitante (gratis, nunca Apify).
     if (!mercadoPorQ && token) {
-      mercadoPorQ = {};
-      const tendPorCat = new Map();
-      for (let i = 0; i < lista.length; i += 6) {
-        const lote = lista.slice(i, i + 6);
-        const res6 = await Promise.all(lote.map(prod => mercadoDe(prod, token, tendPorCat)));
-        lote.forEach((prod, k) => { mercadoPorQ[prod.q] = res6[k]; });
-      }
+      const cli = crearCliente(token, { concurrencia: 6 });
+      mercadoPorQ = await analizarNicho(cli, lista);
       datosDe = new Date().toISOString();
-      // Solo se guarda si trajo algo: un nicho vacio guardado 24 h es un dia
-      // entero mostrando "sin datos".
-      if (Object.values(mercadoPorQ).some(Boolean)) await guardarCacheNicho(nichoKey, mercadoPorQ);
+      if (Object.values(mercadoPorQ).some(m => m && Array.isArray(m.results) && m.results.length >= 3)) {
+        mercadoPorQ.__v = VERSION_MERCADO;
+        await guardarCacheNicho(nichoKey, mercadoPorQ);
+      }
     }
 
     // 3. Perfil encima del mercado: cuenta local, sin red.
     const productos = lista.map(prod => evaluarProducto(prod, nichoKey, mercadoPorQ ? (mercadoPorQ[prod.q] || null) : null, perfil, usdArs));
-    let filtrados = ordenar(productos);
+    // Sin datos reales no hay tarjeta: van a "Pendientes de analisis" con
+    // nombre y links, nada mas.
+    const conDatos = ordenar(productos.filter(p => !p.sinDatos));
+    const pendientes = productos.filter(p => p.sinDatos).map(p => ({ nombre: p.nombre, query: p.query, links: p.links, motivo: p.motivoSinDatos }));
     // TOP PICK solo si de verdad es una oportunidad: nunca un "no conviene".
-    const top = filtrados.find(p => p.veredicto && (p.veredicto.nivel === 'alta' || p.veredicto.nivel === 'media') && p.capacidad.escenario !== 'ninguno');
+    const top = conDatos.find(p => p.veredicto && (p.veredicto.nivel === 'alta' || p.veredicto.nivel === 'media') && p.capacidad.escenario !== 'ninguno');
     if (top) top.topPick = true;
-
-    const conDato = productos.filter(p => p.score != null).length;
+    const conDato = conDatos.length;
 
     // El recorte se decide ACA, no en el navegador: sin token firmado de
     // cliente, los productos bloqueados directamente no salen del servidor.
+    // Se recortan solo los que tienen datos; los pendientes no tienen nada que
+    // esconder.
     const cliente = esCliente(tokenDe(req));
-    const totalDisponibles = filtrados.length;
+    const totalDisponibles = conDatos.length;
+    let filtrados = conDatos;
     if (!cliente && filtrados.length > LIMITE_GRATIS) {
       filtrados = filtrados.slice(0, LIMITE_GRATIS);
     }
@@ -1374,11 +1397,11 @@ export default async function handler(req, res) {
       esCliente: cliente, productosMostrados: filtrados.length, productosTotales: totalDisponibles,
       // Con cache no se mira el token (no hace falta): se informa como conectado
       // para no mostrar el aviso de "precios estimados" sobre datos reales.
-      meliConectado: !!token || (desdeCache && conDato > 0), meliTokenExpirado: tokenExpired,
+      meliConectado: !!token || conDato > 0, meliTokenExpirado: tokenExpired,
       datosDe: datosDe, desdeCache: desdeCache, edadHoras: edadHoras != null ? Math.round(edadHoras * 10) / 10 : null,
       cacheHoras: CACHE_HORAS,
-      products: filtrados,
-      disclaimer: 'Precio, competencia y comisión: datos de la API de MercadoLibre. El costo de importación es una ESTIMACIÓN por categoría (FOB típico + flete por peso + impuestos), no una cotización: ajustalo con la tuya en MargenClear.'
+      products: filtrados, pendientes: pendientes,
+      disclaimer: 'Demanda, rotación, saturación, precio y comisión: datos de la API oficial de MercadoLibre (pre-analizados cada noche). El costo de importación es una ESTIMACIÓN por categoría (FOB típico + flete por peso + impuestos), no una cotización: ajustalo con la tuya en MargenClear.'
     });
   } catch(err) {
     return res.status(500).json({error: 'Error interno del servidor', detail: err.message});
