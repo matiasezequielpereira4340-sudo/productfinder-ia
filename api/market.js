@@ -71,6 +71,24 @@ export default async function handler(req, res) {
       });
     }
 
+    // ?reclasificar=<termino>&cat=<id> -> vuelve a clasificar UN termino del
+    // Radar y pisa su fila en keywords_clasificadas. Es para corregir una
+    // traduccion mala sin subir de version y retraducir todo. Solo admin: gasta
+    // una llamada a Claude y cambia lo que ven todos.
+    if (req.query && typeof req.query.reclasificar === 'string') {
+      if (!admitido(req)) return res.status(401).json({ error: 'No autorizado' });
+      const tok = await getMeliAccessToken();
+      if (!tok) return res.status(200).json({ ok: false, error: 'No pude autenticarme contra MercadoLibre.' });
+      const radar = await import('./_radar.js');
+      try {
+        const r = await radar.reclasificarTermino(req.query.reclasificar, req.query.cat, tok);
+        if (r.error) return res.status(200).json({ ok: false, error: r.error });
+        return res.status(200).json({ ok: true, ...r });
+      } catch (e) {
+        return res.status(200).json({ ok: false, error: String((e && e.message) || e).slice(0, 200) });
+      }
+    }
+
     // ?gasto=1 -> en que se fue la plata del proveedor pago, por termino.
     // Existe para poder contestar "cuanto gaste hoy y en que" sin entrar a
     // Apify ni a Supabase. Protegido con ADMIN_KEY: expone los terminos que

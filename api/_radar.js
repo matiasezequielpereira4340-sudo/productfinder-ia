@@ -287,8 +287,10 @@ async function clasificarLote(items) {
     'por palabra: "pipoqueira" -> "maquina de pochoclos", "caixa transporte gato" -> ' +
     '"transportadora para gatos", "coleira peitoral" -> "pretal para perro", "tapete ' +
     'emborrachado infantil" -> "alfombra de goma eva infantil", "misturador de racao" -> ' +
-    '"mezcladora de alimento balanceado". Si la palabra sola no alcanza para buscarlo, ' +
-    'agregale la que lo hace buscable: "wallbox" -> "cargador wallbox". Nunca agregues un ' +
+    '"mezcladora de alimento balanceado", "brinquedo 1 ano menino" -> "juguete para nene de ' +
+    '1 año" (sin palabras que sobren). Si la palabra sola no alcanza para buscarlo, ' +
+    'agregale la que lo hace buscable: "wallbox" -> "cargador wallbox", "h7" en accesorios ' +
+    'para vehiculos -> "lámpara H7". Nunca agregues un ' +
     'producto que el termino no nombra: "gwm h7" es una camioneta, no un faro. Si ya está ' +
     'en español y ya es un producto concreto, repetilo igual. En minuscula, salvo siglas y ' +
     'codigos (H4, H7, USB, LED).\n' +
@@ -297,7 +299,10 @@ async function clasificarLote(items) {
     'halloween, embalagem, expositor, accesorios para auto). Un nombre de producto de 2 o mas ' +
     'palabras que se puede vender tal cual NO es generico: "aromatizador de ambiente" y ' +
     '"kit vinho" (kit de vino / accesorios de vino) son productos y quedan con generico false, ' +
-    'igual que "compresor de aire portatil", "bebedero para gatos" o "lampara H4".\n' +
+    'igual que "compresor de aire portatil", "bebedero para gatos" o "lampara H4". Un producto ' +
+    'que se importa tal cual tampoco es generico aunque sea una sola palabra: "guantes" es un ' +
+    'producto (generico false); si aparecio en un rubro que no le corresponde, marcalo con ' +
+    'fuera_rubro.\n' +
     '- "imp": true si es un producto fisico que un importador chico podria traer de ' +
     'China y revender; false si es un alimento fresco o commodity (leche, carne, cafe), ' +
     'una MARCA o un modelo de una marca (apple, iphone, dji, osmo, insta360, gopro, ' +
@@ -321,6 +326,10 @@ async function clasificarLote(items) {
       headers: anthropicHeaders(),
       body: JSON.stringify({
         model: 'claude-haiku-4-5',
+        // Sin azar: la respuesta se guarda en cache, y una que salio mal por
+        // casualidad quedaria fija. Con temperature 0 el mismo termino da
+        // siempre lo mismo.
+        temperature: 0,
         // 25 terminos con dos campos cada uno entran holgados. La version
         // anterior se quedaba corta y la respuesta llegaba cortada al medio.
         max_tokens: 4000,
@@ -401,10 +410,12 @@ async function guardarClasificaciones(mapa) {
 // ("pa" -> "pala"); v2 tenia rubro pero la clave era solo el termino, asi que
 // "polo" en Ropa y en Autos compartian clasificacion. v3 lleva la categoria en
 // la clave. v4 es el mismo formato que v3: el prompt de v3 dejaba terminos en
-// portugues ("pipoqueira") e inventaba productos ("gwm h7" -> "faro H7"). Lo
-// anterior queda en la tabla y se ignora. Si cambia el prompt de
+// portugues ("pipoqueira") e inventaba productos ("gwm h7" -> "faro H7"). v5
+// es el primero con temperature 0: lo de v4 salio con azar y no se reusa. Lo
+// anterior queda en la tabla y se ignora. Para corregir un termino suelto sin
+// subir de version esta reclasificarTermino() (?reclasificar= en market.js). Si cambia el prompt de
 // nuevo, subir el numero.
-const VERSION_CLASIF = 'v4|';
+const VERSION_CLASIF = 'v5|';
 export function claveClasificacion(cat, término) {
   return VERSION_CLASIF + String(cat || '') + '|' + String(término || '');
 }
@@ -426,6 +437,15 @@ export function normalizarEs(es) {
 // Generico y fuera de rubro se guardan en "motivo" para no tocar el esquema.
 function motivoDe(v) {
   return [v.generico ? 'generico' : null, v.fueraRubro ? 'fuera_rubro' : null].filter(Boolean).join(',') || null;
+}
+
+function desdeModelo(v) {
+  return {
+    es: normalizarEs(v.es),
+    imp: v.imp !== false,
+    generico: v.generico === true,
+    fueraRubro: v.fuera_rubro === true
+  };
 }
 
 // Recibe [{t, rubro, cat}]. Devuelve un mapa por claveClasificacion(cat, t):
@@ -469,12 +489,7 @@ export async function clasificarKeywords(entrada) {
     r.lote.forEach((k, id) => {
       const v = r.mapa && r.mapa[String(id)];
       if (!v || typeof v !== 'object') return;
-      nuevas[k] = {
-        es: normalizarEs(v.es),
-        imp: v.imp !== false,
-        generico: v.generico === true,
-        fueraRubro: v.fuera_rubro === true
-      };
+      nuevas[k] = desdeModelo(v);
     });
   }
   const paraGuardar = {};
@@ -490,6 +505,37 @@ export async function clasificarKeywords(entrada) {
     error: errores.length ? errores[0] + (errores.length > 1 ? ' (x' + errores.length + ')' : '') : null,
     desdeCache: Object.keys(guardadas).length,
     preguntadas: faltan.length
+  };
+}
+
+// Corrige UN termino sin subir de version: lo vuelve a preguntar y pisa su
+// fila en el cache. Para cuando una traduccion puntual salio mal y no vale la
+// pena retraducir todo. El rubro sale de la categoria, igual que en el barrido.
+export async function reclasificarTermino(término, cat, token) {
+  const t = String(término || '').trim().slice(0, 140);
+  const id = String(cat || '').trim();
+  if (!t) return { error: 'falta el termino' };
+  if (!/^ML[AB]\d{3,}$/.test(id)) return { error: 'categoria invalida: va el id, ej. MLB1743 o MLA1368' };
+
+  const r = await fetchJson(MELI_API + '/categories/' + id, token, 5000);
+  if (!r || !r.ok || !r.json || !r.json.name) return { error: 'MercadoLibre no devolvio la categoria ' + id };
+  // Las tendencias son por categoria de primer nivel: el rubro es la raiz.
+  const camino = Array.isArray(r.json.path_from_root) ? r.json.path_from_root : [];
+  const rubro = camino.length ? camino[0].name : r.json.name;
+
+  const clave = claveClasificacion(id, t);
+  const previa = (await clasificacionesGuardadas([clave]))[clave] || null;
+  const respuesta = await clasificarLote([{ id: 0, t, rubro }]);
+  const v = respuesta && respuesta['0'];
+  if (!v || typeof v !== 'object') return { error: 'el modelo no devolvio la clasificacion' };
+  const nueva = desdeModelo(v);
+  await guardarClasificaciones({ [clave]: Object.assign({}, nueva, { motivo: motivoDe(nueva) }) });
+
+  return {
+    clave, rubro,
+    antes: previa ? { es: previa.es, imp: previa.imp, motivo: previa.motivo } : null,
+    ahora: Object.assign({}, nueva, { descartado_en_codigo: esGenericoConocido(t) ? 'generico' :
+      (esModeloVehiculo(t, rubro) ? 'vehiculo' : (esMarca(nueva.es || t) ? 'marca' : null)) })
   };
 }
 
@@ -527,7 +573,7 @@ export async function nombrarProductos(títulos) {
       try {
         const r = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST', signal: ctrl.signal, headers: anthropicHeaders(),
-          body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 2000,
+          body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 2000, temperature: 0,
             messages: [{ role: 'user', content: prompt }] })
         });
         const texto = await r.text();
@@ -607,7 +653,7 @@ export async function traducirTerminos(términos, idioma) {
       try {
         const r = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST', signal: ctrl.signal, headers: anthropicHeaders(),
-          body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1200,
+          body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1200, temperature: 0,
             messages: [{ role: 'user', content: prompt }] })
         });
         const texto = await r.text();
@@ -665,7 +711,7 @@ export async function terminosProgresivos(término) {
     try {
       const r = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST', signal: ctrl.signal, headers: anthropicHeaders(),
-        body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 400,
+        body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 400, temperature: 0,
           messages: [{ role: 'user', content: prompt }] })
       });
       const texto = await r.text();
