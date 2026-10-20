@@ -124,30 +124,34 @@ export async function probarEndpoints(token, q, itemForzado) {
 // aproxima con las ventas de 60 dias de los vendedores que ofrecen el producto.
 
 export const VERSION_MERCADO = 3;
-const CATALOGO_PAGINAS = 3;          // 3 x 10 productos de catalogo
-const MAX_PRODUCTOS_CON_ITEMS = 20;  // a cuantos productos se les piden ofertas (medido: ~75% da 404, sin ofertas)
-const OFERTAS_OBJETIVO = 25;
+const CATALOGO_PAGINAS = 2;          // 2 x 10 productos de catalogo
+const MAX_PRODUCTOS_CON_ITEMS = 12;  // a cuantos productos se les piden ofertas (medido: ~70% da 404, sin ofertas)
+const OFERTAS_OBJETIVO = 15;
 const VENDEDORES_TOP = 5;
 
 // Cliente con contador de llamadas, reintento unico ante 429 y concurrencia
 // limitada: el barrido nocturno hace miles de llamadas y no tiene que pegarle
 // a MeLi en rafaga.
-// MEDIDO 20/10/2026: a ~50 llamadas/s MeLi empezo a devolver 429 (6 de
-// 1.026). Se limita el ritmo a ~20/s (una salida cada 50 ms) y ante un 429 se
-// espera y se reintenta hasta 2 veces.
+// MEDIDO 20/10/2026: a ~50 llamadas/s MeLi devolvio 429 (6 de 1.026) y, minutos
+// despues, a ~12/s otra vez (27 de 377). El limite real no esta publicado, asi
+// que el ritmo es adaptativo: arranca en BUSCADOR_MELI_RPS (8/s por defecto) y
+// cada 429 duplica la espera entre llamadas (hasta 1 por segundo) ademas de
+// reintentar. Cada 50 respuestas sanas seguidas acelera un poco.
 export function crearCliente(token, opts) {
   const o = opts || {};
-  const estado = { llamadas: 0, porEndpoint: {}, errores: {}, limitado: 0 };
+  const estado = { llamadas: 0, porEndpoint: {}, errores: {}, limitado: 0, intervaloFinalMs: 0 };
   let activos = 0;
   const cola = [];
-  const MAX = o.concurrencia || 6;
-  const INTERVALO = o.intervaloMs != null ? o.intervaloMs : 50;
+  const MAX = o.concurrencia || 4;
+  const RPS = Math.max(1, Number(o.rps || process.env.BUSCADOR_MELI_RPS || 8));
+  const BASE = Math.round(1000 / RPS);
+  let intervalo = BASE, sanas = 0;
   let proximaSalida = 0;
   function liberar() { activos--; const sig = cola.shift(); if (sig) sig(); }
   async function turno() {
     const ahora = Date.now();
     const espera = Math.max(0, proximaSalida - ahora);
-    proximaSalida = Math.max(ahora, proximaSalida) + INTERVALO;
+    proximaSalida = Math.max(ahora, proximaSalida) + intervalo;
     if (espera) await new Promise(z => setTimeout(z, espera));
   }
   async function get(nombre, url, timeoutMs) {
@@ -159,14 +163,20 @@ export function crearCliente(token, opts) {
         estado.llamadas++;
         estado.porEndpoint[nombre] = (estado.porEndpoint[nombre] || 0) + 1;
         const r = await fetchJson(url, token, timeoutMs || 6000);
-        if (r.status === 429) { estado.limitado++; await new Promise(z => setTimeout(z, 2000 * (intento + 1))); continue; }
+        if (r.status === 429) {
+          estado.limitado++; sanas = 0;
+          intervalo = Math.min(1000, intervalo * 2);
+          await new Promise(z => setTimeout(z, 2000 * (intento + 1)));
+          continue;
+        }
+        if (++sanas >= 50 && intervalo > BASE) { intervalo = Math.max(BASE, Math.round(intervalo * 0.8)); sanas = 0; }
         if (!r.ok) estado.errores[nombre + ' ' + r.status] = (estado.errores[nombre + ' ' + r.status] || 0) + 1;
         return r;
       }
       return { ok: false, status: 429, json: null };
     } finally { liberar(); }
   }
-  return { get, estado, cacheVendedores: new Map(), cacheCategorias: new Map() };
+  return { get, estado, cacheVendedores: new Map(), cacheCategorias: new Map(), intervaloActual: () => intervalo };
 }
 
 function mediana(arr) {

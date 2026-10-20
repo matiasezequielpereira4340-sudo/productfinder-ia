@@ -1155,7 +1155,7 @@ async function manejarPrecalculo(req, res, url) {
   }
   if (modo === 'tanda' || modo === '1') {
     const solo = sp.get('solo') ? sp.get('solo').split(',').map(x => x.trim()).filter(x => CATALOGO[x]) : null;
-    const hop = Math.max(0, Math.min(100, Number(sp.get('hop')) || 0));
+    const hop = Math.max(0, Math.min(150, Number(sp.get('hop')) || 0));
     // antes=<ISO>: rehace todo lo guardado antes de esa fecha ("Forzar todos"
     // del admin, que corre en varias tandas con la misma fecha de corte).
     const antes = sp.get('antes') && !isNaN(Date.parse(sp.get('antes'))) ? Date.parse(sp.get('antes')) : null;
@@ -1163,7 +1163,7 @@ async function manejarPrecalculo(req, res, url) {
     // El cron encadena la tanda siguiente hasta terminar el catalogo. Cada
     // invocacion es una funcion nueva con sus 60 s: asi no se pasa el timeout.
     let encadenada = false;
-    if (via === 'cron' && r.pendientes > 0 && hop < 80) encadenada = await encadenarTanda(hop + 1, solo);
+    if (via === 'cron' && r.pendientes > 0 && hop < 120) encadenada = await encadenarTanda(hop + 1, solo);
     return res.status(200).json({ ok: true, via, usuario: MELI_USER_PRECALCULO(), hop, encadenada, ...r });
   }
   return res.status(400).json({ ok: false, error: 'Modo desconocido.' });
@@ -1187,7 +1187,7 @@ async function fechasCacheNichos() {
 const FRESCO_HORAS = 20;
 async function precalcularTanda({ token, solo, antes, presupuestoMs }) {
   const inicio = Date.now();
-  const cli = crearCliente(token, { concurrencia: 6 });
+  const cli = crearCliente(token);
   const fechas = await fechasCacheNichos();
   const edad = k => fechas[k] && fechas[k].v === VERSION_MERCADO ? (Date.now() - new Date(fechas[k].creado).getTime()) : Infinity;
   let cola = Object.keys(CATALOGO);
@@ -1215,7 +1215,7 @@ async function precalcularTanda({ token, solo, antes, presupuestoMs }) {
     procesados: hechos, pendientes: cola.length - hechos.length,
     nichosTotales: Object.keys(CATALOGO).length,
     llamadas: cli.estado.llamadas, porEndpoint: cli.estado.porEndpoint, errores: cli.estado.errores,
-    respuestas429: cli.estado.limitado, ms: Date.now() - inicio
+    respuestas429: cli.estado.limitado, intervaloFinalMs: cli.intervaloActual(), ms: Date.now() - inicio
   };
 }
 
@@ -1358,7 +1358,7 @@ export default async function handler(req, res) {
     // 2. Sin cache y con MeLi conectado: el mismo recolector del proceso
     //    nocturno, con el token del visitante (gratis, nunca Apify).
     if (!mercadoPorQ && token) {
-      const cli = crearCliente(token, { concurrencia: 6 });
+      const cli = crearCliente(token, { rps: 12 });
       mercadoPorQ = await analizarNicho(cli, lista);
       datosDe = new Date().toISOString();
       if (Object.values(mercadoPorQ).some(m => m && Array.isArray(m.results) && m.results.length >= 3)) {
