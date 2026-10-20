@@ -31,3 +31,16 @@ CREATE TABLE IF NOT EXISTS buscador_lista (
 );
 CREATE INDEX IF NOT EXISTS idx_buscador_lista_user ON buscador_lista(user_id, created_at DESC);
 ALTER TABLE buscador_lista ENABLE ROW LEVEL SECURITY;
+
+-- Tokens de corrida de un solo uso para el pre-analisis (api/_precalculo.js).
+-- CRON_SECRET y ADMIN_KEY solo existen en produccion; esto permite correr el
+-- proceso a mano sobre un preview. Se insertan a mano con vencimiento corto:
+--   INSERT INTO buscador_job_tokens(token, motivo, expires_at)
+--   VALUES (encode(gen_random_bytes(24),'hex'), 'corrida manual', NOW() + INTERVAL '2 hours');
+CREATE TABLE IF NOT EXISTS buscador_job_tokens (
+  token      TEXT PRIMARY KEY,
+  motivo     TEXT,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE buscador_job_tokens ENABLE ROW LEVEL SECURITY;

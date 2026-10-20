@@ -8,10 +8,11 @@
 // ============================================================
 
 import { resolveUserId, buscarPublicaciones, anthropicHeaders, comisionMeli } from './_meli.js';
-import { esCliente, tokenDe, leerToken } from './_sesion.js';
+import { esCliente, tokenDe, leerToken, esAdmin, cronAdmitido } from './_sesion.js';
 import { cotizacionDolar, tipoDeCambio, DOLAR_TIPO_DEFAULT } from './_dolar.js';
 import { tendencias } from './_radar.js';
 import { evaluarProducto, ordenar, enTendencias, CAPITAL_LABEL } from './_oportunidad.js';
+import { probarEndpoints, tokenDeCorridaValido, MELI_USER_PRECALCULO } from './_precalculo.js';
 
 const USD_ARS_FALLBACK = 1510;
 const LIMITE_GRATIS = 3;
@@ -1189,6 +1190,34 @@ async function manejarLista(req, res, accion) {
   }
 }
 
+// ------------------------------------------------------------
+// Pre-analisis de fondo: autorizacion y despacho
+// ------------------------------------------------------------
+async function precalculoAutorizado(req, url) {
+  if (cronAdmitido(req)) return 'cron';
+  const clave = req.headers['x-admin-key'];
+  if (process.env.ADMIN_KEY && clave && clave === process.env.ADMIN_KEY) return 'admin-key';
+  if (esAdmin(tokenDe(req))) return 'admin-sesion';
+  const run = (new URL(url, 'http://x')).searchParams.get('run');
+  if (await tokenDeCorridaValido(run, { url: SUPA_URL, key: SUPA_KEY })) return 'token-corrida';
+  return null;
+}
+
+async function manejarPrecalculo(req, res, url) {
+  const via = await precalculoAutorizado(req, url);
+  if (!via) return res.status(401).json({ ok: false, error: 'No autorizado.' });
+  const sp = (new URL(url, 'http://x')).searchParams;
+  const modo = sp.get('precalcular');
+  const tk = await getMeliToken(MELI_USER_PRECALCULO());
+  if (!tk || !tk.token) {
+    return res.status(503).json({ ok: false, error: 'No hay token vigente de MercadoLibre para ' + MELI_USER_PRECALCULO() + (tk && tk.expired ? ' (vencido y no se pudo renovar)' : '') + '.' });
+  }
+  if (modo === 'probar') {
+    return res.status(200).json({ ok: true, via, usuario: MELI_USER_PRECALCULO(), ...(await probarEndpoints(tk.token, sp.get('q'))) });
+  }
+  return res.status(400).json({ ok: false, error: 'Modo desconocido.' });
+}
+
 // ProductFinder IA - API Handler
 // Handles /api/auth, /api/analyze, /api/chat
 
@@ -1240,6 +1269,11 @@ export default async function handler(req, res) {
   // GET /api/analyze -> la lista de nichos que el backend REALMENTE sabe
   // analizar. El selector del front la consume para no volver a ofrecer
   // opciones que despues no devuelven nada.
+  // Pre-analisis de fondo (cron nocturno, boton de admin o token de corrida).
+  if (/[?&]precalcular=/.test(url)) {
+    res.setHeader('Cache-Control', 'no-store');
+    return manejarPrecalculo(req, res, url);
+  }
   if (req.method === 'GET' && /[?&]lista=1/.test(url)) {
     res.setHeader('Cache-Control', 'no-store');
     return manejarLista(req, res, 'leer');
