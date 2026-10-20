@@ -53,7 +53,7 @@ function resumen(j) {
   return j;
 }
 
-export async function probarEndpoints(token, q) {
+export async function probarEndpoints(token, q, itemForzado) {
   const consulta = q || 'comedero antivoracidad perro';
   const out = [];
   async function probar(nombre, url, extraer) {
@@ -70,16 +70,22 @@ export async function probarEndpoints(token, q) {
     j => ({ total: j.paging && j.paging.total, primeros: (j.results || []).slice(0, 3).map(x => ({ id: x.id, sold: x.sold_quantity, cat: x.category_id, seller: x.seller && x.seller.id, logistic: x.shipping && x.shipping.logistic_type, oficial: x.official_store_id })) }));
   const cat = await probar('products/search', MELI_API + '/products/search?status=active&site_id=MLA&limit=10&q=' + qq,
     j => ({ total: j.paging && j.paging.total, ids: (j.results || []).slice(0, 3).map(x => x.id) }));
-  const prodId = cat && cat.results && cat.results[0] && cat.results[0].id;
+  const prodIds = (cat && cat.results || []).map(x => x.id).slice(0, 8);
+  const prodId = prodIds[0];
   let itemId = null, sellerId = null, catId = null;
-  if (prodId) {
-    const pit = await probar('products/{id}/items', MELI_API + '/products/' + prodId + '/items?limit=10',
-      j => (j.results || []).slice(0, 3).map(x => ({ item: x.item_id, seller: x.seller_id, cat: x.category_id, logistic: x.shipping && x.shipping.logistic_type, oficial: x.official_store_id, sold: x.sold_quantity })));
+  // /products/{id}/items: se recorren varios productos de catalogo, porque
+  // los que no tienen ofertas activas devuelven 404.
+  for (const pid of prodIds) {
+    const pit = await probar('products/{id}/items ' + pid, MELI_API + '/products/' + pid + '/items?limit=10',
+      j => (j.results || []).slice(0, 3).map(x => ({ item: x.item_id, seller: x.seller_id, cat: x.category_id, logistic: x.shipping && x.shipping.logistic_type, oficial: x.official_store_id, sold: x.sold_quantity, keys: Object.keys(x).slice(0, 40) })));
     const r0 = pit && pit.results && pit.results[0];
-    if (r0) { itemId = r0.item_id; sellerId = r0.seller_id; catId = r0.category_id; }
-    await probar('products/{id}', MELI_API + '/products/' + prodId, j => ({ name: j.name, domain: j.domain_id, buy_box: !!j.buy_box_winner, keys: Object.keys(j).slice(0, 40) }));
+    if (r0) { itemId = r0.item_id; sellerId = r0.seller_id; catId = r0.category_id; break; }
+  }
+  if (prodId) {
+    await probar('products/{id}', MELI_API + '/products/' + prodId, j => ({ name: j.name, domain: j.domain_id, buy_box: !!j.buy_box_winner, bbkeys: j.buy_box_winner ? Object.keys(j.buy_box_winner) : null }));
     await probar('highlights/product', MELI_API + '/highlights/MLA/product/' + prodId, j => j);
   }
+  if (itemForzado) { itemId = itemForzado; }
   if (!itemId && search && search.results && search.results[0]) { itemId = search.results[0].id; catId = search.results[0].category_id; sellerId = search.results[0].seller && search.results[0].seller.id; }
   const dd = await probar('domain_discovery', MELI_API + '/sites/MLA/domain_discovery/search?limit=3&q=' + qq, j => j.slice(0, 3).map(x => ({ cat: x.category_id, nombre: x.category_name })));
   if (!catId && Array.isArray(dd) && dd[0]) catId = dd[0].category_id;
@@ -97,6 +103,7 @@ export async function probarEndpoints(token, q) {
     await probar('visits/items', MELI_API + '/visits/items?ids=' + itemId, j => j);
     await probar('items/visits/time_window', MELI_API + '/items/' + itemId + '/visits/time_window?last=30&unit=day', j => ({ total: j.total_visits, date_from: j.date_from }));
   }
+  if (!sellerId && itemForzado) sellerId = null;
   if (sellerId) {
     await probar('users/{seller}', MELI_API + '/users/' + sellerId, j => ({ nick: j.nickname, rep: j.seller_reputation && j.seller_reputation.transactions && j.seller_reputation.transactions.total, level: j.seller_reputation && j.seller_reputation.level_id }));
   }

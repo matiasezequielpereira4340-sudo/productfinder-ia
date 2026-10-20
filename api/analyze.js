@@ -1213,7 +1213,7 @@ async function manejarPrecalculo(req, res, url) {
     return res.status(503).json({ ok: false, error: 'No hay token vigente de MercadoLibre para ' + MELI_USER_PRECALCULO() + (tk && tk.expired ? ' (vencido y no se pudo renovar)' : '') + '.' });
   }
   if (modo === 'probar') {
-    return res.status(200).json({ ok: true, via, usuario: MELI_USER_PRECALCULO(), ...(await probarEndpoints(tk.token, sp.get('q'))) });
+    return res.status(200).json({ ok: true, via, usuario: MELI_USER_PRECALCULO(), ...(await probarEndpoints(tk.token, sp.get('q'), sp.get('item'))) });
   }
   return res.status(400).json({ ok: false, error: 'Modo desconocido.' });
 }
