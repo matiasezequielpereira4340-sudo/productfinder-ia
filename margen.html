@@ -530,6 +530,7 @@ body.modo-simple [data-nivel="avanzado"]{ display:none !important; }
 </div>
 
 </main>
+<script src="margen-core.js?v=20261020"></script>
 <script>
 // ========== STATE ==========
 let products = [];
@@ -623,7 +624,49 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('fechaInforme').value = new Date().toLocaleDateString('es-AR');
   loadFromStorage();
   recalcAll();
+  precargarDesdeURL();
 });
+// ========== PRECARGA DESDE EL BUSCADOR ==========
+// "Ajustar con mi cotizacion" del Buscador de oportunidades abre esta pagina
+// con ?nombre=...&precio=...&costo=...&fob=... El costo que manda es una
+// estimacion por categoria: se precarga para que lo reemplaces por el de tu
+// proveedor, no para darlo por bueno. No se agrega solo a la tabla.
+function precargarDesdeURL() {
+  let q;
+  try { q = new URLSearchParams(window.location.search); } catch (e) { return; }
+  const nombre = (q.get('nombre') || '').slice(0, 120);
+  const precio = Math.round(Number(q.get('precio')));
+  const costo = Math.round(Number(q.get('costo')));
+  const fob = q.get('fob') ? String(q.get('fob')).slice(0, 30) : '';
+  const comision = Number(q.get('comision'));
+  const iva = Math.round(Number(q.get('iva')));
+  const margenBuscador = Number(q.get('margen'));
+  if (!nombre && !(precio > 0)) return;
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+  set('pNombre', nombre);
+  if (precio > 0) set('pPrecioVenta', precio);
+  if (costo > 0) set('pCosto', costo);
+  const campo = document.getElementById('pNombre');
+  const seccion = campo && campo.closest('.section');
+  if (seccion && !document.getElementById('avisoPrecarga')) {
+    const av = document.createElement('div');
+    av.id = 'avisoPrecarga';
+    av.className = 'hint warn destacado';
+    av.style.margin = '0 0 12px';
+    av.textContent = 'Datos que trajimos del Buscador de oportunidades. El precio de venta es la mediana de MercadoLibre; ' +
+      'el costo es una ESTIMACIÓN por categoría' + (fob ? ' (FOB USD ' + fob + ')' : '') +
+      '. Reemplazalo por el costo puesto de tu cotización y tocá "Agregar producto".' +
+      (isFinite(margenBuscador) && q.get('margen') ? ' El buscador te dio ' + margenBuscador.toLocaleString('es-AR') + '% de margen neto' +
+        (comision > 0 ? ' con ' + comision.toLocaleString('es-AR') + '% de comisión' : '') +
+        (iva > 0 ? ' y descontando $' + iva.toLocaleString('es-AR') + ' de IVA neto por unidad (responsable inscripto)' : '') +
+        '. Acá el IVA de la venta no se descuenta y la comisión es la del tipo de publicación que elijas arriba, así que el número puede dar distinto.' : '');
+    const titulo = seccion.querySelector('.section-title');
+    if (titulo) titulo.insertAdjacentElement('afterend', av); else seccion.prepend(av);
+    try { seccion.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
+    const pc = document.getElementById('pCosto');
+    if (pc) setTimeout(() => { try { pc.focus(); pc.select(); } catch (e) {} }, 400);
+  }
+}
 function saveToStorage() { try { localStorage.setItem('mc2_products', JSON.stringify(products)); } catch(e){} }
 function loadFromStorage() { try { const d = JSON.parse(localStorage.getItem('mc2_products')||'[]'); products = d; nextId = products.length ? Math.max(...products.map(p=>p.id))+1 : 1; } catch(e){ products=[]; } }
 
@@ -719,27 +762,17 @@ function calcProduct(p, g) {
   const comisionBaseProd = p.tipoPub ? getTipoPubComision(p.tipoPub) : getComisionBase();
   const comisionTotalProd = comisionBaseProd * (1 + g.iva/100) + g.cargoCuotas;
   const envio = (p.envioPropio !== null && p.envioPropio >= 0) ? p.envioPropio : g.costoEnvio;
-  // Por unidad — todos los descuentos
-  const comisionARS   = precio * comisionTotalProd / 100;           // comisión + IVA + cuotas
-  const iibbARS       = precio * g.iibb / 100;                      // IIBB sobre venta
-  const percAfipARS   = precio * g.percAfip / 100;                  // Percepción AFIP
-  const otrosVarARS   = precio * g.otrosVar / 100;                  // Otros variables
-  const envioARS      = envio;                                       // Costo envío
-  // Desglose comisión para mostrar
-  const comisionPura  = precio * comisionBaseProd / 100;
-  const ivaComisionARS= precio * comisionBaseProd * g.iva/100 / 100;
-  const cargoCuotasARS= precio * g.cargoCuotas / 100;
-  // Ganancia antes de ganancias e impacto devoluciones
-  const costosTotalesARS = costo + comisionARS + iibbARS + percAfipARS + otrosVarARS + envioARS + (p.empaqueARS||0);
-  const ganBruta      = precio - costo;
-  const ganAntesDev   = precio - costosTotalesARS;
-  // Impacto devoluciones: en % de ventas, si devuelven el comprador ya no paga pero vos perdiste el costo
-  const impactoDevARS = precio * g.devoluciones / 100 * 0.3; // aprox 30% del valor en pérdida neta por devolución
-  const ganNeta       = ganAntesDev - impactoDevARS;
-  const impGanARS     = ganNeta > 0 ? ganNeta * g.impGan / 100 : 0;
-  const ganReal       = ganNeta - impGanARS;
-  const margenPct     = precio > 0 ? (ganReal / precio) * 100 : 0;
-  const roi           = costo > 0 ? (ganReal / costo) * 100 : 0;
+  // Por unidad: la cuenta vive en margen-core.js, la misma que usa el
+  // Buscador de oportunidades. MargenClear no descuenta IVA de venta
+  // (ivaVentaPct 0), igual que antes.
+  const u = MargenCore.calcularUnidad({
+    precio, costo, comisionBasePct: comisionBaseProd, ivaComisionPct: g.iva,
+    cargoCuotasPct: g.cargoCuotas, iibbPct: g.iibb, percAfipPct: g.percAfip,
+    otrosVarPct: g.otrosVar, envio, empaque: (p.empaqueARS||0),
+    devolucionesPct: g.devoluciones, impGananciasPct: g.impGan
+  });
+  const { comisionARS, iibbARS, percAfipARS, otrosVarARS, envioARS, comisionPura, ivaComisionARS,
+          cargoCuotasARS, costosTotalesARS, ganBruta, impactoDevARS, ganNeta, impGanARS, ganReal, margenPct, roi } = u;
   // Período
   const unidadesPeriodo = Math.min(ventasDia * g.dias, p.stock > 0 ? p.stock : Infinity);
   const ingresosPeriodo   = precio * unidadesPeriodo;

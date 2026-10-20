@@ -674,42 +674,226 @@ function unlockResults(){
   renderResults(analysisResults);
 }
 
+// ===== Tarjeta del Buscador de oportunidades =====
+// Todo lo que muestra la tarjeta (score, veredicto, semaforo del margen,
+// desglose, competencia, demanda, certificaciones, links) viene ya calculado
+// del servidor (api/_oportunidad.js). Aca solo se dibuja: no hay segundo
+// calculo de margen ni badges deducidos del DOM.
+function pfEsc(t){ return String(t == null ? '' : t).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+var PF_NF = new Intl.NumberFormat('es-AR');
+function pfArs(n){ return n == null ? '—' : '$' + PF_NF.format(Math.round(n)); }
+function pfNum(n){ return n == null ? '\u2014' : Number(n).toLocaleString('es-AR', { maximumFractionDigits: 2 }); }
+function pfUsd(n){ return n == null ? '—' : 'USD ' + Number(n).toLocaleString('es-AR', { maximumFractionDigits: 2 }); }
+function pfPct(n){ return n == null ? '—' : Number(n).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + '%'; }
+function pfKey(p){ return String((window.__lastAnalysis && window.__lastAnalysis.nicho) || 'nicho') + '::' + String(p.query || p.nombre || ''); }
+
+function pfLinkBtn(href, txt, title){
+  if(!href) return '';
+  return '<a class="pf2-link" href="' + pfEsc(href) + '" target="_blank" rel="noopener noreferrer"' + (title ? ' title="' + pfEsc(title) + '"' : '') + '>' + txt + ' <span aria-hidden="true">↗</span></a>';
+}
+
+function pfMargenUrl(p){
+  var q = new URLSearchParams();
+  q.set('nombre', p.nombre || '');
+  if(p.precioVentaARS) q.set('precio', Math.round(p.precioVentaARS));
+  if(p.costo && p.costo.costoPuestoARS) q.set('costo', Math.round(p.costo.costoPuestoARS));
+  if(p.costo) q.set('fob', p.costo.fobMinUSD + '-' + p.costo.fobMaxUSD);
+  // Lo que el buscador desconto y MargenClear calcula distinto: se informa,
+  // no se pisa la configuracion de MargenClear.
+  if(p.canal && p.canal.comisionPct != null) q.set('comision', p.canal.comisionPct);
+  if(p.margenNeto && p.margenNeto.desglose) q.set('iva', p.margenNeto.desglose.iva);
+  if(p.margen != null) q.set('margen', p.margen);
+  return 'margen.html?' + q.toString();
+}
+
+function pfCard(p, opts){
+  var o = opts || {};
+  var v = p.veredicto || { nivel: 'sin_dato', label: 'Sin datos', motivos: [] };
+  var sem = p.semaforo || { color: 'gris', label: '' };
+  var c = p.competencia || {};
+  var cap = p.capacidad || {};
+  var costo = p.costo || {};
+  var L = p.links || {};
+  var h = '';
+  h += '<article class="product-card pf2-card pf2-' + pfEsc(v.nivel) + (p.topPick ? ' top-pick' : '') + '" data-key="' + pfEsc(pfKey(p)) + '">';
+  if(p.topPick) h += '<span class="top-badge"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> TOP PICK</span>';
+  h += '<div class="product-name">' + pfEsc(p.nombre) + '</div>';
+  h += '<div class="pf2-meta">' + pfEsc([p.categoria, p.nota].filter(Boolean).join(' · ')) + '</div>';
+
+  // Certificaciones: arriba, porque cambian la decision.
+  if(p.certificaciones && p.certificaciones.length){
+    h += '<div class="pf2-certs">' + p.certificaciones.map(function(x){
+      return '<span class="pf2-cert" title="' + pfEsc(x.detalle + ' Confirmalo con tu despachante.') + '"><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Requiere ' + pfEsc(x.label) + '</span>';
+    }).join('') + '</div>';
+  }
+
+  // Veredicto + score + semaforo: los tres de la misma funcion.
+  h += '<div class="pf2-verdict">';
+  h += '<span class="pf2-badge pf2-badge-' + pfEsc(v.nivel) + '">' + pfEsc(v.label) + '</span>';
+  if(p.score != null) h += '<span class="pf2-score"><b>' + p.score + '</b>/100</span>';
+  h += '</div>';
+  if(p.score != null) h += '<div class="score-bar"><div class="score-fill" style="width:' + p.score + '%"></div></div>';
+  if(v.motivos && v.motivos.length) h += '<div class="pf2-motivos">' + v.motivos.map(pfEsc).join(' ') + '</div>';
+
+  // Desglose del score (tipo Opportunity Score).
+  if(p.componentes && p.componentes.length){
+    h += '<details class="pf2-desglose"' + (o.abrirDesglose ? ' open' : '') + '><summary>Cómo se arma el score</summary><table>';
+    p.componentes.forEach(function(k){
+      var sin = k.valor == null;
+      h += '<tr class="' + (sin ? 'pf2-sin' : '') + '"><th>' + pfEsc(k.label) + '<small>peso ' + (sin ? '0% (sin dato)' : k.pesoEfectivo + '%') + '</small></th>' +
+        '<td class="pf2-num">' + (sin ? '—' : k.valor + '/100') + '</td>' +
+        '<td class="pf2-mini"><i style="width:' + (sin ? 0 : k.valor) + '%"></i></td></tr>' +
+        '<tr class="pf2-det"><td colspan="3">' + pfEsc(k.detalle || '') + '</td></tr>';
+    });
+    (p.ajustes || []).forEach(function(a){
+      h += '<tr class="pf2-ajuste"><th>Ajuste por tu perfil</th><td class="pf2-num">' + a.puntos + '</td><td></td></tr><tr class="pf2-det"><td colspan="3">' + pfEsc(a.label) + '</td></tr>';
+    });
+    h += '</table></details>';
+  }
+
+  // Numeros de plata: UN solo margen.
+  var mn = p.margenNeto;
+  h += '<div class="product-stats">';
+  h += '<div class="stat"><span class="stat-l" title="' + pfEsc((p.canal && p.canal.notaPrecio) || 'Mediana de publicaciones comparables en MercadoLibre') + '">Precio de venta</span><span class="stat-v">' + (p.precioVentaARS ? pfArs(p.precioVentaARS) : 'Sin dato') + '</span></div>';
+  h += '<div class="stat pf2-sem pf2-sem-' + pfEsc(sem.color) + '"><span class="stat-l">Margen neto</span><span class="stat-v">' + (mn ? pfPct(mn.pct) : '—') + '</span><span class="pf2-sub">' + (mn ? pfArs(mn.netoARS) + ' por unidad · ' + pfEsc(sem.label) : 'Sin precio real') + '</span></div>';
+  h += '<div class="stat"><span class="stat-l" title="' + pfEsc(costo.detalle || '') + '">FOB estimado</span><span class="stat-v">USD ' + pfNum(costo.fobMinUSD) + '\u2013' + pfNum(costo.fobMaxUSD) + '</span><span class="pf2-sub">estimado por categoría</span></div>';
+  h += '<div class="stat"><span class="stat-l" title="' + pfEsc(costo.detalle || '') + '">Costo puesto</span><span class="stat-v">' + pfArs(costo.costoPuestoARS) + '</span><span class="pf2-sub">' + pfUsd(costo.costoPuestoUSD) + ' · estimado</span></div>';
+  h += '</div>';
+  if(mn && mn.desglose){
+    var d = mn.desglose;
+    h += '<div class="pf2-cuenta">' + pfArs(d.precio) + ' venta − ' + pfArs(d.costo) + ' costo − ' + pfArs(d.comision) + ' comisión' +
+      (p.canal ? ' (' + pfPct(p.canal.comisionPct) + (p.canal.comisionReal ? ', dato MeLi' : ', estimada') + ')' : '') +
+      ' − ' + pfArs(d.envio) + ' envío − ' + pfArs(d.iibb) + ' IIBB − ' + pfArs(d.iva) + ' IVA neto − ' + pfArs(d.devoluciones) + ' devoluciones = <b>' + pfArs(mn.netoARS) + '</b>' +
+      (p.canal && p.canal.notaEnvio ? '<br>' + pfEsc(p.canal.notaEnvio) : '') +
+      (p.canal && p.canal.clave !== 'mercadolibre' ? '<br>' + pfEsc(p.canal.etiqueta + ': ' + p.canal.notaPrecio + ' ' + p.canal.notaComision) : '') + '</div>';
+  }
+
+  // Competencia y demanda, con numeros.
+  h += '<div class="pf2-bloque"><div class="pf2-bt">Competencia <span class="pf2-tag">' + pfEsc(p.saturacion || 'Sin dato') + '</span></div>';
+  if(c.muestra){
+    h += '<ul class="pf2-lista">' +
+      '<li>' + (c.totalCatalogo != null ? PF_NF.format(c.totalCatalogo) + ' productos en el catálogo de MeLi' : 'Total de catálogo: sin dato') + ' · muestra de ' + c.muestra + ' publicaciones</li>' +
+      '<li>Precio mín / mediana / máx: ' + pfArs(c.precioMin) + ' / ' + pfArs(c.precioMediana) + ' / ' + pfArs(c.precioMax) + '</li>' +
+      '<li>En Full: ' + (c.pctFull != null ? c.pctFull + '%' : 'sin dato') + ' · Tiendas oficiales: ' + (c.pctOficiales != null ? c.pctOficiales + '%' : 'sin dato') + '</li>' +
+      '<li>Concentración: ' + (c.vendedoresTop10 != null ? 'las top ' + c.top10 + ' son de ' + c.vendedoresTop10 + ' vendedores' : 'sin dato') + '</li>' +
+      '</ul>';
+  } else {
+    h += '<div class="pf2-nota">' + (p.muestraInsuficiente ? 'Menos de 3 publicaciones comparables: no alcanza para medir.' : 'Sin datos de MercadoLibre para este producto.') + '</div>';
+  }
+  h += '</div>';
+  h += '<div class="pf2-bloque"><div class="pf2-bt">Demanda <span class="pf2-tag">' + pfEsc(p.demanda || 'Sin dato') + '</span></div><div class="pf2-nota">' + pfEsc(p.demandaDetalle || 'MercadoLibre no informa vendidos para estas publicaciones: validá la demanda antes de comprar.') + '</div></div>';
+
+  // Perfil: capital.
+  if(cap.moq){
+    h += '<div class="pf2-bloque pf2-cap' + (cap.alcanza ? '' : ' pf2-noalc') + '"><div class="pf2-bt">Con tu capital</div><div class="pf2-nota">' +
+      'Pedido mínimo típico ~' + PF_NF.format(cap.moq) + ' u = ' + pfUsd(cap.inversionMoqUSD) + ' puesto. Con ' + pfUsd(cap.presupuestoUSD) + ' por producto (de tu capital de referencia ' + pfUsd(cap.capitalReferenciaUSD) + ') podés traer ~' + PF_NF.format(cap.unidadesPosibles) + ' u.' +
+      (cap.alcanza ? '' : ' <b>No te alcanza para el pedido mínimo.</b>') + '</div></div>';
+  }
+  h += '<div class="risk-line risk-' + String(p.riesgo || '').toLowerCase().replace(/[^a-z]/g, '') + '" title="Riesgo operativo: peso, certificaciones, dispersi\u00f3n de precios y tama\u00f1o de la muestra. No mide si conviene: eso lo dice el veredicto.">Riesgo operativo: ' + pfEsc(p.riesgo || 'Sin dato') + '</div>';
+  if(p.competenciaSinDatos){
+    h += '<div class="pf2-nota">Analiz&aacute; el producto en el <a href="#" class="pf-ir-mr" data-q="' + pfEsc(p.query || p.nombre) + '">Market Reader</a> para traer las publicaciones reales.</div>';
+  }
+
+  // Links (todos armados sin costo).
+  h += '<div class="pf2-links">' +
+    pfLinkBtn(L.meli, 'Ver en MercadoLibre', 'Listado de búsqueda en MercadoLibre Argentina') +
+    pfLinkBtn(L.publicacion, L.publicacionEsMasVendida ? 'Publicación más vendida' : 'Publicación destacada', L.publicacionEsMasVendida ? 'La de más vendidos de la muestra' : 'MeLi no informa vendidos: es la primera publicación comparable de la muestra') +
+    pfLinkBtn(L.alibaba, 'Alibaba', 'Buscar proveedor en Alibaba (' + (p.keyword_en || '') + ')') +
+    pfLinkBtn(L.s1688, '1688', 'Buscar proveedor en 1688 (en inglés: 1688 rinde mejor con términos en chino)') +
+    pfLinkBtn(L.tendencia, 'Tendencia', 'Google Trends Argentina') +
+    '</div>';
+  if(!o.demo){
+    h += '<div class="pf2-acciones">' +
+      '<a class="pf2-btn" href="' + pfEsc(pfMargenUrl(p)) + '" target="_blank" rel="noopener">Ajustar con mi cotización</a>' +
+      '<button type="button" class="pf2-btn pf2-guardar" data-key="' + pfEsc(pfKey(p)) + '">' + (pfEnLista(pfKey(p)) ? 'Guardado ✓' : 'Guardar en mi lista') + '</button>' +
+      '</div>';
+  }
+  h += '</article>';
+  return h;
+}
+
+// ===== Mi lista: Supabase con sesion, localStorage sin sesion =====
+var PF_LISTA_LS = 'pf_lista_buscador';
+var pfListaCache = null;
+function pfTieneSesion(){ try{ return !!localStorage.getItem('pf_token'); }catch(e){ return false; } }
+function pfCab(){ var h = { 'Content-Type': 'application/json' }; try{ var t = localStorage.getItem('pf_token'); if(t) h.Authorization = 'Bearer ' + t; }catch(e){} return h; }
+function pfListaLocal(){ try{ var v = JSON.parse(localStorage.getItem(PF_LISTA_LS) || '[]'); return Array.isArray(v) ? v : []; }catch(e){ return []; } }
+function pfGuardarLocal(arr){ try{ localStorage.setItem(PF_LISTA_LS, JSON.stringify(arr.slice(0, 200))); return true; }catch(e){ return false; } }
+function pfEnLista(key){ return (pfListaCache || pfListaLocal()).some(function(x){ return x.producto_key === key; }); }
+function pfResumen(p){
+  return { nombre: p.nombre, query: p.query, precioVentaARS: p.precioVentaARS, margen: p.margen, score: p.score,
+    veredicto: p.veredicto && p.veredicto.label, links: { meli: p.links && p.links.meli, alibaba: p.links && p.links.alibaba } };
+}
+async function pfCargarLista(){
+  if(!pfTieneSesion()){ pfListaCache = pfListaLocal(); return pfListaCache; }
+  try{
+    var r = await fetch('/api/analyze?lista=1', { headers: pfCab(), cache: 'no-store' });
+    var d = await r.json();
+    if(r.ok && d.ok){ pfListaCache = d.items || []; return pfListaCache; }
+  }catch(e){}
+  pfListaCache = pfListaLocal();
+  return pfListaCache;
+}
+async function pfToggleLista(key, btn){
+  var d = window.__lastAnalysis || {};
+  var p = (d.products || []).find(function(x){ return pfKey(x) === key; });
+  if(!p) return;
+  var ya = pfEnLista(key);
+  if(btn){ btn.disabled = true; }
+  var remoto = false;
+  if(pfTieneSesion()){
+    try{
+      var r = await fetch('/api/analyze', { method: 'POST', headers: pfCab(), body: JSON.stringify(ya
+        ? { accion: 'lista_borrar', key: key }
+        : { accion: 'lista_guardar', key: key, nicho: d.nicho, producto: pfResumen(p) }) });
+      remoto = r.ok;
+    }catch(e){}
+  }
+  var lista = (pfListaCache || pfListaLocal()).filter(function(x){ return x.producto_key !== key; });
+  if(!ya) lista.unshift({ producto_key: key, producto: pfResumen(p), nicho: d.nicho, created_at: new Date().toISOString() });
+  pfListaCache = lista;
+  if(!remoto) pfGuardarLocal(lista);
+  if(btn){ btn.disabled = false; btn.textContent = ya ? 'Guardar en mi lista' : 'Guardado ✓'; }
+  pfPintarBotonLista();
+}
+function pfPintarBotonLista(){
+  var b = document.getElementById('pfListaBtn');
+  if(b) b.textContent = 'Mi lista (' + ((pfListaCache || pfListaLocal()).length) + ')';
+}
+function pfMostrarLista(){
+  var box = document.getElementById('pfListaPanel');
+  if(!box) return;
+  if(!box.hidden){ box.hidden = true; return; }
+  var l = pfListaCache || pfListaLocal();
+  box.innerHTML = '<div class="pf2-bt">Mi lista ' + (pfTieneSesion() ? '(guardada en tu cuenta)' : '(guardada en este navegador: iniciá sesión para tenerla en tu cuenta)') + '</div>' +
+    (l.length ? '<ul class="pf2-lista">' + l.map(function(x){
+      var p = x.producto || {};
+      return '<li><b>' + pfEsc(p.nombre) + '</b> · ' + pfEsc(p.veredicto || '') + (p.margen != null ? ' · margen ' + pfPct(p.margen) : '') +
+        (p.precioVentaARS ? ' · ' + pfArs(p.precioVentaARS) : '') + ' ' + pfLinkBtn(p.links && p.links.meli, 'MeLi') + ' ' + pfLinkBtn(p.links && p.links.alibaba, 'Alibaba') + '</li>';
+    }).join('') + '</ul>' : '<div class="pf2-nota">Todavía no guardaste productos.</div>');
+  box.hidden = false;
+}
+
 function renderResults(data){
   const grid = document.getElementById('productsGrid');
   if(!grid) return;
   const products = (data && data.products) || [];
+  analysisResults = products;
   const nf = new Intl.NumberFormat('es-AR');
   let banner = '';
   if(data.nichoAproximado && data.nichoSolicitado){
-    banner += '<div class="ml-banner" style="grid-column:1/-1;background:rgba(255,255,255,.06);border:1px solid var(--border,#333);border-radius:10px;padding:10px 14px;margin-bottom:8px;color:var(--text)">No tengo un cat&#225;logo propio para <strong>'+String(data.nichoSolicitado).replace(/[<>&]/g,'')+'</strong>, as&#237; que te muestro <strong>'+data.nichoLabel+'</strong>, que es lo m&#225;s parecido que puedo analizar hoy.</div>';
+    banner += '<div class="ml-banner pf2-banner">No tengo un cat&#225;logo propio para <strong>'+pfEsc(data.nichoSolicitado)+'</strong>, as&#237; que te muestro <strong>'+pfEsc(data.nichoLabel)+'</strong>, que es lo m&#225;s parecido que puedo analizar hoy.</div>';
   }
   if(!data.meliConectado){
     const motivo = data.meliTokenExpirado ? 'tu conexi&#243;n con MercadoLibre expir&#243;' : 'no ten&#233;s MercadoLibre conectado';
-    banner += '<div class="ml-banner" style="grid-column:1/-1;background:rgba(255,230,0,.12);border:1px solid var(--gold);border-radius:10px;padding:14px 16px;margin-bottom:8px;color:var(--text)"><strong><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Precios estimados:</strong> como '+motivo+', muestro los productos ordenados por su potencial (peso, margen esperado y estacionalidad), pero <strong>sin precios de venta reales</strong>. Conect&#225; tu cuenta para ver precio, competencia y saturaci&#243;n reales de cada producto. <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">Conectar MercadoLibre \u2192</a></div>';
+    banner += '<div class="ml-banner pf2-banner pf2-banner-warn"><strong><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Sin datos de mercado:</strong> como '+motivo+' y nadie analiz&oacute; este nicho en las &uacute;ltimas '+(data.cacheHoras||24)+' h, no hay precios reales para calcular margen ni score. Te muestro costo estimado, certificaciones y links. <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">Conectar MercadoLibre →</a></div>';
   } else {
-    banner += '<div class="ml-banner" style="grid-column:1/-1;background:rgba(39,174,96,.12);border:1px solid var(--green);border-radius:10px;padding:12px 16px;margin-bottom:8px;color:var(--text)"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Datos reales de MercadoLibre. Analizamos <strong>'+data.totalEvaluados+'</strong> productos, <strong>'+data.conDatoReal+'</strong> con datos de mercado en vivo. Cotización usada: 1 USD \u2248 $'+nf.format(data.usdArs)+'.</div>';
+    var edad = data.edadHoras;
+    var edadTxt = edad == null ? '' : (edad < 1 ? 'de hace menos de 1 h' : 'de hace ' + nf.format(Math.round(edad)) + ' h');
+    banner += '<div class="ml-banner pf2-banner pf2-banner-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Datos de MercadoLibre '+edadTxt+(data.desdeCache?' (guardados: se renuevan cada '+(data.cacheHoras||24)+' h, sin costo)':'')+'. <strong>'+data.conDatoReal+'</strong> de <strong>'+data.totalEvaluados+'</strong> productos con precio real. 1 USD ≈ $'+nf.format(data.usdArs)+'. Perfil: capital '+pfEsc(data.perfil && data.perfil.capitalLabel)+', '+pfEsc(data.perfil && data.perfil.experiencia)+' experiencia, canal '+pfEsc(data.perfil && data.perfil.canal)+', riesgo '+pfEsc(data.perfil && data.perfil.riesgo)+'.</div>';
   }
-  const cards = products.map(function(p){
-    const real = p.score != null;
-    const scorePct = real ? p.score : 0;
-    const precio = p.precioVentaARS != null ? ('$'+nf.format(p.precioVentaARS)) : 'A validar';
-    const costo = '$'+nf.format(Math.round(p.costoPuestoARS)) + ' aprox.';
-    const margen = p.margen != null ? (p.margen+'%') : '\u2014';
-        const sellers = (p.competencia != null ? nf.format(p.competencia) + ' pub.' : (p.sellers != null ? nf.format(p.sellers) + ' pub.' : '\u2014'));
-    const fuenteTag = real ? '<span class="tag-real" title="Precio y competencia obtenidos en vivo de MercadoLibre"><svg class="ic" aria-hidden="true"><use href="#i-dot"></use></svg> Dato real ML</span>' : '<span class="tag-est" title="Sin precio real: conectá MercadoLibre para activarlo"><svg class="ic" aria-hidden="true"><use href="#i-dot"></use></svg> Estimado</span>';
-    // El buscador de oportunidades es un barrido y NO paga por traer
-    // publicaciones. Cuando las vias gratuitas no dan, se dice por que y se
-    // manda al Market Reader, que es donde el dato real si se trae. Antes esto
-    // salia como "A validar" pelado y se leia como si el sistema hubiera
-    // mirado el mercado y no hubiera encontrado nada.
-    const sinComp = p.competenciaSinDatos
-      ? '<div class="pf-sin-comp" style="margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);font-size:.78rem;line-height:1.45;color:var(--text-dim)">'+
-        '<strong style="color:var(--text)">Competencia sin datos:</strong> MercadoLibre no permite consultarla gratis. '+
-        'Analiz&aacute; el producto en el <a href="#" class="pf-ir-mr" data-q="'+String(p.query||p.nombre||'').replace(/"/g,'&quot;')+'">Market Reader</a> para traer las publicaciones reales.'+
-        '</div>'
-      : '';
-    return '<div class="product-card '+(p.topPick?'top-pick':'')+'">'+(p.topPick ? '<span class="top-badge"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> TOP PICK</span>' : '')+'<div class="product-name">'+p.nombre+'</div><div style="margin-bottom:10px">'+fuenteTag+' <span class="tag-info" title="Por qué es apto para régimen de importación">'+p.nota+'</span></div>'+(real ? '<div class="score-row"><span>Score</span><strong>'+p.score+'/100</strong></div><div class="score-bar"><div class="score-fill" style="width:'+scorePct+'%"></div></div>' : '')+'<div class="product-stats"><div class="stat"><span class="stat-l" title="Precio promedio de venta en MercadoLibre">Precio venta</span><span class="stat-v">'+precio+'</span></div><div class="stat"><span class="stat-l" title="Costo estimado del producto puesto en Argentina (FOB China + logística + impuestos)">Costo est.</span><span class="stat-v">'+costo+'</span></div><div class="stat"><span class="stat-l" title="Ganancia sobre el costo estimado">Margen</span><span class="stat-v">'+margen+'</span></div><div class="stat"><span class="stat-l" title="Publicaciones activas compitiendo en MercadoLibre (dato real)">Competencia</span><span class="stat-v">'+sellers+'</span></div><div class="stat"><span class="stat-l" title="Nivel de demanda del producto">Demanda</span><span class="stat-v">'+p.demanda+'</span></div><div class="stat"><span class="stat-l" title="Cuán saturado está el mercado. Baja = mejor oportunidad">Saturación</span><span class="stat-v">'+p.saturacion+'</span></div></div><div class="risk-line risk-'+String(p.riesgo).toLowerCase().replace(/[^a-z]/g,'')+'">Riesgo: '+p.riesgo+'</div>'+sinComp+'</div>';
-  }).join('');
+  banner += '<div id="pfListaPanel" class="pf2-panel" hidden></div>';
+  const cards = products.map(function(p){ return pfCard(p); }).join('');
   // El servidor manda solo los productos que corresponden. Si sobran, dibujamos
   // el candado con tarjetas vacias: ya no hay datos reales escondidos en el DOM.
   var bloqueados = 0;
@@ -745,29 +929,91 @@ function renderResults(data){
       }catch(e){}
     };
   });
+  Array.prototype.forEach.call(grid.querySelectorAll('.pf2-guardar'), function(b){
+    b.addEventListener('click', function(){ pfToggleLista(b.getAttribute('data-key'), b); });
+  });
   var _cb = document.getElementById('pfCandadoBtn');
   if(_cb) _cb.addEventListener('click', function(){
     var cs = document.querySelector('.contact-section');
     if(cs) cs.scrollIntoView({behavior:'smooth', block:'center'});
   });
+  pfCargarLista().then(function(){
+    pfPintarBotonLista();
+    Array.prototype.forEach.call(grid.querySelectorAll('.pf2-guardar'), function(b){
+      b.textContent = pfEnLista(b.getAttribute('data-key')) ? 'Guardado ✓' : 'Guardar en mi lista';
+    });
+  });
+}
+
+// ===== Exportar =====
+function pfFilasExport(){
+  return (analysisResults || []).map(function(p){
+    var c = p.competencia || {}, k = p.costo || {}, L = p.links || {}, cap = p.capacidad || {};
+    return {
+      'Producto': p.nombre, 'Veredicto': p.veredicto && p.veredicto.label, 'Score': p.score,
+      'Margen neto %': p.margen, 'Ganancia neta por unidad ARS': p.margenNeto && p.margenNeto.netoARS,
+      'Precio venta ARS': p.precioVentaARS, 'FOB min USD (estimado)': k.fobMinUSD, 'FOB max USD (estimado)': k.fobMaxUSD,
+      'Costo puesto ARS (estimado)': k.costoPuestoARS, 'Productos en catalogo': c.totalCatalogo, 'Muestra': c.muestra,
+      'Precio min': c.precioMin, 'Precio mediana': c.precioMediana, 'Precio max': c.precioMax,
+      '% Full': c.pctFull, '% tiendas oficiales': c.pctOficiales, 'Vendedores en top 10': c.vendedoresTop10,
+      'Demanda': p.demanda, 'Saturacion': p.saturacion, 'Riesgo': p.riesgo,
+      'Certificaciones': (p.certificaciones || []).map(function(x){ return x.label; }).join(' + '),
+      'MOQ tipico': cap.moq, 'Inversion MOQ USD': cap.inversionMoqUSD, 'Alcanza el capital': cap.alcanza == null ? '' : (cap.alcanza ? 'si' : 'no'),
+      'Link MercadoLibre': L.meli, 'Link publicacion': L.publicacion, 'Link Alibaba': L.alibaba, 'Link 1688': L.s1688, 'Link Tendencia': L.tendencia
+    };
+  });
+}
+function exportCSV(){
+  var filas = pfFilasExport();
+  if(!filas.length) return;
+  var cols = Object.keys(filas[0]);
+  var esc = function(v){ v = v == null ? '' : String(v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  // Separador ";" y BOM: Excel en castellano lo abre en columnas y con acentos.
+  var csv = '﻿' + cols.join(';') + '\n' + filas.map(function(f){ return cols.map(function(c){ return esc(f[c]); }).join(';'); }).join('\n');
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'buscador-oportunidades-' + ((window.__lastAnalysis && window.__lastAnalysis.nicho) || 'nicho') + '.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
 
 function exportPDF(){
-  if(!analysisResults)return;
+  if(!analysisResults || !analysisResults.length || !window.jspdf) return;
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF();
-  doc.setFontSize(18);doc.text('Lectura de Mercado - An&#225;lisis de Importaci&#243;n',14,20);
-  doc.setFontSize(11);doc.text('Generado: '+new Date().toLocaleDateString('es-AR'),14,30);
-  let y=45;
+  const d=window.__lastAnalysis||{};
+  doc.setFontSize(16);doc.text('Buscador de oportunidades - '+(d.nichoLabel||''),14,20);
+  doc.setFontSize(9);doc.text('Generado: '+new Date().toLocaleDateString('es-AR')+(d.edadHoras!=null?' | Datos de MercadoLibre de hace '+Math.round(d.edadHoras)+' h':'')+' | Costos de importacion: estimados por categoria',14,27);
+  let y=38;
   analysisResults.forEach((p,i)=>{
-    doc.setFontSize(13);doc.text((i+1)+'. '+p.nombre+(p.topPick?' (TOP PICK)':''),14,y);y+=7;
-    doc.setFontSize(10);
-    doc.text('Score: '+p.score+'/100 | Margen: '+p.margen+'% | Demanda: '+p.demanda+' | Riesgo: '+p.riesgo,14,y);y+=6;
-    const lines=doc.splitTextToSize(p.justificacion,180);
-    doc.text(lines,14,y);y+=lines.length*5+8;
+    if(y>265){doc.addPage();y=20;}
+    doc.setFontSize(12);doc.text((i+1)+'. '+p.nombre+(p.topPick?' (TOP PICK)':''),14,y);y+=6;
+    doc.setFontSize(9);
+    const c=p.competencia||{};
+    const lineas=[
+      (p.veredicto?p.veredicto.label:'')+(p.score!=null?' | Score '+p.score+'/100':'')+' | Margen neto '+(p.margen!=null?p.margen+'% ($'+PF_NF.format(p.margenNeto.netoARS)+'/u)':'sin dato'),
+      'Precio venta: '+(p.precioVentaARS?'$'+PF_NF.format(p.precioVentaARS):'sin dato')+' | FOB est. USD '+p.costo.fobMinUSD+'-'+p.costo.fobMaxUSD+' | Costo puesto est. $'+PF_NF.format(p.costo.costoPuestoARS),
+      'Competencia: '+(p.saturacion||'')+(c.totalCatalogo!=null?' | '+PF_NF.format(c.totalCatalogo)+' en catalogo':'')+(c.precioMin?' | $'+PF_NF.format(c.precioMin)+' / $'+PF_NF.format(c.precioMediana)+' / $'+PF_NF.format(c.precioMax):'')+' | Demanda: '+(p.demanda||'')+' | Riesgo: '+(p.riesgo||''),
+      (p.certificaciones&&p.certificaciones.length?'Requiere: '+p.certificaciones.map(x=>x.label).join(' + ')+' | ':'')+'MOQ ~'+p.capacidad.moq+' u (USD '+p.capacidad.inversionMoqUSD+')'+(p.capacidad.alcanza?'':' - no alcanza el capital'),
+      'MeLi: '+(p.links&&p.links.meli||'')
+    ];
+    lineas.forEach(l=>{ const t=doc.splitTextToSize(l,182); doc.text(t,14,y); y+=t.length*4.5; });
+    y+=4;
   });
-  doc.save('productfinder-analisis.pdf');
+  doc.save('buscador-oportunidades.pdf');
 }
+
+// ===== Ejemplo ilustrativo: mismo formato que un resultado real =====
+// Numeros calculados con api/_oportunidad.js sobre un mercado de muestra.
+var PF_DEMO = {"nombre": "Alfombra de lameteo antiestrés para perros", "query": "alfombra lameteo lick mat perro", "keyword_en": "dog lick mat", "nota": "Tendencia bienestar animal", "pesoG": 150, "costo": {"fobMinUSD": 1.5, "fobMaxUSD": 3.5, "fobUSD": 2.5, "fleteUSD": 2.5, "costoPuestoUSD": 9.25, "costoPuestoARS": 13875, "ivaCreditoARS": 1937, "fuente": "estimado por categoría", "detalle": "FOB del rango típico de la categoría + flete courier por peso (USD 12/kg) × 1.85 de aranceles, tasas, IVA y gastos. No es una cotización."}, "certificaciones": [], "capacidad": {"capitalReferenciaUSD": 2000, "presupuestoUSD": 1200, "moq": 200, "inversionMoqUSD": 1850, "unidadesPosibles": 129, "alcanza": false}, "links": {"meli": "https://listado.mercadolibre.com.ar/alfombra-lameteo-lick-mat-perro", "publicacion": null, "publicacionEsMasVendida": false, "alibaba": "https://www.alibaba.com/trade/search?SearchText=dog%20lick%20mat", "s1688": "https://s.1688.com/selloffer/offer_search.htm?keywords=dog%20lick%20mat", "tendencia": "https://trends.google.com/trends/explore?geo=AR&q=alfombra%20lameteo%20lick%20mat%20perro"}, "competencia": {"muestra": 14, "totalCatalogo": 690, "precioMin": 26900, "precioMediana": 29990, "precioMax": 32490, "pctFull": 21, "pctOficiales": 0, "pctEnvioGratis": 36, "top10": 10, "vendedoresTop10": 9, "vendidosMuestra": null}, "categoria": "Mascotas", "fuente": "MercadoLibre (real)", "precioVentaARS": 29990, "precioMercadoARS": 29990, "canal": {"clave": "mercadolibre", "etiqueta": "MercadoLibre", "notaPrecio": "Mediana de las publicaciones comparables en MercadoLibre.", "notaComision": "Comisión clásica de MercadoLibre para esta categoría (dato de la API de MeLi).", "notaEnvio": "Debajo de $33.000 el envío lo paga el comprador.", "comisionPct": 14.5, "comisionReal": true}, "margen": 21.7, "margenNeto": {"pct": 21.7, "netoARS": 6506, "desglose": {"precio": 29990, "costo": 13875, "comision": 5262, "envio": 0, "iibb": 900, "iva": 3268, "devoluciones": 180}}, "demanda": "En tendencia", "demandaDetalle": "Aparece entre las búsquedas más frecuentes de MercadoLibre en su categoría (\"alfombra lameteo perro\")", "saturacion": "Media", "riesgo": "Bajo", "score": 56, "componentes": [{"clave": "margen", "label": "Margen neto", "valor": 54, "peso": 35, "detalle": "21,7% neto sobre el precio de venta", "pesoEfectivo": 35, "aporte": 18.9}, {"clave": "demanda", "label": "Demanda", "valor": 75, "peso": 20, "detalle": "Aparece entre las búsquedas más frecuentes de MercadoLibre en su categoría (\"alfombra lameteo perro\")", "pesoEfectivo": 20, "aporte": 15}, {"clave": "competencia", "label": "Competencia", "valor": 67, "peso": 25, "detalle": "690 productos en catálogo · 21% en Full · top 10 repartido en 9 vendedores", "pesoEfectivo": 25, "aporte": 16.8}, {"clave": "riesgo", "label": "Riesgo operativo", "valor": 100, "peso": 20, "detalle": "Liviano, sin certificaciones previas detectadas", "pesoEfectivo": 20, "aporte": 20}], "ajustes": [{"label": "El pedido mínimo (~200 u, USD 1.850) supera el 60% de tu capital", "puntos": -15}], "veredicto": {"nivel": "media", "label": "Oportunidad media", "motivos": ["Margen neto menor a 30%.", "No te alcanza el capital para el pedido mínimo típico."]}, "semaforo": {"color": "amarillo", "label": "Margen ajustado"}};
+(function pintarEjemplo(){
+  function go(){
+    var box = document.getElementById('pfEjemplo');
+    if(!box) return;
+    box.innerHTML = pfCard(PF_DEMO, { demo: true, abrirDesglose: false });
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
+})();
 
 async function sendChat(){
   const inp=document.getElementById('chatInput');
@@ -2536,43 +2782,9 @@ window.addEventListener('DOMContentLoaded',()=>{
 /* ---- bloque 5 ---- */
 /* ===== v4 UI enhancer (additive, non-invasive) ===== */
 (function(){
-  function verdictFromCard(card){
-    // read score from .score-row strong (e.g. "57/100")
-    var st=card.querySelector('.score-row strong');
-    var score=0; if(st){var m=(st.textContent||'').match(/(\d+)/); if(m)score=parseInt(m[1],10);}
-    // read saturation from stats (label Saturacion)
-    var sat=''; card.querySelectorAll('.stat').forEach(function(s){
-      var l=s.querySelector('.stat-l'); if(l&&/satur/i.test(l.textContent)){var v=s.querySelector('.stat-v'); if(v)sat=(v.textContent||'').toLowerCase();}
-    });
-    var cls='media',txt='Oportunidad media';
-    var satPenal=/muy alta|alta/.test(sat);
-    if(score>=62&&!satPenal){cls='alta';txt='Oportunidad alta';}
-    else if(score<45||/muy alta/.test(sat)){cls='baja';txt='Requiere validación';}
-    else {cls='media';txt='Oportunidad media';}
-    return {cls:cls,txt:txt};
-  }
-  function enhance(){
-    document.querySelectorAll('.product-card').forEach(function(card){
-      if(card.querySelector('.v4-verdict'))return;
-      var v=verdictFromCard(card);
-      var badge=document.createElement('div');
-      badge.className='v4-verdict '+v.cls;
-      var icon=v.cls==='alta'?'<svg class="ic" aria-hidden="true"><use href="#i-fire"></use></svg>':(v.cls==='baja'?'<svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg>':'<svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg>');
-      // textContent escapaba el <svg> y el usuario veia el markup crudo en cada tarjeta
-      badge.innerHTML=icon+' '+v.txt;
-      var bar=card.querySelector('.score-bar');
-      if(bar&&bar.parentNode){bar.parentNode.insertBefore(badge,bar.nextSibling);}
-      else{card.appendChild(badge);}
-    });
-  }
-  var grid=null;
-  function watch(){
-    grid=document.querySelector('.products-grid');
-    if(grid){
-      new MutationObserver(function(){enhance();}).observe(grid,{childList:true});
-      enhance();
-    }
-  }
+  // QUITADO: el badge "Oportunidad alta/media" que se leia del texto del
+  // score en el DOM. Ahora el veredicto viene del servidor junto con el score
+  // y el semaforo del margen (api/_oportunidad.js), y lo dibuja renderResults.
   // live badge in hero
   function heroBadge(){
     var t=document.querySelector('.app-title');
@@ -2590,8 +2802,8 @@ window.addEventListener('DOMContentLoaded',()=>{
       cfg.parentNode.insertBefore(h,cfg);
     }
   }
-  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){watch();heroBadge();});}
-  else{watch();heroBadge();}
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',heroBadge);}
+  else{heroBadge();}
 })();
 
 /* ---- bloque 6 ---- */
@@ -2649,35 +2861,9 @@ window.addEventListener('DOMContentLoaded',()=>{
 })();
 
 /* ---- bloque 7 ---- */
-/* ===== v6 Ganancia estimada (additive) ===== */
-(function(){
-  function parseMoney(txt){ if(!txt) return null; var m=txt.replace(/\./g,'').replace(/[^0-9,]/g,'').replace(',','.'); var n=parseFloat(m); return isNaN(n)?null:n; }
-  function fmt(n){ return '$'+Math.round(n).toLocaleString('es-AR'); }
-  function statByLabel(card,rx){ var out=null; card.querySelectorAll('.stat').forEach(function(s){var l=s.querySelector('.stat-l'); if(l&&rx.test(l.textContent)){var v=s.querySelector('.stat-v'); if(v)out=v.textContent.trim();}}); return out; }
-  function enhance(){
-    document.querySelectorAll('.product-card').forEach(function(card){
-      if(card.querySelector('.v6-profit')) return;
-      var costo=parseMoney(statByLabel(card,/costo/i));
-      if(!costo) return;
-      var precioTxt=statByLabel(card,/precio/i);
-      var precio=(precioTxt&&/[0-9]/.test(precioTxt))?parseMoney(precioTxt):null;
-      var el=document.createElement('div'); el.className='v6-profit';
-      if(precio&&precio>costo){
-        el.innerHTML='<div class="v6-h">Ganancia por unidad (dato real)</div><div class="v6-v">'+fmt(precio-costo)+'</div><div class="v6-note">Precio de venta real de MercadoLibre menos costo puesto estimado.</div>';
-      } else {
-        el.innerHTML='<div class="v6-h">Ganancia estimada por unidad</div><div class="v6-v">'+fmt(costo)+' a '+fmt(costo*1.5)+'</div><div class="v6-note">Proyecci\u00f3n con markup t\u00edpico de 2x\u20132,5x sobre el costo puesto. Valid&#225; el precio real en MercadoLibre.</div>';
-      }
-      card.appendChild(el);
-    });
-  }
-  function watch(){
-    var grid=document.querySelector('.products-grid');
-    if(grid){ new MutationObserver(function(){ setTimeout(enhance,80); }).observe(grid,{childList:true}); enhance(); }
-    else setTimeout(watch,400);
-  }
-  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',watch);}else{watch();}
-})();
-
+/* QUITADO (v6 "Ganancia por unidad (dato real)"): restaba precio menos costo
+   sin comision ni impuestos y lo llamaba dato real. La ganancia por unidad
+   ahora es una sola, neta, y viene del servidor (margen-core.js). */
 /* ---- bloque 8 ---- */
 /* ===== v7 enhancer: form hints + friendly errors ===== */
 (function(){
@@ -3264,105 +3450,12 @@ window.addEventListener('DOMContentLoaded',()=>{
 })();
 
 /* ---- bloque 17 ---- */
-/* v18: pulido visual + estimados honestos en tarjetas de la home */
-(function(){
-  if(window.__v18done) return; window.__v18done=true;
-  function nota(card){ var n=card.querySelector('.product-nota')||card.querySelector('.nota'); if(n) return (n.textContent||'').toLowerCase(); var t=card.textContent||''; return t.toLowerCase(); }
-  function estDemanda(txt){
-    if(/alta demanda|alta rotaci|tendencia|viral|en alza|home office|recompra alta/.test(txt)) return 'Alta';
-    if(/consumible|recompra|barato|masivo/.test(txt)) return 'Media-Alta';
-    if(/nicho|especi|gamer|premium/.test(txt)) return 'Media';
-    return 'Media';
-  }
-  function estSat(txt){
-    if(/saturad|much[ao] compet|clasico|cl\u00e1sico/.test(txt)) return 'Alta';
-    if(/diminuto|alto margen|nuevo|innovador|poco vist/.test(txt)) return 'Baja-Media';
-    return 'Media';
-  }
-  function fillEstimates(card){
-    var txt=nota(card);
-    var stats=card.querySelectorAll('.stat');
-    stats.forEach(function(st){
-      var l=st.querySelector('.stat-l'); var v=st.querySelector('.stat-v');
-      if(!l||!v) return; var ln=(l.textContent||'').toLowerCase(); var vv=(v.textContent||'').trim();
-      if(vv!=='A validar' && vv!=='\u2014') return;
-      if(v.getAttribute('data-v18')) return;
-      if(/demanda/.test(ln)){ v.innerHTML='<span class=\'v18-est\'>'+estDemanda(txt)+'</span><span class=\'v18-estbadge\'>est.</span>'; v.setAttribute('data-v18','1'); }
-      else if(/satura/.test(ln)){ v.innerHTML='<span class=\'v18-est\'>'+estSat(txt)+'</span><span class=\'v18-estbadge\'>est.</span>'; v.setAttribute('data-v18','1'); }
-    });
-  }
-  var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('v18-in'); io.unobserve(e.target); } }); }, {threshold:.12});
-  function enhance(){
-    var cards=document.querySelectorAll('.product-card');
-    cards.forEach(function(c){
-      if(!c.__v18){ c.__v18=true; c.classList.add('v18-reveal'); io.observe(c); fillEstimates(c); }
-    });
-  }
-  var grid=document.getElementById('productsGrid');
-  if(grid){ var mo=new MutationObserver(function(){ setTimeout(enhance,30); }); mo.observe(grid,{childList:true,subtree:true}); }
-  setTimeout(enhance,300); setTimeout(enhance,1200);
-})();
-
+/* QUITADO (v18): rellenaba Demanda/Saturacion "A validar" con "Alta"/"Media"
+   adivinados por palabras de la nota. Sin dato, la tarjeta dice "Sin dato". */
 /* ---- bloque 18 ---- */
-/* v19: margen neto real + semaforo. Descuenta comision ML (14%) e IIBB (3%) del precio de venta. */
-(function(){
-  var ML_FEE = 0.14;
-  var IIBB = 0.03;
-  function fmtPct(n){ return (n>=0?"":"-") + Math.abs(Math.round(n)) + "%"; }
-  function classify(pct){
-    if(pct >= 50) return {cls:"green", label:"Margen sano para importar"};
-    if(pct >= 25) return {cls:"yellow", label:"Margen ajustado, validar bien"};
-    return {cls:"red", label:"Margen bajo, no conviene"};
-  }
-  function computeNet(precio, costo){
-    if(!precio || precio<=0 || costo==null) return null;
-    var ivaDebito = precio - (precio/1.21);
-    var ivaCredito = costo - (costo/1.21);
-    var ivaNeto = Math.max(0, ivaDebito - ivaCredito);
-    var neto = precio - costo - (precio*ML_FEE) - (precio*IIBB) - ivaNeto;
-    var atipico = (costo>0 && (neto/costo)*100 > 500);
-    return { netoARS: neto, pct: (neto/precio)*100, atipico: atipico };
-  }
-  function enhance(){
-    var data = (window.__lastAnalysis && window.__lastAnalysis.products) ? window.__lastAnalysis.products : null;
-    if(!data) return;
-    var cards = document.querySelectorAll(".product-card");
-    cards.forEach(function(card, i){
-      var p = data[i];
-      if(!p) return;
-      if(card.querySelector(".v19-mn")) return;
-      var r = computeNet(p.precioVentaARS, p.costoPuestoARS);
-      var anchor = card.querySelector(".v6-profit") || card;
-      var box = document.createElement("div");
-      if(!r){
-        box.className = "v19-mn yellow";
-        box.innerHTML = "<div class=\"v19-mn-top\"><span class=\"v19-dot\"></span>Margen neto: a validar<span class=\"v19-mn-pct\">\u2014</span></div><div class=\"v19-mn-note\">Sin precio de venta real disponible para calcular el margen neto.</div>";
-      } else {
-        var c = classify(r.pct);
-        box.className = "v19-mn " + c.cls;
-        box.innerHTML = "<div class=\"v19-mn-top\"><span class=\"v19-dot\"></span>" + c.label + "<span class=\"v19-mn-pct\">" + fmtPct(r.pct) + "</span></div><div class=\"v19-mn-note\">Margen neto real: precio de venta menos costo, menos comisión ML (según categoría, ~12-16,5%), IVA neto e IIBB (~3%). Deja aprox. $" + Math.round(r.netoARS).toLocaleString("es-AR") + " por unidad." + (r.atipico ? "<br><span style='color:#e0a000'><svg class='ic' aria-hidden='true'><use href='#i-warn'></use></svg> Precio de referencia de MercadoLibre atípico (margen muy alto): revisá el precio real antes de decidir.</span>" : "") + "</div>";
-      }
-      anchor.appendChild(box);
-    });
-    addLegend();
-  }
-  function addLegend(){
-    var grid = document.getElementById("productsGrid");
-    if(!grid || document.getElementById("v19-legend")) return;
-    var lg = document.createElement("div");
-    lg.id = "v19-legend"; lg.className = "v19-legend";
-    lg.innerHTML = "<b>\u00bfC\u00f3mo leer el margen neto?</b> Es lo que realmente te queda después de descontar la comisión de MercadoLibre (según categoría), el IVA neto (débito de venta menos crédito de la importación) y IIBB del precio de venta. El IIBB varia según la provincia; usamos un 3% como promedio estimativo entre jurisdicciones. <span class=\"v19-chip v19-mn green\"><span class=\"v19-dot\"></span>Verde \u2265 50%</span><span class=\"v19-chip v19-mn yellow\"><span class=\"v19-dot\"></span>Amarillo 25-50%</span><span class=\"v19-chip v19-mn red\"><span class=\"v19-dot\"></span>Rojo < 25%</span> Para importar desde China conviene apuntar a verde. El markup bruto (%) que figura arriba no descuenta comisiones, por eso es mucho más alto.";
-    grid.parentNode.insertBefore(lg, grid.nextSibling);
-  }
-  var obs = new MutationObserver(function(){ setTimeout(enhance, 60); });
-  function boot(){
-    var grid = document.getElementById("productsGrid");
-    if(grid){ obs.observe(grid, {childList:true, subtree:true}); }
-    setTimeout(enhance, 300);
-  }
-  if(document.readyState==="loading"){ document.addEventListener("DOMContentLoaded", boot); } else { boot(); }
-})();
-
+/* QUITADO (v19 margen neto + semaforo): era el segundo calculo de margen de la
+   tarjeta, con comision fija de 14%. El semaforo ahora sale de la misma
+   funcion que el score y el veredicto (api/_oportunidad.js). */
 /* ---- bloque 19 ---- */
 (function(){
     try{
