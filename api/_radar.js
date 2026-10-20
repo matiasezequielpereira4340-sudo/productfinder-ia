@@ -209,9 +209,10 @@ const MARCAS = [
 
 // Personajes y licencias. Traerlos de China es mercaderia trucha y la aduana la
 // retiene, asi que se filtran igual que las marcas aunque el modelo los deje
-// pasar (paso con "minions" y "bluey"). Se dejaron afuera los que chocan con
-// palabras comunes: "cars", "frozen", "encanto", "intensamente" y "sonic"
-// (cepillo sonic).
+// pasar (paso con "minions", "bluey", "deadpool" y "pokebola"). Se compara por
+// palabra completa. Algunos pueden pegarle a un producto generico ("cepillo
+// sonic", "cars"): se aceptan, porque dejar pasar mercaderia trucha es peor.
+// Se dejaron afuera "encanto" e "intensamente", que son palabras comunes.
 const LICENCIAS = [
   'disney', 'marvel', 'pokemon', 'pikachu', 'paw patrol', 'patrulla canina', 'stitch',
   'lilo y stitch', 'hello kitty', 'kuromi', 'sanrio', 'cinnamoroll', 'spiderman', 'spider man',
@@ -220,7 +221,8 @@ const LICENCIAS = [
   'superman', 'avengers', 'transformers', 'lego', 'my little pony', 'cocomelon', 'baby shark',
   'toy story', 'naruto', 'dragon ball', 'one piece', 'labubu', 'stranger things', 'bob esponja',
   'sponge bob', 'spongebob', 'princesas disney', 'capitan america', 'iron man', 'hulk',
-  'mi villano favorito'
+  'mi villano favorito', 'deadpool', 'pokebola', 'pokeball', 'sonic', 'mario', 'minecraft',
+  'fortnite', 'among us', 'frozen', 'cars', 'roblox', 'squishmallows', 'stitch angel'
 ];
 
 function contiene(t, lista) {
@@ -832,14 +834,41 @@ export async function terminosProgresivos(término) {
 // Descubrimiento
 // ------------------------------------------------------------
 
+// Forma de comparar terminos entre paises sin que el singular/plural ni los
+// "de"/"para" sueltos los separen: "kit de herramienta" y "kit herramientas"
+// son la misma busqueda. No es el singular gramatical: es una clave que da lo
+// mismo para las dos formas. Se saca la "s" final y despues la "e" que queda
+// tras consonante, y la "z" final pasa a "c":
+//   herramientas/herramienta -> herramienta   organizadores/organizador -> organizador
+//   luces/luz -> luc   juguetes/juguete -> juguet   gases/gas -> gas
+// Lo que termina en -is/-us (tenis, virus) y las palabras de hasta 3 letras
+// (gas, mes, bus) no se tocan: su "s" no es de plural.
+const VACIAS = new Set(['de', 'del', 'para', 'con', 'el', 'la', 'los', 'las', 'un', 'una',
+  'y', 'e', 'a', 'al', 'en', 'por']);
+
+export function raiz(w) {
+  // La "z" va primero: "luz" y "pez" son cortas pero tienen plural (luces).
+  if (w.endsWith('z')) return w.slice(0, -1) + 'c';
+  if (w.length <= 3 || /(is|us)$/.test(w)) return w;
+  let r = w;
+  if (r.endsWith('s')) r = r.slice(0, -1);
+  if (r.length > 3 && /[^aeiou]e$/.test(r)) r = r.slice(0, -1);
+  return r;
+}
+
+export function canonico(s) {
+  return normalizar(s).split(' ').filter(w => w && !VACIAS.has(w)).map(raiz).join(' ');
+}
+
 // Un termino brasileño "ya llego" a Argentina si el termino traducido, o
 // alguna de sus palabras significativas, aparece en las listas argentinas.
 function yaEstaEnArgentina(traducido, listasAR) {
-  const t = normalizar(traducido);
+  const t = canonico(traducido);
   if (!t) return true;   // sin traduccion no se puede afirmar novedad
   const palabras = t.split(' ').filter(w => w.length > 3);
   for (const kw of listasAR) {
-    const k = normalizar(kw);
+    const k = canonico(kw);
+    if (!k) continue;
     if (k.includes(t) || t.includes(k)) return true;
     // Coincidencia por palabra fuerte: "lampara led h4" contra "lampara led".
     const compartidas = palabras.filter(w => k.includes(w)).length;
@@ -974,7 +1003,7 @@ export async function descubrir(token, opts) {
       if (!importable(e)) return;
       const es = de(e).es || null;
       const llego = es ? yaEstaEnArgentina(es, listasAR) : null;
-      const tambienAR = es ? ar.crecimiento.findIndex(k => normalizar(k) === normalizar(es)) : -1;
+      const tambienAR = es ? ar.crecimiento.findIndex(k => canonico(k) === canonico(es)) : -1;
       candidatos.push({
         keyword: es || kw,
         origen: llego === false ? cfg.cod + '-nuevo' : cfg.cod,
@@ -994,7 +1023,9 @@ export async function descubrir(token, opts) {
   // Un mismo termino puede venir por los dos lados: se queda la mejor señal.
   const porClave = new Map();
   for (const c of candidatos) {
-    const clave = normalizar(c.keyword);
+    // Con la forma canonica, "kit de herramienta" (Mexico) y "kit herramientas"
+    // (Argentina) son la misma tarjeta, y queda como "en los dos".
+    const clave = canonico(c.keyword);
     const previo = porClave.get(clave);
     if (!previo) { porClave.set(clave, c); continue; }
     porClave.set(clave, {
