@@ -237,6 +237,18 @@ export function esModeloVehiculo(kw, rubro) {
   return false;
 }
 
+// Genericos conocidos, filtrados en codigo por el mismo motivo que las marcas:
+// el prompt los da como ejemplo y aun asi el modelo convirtio "halloween" en
+// "disfraz halloween" y lo dejo pasar. Se compara el termino original entero.
+const GENERICOS = [
+  'pa', 'pá', 'spray', 'retrovisor', 'fundas', 'bebe', 'bebes', 'cosas de bebe',
+  'cosas para bebe', 'cosas para bebes', 'halloween', 'expositor', 'embalagem', 'ofertas'
+].map(normalizar);
+
+export function esGenericoConocido(kw) {
+  return GENERICOS.includes(normalizar(kw));
+}
+
 // Cada termino viaja con su rubro. Sin contexto, "pa" en Accesorios para
 // Vehiculos salio "pala" y "polo" en Autos salio "remera polo". La respuesta
 // va por "id" y no por termino: el mismo termino puede venir de dos rubros en
@@ -734,7 +746,7 @@ export async function descubrir(token, opts) {
   // descarta y se cuenta junto con los no importables. Los modelos de auto se
   // filtran en codigo, como las marcas, porque el modelo no siempre los ve.
   // Fuera de rubro NO descarta: por ahora solo se marca en la tarjeta.
-  const generico = (e) => !!de(e) && de(e).generico === true;
+  const generico = (e) => !!de(e) && (de(e).generico === true || esGenericoConocido(e.t));
   const vehiculo = (e) => esModeloVehiculo(e.t, e.rubro);
   const marca = (e) => !!de(e) && esMarca(de(e).es || e.t);
   const importable = (e) => !!de(e) && de(e).imp !== false && !generico(e) && !vehiculo(e) && !marca(e);
