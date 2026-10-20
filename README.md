@@ -766,3 +766,48 @@ cambio sale de `dolarapi.com` en vivo (`api/_dolar.js`), el IVA de importación 
 la percepción salen de la base imponible real (CIF + aranceles + tasa de
 estadística), y los precios de competencia salen de `/items?ids=` de la API
 oficial de MercadoLibre.
+
+## Buscador de oportunidades: pre-análisis nocturno
+
+El buscador ya no depende de que el visitante tenga MercadoLibre conectado. Un
+proceso de fondo usa la conexión OAuth del dueño de la app (`BUSCADOR_MELI_USER`,
+por defecto `matypereira`, con refresh del token) y deja cada nicho
+pre-analizado en `buscador_cache` con la **API oficial de MeLi, sin Apify**.
+
+- **Cuándo:** Vercel Cron `0 7 * * *` (04:00 AR) → `GET /api/analyze?precalcular=tanda`.
+  Cada tanda procesa nichos durante ~30 s y encadena la siguiente con `CRON_SECRET`
+  hasta terminar (los nichos frescos, de menos de 20 h, se saltean).
+- **A mano:** `admin.html` → "Buscador de oportunidades: pre-análisis"
+  (correr, forzar todos, probar endpoints). Acepta `CRON_SECRET`, `ADMIN_KEY`,
+  sesión de admin o un token de corrida de un solo uso de `buscador_job_tokens`
+  (para previews, donde `CRON_SECRET`/`ADMIN_KEY` no están cargadas).
+- **Ritmo:** adaptativo, arranca en `BUSCADOR_MELI_RPS` (8/s) y se frena solo
+  ante 429. Medido el 20/10/2026: MeLi devolvió 429 a ~50/s y también a ~12/s.
+
+### Qué endpoints responden con el token (medido 20/10/2026)
+
+| Endpoint | Estado | Uso |
+|---|---|---|
+| `/products/search` | 200 | total del catálogo (saturación) |
+| `/products/{id}/items` | 200 / **404 en ~70%** (sin ofertas) | vendedores, precio, Full, tienda oficial |
+| `/trends/MLA/{cat}` | 200 | demanda (posición en búsquedas top) |
+| `/categories/{id}` | 200 | nombre, publicaciones de la categoría |
+| `/users/{id}` | 200, **sin ventas de 60 días** | MercadoLíder (rotación) |
+| `/sites/MLA/listing_prices` | 200 | comisión real + cargo fijo |
+| `/sites/MLA/search` | **403** | (total de publicaciones de la búsqueda: no disponible) |
+| `/highlights/MLA/category\|product` | **403** | (más vendidos: no disponible) |
+| `/items/{id}`, `/items?ids=` | **403** en ítems ajenos | — |
+| `/reviews/item/{id}` | **403** | — |
+| `/visits/items`, `/items/{id}/visits/time_window` | **403** | — |
+
+### Métricas
+
+- **Demanda:** posición del producto en `/trends` de su categoría (exacto: 92→70;
+  búsqueda general del rubro: 70→55; ausente: 30 con "0 de N").
+- **Rotación (proxy):** 70% estado MercadoLíder de los vendedores top + 30% % de
+  productos del catálogo con ofertas activas. MeLi no da vendidos, reseñas ni visitas
+  de publicaciones ajenas.
+- **Saturación:** oferta (catálogo, concentración top 10, % Full, % oficiales)
+  corregida por la demanda: `(50 − demanda) × 0,4`.
+- **Score:** demanda 25 + rotación 20 + saturación 25 (= 70) + margen 20 + riesgo/capital 10
+  (la tolerancia al riesgo mueve 5 puntos entre margen y riesgo).
