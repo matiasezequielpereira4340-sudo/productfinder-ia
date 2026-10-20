@@ -350,6 +350,7 @@ export default async function handler(req, res) {
     // Radar de Oportunidad.
     //   ?radar=1                 -> barrido de rubros, gratis
     //   ?radar=1&categoria=MLA5725
+    //   ?radar=1&origen=MLM          -> las ideas salen de Mexico (por defecto MLB, Brasil)
     //   ?radar=1&saturacion=<keyword>  -> mide la saturacion de un candidato
     //
     // El descubrimiento no cuesta nada: sale de /trends de MercadoLibre. Lo
@@ -459,7 +460,10 @@ export default async function handler(req, res) {
       }
 
       try {
+        // De donde salen las ideas: Brasil por defecto, o Mexico.
+        const origen = req.query.origen === 'MLM' ? 'MLM' : 'MLB';
         const r = await radar.descubrir(tok, {
+          origen,
           categoria: typeof req.query.categoria === 'string' ? req.query.categoria : null,
           // Antes: 6 por defecto, tope 12. Con las clasificaciones cacheadas
           // el barrido grande dejo de ser caro, asi que se abre.
@@ -472,7 +476,11 @@ export default async function handler(req, res) {
         return res.status(200).json({
           ok: true,
           consultadoEn: new Date().toISOString(),
+          origen: r.origen,
+          pais: r.pais,
           rubros: r.rubros,
+          sin_pareja_ar: r.sinParejaAR,
+          sin_pareja_origen: r.sinParejaOrigen,
           sin_clasificar: r.sin_clasificar,
           marcas_filtradas: r.marcas_filtradas,
           rubros_barridos: r.rubros_barridos,

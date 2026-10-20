@@ -183,14 +183,16 @@
   <div class="hero">
     <h1>Radar de <span>Oportunidad</span></h1>
     <p>Lo dif&iacute;cil no es analizar un producto: es que se te ocurra cu&aacute;l.
-    Ac&aacute; hay dos fuentes de ideas &mdash; mercados donde las cosas pegan antes que ac&aacute; &mdash;
-    y de cualquiera de las dos pod&eacute;s bajar un producto y <b>validarlo contra Argentina</b>,
+    Ac&aacute; hay tres fuentes de ideas &mdash; mercados donde las cosas pegan antes que ac&aacute; &mdash;
+    y de cualquiera de las tres pod&eacute;s bajar un producto y <b>validarlo contra Argentina</b>,
     que es donde vend&eacute;s.</p>
   </div>
 
   <div class="rd-tabs" role="tablist">
     <button class="rd-tab activa" id="tabMeli" role="tab" aria-selected="true">
       MercadoLibre Brasil <i>gratis</i></button>
+    <button class="rd-tab" id="tabMx" role="tab" aria-selected="false">
+      MercadoLibre M&eacute;xico <i>gratis</i></button>
     <button class="rd-tab" id="tabTikTok" role="tab" aria-selected="false">
       TikTok Shop EE.UU. <i>consulta lenta</i></button>
   </div>
@@ -217,6 +219,28 @@
     <div class="rd-list" id="lista"></div>
   </div>
 
+  <div id="panelMx" style="display:none">
+    <div class="rd-toolbar">
+      <label class="sr-only" for="rubroMx">Rubro a explorar</label>
+      <select class="rd-select" id="rubroMx" aria-label="Rubro a explorar"><option value="">Todos los rubros</option></select>
+      <button class="btn btn-yellow" id="goMx">Buscar oportunidades</button>
+    </div>
+    <div class="hint">Qu&eacute; est&aacute; creciendo en las b&uacute;squedas de MercadoLibre M&eacute;xico y
+    todav&iacute;a no aparece en las de Argentina. Esta lista es <b>gratis</b>: sale de las tendencias que
+    publica MercadoLibre.</div>
+
+    <div class="loading" id="loadingMx"><div class="spin"></div> Leyendo las tendencias de Argentina y M&eacute;xico...</div>
+    <div class="error-box" id="errorMx"></div>
+
+    <div class="rd-legend" id="legendMx" style="display:none">
+      <span><span class="rd-tag nuevo">No lleg&oacute;</span> crece en M&eacute;xico, no figura ac&aacute;</span>
+      <span><span class="rd-tag ambos">En los dos</span> demanda confirmada</span>
+      <span><span class="rd-tag ar">Argentina</span> ya est&aacute; creciendo ac&aacute;</span>
+    </div>
+
+    <div class="rd-list" id="listaMx"></div>
+  </div>
+
   <div id="panelTikTok" style="display:none">
     <div class="rd-toolbar">
       <select class="rd-select" id="rubroTk"></select>
@@ -233,13 +257,13 @@
   <details class="rd-nota-plegable" id="nota">
     <summary>C&oacute;mo funciona esto, qu&eacute; mide y qu&eacute; consume cada bot&oacute;n</summary>
     <div class="rd-nota-cuerpo">
-    <b>C&oacute;mo funciona esto.</b> Hay dos <b>fuentes de ideas</b>, y son listas distintas con productos
-    distintos: <b>MercadoLibre Brasil</b> (gratis) muestra qu&eacute; se empez&oacute; a buscar all&aacute; y
-    todav&iacute;a no ac&aacute;; <b>TikTok Shop Estados Unidos</b> muestra qu&eacute; se
-    est&aacute; <b>vendiendo</b> hoy, con unidades reales. Son dos mercados donde las cosas pegan antes.
+    <b>C&oacute;mo funciona esto.</b> Hay tres <b>fuentes de ideas</b>, y son listas distintas con productos
+    distintos: <b>MercadoLibre Brasil</b> y <b>MercadoLibre M&eacute;xico</b> (gratis) muestran qu&eacute; se
+    empez&oacute; a buscar all&aacute; y todav&iacute;a no ac&aacute;; <b>TikTok Shop Estados Unidos</b> muestra
+    qu&eacute; se est&aacute; <b>vendiendo</b> hoy, con unidades reales. Son mercados donde las cosas pegan antes.
     <br><br>
     <b>Validar es siempre contra Argentina</b>, venga el producto de donde venga, porque es donde vend&eacute;s.
-    Cualquier producto de cualquiera de las dos listas tiene los mismos dos botones:
+    Cualquier producto de cualquiera de las tres listas tiene los mismos dos botones:
     <b>competencia en MercadoLibre Argentina</b> y <b>&iquest;lo buscan en Argentina?</b>
     seg&uacute;n Google. Que algo explote en Brasil o en Estados Unidos no lo valida: lo hace
     candidato. Lo valida que ac&aacute; haya demanda y quede lugar.
@@ -260,20 +284,21 @@
 
 <script>
 (function(){
-  var lista = document.getElementById('lista');
-  var loading = document.getElementById('loading');
-  var errorBox = document.getElementById('error');
-  var selRubro = document.getElementById('rubro');
-  var candidatos = [];
+  // Cada lista de MercadoLibre (Brasil, Mexico) guarda sus candidatos aparte,
+  // por el prefijo de sus tarjetas: "c" Brasil, "mx" Mexico. TikTok usa "tk".
+  var candidatosDe = { c: [], mx: [] };
+  // Sufijo de las cajas de resultado de cada tarjeta (sat, fu).
+  var SUFIJO = { c: '', mx: 'Mx', tk: 'Tk' };
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function num(n){ return typeof n === 'number' ? n.toLocaleString('es-AR') : '--'; }
 
   function tag(origen){
-    if (origen === 'BR-nuevo') return '<span class="rd-tag nuevo">No lleg&oacute; a Argentina</span>';
+    if (/-nuevo$/.test(origen)) return '<span class="rd-tag nuevo">No lleg&oacute; a Argentina</span>';
     if (origen === 'ambos')    return '<span class="rd-tag ambos">Crece en los dos</span>';
     if (origen === 'BR')       return '<span class="rd-tag br">Brasil</span>';
+    if (origen === 'MX')       return '<span class="rd-tag br">M&eacute;xico</span>';
     return '<span class="rd-tag ar">Argentina</span>';
   }
 
@@ -290,18 +315,34 @@
   function link(url, texto){
     return '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + texto + '</a>';
   }
-  function linksMeli(c){
-    // El termino original en portugues solo existe si vino de Brasil.
-    var original = c.traducidoDe || (c.posicionBR ? c.keyword : null);
+  // Lo que cambia entre Brasil y Mexico: el pais, el campo de la posicion y a
+  // donde lleva el link del sitio de origen.
+  var PANELES = {
+    c:  { origen: 'MLB', pais: 'Brasil', pos: 'posicionBR', listado: 'https://lista.mercadolivre.com.br/',
+          sel: 'rubro', go: 'go', loading: 'loading', error: 'error', legend: 'legend', lista: 'lista' },
+    mx: { origen: 'MLM', pais: 'M&eacute;xico', pos: 'posicionMX', listado: 'https://listado.mercadolibre.com.mx/',
+          sel: 'rubroMx', go: 'goMx', loading: 'loadingMx', error: 'errorMx', legend: 'legendMx', lista: 'listaMx' }
+  };
+
+  function linksMeli(c, p){
+    // El termino original solo existe si vino del otro pais.
+    var original = c.traducidoDe || (c[p.pos] ? c.keyword : null);
     return '<div class="rd-links">' +
-      (original ? link('https://lista.mercadolivre.com.br/' + rutaMeli(original), 'Ver en MercadoLibre Brasil') : '') +
+      (original ? link(p.listado + rutaMeli(original), 'Ver en MercadoLibre ' + p.pais) : '') +
       link('https://listado.mercadolibre.com.ar/' + rutaMeli(c.keyword), 'Ver en MercadoLibre Argentina') +
       link('https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(original || c.keyword), 'Ver fotos') +
       '</div>';
   }
 
-  function tarjeta(c, i){
-    return '<div class="rd-card' + (c.origen === 'BR-nuevo' ? ' destacada' : '') + '" id="c' + i + '">' +
+  function tarjeta(c, i, pre){
+    var p = PANELES[pre];
+    var suf = SUFIJO[pre];
+    var puesto = c[p.pos];
+    // Brasil siempre dice como lo buscan alla (es otro idioma). Mexico solo
+    // cuando la palabra cambia: "celular" -> "celular" no aporta nada.
+    var mostrarDe = c.traducidoDe &&
+      (pre === 'c' || String(c.traducidoDe).toLowerCase() !== String(c.keyword).toLowerCase());
+    return '<div class="rd-card' + (/-nuevo$/.test(c.origen) ? ' destacada' : '') + '" id="' + pre + i + '">' +
       '<div class="rd-head">' +
         '<div class="rd-kw">' + esc(c.keyword) +
           '<div class="rd-rubro">' + esc(c.categoriaNombre) + '</div></div>' +
@@ -312,17 +353,17 @@
           '<small>demanda</small></div>' +
       '</div>' +
       '<div class="rd-senal">' + esc(c.senal) + '</div>' +
-      (c.traducidoDe ? '<div class="rd-de">En Brasil lo buscan como &ldquo;' + esc(c.traducidoDe) + '&rdquo;</div>' : '') +
-      linksMeli(c) +
+      (mostrarDe ? '<div class="rd-de">En ' + p.pais + ' lo buscan como &ldquo;' + esc(c.traducidoDe) + '&rdquo;</div>' : '') +
+      linksMeli(c, p) +
       '<div class="rd-foot">' +
-        '<button class="rd-btn rd-btn-pago" onclick="medir(' + i + ')" ' +
+        '<button class="rd-btn rd-btn-pago" onclick="medir(' + i + ',null,null,\'' + pre + '\')" ' +
           'title="Tarda unos segundos: consulta MercadoLibre en vivo">Competencia en Argentina <i>tarda un rato</i></button>' +
-        '<button class="rd-btn rd-btn-pago" onclick="verTrends(' + i + ')" ' +
+        '<button class="rd-btn rd-btn-pago" onclick="verTrends(' + i + ',null,\'' + pre + '\')" ' +
           'title="Tarda unos segundos: consulta Google en vivo">&iquest;Lo buscan en Argentina? <i>tarda un rato</i></button>' +
-        (c.posicionBR ? '<span style="font-size:12px;color:var(--mc-ink-4)">Puesto ' + c.posicionBR + ' en Brasil</span>' : '') +
+        (puesto ? '<span style="font-size:12px;color:var(--mc-ink-4)">Puesto ' + puesto + ' en ' + p.pais + '</span>' : '') +
         (c.posicionAR ? '<span style="font-size:12px;color:var(--mc-ink-4)">Puesto ' + c.posicionAR + ' en Argentina</span>' : '') +
       '</div>' +
-      '<div id="sat' + i + '"></div><div id="fu' + i + '"></div></div>';
+      '<div id="sat' + suf + i + '"></div><div id="fu' + suf + i + '"></div></div>';
   }
 
   // Validar es SIEMPRE contra Argentina, venga el producto de donde venga: es
@@ -330,10 +371,10 @@
   // suponer que el producto salio de la lista de MercadoLibre.
   window.medir = function(i, termino, demanda, prefijo){
     var pre = prefijo || 'c';
-    var c = candidatos[i];
+    var c = (candidatosDe[pre] || [])[i];
     var kw = termino || (c && c.keyword);
     var dem = demanda != null ? demanda : (c ? c.scoreDemanda : 50);
-    var caja = document.getElementById((prefijo === 'tk' ? 'satTk' : 'sat') + i);
+    var caja = document.getElementById('sat' + SUFIJO[pre] + i);
     var btn = document.querySelector('#' + pre + i + ' .rd-btn');
     if (!kw) { caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">No pude armar un t&eacute;rmino para buscar este producto en MercadoLibre.</div>'; return; }
     if (btn) { btn.disabled = true; btn.textContent = 'Midiendo...'; }
@@ -347,7 +388,7 @@
         if (d.estado === 'preparando') {
           caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">' + esc(d.aviso) +
             ' Reviso solo en 20 segundos.</div>';
-          setTimeout(function(){ if (btn) { btn.disabled = false; } window.medir(i, kw, dem, prefijo); }, 20000);
+          setTimeout(function(){ if (btn) { btn.disabled = false; } window.medir(i, kw, dem, pre); }, 20000);
           return;
         }
         if (d.estado === 'sin-datos') {
@@ -423,9 +464,10 @@
   // apretar el boton, que dice cuanto sale antes de gastarlo. La respuesta trae
   // el costo real y si salio del cache, para que no haya sorpresas al fin de mes.
   function consultarFuente(i, ruta, titulo, pintar, termino, prefijo){
-    var c = candidatos[i];
+    var pre = prefijo || 'c';
+    var c = (candidatosDe[pre] || [])[i];
     var kw = termino || (c && c.keyword);
-    var caja = document.getElementById((prefijo === 'tk' ? 'fuTk' : 'fu') + i);
+    var caja = document.getElementById('fu' + SUFIJO[pre] + i);
     if (!kw) { caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">Sin t&eacute;rmino para consultar.</div>'; return; }
     caja.innerHTML = '<div class="rd-sat" style="color:var(--mc-ink-3)">Consultando ' + esc(titulo) +
       ' por &ldquo;' + esc(kw) + '&rdquo;...</div>';
@@ -572,32 +614,46 @@
     });
     document.getElementById('goTk').addEventListener('click', buscarTk);
 
-    var tM = document.getElementById('tabMeli'), tT = document.getElementById('tabTikTok');
-    var pM = document.getElementById('panelMeli'), pT = document.getElementById('panelTikTok');
+    var pestanas = {
+      meli:   [document.getElementById('tabMeli'),   document.getElementById('panelMeli')],
+      mx:     [document.getElementById('tabMx'),     document.getElementById('panelMx')],
+      tiktok: [document.getElementById('tabTikTok'), document.getElementById('panelTikTok')]
+    };
+    var mxCargado = false;
     function mostrar(cual){
-      var esMeli = cual === 'meli';
-      tM.classList.toggle('activa', esMeli); tT.classList.toggle('activa', !esMeli);
-      tM.setAttribute('aria-selected', esMeli); tT.setAttribute('aria-selected', !esMeli);
-      pM.style.display = esMeli ? '' : 'none';
-      pT.style.display = esMeli ? 'none' : '';
+      Object.keys(pestanas).forEach(function(k){
+        var activa = k === cual;
+        pestanas[k][0].classList.toggle('activa', activa);
+        pestanas[k][0].setAttribute('aria-selected', activa);
+        pestanas[k][1].style.display = activa ? '' : 'none';
+      });
+      // Mexico se busca la primera vez que se abre la pestaña, no al cargar la
+      // pagina: quien no la mira no tiene por que esperar ese barrido.
+      if (cual === 'mx' && !mxCargado) { mxCargado = true; buscarEn('mx'); }
     }
-    tM.addEventListener('click', function(){ mostrar('meli'); });
-    tT.addEventListener('click', function(){ mostrar('tiktok'); });
+    Object.keys(pestanas).forEach(function(k){
+      pestanas[k][0].addEventListener('click', function(){ mostrar(k); });
+    });
   })();
 
-  function buscar(){
+  function buscarEn(pre){
+    var p = PANELES[pre];
+    var lista = document.getElementById(p.lista);
+    var loading = document.getElementById(p.loading);
+    var errorBox = document.getElementById(p.error);
+    var selRubro = document.getElementById(p.sel);
     loading.style.display = 'block';
     errorBox.style.display = 'none';
     lista.innerHTML = '';
-    document.getElementById('legend').style.display = 'none';
+    document.getElementById(p.legend).style.display = 'none';
 
-    var url = '/api/market?radar=1&rubros=8';
+    var url = '/api/market?radar=1&rubros=8&origen=' + p.origen;
     if (selRubro.value) url += '&categoria=' + encodeURIComponent(selRubro.value);
 
     fetch(url).then(function(r){ return r.json(); }).then(function(d){
       loading.style.display = 'none';
       if (!d.ok) throw new Error(d.error || 'No pude leer las tendencias');
-      candidatos = d.candidatos || [];
+      var candidatos = candidatosDe[pre] = d.candidatos || [];
       if (!candidatos.length) {
         // Vacio de verdad y "vino todo pero nada sirve" son cosas distintas:
         // la segunda no es un error, es el resultado del filtro.
@@ -620,8 +676,8 @@
           selRubro.appendChild(o);
         });
       }
-      lista.innerHTML = candidatos.map(tarjeta).join('');
-      document.getElementById('legend').style.display = 'flex';
+      lista.innerHTML = candidatos.map(function(c, i){ return tarjeta(c, i, pre); }).join('');
+      document.getElementById(p.legend).style.display = 'flex';
     }).catch(function(e){
       loading.style.display = 'none';
       errorBox.textContent = e.message;
@@ -629,8 +685,9 @@
     });
   }
 
-  document.getElementById('go').addEventListener('click', buscar);
-  buscar();
+  document.getElementById('go').addEventListener('click', function(){ buscarEn('c'); });
+  document.getElementById('goMx').addEventListener('click', function(){ buscarEn('mx'); });
+  buscarEn('c');
 })();
 </script>
 <script defer src="mc-ui.js?v=20260908a"></script>
