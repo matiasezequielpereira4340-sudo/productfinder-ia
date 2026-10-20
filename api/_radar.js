@@ -210,8 +210,10 @@ const MARCAS = [
 // Personajes y licencias. Traerlos de China es mercaderia trucha y la aduana la
 // retiene, asi que se filtran igual que las marcas aunque el modelo los deje
 // pasar (paso con "minions", "bluey", "deadpool" y "pokebola"). Se compara por
-// palabra completa. Se dejaron afuera "encanto" e "intensamente", que son
-// palabras comunes. Los nombres ambiguos van aparte (LICENCIAS_AMBIGUAS).
+// palabra completa, sin excepciones: "cepillo sonic" o "funda cars" tambien se
+// descartan. Un producto con marca o licencia no entra al pais sin permiso del
+// titular, asi que es preferible descartar de mas que mostrar uno con marca.
+// Se dejaron afuera "encanto" e "intensamente", que son palabras comunes.
 const LICENCIAS = [
   'disney', 'marvel', 'pokemon', 'pikachu', 'paw patrol', 'patrulla canina', 'stitch',
   'lilo y stitch', 'hello kitty', 'kuromi', 'sanrio', 'cinnamoroll', 'spiderman', 'spider man',
@@ -220,15 +222,9 @@ const LICENCIAS = [
   'superman', 'avengers', 'transformers', 'lego', 'my little pony', 'cocomelon', 'baby shark',
   'toy story', 'naruto', 'dragon ball', 'one piece', 'labubu', 'stranger things', 'bob esponja',
   'sponge bob', 'spongebob', 'princesas disney', 'capitan america', 'iron man', 'hulk',
-  'mi villano favorito', 'deadpool', 'pokebola', 'pokeball', 'minecraft',
-  'fortnite', 'among us', 'roblox', 'squishmallows', 'stitch angel'
+  'mi villano favorito', 'deadpool', 'pokebola', 'pokeball', 'sonic', 'mario', 'minecraft',
+  'fortnite', 'among us', 'frozen', 'cars', 'roblox', 'squishmallows', 'stitch angel'
 ];
-
-// Nombres que tambien son palabras de producto: "cepillo sonic", "limpiador
-// ultrasonic", "funda cars". Solo se filtran si el termino es exactamente el
-// nombre o si viene con una palabra de personaje o juguete ("peluche sonic").
-const LICENCIAS_AMBIGUAS = ['sonic', 'cars', 'mario', 'frozen'];
-const DE_PERSONAJE = /(^|\s)(figuras?|peluches?|munec[oa]s?|juguetes?|disfra(z|ces)|mochilas?|tazas?|remeras?|lego)($|\s)/;
 
 function contiene(t, lista) {
   for (const m of lista) {
@@ -242,10 +238,7 @@ function contiene(t, lista) {
 
 export function esLicencia(kw) {
   const t = normalizar(kw);
-  if (!t) return false;
-  if (contiene(t, LICENCIAS)) return true;
-  if (LICENCIAS_AMBIGUAS.includes(t)) return true;
-  return DE_PERSONAJE.test(t) && contiene(t, LICENCIAS_AMBIGUAS);
+  return !!t && contiene(t, LICENCIAS);
 }
 
 // "camara DJI" y "photocard Stray Kids" son marcas aunque tengan otra palabra
@@ -256,7 +249,7 @@ export function esLicencia(kw) {
 export function esMarca(kw) {
   const t = normalizar(kw);
   if (!t) return false;
-  return contiene(t, MARCAS) || esLicencia(t);
+  return contiene(t, MARCAS) || contiene(t, LICENCIAS);
 }
 
 // Modelos de autos y motos. En el rubro de vehiculos, "polo" o "gol" a secas

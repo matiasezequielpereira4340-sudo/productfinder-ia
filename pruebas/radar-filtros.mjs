@@ -2,7 +2,7 @@
 // Se corre con: npm run test:radar
 //
 // Filtros del Radar que corren en codigo, sin Claude: licencias de personajes
-// (los nombres ambiguos solo con contexto de personaje) y la forma canonica
+// (por palabra completa, sin excepciones) y la forma canonica
 // que junta singular y plural al comparar con las busquedas argentinas.
 const { esLicencia, esMarca, canonico } = await import('../api/_radar.js');
 
@@ -12,13 +12,14 @@ function chequear(n, c, extra) {
   if (c) oks++; else fallos++;
 }
 
-console.log('\n== 1. Licencias: nombres ambiguos solo con contexto de personaje ==');
+console.log('\n== 1. Licencias: filtro estricto por palabra completa ==');
+// A proposito: tambien "cepillo sonic" o "funda cars". Un producto con marca o
+// licencia no entra sin permiso del titular; mejor descartar de mas.
 const licencias = [
-  ['cepillo sonic', false], ['cepillo sónico', false], ['limpiador ultrasonic', false],
-  ['peluche sonic', true], ['figura sonic', true], ['sonic', true],
-  ['cars', true], ['funda cars', false], ['car', false], ['juguete cars', true], ['mochila cars', true],
-  ['mario', true], ['marioneta', false], ['super mario', true], ['muñeco mario', true],
-  ['frozen', true], ['comida frozen', false], ['disfraz frozen', true], ['tazas frozen', true]
+  ['sonic', true], ['peluche sonic', true], ['cepillo sonic', true], ['limpiador ultrasonic', false],
+  ['cars', true], ['funda cars', true], ['car', false],
+  ['mario', true], ['super mario', true], ['marioneta', false],
+  ['frozen', true], ['disfraz frozen', true]
 ];
 for (const [t, filtra] of licencias) chequear('"' + t + '" ' + (filtra ? 'se filtra' : 'pasa'), esLicencia(t) === filtra);
 
@@ -27,7 +28,7 @@ for (const t of ['minions', 'bluey', 'deadpool', 'pokébola', 'pokebola', 'stitc
   chequear('"' + t + '" se filtra', esLicencia(t) === true);
 for (const t of ['peluche', 'remera lisa', 'oscars', 'carsa', 'cama para gatos', 'bomba de agua'])
   chequear('"' + t + '" pasa', esLicencia(t) === false);
-chequear('una licencia cuenta como marca', esMarca('peluche sonic') === true && esMarca('cepillo sonic') === false);
+chequear('una licencia cuenta como marca', esMarca('peluche sonic') === true && esMarca('bomba de agua') === false);
 
 console.log('\n== 3. Singular y plural dan la misma forma ==');
 const iguales = [
