@@ -200,7 +200,7 @@
   <div id="panelMeli">
     <div class="rd-toolbar">
       <label class="sr-only" for="rubro">Rubro a explorar</label>
-      <select class="rd-select" id="rubro" aria-label="Rubro a explorar"><option value="">Todos los rubros</option></select>
+      <select class="rd-select" id="rubro" aria-label="Rubro a explorar"><option value="">Rubros principales (8)</option></select>
       <button class="btn btn-yellow" id="go">Buscar oportunidades</button>
     </div>
     <div class="hint">Qu&eacute; est&aacute; creciendo en las b&uacute;squedas de MercadoLibre Brasil y
@@ -222,7 +222,7 @@
   <div id="panelMx" style="display:none">
     <div class="rd-toolbar">
       <label class="sr-only" for="rubroMx">Rubro a explorar</label>
-      <select class="rd-select" id="rubroMx" aria-label="Rubro a explorar"><option value="">Todos los rubros</option></select>
+      <select class="rd-select" id="rubroMx" aria-label="Rubro a explorar"><option value="">Rubros principales (8)</option></select>
       <button class="btn btn-yellow" id="goMx">Buscar oportunidades</button>
     </div>
     <div class="hint">Qu&eacute; est&aacute; creciendo en las b&uacute;squedas de MercadoLibre M&eacute;xico y
@@ -636,6 +636,18 @@
     });
   })();
 
+  // El selector lista todos los rubros que tienen pareja en ese pais, no solo
+  // los 8 del barrido: buscar un rubro suelto es una consulta chica. Se llena
+  // una sola vez, con la primera respuesta.
+  function llenarSelector(sel, rubros){
+    if (sel.options.length > 1 || !rubros || !rubros.length) return;
+    rubros.forEach(function(r){
+      var o = document.createElement('option');
+      o.value = r.id; o.textContent = r.ar;
+      sel.appendChild(o);
+    });
+  }
+
   function buscarEn(pre){
     var p = PANELES[pre];
     var lista = document.getElementById(p.lista);
@@ -654,6 +666,7 @@
       loading.style.display = 'none';
       if (!d.ok) throw new Error(d.error || 'No pude leer las tendencias');
       var candidatos = candidatosDe[pre] = d.candidatos || [];
+      llenarSelector(selRubro, d.rubros_con_pareja);
       if (!candidatos.length) {
         // Vacio de verdad y "vino todo pero nada sirve" son cosas distintas:
         // la segunda no es un error, es el resultado del filtro.
@@ -666,15 +679,6 @@
           errorBox.style.display = 'block';
         }
         return;
-      }
-      if (!selRubro.options.length || selRubro.options.length === 1) {
-        (d.rubros || []).forEach(function(r){
-          var c = candidatos.find(function(x){ return x.categoriaNombre === r.ar; });
-          if (!c) return;
-          var o = document.createElement('option');
-          o.value = c.categoria; o.textContent = r.ar;
-          selRubro.appendChild(o);
-        });
       }
       lista.innerHTML = candidatos.map(function(c, i){ return tarjeta(c, i, pre); }).join('');
       document.getElementById(p.legend).style.display = 'flex';

@@ -109,6 +109,7 @@ const PARES_CONOCIDOS = [
   ['hogar', 'casa'],
   ['juguetes', 'brinquedos'],
   ['ropa', 'roupas'],
+  ['ropa', 'ropa'],
   ['indumentaria', 'roupas'],
   ['belleza', 'beleza'],
   ['bebes', 'bebes'],
@@ -134,21 +135,44 @@ function parPorDiccionario(nombreAR, catsB) {
   return null;
 }
 
+// Una categoria de afuera se empareja con UN solo rubro argentino. Antes cada
+// rubro elegia su mejor pareja por su cuenta, y "Ropa y Accesorios" se quedaba
+// con "Accesorios para Vehiculos" por la palabra "accesorios" (0.9 en Mexico,
+// 0.72 en Brasil), dejando la categoria de ropa de afuera huerfana. Ahora los
+// pares se reparten de mayor a menor parecido: el de mayor similitud se queda
+// con la categoria y el otro prueba la siguiente o el diccionario.
 export function emparejarCategorias(catsA, catsB) {
-  return catsA.map(a => {
-    let mejor = null, puntaje = 0;
-    for (const b of catsB) {
-      const p = parecido(a.name, b.name);
-      if (p > puntaje) { puntaje = p; mejor = b; }
-    }
+  const candidatos = [];
+  catsA.forEach((a, ia) => catsB.forEach((b, ib) => {
+    const p = parecido(a.name, b.name);
+    if (p >= 0.6) candidatos.push({ ia, ib, p });
+  }));
+  candidatos.sort((x, y) => y.p - x.p || x.ia - y.ia);
+
+  const pareja = new Map();      // ia -> { b, p }
+  const tomadas = new Set();     // ib
+  for (const c of candidatos) {
+    if (pareja.has(c.ia) || tomadas.has(c.ib)) continue;
+    pareja.set(c.ia, { b: catsB[c.ib], p: c.p });
+    tomadas.add(c.ib);
+  }
+
+  return catsA.map((a, ia) => {
+    const par = pareja.get(ia);
+    if (par) return { ar: a, br: par.b, parecido: Math.round(par.p * 100) / 100 };
     // Por debajo de 0.6 no es el mismo rubro: mejor sin pareja que emparejado
-    // con cualquier cosa. Antes de rendirse, se prueba el diccionario.
-    if (puntaje < 0.6) {
-      const porDicc = parPorDiccionario(a.name, catsB);
-      if (porDicc) return { ar: a, br: porDicc, parecido: 1, via: 'diccionario' };
+    // con cualquier cosa. Antes de rendirse, se prueba el diccionario, sin
+    // reusar una categoria que ya tiene dueño.
+    const libres = catsB.filter((b, ib) => !tomadas.has(ib));
+    const porDicc = parPorDiccionario(a.name, libres);
+    if (porDicc) {
+      tomadas.add(catsB.indexOf(porDicc));
+      return { ar: a, br: porDicc, parecido: 1, via: 'diccionario' };
     }
+    let mejor = 0;
+    for (const b of catsB) mejor = Math.max(mejor, parecido(a.name, b.name));
     // Un rubro sin pareja no se descarta: se analiza solo con Argentina.
-    return { ar: a, br: puntaje >= 0.6 ? mejor : null, parecido: Math.round(puntaje * 100) / 100 };
+    return { ar: a, br: null, parecido: Math.round(mejor * 100) / 100 };
   });
 }
 
@@ -183,19 +207,46 @@ const MARCAS = [
   'stray kids', 'katseye', 'bts', 'blackpink'
 ];
 
-// "camara DJI" y "photocard Stray Kids" son marcas aunque tengan otra palabra
-// al lado. Se compara por palabra completa para no comer terminos legitimos:
-// "lg" no debe matchear "lg" dentro de "algo".
-export function esMarca(kw) {
-  const t = normalizar(kw);
-  if (!t) return false;
-  for (const m of MARCAS) {
+// Personajes y licencias. Traerlos de China es mercaderia trucha y la aduana la
+// retiene, asi que se filtran igual que las marcas aunque el modelo los deje
+// pasar (paso con "minions" y "bluey"). Se dejaron afuera los que chocan con
+// palabras comunes: "cars", "frozen", "encanto", "intensamente" y "sonic"
+// (cepillo sonic).
+const LICENCIAS = [
+  'disney', 'marvel', 'pokemon', 'pikachu', 'paw patrol', 'patrulla canina', 'stitch',
+  'lilo y stitch', 'hello kitty', 'kuromi', 'sanrio', 'cinnamoroll', 'spiderman', 'spider man',
+  'hombre araña', 'barbie', 'hot wheels', 'minions', 'minion', 'bluey', 'peppa pig', 'peppa',
+  'mickey', 'minnie', 'mario bros', 'super mario', 'harry potter', 'star wars', 'batman',
+  'superman', 'avengers', 'transformers', 'lego', 'my little pony', 'cocomelon', 'baby shark',
+  'toy story', 'naruto', 'dragon ball', 'one piece', 'labubu', 'stranger things', 'bob esponja',
+  'sponge bob', 'spongebob', 'princesas disney', 'capitan america', 'iron man', 'hulk',
+  'mi villano favorito'
+];
+
+function contiene(t, lista) {
+  for (const m of lista) {
     const mm = normalizar(m);
     if (t === mm) return true;
     const re = new RegExp('(^|\\s)' + mm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|\\s)');
     if (re.test(t)) return true;
   }
   return false;
+}
+
+export function esLicencia(kw) {
+  const t = normalizar(kw);
+  return !!t && contiene(t, LICENCIAS);
+}
+
+// "camara DJI" y "photocard Stray Kids" son marcas aunque tengan otra palabra
+// al lado. Se compara por palabra completa para no comer terminos legitimos:
+// "lg" no debe matchear "lg" dentro de "algo".
+// Las licencias cuentan como marcas: el resultado para el importador es el
+// mismo (no se puede traer).
+export function esMarca(kw) {
+  const t = normalizar(kw);
+  if (!t) return false;
+  return contiene(t, MARCAS) || contiene(t, LICENCIAS);
 }
 
 // Modelos de autos y motos. En el rubro de vehiculos, "polo" o "gol" a secas
@@ -280,7 +331,9 @@ const ES_MEXICO =
     'Argentina. Los terminos de Mexico ya estan en español: NO los traduzcas, solo cambiá ' +
     'las palabras que en Argentina se dicen distinto: "chamarra" -> "campera", "playera" -> ' +
     '"remera", "pantalla" -> "televisor" (cuando es un televisor), "carriola" -> "cochecito", ' +
-    '"alberca" -> "pileta", "pluma" -> "lapicera", "lentes" -> "anteojos", "audifonos" -> ' +
+    '"alberca" -> "pileta", "pluma" -> "lapicera" solo cuando es para escribir (en ' +
+    'manualidades o decoracion queda "pluma": "plumas doradas" en papeleria y merceria son ' +
+    'plumas), "unicel" -> "telgopor", "lentes" -> "anteojos", "audifonos" -> ' +
     '"auriculares", "refri" -> "heladera". Si en Argentina se dice igual ("celular", "licuadora"), ' +
     'devolvé el mismo termino. Sin palabras que sobren. Si la palabra sola no alcanza para ' +
     'buscarlo, agregale la que lo hace buscable ("h7" en accesorios para vehiculos -> "lámpara ' +
@@ -456,8 +509,9 @@ export function normalizarEs(es) {
 }
 
 // Generico y fuera de rubro se guardan en "motivo" para no tocar el esquema.
-function motivoDe(v) {
-  return [v.generico ? 'generico' : null, v.fueraRubro ? 'fuera_rubro' : null].filter(Boolean).join(',') || null;
+function motivoDe(v, t) {
+  return [v.generico ? 'generico' : null, v.fueraRubro ? 'fuera_rubro' : null, ...revisionesPara(t)]
+    .filter(Boolean).join(',') || null;
 }
 
 function desdeModelo(v) {
@@ -473,6 +527,17 @@ function desdeModelo(v) {
 // se trata como si no estuviera en cache: se vuelve a preguntar (con el prompt
 // ya corregido) y se pisa, sin subir de version. "crianca" salia "criatura".
 const SALIDAS_INVALIDAS = [/\bcriatura\b/i];
+
+// Terminos que se vuelven a preguntar UNA vez despues de corregir el prompt,
+// sin subir de version. La fila nueva se guarda con la marca en "motivo" y a
+// partir de ahi sale del cache como cualquier otra. Sin la marca, una
+// respuesta que el modelo repita igual se volveria a preguntar en cada barrido.
+const REVISIONES = [
+  { original: /\b(plumas?|unicel)\b/i, marca: 'rev-mx1' }   // pluma != lapicera, unicel = telgopor
+];
+function revisionesPara(t) {
+  return REVISIONES.filter(r => r.original.test(String(t || ''))).map(r => r.marca);
+}
 
 // Recibe [{t, rubro, cat}]. Devuelve un mapa por claveClasificacion(cat, t):
 // el mismo termino en dos rubros son dos clasificaciones distintas.
@@ -493,6 +558,7 @@ export async function clasificarKeywords(entrada, opts) {
     const g = enCache[k];
     if (!g) continue;
     if (SALIDAS_INVALIDAS.some(re => re.test(String(g.es || '')))) continue;
+    if (revisionesPara(porClave[k].t).some(m => !String(g.motivo || '').includes(m))) continue;
     const motivo = String(g.motivo || '');
     guardadas[k] = { es: g.es, imp: g.imp, generico: motivo.includes('generico'), fueraRubro: motivo.includes('fuera_rubro') };
   }
@@ -522,7 +588,7 @@ export async function clasificarKeywords(entrada, opts) {
   }
   const paraGuardar = {};
   Object.keys(nuevas).forEach(k => {
-    paraGuardar[k] = Object.assign({}, nuevas[k], { motivo: motivoDe(nuevas[k]) });
+    paraGuardar[k] = Object.assign({}, nuevas[k], { motivo: motivoDe(nuevas[k], porClave[k].t) });
   });
   await guardarClasificaciones(paraGuardar);
 
@@ -559,7 +625,7 @@ export async function reclasificarTermino(término, cat, token) {
   const v = respuesta && respuesta['0'];
   if (!v || typeof v !== 'object') return { error: 'el modelo no devolvio la clasificacion' };
   const nueva = desdeModelo(v);
-  await guardarClasificaciones({ [clave]: Object.assign({}, nueva, { motivo: motivoDe(nueva) }) });
+  await guardarClasificaciones({ [clave]: Object.assign({}, nueva, { motivo: motivoDe(nueva, t) }) });
 
   return {
     clave, rubro,
@@ -828,6 +894,9 @@ export async function descubrir(token, opts) {
   // nombre quedo de cuando solo existia Brasil.
   let pares = emparejarCategorias(catsAR, catsExt);
   const disponibles = pares.length;
+  // Todos los rubros que se pueden consultar desde este pais, no solo los que
+  // entran en el barrido: el selector de la pagina sale de aca.
+  const rubrosConPareja = pares.filter(p => p.br).map(p => ({ id: p.ar.id, ar: p.ar.name, origen: p.br.name }));
   // Rubros que quedan sin pareja, de los dos lados. Los argentinos se analizan
   // solo con Argentina; los del otro pais no se miran.
   const sinParejaAR = pares.filter(p => !p.br).map(p => p.ar.id + ' ' + p.ar.name);
@@ -873,6 +942,7 @@ export async function descubrir(token, opts) {
   const importable = (e) => !!de(e) && de(e).imp !== false && !generico(e) && !vehiculo(e) && !marca(e);
   const sinClasificar = entradas.filter(e => !de(e)).length;
   const marcasFiltradas = entradas.filter(marca).length;
+  const licenciasFiltradas = entradas.filter(e => !!de(e) && esLicencia(de(e).es || e.t)).length;
 
   const candidatos = [];
   const dosMercados = 'Crece en ' + cfg.pais + ' y en Argentina a la vez: demanda confirmada en los dos mercados.';
@@ -953,10 +1023,13 @@ export async function descubrir(token, opts) {
     rubros: porRubro.map(r => ({ ar: r.par.ar.name, [cfg.cod.toLowerCase()]: r.par.br ? r.par.br.name : null, parecido: r.par.parecido, via: r.par.via })),
     sinParejaAR,
     sinParejaOrigen,
+    rubrosConPareja,
     // Cuantos rubros se miraron de verdad, contra los que hay. Si el
     // presupuesto de tiempo corto el barrido, se ve en estos numeros.
     sin_clasificar: sinClasificar,
+    // Incluye las licencias; licencias_filtradas dice cuantas de esas son.
     marcas_filtradas: marcasFiltradas,
+    licencias_filtradas: licenciasFiltradas,
     rubros_barridos: barridos,
     rubros_pedidos: pedidos,
     rubros_disponibles: disponibles,
