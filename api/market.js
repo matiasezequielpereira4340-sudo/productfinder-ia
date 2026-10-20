@@ -71,6 +71,24 @@ export default async function handler(req, res) {
       });
     }
 
+    // ?reclasificar=<termino>&cat=<id> -> vuelve a clasificar UN termino del
+    // Radar y pisa su fila en keywords_clasificadas. Es para corregir una
+    // traduccion mala sin subir de version y retraducir todo. Solo admin: gasta
+    // una llamada a Claude y cambia lo que ven todos.
+    if (req.query && typeof req.query.reclasificar === 'string') {
+      if (!admitido(req)) return res.status(401).json({ error: 'No autorizado' });
+      const tok = await getMeliAccessToken();
+      if (!tok) return res.status(200).json({ ok: false, error: 'No pude autenticarme contra MercadoLibre.' });
+      const radar = await import('./_radar.js');
+      try {
+        const r = await radar.reclasificarTermino(req.query.reclasificar, req.query.cat, tok);
+        if (r.error) return res.status(200).json({ ok: false, error: r.error });
+        return res.status(200).json({ ok: true, ...r });
+      } catch (e) {
+        return res.status(200).json({ ok: false, error: String((e && e.message) || e).slice(0, 200) });
+      }
+    }
+
     // ?gasto=1 -> en que se fue la plata del proveedor pago, por termino.
     // Existe para poder contestar "cuanto gaste hoy y en que" sin entrar a
     // Apify ni a Supabase. Protegido con ADMIN_KEY: expone los terminos que
@@ -446,6 +464,7 @@ export default async function handler(req, res) {
           // Antes: 6 por defecto, tope 12. Con las clasificaciones cacheadas
           // el barrido grande dejo de ser caro, asi que se abre.
           maxCategorias: Math.min(parseInt(req.query.rubros, 10) || 20, 40),
+          detalle: req.query.detalle === '1',
           // Margen para que la funcion no muera a los 60s de Vercel.
           presupuestoMs: 25000
         });
@@ -464,6 +483,12 @@ export default async function handler(req, res) {
           clasificados: r.clasificados,
           descartados_no_importables: r.descartadosNoImportables,
           ejemplo_descartado: r.ejemploDescartado,
+          descartados_genericos: r.descartadosGenericos,
+          ejemplo_generico: r.ejemploGenerico,
+          descartados_vehiculos: r.descartadosVehiculos,
+          fuera_rubro: r.fueraRubro,
+          tendencias_vistas: r.tendenciasVistas,
+          clasificaciones: r.clasificaciones,
           // Si la clasificacion fallo se dice, en vez de devolver una lista sin
           // traducir y sin filtrar como si estuviera todo bien.
           error_clasificacion: r.errorClasificacion || undefined,
@@ -519,7 +544,9 @@ export default async function handler(req, res) {
       const catsBR = await fetchJson(MELI_API + '/sites/MLB/categories', tok, 6000);
       salida.categorias_MLB = {
         status: catsBR.status,
-        cantidad: Array.isArray(catsBR.json) ? catsBR.json.length : 0
+        cantidad: Array.isArray(catsBR.json) ? catsBR.json.length : 0,
+        // Los nombres completos sirven para revisar el emparejamiento de rubros.
+        nombres: (Array.isArray(catsBR.json) ? catsBR.json : []).map(c => c.id + ' ' + c.name)
       };
       if (Array.isArray(catsBR.json) && catsBR.json[0]) rutas.push('/trends/MLB/' + catsBR.json[0].id);
 

@@ -117,7 +117,11 @@ const PARES_CONOCIDOS = [
   ['joyas', 'joias'],
   ['relojes', 'relogios'],
   ['inmuebles', 'imoveis'],
-  ['servicios', 'servicos']
+  ['servicios', 'servicos'],
+  // "Arte, Librería y Mercería" contra "Arte, Papelaria e Armarinho": la unica
+  // palabra en comun es "arte", que tiene 4 letras y no cuenta como fuerte.
+  ['libreria', 'papelaria'],
+  ['merceria', 'armarinho']
 ];
 
 function parPorDiccionario(nombreAR, catsB) {
@@ -194,23 +198,124 @@ export function esMarca(kw) {
   return false;
 }
 
-async function clasificarLote(terminos) {
+// Modelos de autos y motos. En el rubro de vehiculos, "polo" o "gol" a secas
+// es el auto entero, no un producto: el modelo lo tradujo como "remera polo".
+// Solo se aplica dentro de los rubros de vehiculos, porque en ropa "polo" si es
+// un producto. Y solo cuando el termino es el modelo pelado (con año o version
+// como mucho): "retrovisor gol" es un repuesto y tiene que seguir pasando.
+const VEHICULOS = [
+  'polo', 'gol', 'onix', 'hb20', 'hb20s', 'focus', 'fiesta', 'ka', 'ecosport',
+  'corsa', 'celta', 'prisma', 'cruze', 'tracker', 's10', 'spin', 'cobalt',
+  'palio', 'uno', 'mobi', 'argo', 'cronos', 'strada', 'toro', 'siena', 'fiorino',
+  'fox', 'up', 'voyage', 'saveiro', 'virtus', 'nivus', 't cross', 'taos', 'amarok', 'vento',
+  'golf', 'jetta', 'gol trend', 'suran', 'hilux', 'corolla', 'etios', 'yaris', 'sw4',
+  'ranger', 'civic', 'fit', 'city', 'hr v', 'creta', 'kicks', 'versa', 'march',
+  'frontier', 'sandero', 'logan', 'duster', 'kwid', 'stepway', 'clio', 'kangoo',
+  'compass', 'renegade', 'commander', '208', '2008', '308', '3008', 'c3', 'c4',
+  'biz', 'cg 160', 'cg 150', 'fan 160', 'titan', 'bros', 'pop 110', 'pcx', 'xre',
+  'xre 300', 'cb 300', 'cb 500', 'twister', 'tornado', 'fazer', 'factor', 'lander',
+  'nmax', 'xtz', 'crosser', 'ybr', 'wave', 'g310'
+];
+const VERSION_VEHICULO = /^(\d{1,4}|g\d|plus|sedan|hatch|gt|gti|gts|tsi|flex|turbo|usado|usada|0km|cross|highline|trendline|comfortline|ltz|lt|premier)$/;
+
+// Marca de auto seguida de un modelo ("gwm h7", "ford f350", "chevrolet c10")
+// tambien es el vehiculo. El modelo convirtio "gwm h7" en "faro H7".
+const MARCAS_VEHICULO = [
+  'vw', 'volkswagen', 'ford', 'chevrolet', 'fiat', 'toyota', 'renault', 'peugeot',
+  'citroen', 'nissan', 'honda', 'hyundai', 'kia', 'jeep', 'gwm', 'haval', 'byd',
+  'chery', 'caoa chery', 'jac', 'bmw', 'mercedes', 'mercedes benz', 'audi', 'volvo',
+  'mitsubishi', 'suzuki', 'yamaha', 'kawasaki', 'ram', 'iveco', 'ika', 'lotus'
+];
+// Si el termino nombra una pieza, es un repuesto y no el vehiculo.
+const PIEZA = /\b(farol|faro|lampada|lampara|retrovisor|parachoque|para choque|capa|funda|tapete|alfombra|kit|filtro|pastilha|pastilla|bateria|pneu|neumatico|radio|central|modulo)\b/;
+
+function esRubroVehiculos(rubro) {
+  return /\b(carros|autos|motos|veiculos|vehiculos)\b/.test(normalizar(rubro));
+}
+
+export function esModeloVehiculo(kw, rubro) {
+  if (!esRubroVehiculos(rubro)) return false;
+  const t = normalizar(kw);
+  if (!t) return false;
+  if (PIEZA.test(t)) return false;
+  // Marca + hasta 3 palabras: es el auto ("ford f350", "honda wr v vermelho").
+  for (const mv of MARCAS_VEHICULO) {
+    const mm = normalizar(mv);
+    if (t === mm) return true;
+    if (t.startsWith(mm + ' ') && t.slice(mm.length + 1).split(' ').filter(Boolean).length <= 3) return true;
+  }
+  for (const m of VEHICULOS) {
+    const mm = normalizar(m);
+    if (t === mm) return true;
+    if (t.startsWith(mm + ' ')) {
+      const resto = t.slice(mm.length + 1).split(' ').filter(Boolean);
+      if (resto.length && resto.every(w => VERSION_VEHICULO.test(w))) return true;
+    }
+  }
+  return false;
+}
+
+// Genericos conocidos, filtrados en codigo por el mismo motivo que las marcas:
+// el prompt los da como ejemplo y aun asi el modelo convirtio "halloween" en
+// "disfraz halloween" y lo dejo pasar. Se compara el termino original entero.
+const GENERICOS = [
+  'pa', 'pá', 'spray', 'retrovisor', 'fundas', 'bebe', 'bebes', 'cosas de bebe',
+  'cosas para bebe', 'cosas para bebes', 'halloween', 'expositor', 'embalagem', 'ofertas'
+].map(normalizar);
+
+export function esGenericoConocido(kw) {
+  return GENERICOS.includes(normalizar(kw));
+}
+
+// Cada termino viaja con su rubro. Sin contexto, "pa" en Accesorios para
+// Vehiculos salio "pala" y "polo" en Autos salio "remera polo". La respuesta
+// va por "id" y no por termino: el mismo termino puede venir de dos rubros en
+// el mismo lote ("bomba de agua" en Agro de los dos paises) y con el termino
+// como clave una respuesta pisaria a la otra.
+async function clasificarLote(items) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY no configurada');
   const prompt =
     'Sos analista de importaciones China->Argentina. Te paso terminos de busqueda ' +
-    'de MercadoLibre (algunos en portugues de Brasil, otros en español).\n' +
+    'de MercadoLibre (algunos en portugues de Brasil, otros en español), cada uno con ' +
+    'el rubro de MercadoLibre donde aparecio: [{"id": 0, "t": "termino", "rubro": "rubro"}].\n' +
+    'Usá el rubro para desambiguar: "polo" en un rubro de autos es el VW Polo, no una remera; ' +
+    '"pa" en accesorios para vehiculos es una abreviatura, no una pala.\n' +
     'Para cada uno devolve:\n' +
-    '- "es": el termino en español rioplatense, con el nombre con el que se lo busca ' +
-    'en Argentina (no la traduccion literal). Si ya está en español, repetilo igual.\n' +
+    '- "es": el nombre de PRODUCTO con el que un argentino lo buscaria en MercadoLibre ' +
+    'Argentina, en español rioplatense. Nunca lo dejes en portugues ni lo traduzcas palabra ' +
+    'por palabra: "pipoqueira" -> "maquina de pochoclos", "caixa transporte gato" -> ' +
+    '"transportadora para gatos", "coleira peitoral" -> "pretal para perro", "tapete ' +
+    'emborrachado infantil" -> "alfombra de goma eva infantil", "misturador de racao" -> ' +
+    '"mezcladora de alimento balanceado", "brinquedo 1 ano menino" -> "juguete para nene de ' +
+    '1 año" (sin palabras que sobren). "crianca"/"criança" es nene o chico, nunca "criatura". Si la palabra sola no alcanza para buscarlo, ' +
+    'agregale la que lo hace buscable: "wallbox" -> "cargador wallbox", "h7" en accesorios ' +
+    'para vehiculos -> "lámpara H7". Nunca agregues un ' +
+    'producto que el termino no nombra: "gwm h7" es una camioneta, no un faro. Si ya está ' +
+    'en español y ya es un producto concreto, repetilo igual. En minuscula, salvo siglas y ' +
+    'codigos (H4, H7, USB, LED).\n' +
+    '- "generico": true SOLO si el termino no identifica un producto concreto: una palabra ' +
+    'suelta o una categoria entera (pa, spray, retrovisor, fundas, bebes, cosas de bebé, ' +
+    'halloween, embalagem, expositor, accesorios para auto). Un nombre de producto de 2 o mas ' +
+    'palabras que se puede vender tal cual NO es generico: "aromatizador de ambiente" y ' +
+    '"kit vinho" (kit de vino / accesorios de vino) son productos y quedan con generico false, ' +
+    'igual que "compresor de aire portatil", "bebedero para gatos" o "lampara H4". Un producto ' +
+    'que se importa tal cual tampoco es generico aunque sea una sola palabra: "guantes" es un ' +
+    'producto (generico false); si aparecio en un rubro que no le corresponde, marcalo con ' +
+    'fuera_rubro.\n' +
     '- "imp": true si es un producto fisico que un importador chico podria traer de ' +
     'China y revender; false si es un alimento fresco o commodity (leche, carne, cafe), ' +
     'una MARCA o un modelo de una marca (apple, iphone, dji, osmo, insta360, gopro, ' +
     'xiaomi, royal canin, nutrique, militec, tramontina) o mercaderia de un artista ' +
-    '(photocard stray kids), un servicio, un vehiculo completo, ' +
-    'un inmueble, o algo demasiado pesado o voluminoso para importar en poco volumen.\n' +
-    'Responde SOLO un JSON {"termino original": {"es": "...", "imp": true}} sin markdown.\n' +
-    JSON.stringify(terminos);
+    '(photocard stray kids), un servicio, un vehiculo completo o un MODELO de auto o moto ' +
+    '(polo, gol, onix, hb20, focus, cg 160), un inmueble, o algo demasiado pesado o ' +
+    'voluminoso para importar en poco volumen. Que sea generico no cambia "imp": se marca aparte.\n' +
+    '- "fuera_rubro": true si el termino no tiene relacion con el rubro donde aparecio ' +
+    '(halloween en Alimentos y Bebidas, guantes en Antigüedades y Colecciones); false si ' +
+    'pertenece a ese rubro.\n' +
+    'Responde SOLO un JSON {"<id>": {"es": "...", "imp": true, "generico": false, "fuera_rubro": false}} ' +
+    'con una entrada por cada id, sin markdown.\n' +
+    JSON.stringify(items);
 
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 25000);
@@ -221,6 +326,10 @@ async function clasificarLote(terminos) {
       headers: anthropicHeaders(),
       body: JSON.stringify({
         model: 'claude-haiku-4-5',
+        // Sin azar: la respuesta se guarda en cache, y una que salio mal por
+        // casualidad quedaria fija. Con temperature 0 el mismo termino da
+        // siempre lo mismo.
+        temperature: 0,
         // 25 terminos con dos campos cada uno entran holgados. La version
         // anterior se quedaba corta y la respuesta llegaba cortada al medio.
         max_tokens: 4000,
@@ -251,21 +360,27 @@ async function clasificarLote(terminos) {
 // entero cada vez: "farol de milha" se traduce igual hoy que la semana que
 // viene. Guardadas, un segundo barrido de los mismos rubros no le pregunta
 // nada a Claude, y eso es lo que permite mirar muchas más categorías.
+// Se lee en tandas de 100: antes se cortaba en 400 claves, y con un barrido de
+// 32 rubros (y claves mas largas, con la categoria adentro) lo que quedaba
+// afuera se le volvia a preguntar a Claude en cada busqueda.
 async function clasificacionesGuardadas(keywords) {
   try {
     const { url, key, ok } = supa();
     if (!ok || !keywords.length) return {};
-    const enLista = keywords.slice(0, 400)
-      .map(k => '"' + String(k).replace(/"/g, '') + '"').join(',');
-    const r = await fetch(url + '/rest/v1/keywords_clasificadas?keyword=in.(' +
-      encodeURIComponent(enLista) + ')&select=keyword,es,importable,motivo',
-      { headers: { apikey: key, Authorization: 'Bearer ' + key } });
-    if (!r.ok) return {};
-    const filas = await r.json();
+    const tandas = [];
+    for (let i = 0; i < keywords.length; i += 100) tandas.push(keywords.slice(i, i + 100));
     const mapa = {};
-    for (const f of (Array.isArray(filas) ? filas : [])) {
-      mapa[f.keyword] = { es: f.es, imp: f.importable, motivo: f.motivo };
-    }
+    await Promise.all(tandas.map(async (tanda) => {
+      const enLista = tanda.map(k => '"' + String(k).replace(/"/g, '') + '"').join(',');
+      const r = await fetch(url + '/rest/v1/keywords_clasificadas?keyword=in.(' +
+        encodeURIComponent(enLista) + ')&select=keyword,es,importable,motivo',
+        { headers: { apikey: key, Authorization: 'Bearer ' + key } });
+      if (!r.ok) return;
+      const filas = await r.json();
+      for (const f of (Array.isArray(filas) ? filas : [])) {
+        mapa[f.keyword] = { es: f.es, imp: f.importable, motivo: f.motivo };
+      }
+    }));
     return mapa;
   } catch (_) { return {}; }
 }
@@ -291,29 +406,103 @@ async function guardarClasificaciones(mapa) {
   } catch (_) { /* el cache no puede romper el barrido */ }
 }
 
-export async function clasificarKeywords(keywords) {
-  const limpios = [...new Set((keywords || []).filter(Boolean))];
-  if (!limpios.length) return { mapa: {}, error: null };
+// Version de la clasificacion del Radar. v1 se hizo sin rubro y quedo mal
+// ("pa" -> "pala"); v2 tenia rubro pero la clave era solo el termino, asi que
+// "polo" en Ropa y en Autos compartian clasificacion. v3 lleva la categoria en
+// la clave. v4 es el mismo formato que v3: el prompt de v3 dejaba terminos en
+// portugues ("pipoqueira") e inventaba productos ("gwm h7" -> "faro H7"). v5
+// es el primero con temperature 0: lo de v4 salio con azar y no se reusa. Lo
+// anterior queda en la tabla y se ignora. Para corregir un termino suelto sin
+// subir de version esta reclasificarTermino() (?reclasificar= en market.js). Si cambia el prompt de
+// nuevo, subir el numero.
+const VERSION_CLASIF = 'v5|';
+export function claveClasificacion(cat, término) {
+  return VERSION_CLASIF + String(cat || '') + '|' + String(término || '');
+}
 
-  const guardadas = await clasificacionesGuardadas(limpios);
-  const faltan = limpios.filter(k => !guardadas[k]);
-  if (!faltan.length) return { mapa: guardadas, error: null, desdeCache: limpios.length, preguntadas: 0 };
+// "Juguete Para Niño 1 Año" y "juguete para niño 1 año" son el mismo termino
+// y se tienen que ver igual. Se pasa a minuscula salvo siglas y codigos: lo que
+// el modelo ya escribio en mayuscula (USB, LED, GPS) y lo que mezcla letras con
+// numeros (h4 -> H4, 12v -> 12V).
+export function normalizarEs(es) {
+  if (es == null) return es;
+  return String(es).trim().split(/\s+/).map(w => {
+    const letras = w.replace(/[^A-Za-zÀ-ÿ]/g, '');
+    if (/[0-9]/.test(w) && letras) return w.toUpperCase();
+    if (letras.length >= 2 && letras.length <= 5 && letras === letras.toUpperCase() && letras !== letras.toLowerCase()) return w;
+    return w.toLowerCase();
+  }).join(' ');
+}
+
+// Generico y fuera de rubro se guardan en "motivo" para no tocar el esquema.
+function motivoDe(v) {
+  return [v.generico ? 'generico' : null, v.fueraRubro ? 'fuera_rubro' : null].filter(Boolean).join(',') || null;
+}
+
+function desdeModelo(v) {
+  return {
+    es: normalizarEs(v.es),
+    imp: v.imp !== false,
+    generico: v.generico === true,
+    fueraRubro: v.fuera_rubro === true
+  };
+}
+
+// Traducciones guardadas que se sabe que estan mal. Una fila cuyo "es" matchea
+// se trata como si no estuviera en cache: se vuelve a preguntar (con el prompt
+// ya corregido) y se pisa, sin subir de version. "crianca" salia "criatura".
+const SALIDAS_INVALIDAS = [/\bcriatura\b/i];
+
+// Recibe [{t, rubro, cat}]. Devuelve un mapa por claveClasificacion(cat, t):
+// el mismo termino en dos rubros son dos clasificaciones distintas.
+export async function clasificarKeywords(entrada) {
+  const porClave = {};
+  for (const x of (entrada || [])) {
+    if (!x || !x.t) continue;
+    const k = claveClasificacion(x.cat, x.t);
+    if (!porClave[k]) porClave[k] = { t: x.t, rubro: x.rubro || '' };
+  }
+  const claves = Object.keys(porClave);
+  if (!claves.length) return { mapa: {}, error: null };
+
+  const enCache = await clasificacionesGuardadas(claves);
+  const guardadas = {};
+  for (const k of claves) {
+    const g = enCache[k];
+    if (!g) continue;
+    if (SALIDAS_INVALIDAS.some(re => re.test(String(g.es || '')))) continue;
+    const motivo = String(g.motivo || '');
+    guardadas[k] = { es: g.es, imp: g.imp, generico: motivo.includes('generico'), fueraRubro: motivo.includes('fuera_rubro') };
+  }
+  const faltan = claves.filter(k => !guardadas[k]);
+  if (!faltan.length) return { mapa: guardadas, error: null, desdeCache: claves.length, preguntadas: 0 };
 
   const lotes = [];
   for (let i = 0; i < faltan.length; i += LOTE) lotes.push(faltan.slice(i, i + LOTE));
 
   const resultados = await Promise.all(lotes.map(async (lote) => {
-    try { return { ok: true, mapa: await clasificarLote(lote) }; }
+    const items = lote.map((k, id) => ({ id, t: porClave[k].t, rubro: porClave[k].rubro }));
+    try { return { ok: true, lote, mapa: await clasificarLote(items) }; }
     catch (e) { return { ok: false, error: String((e && e.message) || e).slice(0, 120) }; }
   }));
 
   const nuevas = {};
   const errores = [];
   for (const r of resultados) {
-    if (r.ok) Object.assign(nuevas, r.mapa);
-    else errores.push(r.error);
+    if (!r.ok) { errores.push(r.error); continue; }
+    // Solo se aceptan ids que se preguntaron: si el modelo inventa uno, no
+    // tiene que entrar al cache.
+    r.lote.forEach((k, id) => {
+      const v = r.mapa && r.mapa[String(id)];
+      if (!v || typeof v !== 'object') return;
+      nuevas[k] = desdeModelo(v);
+    });
   }
-  await guardarClasificaciones(nuevas);
+  const paraGuardar = {};
+  Object.keys(nuevas).forEach(k => {
+    paraGuardar[k] = Object.assign({}, nuevas[k], { motivo: motivoDe(nuevas[k]) });
+  });
+  await guardarClasificaciones(paraGuardar);
 
   // El error se devuelve para que se vea en la respuesta del endpoint, en vez
   // de quedar como un "traducidos: 0" sin explicacion.
@@ -322,6 +511,37 @@ export async function clasificarKeywords(keywords) {
     error: errores.length ? errores[0] + (errores.length > 1 ? ' (x' + errores.length + ')' : '') : null,
     desdeCache: Object.keys(guardadas).length,
     preguntadas: faltan.length
+  };
+}
+
+// Corrige UN termino sin subir de version: lo vuelve a preguntar y pisa su
+// fila en el cache. Para cuando una traduccion puntual salio mal y no vale la
+// pena retraducir todo. El rubro sale de la categoria, igual que en el barrido.
+export async function reclasificarTermino(término, cat, token) {
+  const t = String(término || '').trim().slice(0, 140);
+  const id = String(cat || '').trim();
+  if (!t) return { error: 'falta el termino' };
+  if (!/^ML[AB]\d{3,}$/.test(id)) return { error: 'categoria invalida: va el id, ej. MLB1743 o MLA1368' };
+
+  const r = await fetchJson(MELI_API + '/categories/' + id, token, 5000);
+  if (!r || !r.ok || !r.json || !r.json.name) return { error: 'MercadoLibre no devolvio la categoria ' + id };
+  // Las tendencias son por categoria de primer nivel: el rubro es la raiz.
+  const camino = Array.isArray(r.json.path_from_root) ? r.json.path_from_root : [];
+  const rubro = camino.length ? camino[0].name : r.json.name;
+
+  const clave = claveClasificacion(id, t);
+  const previa = (await clasificacionesGuardadas([clave]))[clave] || null;
+  const respuesta = await clasificarLote([{ id: 0, t, rubro }]);
+  const v = respuesta && respuesta['0'];
+  if (!v || typeof v !== 'object') return { error: 'el modelo no devolvio la clasificacion' };
+  const nueva = desdeModelo(v);
+  await guardarClasificaciones({ [clave]: Object.assign({}, nueva, { motivo: motivoDe(nueva) }) });
+
+  return {
+    clave, rubro,
+    antes: previa ? { es: previa.es, imp: previa.imp, motivo: previa.motivo } : null,
+    ahora: Object.assign({}, nueva, { descartado_en_codigo: esGenericoConocido(t) ? 'generico' :
+      (esModeloVehiculo(t, rubro) ? 'vehiculo' : (esMarca(nueva.es || t) ? 'marca' : null)) })
   };
 }
 
@@ -359,7 +579,7 @@ export async function nombrarProductos(títulos) {
       try {
         const r = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST', signal: ctrl.signal, headers: anthropicHeaders(),
-          body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 2000,
+          body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 2000, temperature: 0,
             messages: [{ role: 'user', content: prompt }] })
         });
         const texto = await r.text();
@@ -439,7 +659,7 @@ export async function traducirTerminos(términos, idioma) {
       try {
         const r = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST', signal: ctrl.signal, headers: anthropicHeaders(),
-          body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1200,
+          body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1200, temperature: 0,
             messages: [{ role: 'user', content: prompt }] })
         });
         const texto = await r.text();
@@ -497,7 +717,7 @@ export async function terminosProgresivos(término) {
     try {
       const r = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST', signal: ctrl.signal, headers: anthropicHeaders(),
-        body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 400,
+        body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 400, temperature: 0,
           messages: [{ role: 'user', content: prompt }] })
       });
       const texto = await r.text();
@@ -580,49 +800,64 @@ export async function descubrir(token, opts) {
 
   // Una sola clasificacion para todos los rubros: traduce los brasileños y
   // marca cuales sirven para importar, de los dos paises.
-  const aClasificar = [];
+  // Cada keyword viaja con el rubro donde aparecio (el brasileño para las de
+  // Brasil, el argentino para las de aca) y se clasifica por categoria: "polo"
+  // en Carros es un auto y en Ropa una remera, y no comparten resultado.
+  const entradas = [];
   porRubro.forEach(r => {
-    aClasificar.push(...r.br.crecimiento);
-    aClasificar.push(...r.ar.crecimiento);
+    const rubroBR = r.par.br ? r.par.br.name : r.par.ar.name;
+    const catBR = r.par.br ? r.par.br.id : r.par.ar.id;
+    r.br.crecimiento.forEach(t => entradas.push({ t, rubro: rubroBR, cat: catBR }));
+    r.ar.crecimiento.forEach(t => entradas.push({ t, rubro: r.par.ar.name, cat: r.par.ar.id }));
   });
-  const clasif = await clasificarKeywords(aClasificar);
+  entradas.forEach(e => { e.k = claveClasificacion(e.cat, e.t); });
+  const clasif = await clasificarKeywords(entradas);
   const info = clasif.mapa;
-  const traducciones = {};
-  Object.keys(info).forEach(k => { if (info[k] && info[k].es) traducciones[k] = info[k].es; });
+  const de = (e) => info[e.k];
 
-  // Si no viene clasificado, no se descarta: no saber no es lo mismo que saber
-  // que no sirve.
   // Antes, una keyword sin clasificar contaba como importable. Cuando Anthropic
   // devolvia 503 en un lote, esas pasaban sin traducir y aparecian en portugues
   // como si estuvieran vetadas. No saber no es lo mismo que estar bien: se
   // descartan y se informa cuantas, para que el hueco se vea.
-  const importable = (kw) => !!info[kw] && info[kw].imp !== false && !esMarca(info[kw].es || kw);
-  const sinClasificar = aClasificar.filter(k => !info[k]).length;
-  const marcasFiltradas = aClasificar.filter(k => info[k] && esMarca(info[k].es || k)).length;
+  // Un termino generico ("spray", "expositor") no identifica un producto: se
+  // descarta y se cuenta junto con los no importables. Los modelos de auto se
+  // filtran en codigo, como las marcas, porque el modelo no siempre los ve.
+  // Fuera de rubro NO descarta: por ahora solo se marca en la tarjeta.
+  const generico = (e) => !!de(e) && (de(e).generico === true || esGenericoConocido(e.t));
+  const vehiculo = (e) => esModeloVehiculo(e.t, e.rubro);
+  const marca = (e) => !!de(e) && esMarca(de(e).es || e.t);
+  const importable = (e) => !!de(e) && de(e).imp !== false && !generico(e) && !vehiculo(e) && !marca(e);
+  const sinClasificar = entradas.filter(e => !de(e)).length;
+  const marcasFiltradas = entradas.filter(marca).length;
 
   const candidatos = [];
   for (const { par, ar, br } of porRubro) {
     const listasAR = ar.todas;
+    const catBR = par.br ? par.br.id : par.ar.id;
+    const rubroBR = par.br ? par.br.name : par.ar.name;
 
     // Lo que crece en Argentina: demanda local ya despertando.
     ar.crecimiento.forEach((kw, i) => {
-      if (!importable(kw)) return;
+      const e = { t: kw, rubro: par.ar.name, k: claveClasificacion(par.ar.id, kw) };
+      if (!importable(e)) return;
       candidatos.push({
-        keyword: info[kw] && info[kw].es ? info[kw].es : kw,
+        keyword: de(e).es || kw,
         origen: 'AR',
         categoria: par.ar.id,
         categoriaNombre: par.ar.name,
         posicionAR: i + 1,
         posicionBR: null,
         traducidoDe: null,
+        fueraRubro: de(e).fueraRubro === true,
         senal: 'Está creciendo en las búsquedas de MercadoLibre Argentina esta semana.'
       });
     });
 
     // Lo que crece en Brasil. Lo valioso es lo que todavia no aparece aca.
     br.crecimiento.forEach((kw, i) => {
-      if (!importable(kw)) return;
-      const es = traducciones[kw] || null;
+      const e = { t: kw, rubro: rubroBR, k: claveClasificacion(catBR, kw) };
+      if (!importable(e)) return;
+      const es = de(e).es || null;
       const llego = es ? yaEstaEnArgentina(es, listasAR) : null;
       const tambienAR = es ? ar.crecimiento.findIndex(k => normalizar(k) === normalizar(es)) : -1;
       candidatos.push({
@@ -633,6 +868,7 @@ export async function descubrir(token, opts) {
         posicionAR: tambienAR >= 0 ? tambienAR + 1 : null,
         posicionBR: i + 1,
         traducidoDe: es ? kw : null,
+        fueraRubro: de(e).fueraRubro === true,
         senal: llego === false
           ? 'Crece en Brasil y no aparece en las búsquedas argentinas: todavía no llegó.'
           : (tambienAR >= 0
@@ -652,6 +888,9 @@ export async function descubrir(token, opts) {
       ...previo,
       posicionAR: previo.posicionAR || c.posicionAR,
       posicionBR: previo.posicionBR || c.posicionBR,
+      traducidoDe: previo.traducidoDe || c.traducidoDe,
+      // Si en alguno de los dos lados pertenece al rubro, no se marca.
+      fueraRubro: previo.fueraRubro && c.fueraRubro,
       origen: (previo.posicionAR || c.posicionAR) && (previo.posicionBR || c.posicionBR) ? 'ambos' : previo.origen,
       senal: (previo.posicionAR || c.posicionAR) && (previo.posicionBR || c.posicionBR)
         ? 'Crece en Brasil y en Argentina a la vez: demanda confirmada en los dos mercados.'
@@ -661,10 +900,12 @@ export async function descubrir(token, opts) {
 
   const lista = [...porClave.values()].map(c => ({ ...c, scoreDemanda: scoreDemanda(c) }));
   lista.sort((a, b) => b.scoreDemanda - a.scoreDemanda);
-  const descartados = aClasificar.filter(k => info[k] && info[k].imp === false);
+  const descartados = entradas.filter(e => de(e) && !importable(e));
+  const genericos = entradas.filter(generico);
+  const vehiculos = entradas.filter(e => de(e) && vehiculo(e));
   return {
     candidatos: lista,
-    rubros: porRubro.map(r => ({ ar: r.par.ar.name, br: r.par.br ? r.par.br.name : null, parecido: r.par.parecido })),
+    rubros: porRubro.map(r => ({ ar: r.par.ar.name, br: r.par.br ? r.par.br.name : null, parecido: r.par.parecido, via: r.par.via })),
     // Cuantos rubros se miraron de verdad, contra los que hay. Si el
     // presupuesto de tiempo corto el barrido, se ve en estos numeros.
     sin_clasificar: sinClasificar,
@@ -672,11 +913,27 @@ export async function descubrir(token, opts) {
     rubros_barridos: barridos,
     rubros_pedidos: pedidos,
     rubros_disponibles: disponibles,
+    // Cuantas busquedas en tendencia devolvio MercadoLibre. Con 0 candidatos,
+    // es lo que distingue "vino vacio" de "vino todo y se descarto".
+    tendenciasVistas: entradas.length,
     clasificacion_desde_cache: clasif.desdeCache || 0,
     clasificacion_preguntadas: clasif.preguntadas || 0,
     clasificados: Object.keys(info).length,
     descartadosNoImportables: descartados.length,
-    ejemploDescartado: descartados.slice(0, 5),
+    ejemploDescartado: descartados.slice(0, 5).map(e => e.t),
+    descartadosGenericos: genericos.length,
+    ejemploGenerico: [...new Set(genericos.map(e => e.t))].slice(0, 8),
+    descartadosVehiculos: vehiculos.length,
+    fueraRubro: lista.filter(c => c.fueraRubro).length,
+    // Solo con ?detalle=1: cada termino, su rubro y como quedo clasificado,
+    // para poder revisar las traducciones sin abrir Supabase.
+    clasificaciones: o.detalle ? entradas.filter((e, i) => entradas.findIndex(x => x.k === e.k) === i).map(e => ({
+      original: e.t, rubro: e.rubro, cat: e.cat,
+      es: de(e) ? de(e).es : null,
+      imp: de(e) ? de(e).imp !== false : null,
+      generico: generico(e), vehiculo: vehiculo(e), marca: marca(e),
+      fuera_rubro: !!de(e) && de(e).fueraRubro === true
+    })) : undefined,
     errorClasificacion: clasif.error
   };
 }

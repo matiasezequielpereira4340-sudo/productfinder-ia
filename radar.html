@@ -58,6 +58,9 @@
   .rd-tag.nuevo{background:var(--mc-ok-wash);color:var(--mc-ok);border:1px solid rgba(52,211,153,.32)}
   .rd-tag.ambos{background:var(--mc-y-wash);color:var(--mc-y);border:1px solid rgba(255,230,0,.32)}
   .rd-tag.ar{background:rgba(255,255,255,.06);color:var(--mc-ink-2);border:1px solid var(--mc-line-2)}
+  /* Marca informativa, no descarta: gris y chica para no competir con el origen. */
+  .rd-tag.fuera{background:transparent;color:var(--mc-ink-4);border:1px solid var(--mc-line-2);
+    font-weight:500;font-size:10.5px;padding:2px 7px}
   .rd-tag.br{background:var(--mc-warn-wash);color:var(--mc-warn);border:1px solid rgba(255,138,61,.32)}
   .rd-list{display:grid;gap:12px;margin-top:6px}
   .rd-card{background:var(--mc-surface);border:1px solid var(--mc-line);border-radius:var(--mc-r-lg);
@@ -70,6 +73,14 @@
   .rd-rubro{font-size:12px;color:var(--mc-ink-4);margin-top:3px;font-weight:400}
   .rd-senal{margin-top:9px;font-size:13.5px;color:var(--mc-ink-2);line-height:1.5}
   .rd-de{font-size:12px;color:var(--mc-ink-4);margin-top:5px;font-style:italic}
+  /* Links gratis para ver el producto. Chicos y grises a proposito: no tienen
+     que competir con los botones que consultan servicios pagos. */
+  .rd-links{display:flex;flex-wrap:wrap;gap:0 16px;margin-top:4px;font-size:13px;line-height:1.5}
+  /* Mismo gris que .rd-senal: el de .rd-de no se leia sobre el fondo oscuro.
+     El padding agranda el area para tocar en el celular. */
+  .rd-links a{color:var(--mc-ink-2);text-decoration:none;white-space:nowrap;padding:6px 0;
+    transition:color .15s var(--mc-ease)}
+  .rd-links a:hover,.rd-links a:focus-visible{color:#FFE600;text-decoration:underline}
   .rd-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:13px}
   .rd-btn{background:transparent;border:1px solid var(--mc-line-2);color:var(--mc-ink-2);
     border-radius:var(--mc-r-sm);padding:8px 14px;font:inherit;font-size:13px;cursor:pointer;
@@ -273,17 +284,36 @@
     return 'var(' + v + ')';
   }
 
+  // Links simples, sin consultar nada: MercadoLibre arma el listado desde la
+  // ruta con guiones ("lista.mercadolivre.com.br/compressor-ar-portatil").
+  function rutaMeli(t){ return encodeURIComponent(String(t).trim().replace(/\s+/g, '-')); }
+  function link(url, texto){
+    return '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + texto + '</a>';
+  }
+  function linksMeli(c){
+    // El termino original en portugues solo existe si vino de Brasil.
+    var original = c.traducidoDe || (c.posicionBR ? c.keyword : null);
+    return '<div class="rd-links">' +
+      (original ? link('https://lista.mercadolivre.com.br/' + rutaMeli(original), 'Ver en MercadoLibre Brasil') : '') +
+      link('https://listado.mercadolibre.com.ar/' + rutaMeli(c.keyword), 'Ver en MercadoLibre Argentina') +
+      link('https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(original || c.keyword), 'Ver fotos') +
+      '</div>';
+  }
+
   function tarjeta(c, i){
     return '<div class="rd-card' + (c.origen === 'BR-nuevo' ? ' destacada' : '') + '" id="c' + i + '">' +
       '<div class="rd-head">' +
         '<div class="rd-kw">' + esc(c.keyword) +
           '<div class="rd-rubro">' + esc(c.categoriaNombre) + '</div></div>' +
-        '<div>' + tag(c.origen) + '</div>' +
+        '<div>' + tag(c.origen) +
+          (c.fueraRubro ? ' <span class="rd-tag fuera" title="El t&eacute;rmino no parece del rubro donde lo puso MercadoLibre">fuera de rubro</span>' : '') +
+        '</div>' +
         '<div class="rd-score" style="color:' + colorScore(c.scoreDemanda) + '">' + c.scoreDemanda +
           '<small>demanda</small></div>' +
       '</div>' +
       '<div class="rd-senal">' + esc(c.senal) + '</div>' +
       (c.traducidoDe ? '<div class="rd-de">En Brasil lo buscan como &ldquo;' + esc(c.traducidoDe) + '&rdquo;</div>' : '') +
+      linksMeli(c) +
       '<div class="rd-foot">' +
         '<button class="rd-btn rd-btn-pago" onclick="medir(' + i + ')" ' +
           'title="Tarda unos segundos: consulta MercadoLibre en vivo">Competencia en Argentina <i>tarda un rato</i></button>' +
@@ -480,6 +510,12 @@
         (p.tienda ? '<span>Tienda: <b>' + esc(p.tienda) + '</b></span>' : '') +
         (p.puntaje ? '<span>Puntaje: <b>' + p.puntaje + '</b></span>' : '') +
       '</div>' +
+      ((/^https?:\/\//.test(p.url || '') || kw)
+        ? '<div class="rd-links">' +
+            (/^https?:\/\//.test(p.url || '') ? link(p.url, 'Ver en TikTok Shop') : '') +
+            (kw ? link('https://listado.mercadolibre.com.ar/' + rutaMeli(kw), 'Ver en MercadoLibre Argentina') : '') +
+          '</div>'
+        : '') +
       '<div class="rd-foot">' +
         (kw
           ? '<button class="rd-btn rd-btn-pago" onclick="medir(' + i + ',' + JSON.stringify(kw) + ',50,\'tk\')" ' +
@@ -563,8 +599,16 @@
       if (!d.ok) throw new Error(d.error || 'No pude leer las tendencias');
       candidatos = d.candidatos || [];
       if (!candidatos.length) {
-        errorBox.textContent = 'MercadoLibre no devolvió tendencias para ese rubro en este momento.';
-        errorBox.style.display = 'block';
+        // Vacio de verdad y "vino todo pero nada sirve" son cosas distintas:
+        // la segunda no es un error, es el resultado del filtro.
+        if (d.tendencias_vistas > 0) {
+          lista.innerHTML = '<div class="rd-nota">Hubo ' + d.tendencias_vistas +
+            ' b&uacute;squedas en tendencia en este rubro, pero ninguna es un producto importable ' +
+            '(marcas, veh&iacute;culos o t&eacute;rminos gen&eacute;ricos).</div>';
+        } else {
+          errorBox.textContent = 'MercadoLibre no devolvió tendencias para ese rubro en este momento.';
+          errorBox.style.display = 'block';
+        }
         return;
       }
       if (!selRubro.options.length || selRubro.options.length === 1) {
