@@ -262,5 +262,15 @@ console.log('== 12. Mi lista ==');
   chequear('con sesion guarda', ok.status === 200 && listaGuardada.length === 1);
 }
 
+console.log('== 13. GET ?nicho= (solo cache, nunca MeLi) ==');
+{
+  const antes = llamadas.meli;
+  const g = await llamar(undefined, {}, 'GET', '/api/analyze?nicho=mascotas&capital=bajo&experiencia=ninguna&canal=mercadolibre&riesgo=bajo');
+  chequear('responde con productos del cache', g.status === 200 && g.body.products.length > 0 && g.body.desdeCache);
+  chequear('sin llamadas a MeLi', llamadas.meli === antes);
+  const sin = await llamar(undefined, {}, 'GET', '/api/analyze?nicho=tecnologia');
+  chequear('nicho sin cache: 0 productos y 0 llamadas', sin.body.products.length === 0 && llamadas.meli === antes);
+}
+
 console.log('\n' + oks + ' ok, ' + fallos + ' fallas');
 process.exit(fallos ? 1 : 0);

@@ -1307,7 +1307,17 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store');
     return manejarLista(req, res, 'leer');
   }
-  if (req.method === 'GET') {
+  // GET con ?nicho=: la misma consulta que el POST pero SOLO con datos ya
+  // pre-analizados (sin token: nunca llama a MercadoLibre). Sirve para
+  // compartir un resultado por link y para verificar un preview.
+  const _sp = new URL(url, 'http://x').searchParams;
+  const _vista = req.method === 'GET' && _sp.get('nicho');
+  if (_vista) {
+    req.body = { nicho: _sp.get('nicho'), capital: _sp.get('capital'), experiencia: _sp.get('experiencia'),
+      canal: _sp.get('canal'), riesgo: _sp.get('riesgo'), user_id: '' };
+    res.setHeader('Cache-Control', 'no-store');
+  }
+  if (req.method === 'GET' && !_vista) {
     res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=86400');
     const nichos = listarNichos();
     // La cotizacion viaja junto con la lista: MargenClear la usa para no
@@ -1331,8 +1341,8 @@ export default async function handler(req, res) {
     });
   }
 
-  if (req.method !== 'POST') return res.status(405).json({error: 'Method not allowed'});
-  const accion = req.body && req.body.accion;
+  if (req.method !== 'POST' && !_vista) return res.status(405).json({error: 'Method not allowed'});
+  const accion = !_vista && req.body && req.body.accion;
   if (accion === 'lista_guardar') return manejarLista(req, res, 'guardar');
   if (accion === 'lista_borrar') return manejarLista(req, res, 'borrar');
   try {
