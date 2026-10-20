@@ -446,6 +446,7 @@ export default async function handler(req, res) {
           // Antes: 6 por defecto, tope 12. Con las clasificaciones cacheadas
           // el barrido grande dejo de ser caro, asi que se abre.
           maxCategorias: Math.min(parseInt(req.query.rubros, 10) || 20, 40),
+          detalle: req.query.detalle === '1',
           // Margen para que la funcion no muera a los 60s de Vercel.
           presupuestoMs: 25000
         });
@@ -464,6 +465,10 @@ export default async function handler(req, res) {
           clasificados: r.clasificados,
           descartados_no_importables: r.descartadosNoImportables,
           ejemplo_descartado: r.ejemploDescartado,
+          descartados_genericos: r.descartadosGenericos,
+          ejemplo_generico: r.ejemploGenerico,
+          descartados_vehiculos: r.descartadosVehiculos,
+          clasificaciones: r.clasificaciones,
           // Si la clasificacion fallo se dice, en vez de devolver una lista sin
           // traducir y sin filtrar como si estuviera todo bien.
           error_clasificacion: r.errorClasificacion || undefined,

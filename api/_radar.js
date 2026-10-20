@@ -194,23 +194,74 @@ export function esMarca(kw) {
   return false;
 }
 
-async function clasificarLote(terminos) {
+// Modelos de autos y motos. En el rubro de vehiculos, "polo" o "gol" a secas
+// es el auto entero, no un producto: el modelo lo tradujo como "remera polo".
+// Solo se aplica dentro de los rubros de vehiculos, porque en ropa "polo" si es
+// un producto. Y solo cuando el termino es el modelo pelado (con año o version
+// como mucho): "retrovisor gol" es un repuesto y tiene que seguir pasando.
+const VEHICULOS = [
+  'polo', 'gol', 'onix', 'hb20', 'hb20s', 'focus', 'fiesta', 'ka', 'ecosport',
+  'corsa', 'celta', 'prisma', 'cruze', 'tracker', 's10', 'spin', 'cobalt',
+  'palio', 'uno', 'mobi', 'argo', 'cronos', 'strada', 'toro', 'siena', 'fiorino',
+  'fox', 'up', 'voyage', 'saveiro', 'virtus', 'nivus', 't cross', 'taos', 'amarok', 'vento',
+  'golf', 'jetta', 'gol trend', 'suran', 'hilux', 'corolla', 'etios', 'yaris', 'sw4',
+  'ranger', 'civic', 'fit', 'city', 'hr v', 'creta', 'kicks', 'versa', 'march',
+  'frontier', 'sandero', 'logan', 'duster', 'kwid', 'stepway', 'clio', 'kangoo',
+  'compass', 'renegade', 'commander', '208', '2008', '308', '3008', 'c3', 'c4',
+  'biz', 'cg 160', 'cg 150', 'fan 160', 'titan', 'bros', 'pop 110', 'pcx', 'xre',
+  'xre 300', 'cb 300', 'cb 500', 'twister', 'tornado', 'fazer', 'factor', 'lander',
+  'nmax', 'xtz', 'crosser', 'ybr', 'wave', 'g310'
+];
+const VERSION_VEHICULO = /^(\d{2,4}|g\d|plus|sedan|hatch|gt|gti|gts|tsi|flex|turbo|usado|usada|0km|cross|highline|trendline|comfortline|ltz|lt|premier)$/;
+
+function esRubroVehiculos(rubro) {
+  return /\b(carros|autos|motos|veiculos|vehiculos)\b/.test(normalizar(rubro));
+}
+
+export function esModeloVehiculo(kw, rubro) {
+  if (!esRubroVehiculos(rubro)) return false;
+  const t = normalizar(kw);
+  if (!t) return false;
+  for (const m of VEHICULOS) {
+    const mm = normalizar(m);
+    if (t === mm) return true;
+    if (t.startsWith(mm + ' ')) {
+      const resto = t.slice(mm.length + 1).split(' ').filter(Boolean);
+      if (resto.length && resto.every(w => VERSION_VEHICULO.test(w))) return true;
+    }
+  }
+  return false;
+}
+
+// Cada termino viaja con su rubro. Sin contexto, "pa" en Accesorios para
+// Vehiculos salio "pala" y "polo" en Autos salio "remera polo".
+async function clasificarLote(items) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY no configurada');
   const prompt =
     'Sos analista de importaciones China->Argentina. Te paso terminos de busqueda ' +
-    'de MercadoLibre (algunos en portugues de Brasil, otros en español).\n' +
+    'de MercadoLibre (algunos en portugues de Brasil, otros en español), cada uno con ' +
+    'el rubro de MercadoLibre donde aparecio: [{"t": "termino", "rubro": "rubro"}].\n' +
+    'Usá el rubro para desambiguar: "polo" en un rubro de autos es el VW Polo, no una remera; ' +
+    '"pa" en accesorios para vehiculos es una abreviatura, no una pala.\n' +
     'Para cada uno devolve:\n' +
-    '- "es": el termino en español rioplatense, con el nombre con el que se lo busca ' +
-    'en Argentina (no la traduccion literal). Si ya está en español, repetilo igual.\n' +
+    '- "es": el nombre de PRODUCTO con el que un argentino lo buscaria en MercadoLibre ' +
+    'Argentina, no la traduccion literal de la palabra. Si ya está en español y ya es un ' +
+    'producto concreto, repetilo igual.\n' +
+    '- "generico": true si el termino es demasiado amplio para identificar un producto ' +
+    'concreto que se pueda importar (ej: spray, expositor, embalagem, retrovisor, bebes, ' +
+    'cosas de bebé, pá, ofertas, accesorios para auto). false si nombra un producto ' +
+    'puntual (compresor de aire portatil, bebedero para gatos, foco H4).\n' +
     '- "imp": true si es un producto fisico que un importador chico podria traer de ' +
     'China y revender; false si es un alimento fresco o commodity (leche, carne, cafe), ' +
     'una MARCA o un modelo de una marca (apple, iphone, dji, osmo, insta360, gopro, ' +
     'xiaomi, royal canin, nutrique, militec, tramontina) o mercaderia de un artista ' +
-    '(photocard stray kids), un servicio, un vehiculo completo, ' +
-    'un inmueble, o algo demasiado pesado o voluminoso para importar en poco volumen.\n' +
-    'Responde SOLO un JSON {"termino original": {"es": "...", "imp": true}} sin markdown.\n' +
-    JSON.stringify(terminos);
+    '(photocard stray kids), un servicio, un vehiculo completo o un MODELO de auto o moto ' +
+    '(polo, gol, onix, hb20, focus, cg 160), un inmueble, o algo demasiado pesado o ' +
+    'voluminoso para importar en poco volumen.\n' +
+    'Responde SOLO un JSON {"termino original": {"es": "...", "imp": true, "generico": false}} ' +
+    'usando como clave el valor de "t" tal cual, sin markdown.\n' +
+    JSON.stringify(items);
 
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 25000);
@@ -291,16 +342,40 @@ async function guardarClasificaciones(mapa) {
   } catch (_) { /* el cache no puede romper el barrido */ }
 }
 
-export async function clasificarKeywords(keywords) {
-  const limpios = [...new Set((keywords || []).filter(Boolean))];
+// Version de la clasificacion del Radar. Las traducciones v1 se hicieron sin
+// rubro y quedaron mal ("pa" -> "pala"); con el prefijo se ignoran sin
+// borrarlas y cada termino se vuelve a clasificar una sola vez. Si cambia el
+// prompt de nuevo, subir el numero.
+const VERSION_CLASIF = 'v2|';
+export function claveClasificacion(keyword) {
+  return VERSION_CLASIF + String(keyword || '');
+}
+
+// Recibe strings o {t, rubro}. El mapa que devuelve va por termino original,
+// sin prefijo: el prefijo vive solo en el cache.
+export async function clasificarKeywords(entrada) {
+  const rubroDe = {};
+  for (const x of (entrada || [])) {
+    const t = typeof x === 'string' ? x : (x && x.t);
+    if (!t || t in rubroDe) continue;
+    rubroDe[t] = (x && typeof x === 'object' && x.rubro) || '';
+  }
+  const limpios = Object.keys(rubroDe);
   if (!limpios.length) return { mapa: {}, error: null };
 
-  const guardadas = await clasificacionesGuardadas(limpios);
+  const enCache = await clasificacionesGuardadas(limpios.map(claveClasificacion));
+  const guardadas = {};
+  for (const k of limpios) {
+    const g = enCache[claveClasificacion(k)];
+    if (g) guardadas[k] = { es: g.es, imp: g.imp, generico: g.motivo === 'generico', motivo: g.motivo };
+  }
   const faltan = limpios.filter(k => !guardadas[k]);
   if (!faltan.length) return { mapa: guardadas, error: null, desdeCache: limpios.length, preguntadas: 0 };
 
   const lotes = [];
-  for (let i = 0; i < faltan.length; i += LOTE) lotes.push(faltan.slice(i, i + LOTE));
+  for (let i = 0; i < faltan.length; i += LOTE) {
+    lotes.push(faltan.slice(i, i + LOTE).map(t => ({ t, rubro: rubroDe[t] })));
+  }
 
   const resultados = await Promise.all(lotes.map(async (lote) => {
     try { return { ok: true, mapa: await clasificarLote(lote) }; }
@@ -310,10 +385,23 @@ export async function clasificarKeywords(keywords) {
   const nuevas = {};
   const errores = [];
   for (const r of resultados) {
-    if (r.ok) Object.assign(nuevas, r.mapa);
-    else errores.push(r.error);
+    if (!r.ok) { errores.push(r.error); continue; }
+    // Solo se aceptan claves que se preguntaron: si el modelo inventa o
+    // reescribe una clave, no tiene que entrar al cache.
+    for (const k of Object.keys(r.mapa || {})) {
+      if (!(k in rubroDe)) continue;
+      const v = r.mapa[k] || {};
+      nuevas[k] = { es: v.es, imp: v.imp !== false && v.generico !== true, generico: v.generico === true };
+    }
   }
-  await guardarClasificaciones(nuevas);
+  // Generico se guarda en "motivo" para no tocar el esquema de la tabla.
+  const paraGuardar = {};
+  Object.keys(nuevas).forEach(k => {
+    paraGuardar[claveClasificacion(k)] = Object.assign({}, nuevas[k], {
+      motivo: nuevas[k].generico ? 'generico' : null
+    });
+  });
+  await guardarClasificaciones(paraGuardar);
 
   // El error se devuelve para que se vea en la respuesta del endpoint, en vez
   // de quedar como un "traducidos: 0" sin explicacion.
@@ -580,12 +668,17 @@ export async function descubrir(token, opts) {
 
   // Una sola clasificacion para todos los rubros: traduce los brasileños y
   // marca cuales sirven para importar, de los dos paises.
+  // Cada keyword viaja con el nombre del rubro donde aparecio (el brasileño
+  // para las de Brasil, el argentino para las de aca): es lo que le permite al
+  // modelo saber que "polo" en Carros es un auto y no una remera.
   const aClasificar = [];
+  const rubroDe = {};
   porRubro.forEach(r => {
-    aClasificar.push(...r.br.crecimiento);
-    aClasificar.push(...r.ar.crecimiento);
+    const rubroBR = r.par.br ? r.par.br.name : r.par.ar.name;
+    r.br.crecimiento.forEach(k => { aClasificar.push(k); if (!(k in rubroDe)) rubroDe[k] = rubroBR; });
+    r.ar.crecimiento.forEach(k => { aClasificar.push(k); if (!(k in rubroDe)) rubroDe[k] = r.par.ar.name; });
   });
-  const clasif = await clasificarKeywords(aClasificar);
+  const clasif = await clasificarKeywords(aClasificar.map(t => ({ t, rubro: rubroDe[t] })));
   const info = clasif.mapa;
   const traducciones = {};
   Object.keys(info).forEach(k => { if (info[k] && info[k].es) traducciones[k] = info[k].es; });
@@ -596,7 +689,13 @@ export async function descubrir(token, opts) {
   // devolvia 503 en un lote, esas pasaban sin traducir y aparecian en portugues
   // como si estuvieran vetadas. No saber no es lo mismo que estar bien: se
   // descartan y se informa cuantas, para que el hueco se vea.
-  const importable = (kw) => !!info[kw] && info[kw].imp !== false && !esMarca(info[kw].es || kw);
+  // Un termino generico ("spray", "expositor") no identifica un producto: se
+  // descarta y se cuenta junto con los no importables. Los modelos de auto se
+  // filtran en codigo, como las marcas, porque el modelo no siempre los ve.
+  const generico = (kw) => !!info[kw] && info[kw].generico === true;
+  const vehiculo = (kw) => esModeloVehiculo(kw, rubroDe[kw]);
+  const importable = (kw) => !!info[kw] && info[kw].imp !== false && !generico(kw) &&
+    !vehiculo(kw) && !esMarca(info[kw].es || kw);
   const sinClasificar = aClasificar.filter(k => !info[k]).length;
   const marcasFiltradas = aClasificar.filter(k => info[k] && esMarca(info[k].es || k)).length;
 
@@ -652,6 +751,7 @@ export async function descubrir(token, opts) {
       ...previo,
       posicionAR: previo.posicionAR || c.posicionAR,
       posicionBR: previo.posicionBR || c.posicionBR,
+      traducidoDe: previo.traducidoDe || c.traducidoDe,
       origen: (previo.posicionAR || c.posicionAR) && (previo.posicionBR || c.posicionBR) ? 'ambos' : previo.origen,
       senal: (previo.posicionAR || c.posicionAR) && (previo.posicionBR || c.posicionBR)
         ? 'Crece en Brasil y en Argentina a la vez: demanda confirmada en los dos mercados.'
@@ -661,7 +761,9 @@ export async function descubrir(token, opts) {
 
   const lista = [...porClave.values()].map(c => ({ ...c, scoreDemanda: scoreDemanda(c) }));
   lista.sort((a, b) => b.scoreDemanda - a.scoreDemanda);
-  const descartados = aClasificar.filter(k => info[k] && info[k].imp === false);
+  const descartados = aClasificar.filter(k => info[k] && (info[k].imp === false || generico(k) || vehiculo(k)));
+  const genericos = aClasificar.filter(generico);
+  const vehiculos = aClasificar.filter(k => info[k] && vehiculo(k));
   return {
     candidatos: lista,
     rubros: porRubro.map(r => ({ ar: r.par.ar.name, br: r.par.br ? r.par.br.name : null, parecido: r.par.parecido })),
@@ -677,6 +779,17 @@ export async function descubrir(token, opts) {
     clasificados: Object.keys(info).length,
     descartadosNoImportables: descartados.length,
     ejemploDescartado: descartados.slice(0, 5),
+    descartadosGenericos: genericos.length,
+    ejemploGenerico: [...new Set(genericos)].slice(0, 8),
+    descartadosVehiculos: vehiculos.length,
+    // Solo con ?detalle=1: cada termino, su rubro y como quedo clasificado,
+    // para poder revisar las traducciones sin abrir Supabase.
+    clasificaciones: o.detalle ? Object.keys(rubroDe).map(k => ({
+      original: k, rubro: rubroDe[k],
+      es: info[k] ? info[k].es : null,
+      imp: info[k] ? info[k].imp !== false : null,
+      generico: generico(k), vehiculo: vehiculo(k), marca: !!info[k] && esMarca(info[k].es || k)
+    })) : undefined,
     errorClasificacion: clasif.error
   };
 }
