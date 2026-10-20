@@ -216,7 +216,18 @@ const VEHICULOS = [
   'xre 300', 'cb 300', 'cb 500', 'twister', 'tornado', 'fazer', 'factor', 'lander',
   'nmax', 'xtz', 'crosser', 'ybr', 'wave', 'g310'
 ];
-const VERSION_VEHICULO = /^(\d{2,4}|g\d|plus|sedan|hatch|gt|gti|gts|tsi|flex|turbo|usado|usada|0km|cross|highline|trendline|comfortline|ltz|lt|premier)$/;
+const VERSION_VEHICULO = /^(\d{1,4}|g\d|plus|sedan|hatch|gt|gti|gts|tsi|flex|turbo|usado|usada|0km|cross|highline|trendline|comfortline|ltz|lt|premier)$/;
+
+// Marca de auto seguida de un modelo ("gwm h7", "ford f350", "chevrolet c10")
+// tambien es el vehiculo. El modelo convirtio "gwm h7" en "faro H7".
+const MARCAS_VEHICULO = [
+  'vw', 'volkswagen', 'ford', 'chevrolet', 'fiat', 'toyota', 'renault', 'peugeot',
+  'citroen', 'nissan', 'honda', 'hyundai', 'kia', 'jeep', 'gwm', 'haval', 'byd',
+  'chery', 'caoa chery', 'jac', 'bmw', 'mercedes', 'mercedes benz', 'audi', 'volvo',
+  'mitsubishi', 'suzuki', 'yamaha', 'kawasaki', 'ram', 'iveco', 'ika', 'lotus'
+];
+// Si el termino nombra una pieza, es un repuesto y no el vehiculo.
+const PIEZA = /\b(farol|faro|lampada|lampara|retrovisor|parachoque|para choque|capa|funda|tapete|alfombra|kit|filtro|pastilha|pastilla|bateria|pneu|neumatico|radio|central|modulo)\b/;
 
 function esRubroVehiculos(rubro) {
   return /\b(carros|autos|motos|veiculos|vehiculos)\b/.test(normalizar(rubro));
@@ -226,6 +237,13 @@ export function esModeloVehiculo(kw, rubro) {
   if (!esRubroVehiculos(rubro)) return false;
   const t = normalizar(kw);
   if (!t) return false;
+  if (PIEZA.test(t)) return false;
+  // Marca + hasta 3 palabras: es el auto ("ford f350", "honda wr v vermelho").
+  for (const mv of MARCAS_VEHICULO) {
+    const mm = normalizar(mv);
+    if (t === mm) return true;
+    if (t.startsWith(mm + ' ') && t.slice(mm.length + 1).split(' ').filter(Boolean).length <= 3) return true;
+  }
   for (const m of VEHICULOS) {
     const mm = normalizar(m);
     if (t === mm) return true;
@@ -265,10 +283,15 @@ async function clasificarLote(items) {
     '"pa" en accesorios para vehiculos es una abreviatura, no una pala.\n' +
     'Para cada uno devolve:\n' +
     '- "es": el nombre de PRODUCTO con el que un argentino lo buscaria en MercadoLibre ' +
-    'Argentina, no la traduccion literal de la palabra, y sin perder la palabra que lo hace ' +
-    'buscable: "wallbox" -> "cargador wallbox" (o "cargador para auto electrico"), no "wallbox" ' +
-    'solo. Si ya está en español y ya es un producto concreto, repetilo igual. En minuscula, ' +
-    'salvo siglas y codigos (H4, H7, USB, LED).\n' +
+    'Argentina, en español rioplatense. Nunca lo dejes en portugues ni lo traduzcas palabra ' +
+    'por palabra: "pipoqueira" -> "maquina de pochoclos", "caixa transporte gato" -> ' +
+    '"transportadora para gatos", "coleira peitoral" -> "pretal para perro", "tapete ' +
+    'emborrachado infantil" -> "alfombra de goma eva infantil", "misturador de racao" -> ' +
+    '"mezcladora de alimento balanceado". Si la palabra sola no alcanza para buscarlo, ' +
+    'agregale la que lo hace buscable: "wallbox" -> "cargador wallbox". Nunca agregues un ' +
+    'producto que el termino no nombra: "gwm h7" es una camioneta, no un faro. Si ya está ' +
+    'en español y ya es un producto concreto, repetilo igual. En minuscula, salvo siglas y ' +
+    'codigos (H4, H7, USB, LED).\n' +
     '- "generico": true SOLO si el termino no identifica un producto concreto: una palabra ' +
     'suelta o una categoria entera (pa, spray, retrovisor, fundas, bebes, cosas de bebé, ' +
     'halloween, embalagem, expositor, accesorios para auto). Un nombre de producto de 2 o mas ' +
@@ -377,9 +400,11 @@ async function guardarClasificaciones(mapa) {
 // Version de la clasificacion del Radar. v1 se hizo sin rubro y quedo mal
 // ("pa" -> "pala"); v2 tenia rubro pero la clave era solo el termino, asi que
 // "polo" en Ropa y en Autos compartian clasificacion. v3 lleva la categoria en
-// la clave. Lo anterior queda en la tabla y se ignora. Si cambia el prompt de
+// la clave. v4 es el mismo formato que v3: el prompt de v3 dejaba terminos en
+// portugues ("pipoqueira") e inventaba productos ("gwm h7" -> "faro H7"). Lo
+// anterior queda en la tabla y se ignora. Si cambia el prompt de
 // nuevo, subir el numero.
-const VERSION_CLASIF = 'v3|';
+const VERSION_CLASIF = 'v4|';
 export function claveClasificacion(cat, término) {
   return VERSION_CLASIF + String(cat || '') + '|' + String(término || '');
 }
