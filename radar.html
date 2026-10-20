@@ -75,8 +75,10 @@
   .rd-de{font-size:12px;color:var(--mc-ink-4);margin-top:5px;font-style:italic}
   /* Links gratis para ver el producto. Chicos y grises a proposito: no tienen
      que competir con los botones que consultan servicios pagos. */
-  .rd-links{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:12px;line-height:1.5}
-  .rd-links a{color:var(--mc-ink-4);text-decoration:none;white-space:nowrap;
+  .rd-links{display:flex;flex-wrap:wrap;gap:0 16px;margin-top:4px;font-size:13px;line-height:1.5}
+  /* Mismo gris que .rd-senal: el de .rd-de no se leia sobre el fondo oscuro.
+     El padding agranda el area para tocar en el celular. */
+  .rd-links a{color:var(--mc-ink-2);text-decoration:none;white-space:nowrap;padding:6px 0;
     transition:color .15s var(--mc-ease)}
   .rd-links a:hover,.rd-links a:focus-visible{color:#FFE600;text-decoration:underline}
   .rd-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:13px}

@@ -288,7 +288,7 @@ async function clasificarLote(items) {
     '"transportadora para gatos", "coleira peitoral" -> "pretal para perro", "tapete ' +
     'emborrachado infantil" -> "alfombra de goma eva infantil", "misturador de racao" -> ' +
     '"mezcladora de alimento balanceado", "brinquedo 1 ano menino" -> "juguete para nene de ' +
-    '1 año" (sin palabras que sobren). Si la palabra sola no alcanza para buscarlo, ' +
+    '1 año" (sin palabras que sobren). "crianca"/"criança" es nene o chico, nunca "criatura". Si la palabra sola no alcanza para buscarlo, ' +
     'agregale la que lo hace buscable: "wallbox" -> "cargador wallbox", "h7" en accesorios ' +
     'para vehiculos -> "lámpara H7". Nunca agregues un ' +
     'producto que el termino no nombra: "gwm h7" es una camioneta, no un faro. Si ya está ' +
@@ -448,6 +448,11 @@ function desdeModelo(v) {
   };
 }
 
+// Traducciones guardadas que se sabe que estan mal. Una fila cuyo "es" matchea
+// se trata como si no estuviera en cache: se vuelve a preguntar (con el prompt
+// ya corregido) y se pisa, sin subir de version. "crianca" salia "criatura".
+const SALIDAS_INVALIDAS = [/\bcriatura\b/i];
+
 // Recibe [{t, rubro, cat}]. Devuelve un mapa por claveClasificacion(cat, t):
 // el mismo termino en dos rubros son dos clasificaciones distintas.
 export async function clasificarKeywords(entrada) {
@@ -465,6 +470,7 @@ export async function clasificarKeywords(entrada) {
   for (const k of claves) {
     const g = enCache[k];
     if (!g) continue;
+    if (SALIDAS_INVALIDAS.some(re => re.test(String(g.es || '')))) continue;
     const motivo = String(g.motivo || '');
     guardadas[k] = { es: g.es, imp: g.imp, generico: motivo.includes('generico'), fueraRubro: motivo.includes('fuera_rubro') };
   }
