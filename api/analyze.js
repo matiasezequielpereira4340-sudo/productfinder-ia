@@ -1159,7 +1159,7 @@ async function manejarPrecalculo(req, res, url) {
     // antes=<ISO>: rehace todo lo guardado antes de esa fecha ("Forzar todos"
     // del admin, que corre en varias tandas con la misma fecha de corte).
     const antes = sp.get('antes') && !isNaN(Date.parse(sp.get('antes'))) ? Date.parse(sp.get('antes')) : null;
-    const r = await precalcularTanda({ token: tk.token, solo, antes, presupuestoMs: 30000 });
+    const r = await precalcularTanda({ token: tk.token, solo, antes, presupuestoMs: 8000 });
     // El cron encadena la tanda siguiente hasta terminar el catalogo. Cada
     // invocacion es una funcion nueva con sus 60 s: asi no se pasa el timeout.
     let encadenada = false;
@@ -1174,22 +1174,25 @@ async function fechasCacheNichos() {
   const out = {};
   if (!SUPA_KEY) return out;
   try {
-    const r = await fetch(SUPA_URL + '/rest/v1/buscador_cache?select=nicho,created_at,v:mercado->__v', { headers: supaHeaders() });
+    const r = await fetch(SUPA_URL + '/rest/v1/buscador_cache?select=nicho,created_at,v:mercado->__v,parcial:mercado->__parcial', { headers: supaHeaders() });
     if (!r.ok) return out;
-    for (const f of await r.json()) out[f.nicho] = { creado: f.created_at, v: f.v };
+    for (const f of await r.json()) out[f.nicho] = { creado: f.created_at, v: f.v, parcial: f.parcial === true };
   } catch (e) {}
   return out;
 }
 
-// Una tanda: procesa nichos (los que faltan primero, despues los mas viejos)
-// hasta agotar el presupuesto de tiempo. Si un nicho no trae nada, no se pisa
+// Una tanda: procesa nichos (los que faltan primero, despues los mas viejos).
+// MEDIDO: un nicho tarda 30-40 s a 8 llamadas/s, asi que en la practica es un
+// nicho por tanda; un segundo solo arranca si el primero termino en menos de 8 s. Si un nicho no trae nada, no se pisa
 // el cache que hubiera.
 const FRESCO_HORAS = 20;
 async function precalcularTanda({ token, solo, antes, presupuestoMs }) {
   const inicio = Date.now();
-  const cli = crearCliente(token);
+  // Corte duro a los 50 s de la invocacion: nunca llegar al timeout de 60 s.
+  const cli = crearCliente(token, { deadline: inicio + 50000 });
   const fechas = await fechasCacheNichos();
-  const edad = k => fechas[k] && fechas[k].v === VERSION_MERCADO ? (Date.now() - new Date(fechas[k].creado).getTime()) : Infinity;
+  // Un nicho guardado a medias (cortado por tiempo) cuenta como vencido.
+  const edad = k => fechas[k] && fechas[k].v === VERSION_MERCADO && !fechas[k].parcial ? (Date.now() - new Date(fechas[k].creado).getTime()) : Infinity;
   let cola = Object.keys(CATALOGO);
   if (solo && solo.length) cola = cola.filter(k => solo.indexOf(k) > -1);
   const creado = k => fechas[k] && fechas[k].v === VERSION_MERCADO ? new Date(fechas[k].creado).getTime() : 0;
@@ -1204,12 +1207,19 @@ async function precalcularTanda({ token, solo, antes, presupuestoMs }) {
     const antes = cli.estado.llamadas;
     const mercado = await analizarNicho(cli, CATALOGO[k].productos);
     const conDatos = Object.values(mercado).filter(m => m && Array.isArray(m.results) && m.results.length >= 3).length;
+    // Cortado por tiempo: queda incompleto. Se guarda marcado como parcial (la
+    // tanda siguiente lo rehace) y solo si no habia uno completo del formato
+    // actual, para no pisar datos buenos con datos a medias.
+    const cortado = (cli.estado.cortadasPorTiempo || 0) > 0;
+    const habiaCompleto = fechas[k] && fechas[k].v === VERSION_MERCADO && !fechas[k].parcial;
     let guardado = false;
-    if (conDatos > 0) {
+    if (conDatos > 0 && !(cortado && habiaCompleto)) {
       mercado.__v = VERSION_MERCADO;
+      if (cortado) mercado.__parcial = true;
       guardado = await guardarCacheNicho(k, mercado);
     }
-    hechos.push({ nicho: k, conDatos, de: CATALOGO[k].productos.length, llamadas: cli.estado.llamadas - antes, ms: Date.now() - t0, guardado });
+    hechos.push({ nicho: k, conDatos, de: CATALOGO[k].productos.length, llamadas: cli.estado.llamadas - antes, ms: Date.now() - t0, guardado, cortadoPorTiempo: cortado });
+    if (cortado) break;
   }
   return {
     procesados: hechos, pendientes: cola.length - hechos.length,

@@ -154,7 +154,10 @@ export function crearCliente(token, opts) {
     proximaSalida = Math.max(ahora, proximaSalida) + intervalo;
     if (espera) await new Promise(z => setTimeout(z, espera));
   }
+  // Plazo duro: pasado o.deadline no se llama mas a MeLi (la funcion tiene 60 s
+  // y un nicho a 8 llamadas/s tarda ~30-40 s).
   async function get(nombre, url, timeoutMs) {
+    if (o.deadline && Date.now() > o.deadline) { estado.cortadasPorTiempo = (estado.cortadasPorTiempo || 0) + 1; return { ok: false, status: 0, json: null }; }
     if (activos >= MAX) await new Promise(r => cola.push(r));
     activos++;
     try {
