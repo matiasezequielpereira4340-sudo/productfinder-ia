@@ -791,6 +791,16 @@ pre-analizado en `buscador_cache` con la **API oficial de MeLi, sin Apify**.
 - **Ritmo:** adaptativo, arranca en `BUSCADOR_MELI_RPS` (8/s) y se frena solo
   ante 429. Medido el 20/10/2026: MeLi devolvió 429 a ~50/s y también a ~12/s.
 
+### Categoría de MeLi fijada por producto
+
+Cada producto del catálogo (780, 65 nichos) tiene su categoría y dominio de MeLi en
+`api/_categorias-datos.js`. Se armó con `precalcular=categorias` (domain_discovery por las
+palabras de búsqueda y por el nombre del producto + `/categories`) y se revisó a mano;
+los que no tenían una candidata con sentido quedan `{ revisar: true }` y se buscan como
+antes. Con categoría fijada, `/products/search` va con `domain_id` (si no trae nada se
+sacan palabras del final, mínimo 2) y las ofertas de otra categoría se descartan.
+`precalcular=compararcategorias` mide cuántos daban otro rubro con la búsqueda vieja.
+
 ### Rotación con Apify (solo nocturna, con tope en USD)
 
 MeLi no da vendidos de publicaciones ajenas, así que la rotación sale del actor
