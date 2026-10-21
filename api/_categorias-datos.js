@@ -91,7 +91,7 @@ export const CATEGORIAS = {
   "bateria repuesto dron lipo": { cat: 'MLA413444', dom: 'MLA-DRONE_BATTERIES' },
   "batidor leche electrico mini": { cat: 'MLA455549', dom: 'MLA-MILK_FROTHERS' },
   "bebedero automatico flotante animales": { cat: 'MLA414087', dom: 'MLA-LIVESTOCK_DRINKERS' },
-  "bebedero plegable perro viaje": { cat: 'MLA434777', dom: 'MLA-ANIMAL_AND_PET_PRODUCTS' },
+  "bebedero plegable perro viaje": { cat: 'MLA32277', dom: 'MLA-CAT_AND_DOG_DRINKERS_AND_FEEDERS' },  // sus ofertas reales estan en Comederos; MeLi sugeria Bebederos Portatiles (sin productos en el catalogo)
   "billetera slim rfid": { cat: 'MLA417712', dom: 'MLA-WALLETS_AND_COIN_PURSES' },
   "bisagras cierre suave alacena": { cat: 'MLA432055', dom: 'MLA-FURNITURE_DOOR_AND_WINDOW_HINGES' },
   "bloques magneticos construccion set": { cat: 'MLA1157', dom: 'MLA-TOY_BUILDING_SETS' },
