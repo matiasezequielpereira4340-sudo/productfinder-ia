@@ -87,3 +87,19 @@ CREATE TABLE IF NOT EXISTS buscador_busquedas (
 );
 CREATE INDEX IF NOT EXISTS idx_buscador_busquedas_ts ON buscador_busquedas(ts DESC);
 ALTER TABLE buscador_busquedas ENABLE ROW LEVEL SECURITY;
+
+-- Categoria de MeLi por producto del catalogo (resolvedor precalcular=categorias).
+create table if not exists public.buscador_categorias (
+  q text primary key,
+  nicho text not null,
+  nombre text,
+  cat text,
+  cat_nombre text,
+  dom text,
+  ruta text,
+  estado text not null default 'revisar',
+  motivo text,
+  alt jsonb,
+  actualizado timestamptz not null default now()
+);
+alter table public.buscador_categorias enable row level security;

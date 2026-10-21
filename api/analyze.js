@@ -10,11 +10,13 @@
 import { resolveUserId, anthropicHeaders } from './_meli.js';
 import { esCliente, tokenDe, leerToken, esAdmin, cronAdmitido } from './_sesion.js';
 import { cotizacionDolar, tipoDeCambio, DOLAR_TIPO_DEFAULT } from './_dolar.js';
+import { resolverCategoria } from './_categorias.js';
 import { evaluarProducto, ordenar, CAPITAL_LABEL, estadisticasCompetencia, limpiarMuestra, puntajeDemanda, puntajeSaturacion, costoImportacion, acotarPorCosto } from './_oportunidad.js';
 import { cosechar, encolar, arrancarCola, historialDe, ITEMS_POR_PRODUCTO, estadoPresupuesto } from './_rotacion.js';
 import { probarEndpoints, tokenDeCorridaValido, MELI_USER_PRECALCULO, crearCliente, analizarNicho, VERSION_MERCADO } from './_precalculo.js';
 
 const USD_ARS_FALLBACK = 1510;
+const MELI_API_BUSCADOR = 'https://api.mercadolibre.com';
 const LIMITE_GRATIS = 3;
 
 // El costo puesto, el margen, el score y el veredicto ahora salen de
@@ -1169,6 +1171,46 @@ async function manejarPrecalculo(req, res, url) {
   const tk = await getMeliToken(MELI_USER_PRECALCULO());
   if (!tk || !tk.token) {
     return res.status(503).json({ ok: false, error: 'No hay token vigente de MercadoLibre para ' + MELI_USER_PRECALCULO() + (tk && tk.expired ? ' (vencido y no se pudo renovar)' : '') + '.' });
+  }
+  // Resuelve la categoria de MeLi de un tramo del catalogo (todos los nichos)
+  // y la guarda en buscador_categorias para revisarla. Solo lectura de MeLi.
+  if (modo === 'categorias') {
+    const todos = [];
+    Object.keys(CATALOGO).forEach(k => CATALOGO[k].productos.forEach(p => todos.push({ k, p })));
+    const desde = Math.max(0, Number(sp.get('desde')) || 0);
+    const n = Math.max(1, Math.min(150, Number(sp.get('n')) || 60));
+    const tramo = todos.slice(desde, desde + n);
+    const cli = crearCliente(tk.token, { deadline: Date.now() + 50000 });
+    const rutas = {};
+    const filas = [];
+    for (let i = 0; i < tramo.length; i += 4) {
+      const lote = tramo.slice(i, i + 4);
+      const rs = await Promise.all(lote.map(x => resolverCategoria(cli, x.p, x.k, rutas).catch(e => ({ q: x.p.q, nicho: x.k, nombre: x.p.nombre, estado: 'revisar', motivo: 'error: ' + e.message }))));
+      rs.forEach(r => filas.push(Object.assign(r, { actualizado: new Date().toISOString() })));
+    }
+    let guardadas = false;
+    if (SUPA_KEY && filas.length) {
+      const r = await fetch(SUPA_URL + '/rest/v1/buscador_categorias?on_conflict=q', {
+        method: 'POST', headers: supaHeaders({ 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' }),
+        body: JSON.stringify(filas) }).catch(() => null);
+      guardadas = !!(r && r.ok);
+    }
+    return res.status(200).json({ ok: true, via, desde, procesados: filas.length, total: todos.length, siguiente: desde + filas.length < todos.length ? desde + filas.length : null,
+      ok_: filas.filter(f => f.estado === 'ok').length, revisar: filas.filter(f => f.estado === 'revisar').length, guardadas,
+      llamadas: cli.estado.llamadas, respuestas429: cli.estado.limitado, cortadas: cli.estado.cortadasPorTiempo || 0 });
+  }
+  // Prueba si /products/search acepta filtro por dominio o categoria.
+  if (modo === 'probarfiltro') {
+    const q = encodeURIComponent(sp.get('q') || 'gel limpiador teclado');
+    const base = MELI_API_BUSCADOR + '/products/search?status=active&site_id=MLA&limit=10&q=' + q;
+    const variantes = { sinFiltro: base, domain_id: base + '&domain_id=' + encodeURIComponent(sp.get('dom') || ''), category: base + '&category=' + encodeURIComponent(sp.get('cat') || '') };
+    const out = {};
+    for (const [nombre, url] of Object.entries(variantes)) {
+      const r = await fetch(url, { headers: { Authorization: 'Bearer ' + tk.token } }).catch(() => null);
+      const j = r ? await r.json().catch(() => null) : null;
+      out[nombre] = { status: r && r.status, total: j && j.paging && j.paging.total, dominios: j && Array.isArray(j.results) ? j.results.map(x => x.domain_id) : null, nombres: j && Array.isArray(j.results) ? j.results.slice(0, 4).map(x => String(x.name).slice(0, 50)) : null };
+    }
+    return res.status(200).json({ ok: true, via, ...out });
   }
   if (modo === 'probar') {
     return res.status(200).json({ ok: true, via, usuario: MELI_USER_PRECALCULO(), ...(await probarEndpoints(tk.token, sp.get('q'), sp.get('item'))) });
