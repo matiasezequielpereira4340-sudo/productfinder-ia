@@ -325,6 +325,15 @@ export async function analizarProducto(cli, prod) {
     });
   }
   if (nuevos404.length) await anotarSinOfertas(nuevos404);
+  // Categoria fijada a mano en el catalogo (prod.cat): MeLi a veces devuelve
+  // productos de otro rubro para la busqueda (gel limpiador de teclado ->
+  // Desmaquillantes). Se descartan las ofertas de otras categorias, y la
+  // demanda y la comision salen de la categoria correcta.
+  if (prod.cat) {
+    const deLaCategoria = ofertas.filter(o => o.category_id === prod.cat);
+    ofertas.length = 0;
+    deLaCategoria.forEach(o => ofertas.push(o));
+  }
   if (!ofertas.length) {
     return { v: VERSION_MERCADO, catalogoTotal, catalogoRevisados: revisados, conOfertas: 0, results: [] };
   }
@@ -333,6 +342,7 @@ export async function analizarProducto(cli, prod) {
   const cuenta = {};
   let catId = null;
   for (const o of ofertas) if (o.category_id) { cuenta[o.category_id] = (cuenta[o.category_id] || 0) + 1; if (!catId || cuenta[o.category_id] > cuenta[catId]) catId = o.category_id; }
+  if (prod.cat) catId = prod.cat;
   const precioRef = Math.round(mediana(ofertas.map(o => o.price)));
   // (Ya no se piden /users: la rotacion sale de vendidos reales, ver _rotacion.js.)
   const [cat, lp] = await Promise.all([

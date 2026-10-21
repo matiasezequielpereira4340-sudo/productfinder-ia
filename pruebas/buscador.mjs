@@ -389,6 +389,36 @@ console.log('== 18. Flete maritimo consolidado y tributos aparte ==');
   chequear('derecho de importacion por rubro (juguetes 35%)', k.diPct === 35);
 }
 
+console.log('== 19. Margen: con menos de 5 precios no se calcula ni entra al score ==');
+{
+  const ofertas = n => Array.from({ length: n }, (_, j) => ({ id: 'MLA77' + j, title: 'organizador generico ' + j, price: 20000 + j * 500,
+    seller: { id: 500 + j }, shipping: { free_shipping: false, logistic_type: 'cross_docking' }, official_store_id: null, category_id: 'MLA1', catalog_product_id: 'MLA9' + j }));
+  const prod = { nombre: 'Organizador', q: 'organizador generico', costoMin: 2, costoMax: 3, volCm3: 1000, pesoG: 200 };
+  const perfil = { capital: 'medio', experiencia: 'ninguna', canal: 'mercadolibre', riesgo: 'medio' };
+  const cuatro = op.evaluarProducto(prod, 'hogar', { results: ofertas(4), catalogoTotal: 300 }, perfil, 1500, null);
+  chequear('4 precios: sin margen', cuatro.margen === null && cuatro.margenNeto.pocosPrecios === 4, JSON.stringify(cuatro.margenNeto));
+  chequear('4 precios: la tarjeta dice "Margen: pocos precios para calcular (4)"', cuatro.semaforo.label === 'Margen: pocos precios para calcular (4)', cuatro.semaforo.label);
+  const cm = cuatro.componentes.find(c => c.clave === 'margen');
+  chequear('4 precios: el margen no entra al score (peso efectivo 0)', cm.valor === null && cm.pesoEfectivo === 0 && cuatro.score != null, 'score ' + cuatro.score);
+  chequear('4 precios: nunca "alta" y lo dice', cuatro.veredicto.nivel !== 'alta' && cuatro.veredicto.motivos.some(m => /pocos precios/.test(m)), cuatro.veredicto.label);
+  const cinco = op.evaluarProducto(prod, 'hogar', { results: ofertas(5), catalogoTotal: 300 }, perfil, 1500, null);
+  chequear('5 precios: margen calculado y en el score', typeof cinco.margen === 'number' && cinco.componentes.find(c => c.clave === 'margen').pesoEfectivo > 0, cinco.margen + '%');
+  const ev = op.evaluar({ margenPct: null, pocosPrecios: 3, demanda: { valor: 90, detalle: '' }, rotacion: { valor: 90, detalle: '' },
+    saturacion: { valor: 10, detalle: '' }, riesgo: { valor: 100, detalle: '' }, riesgoTolerancia: 'medio' });
+  chequear('metricas perfectas sin margen: score sin margen y nunca "alta"', ev.score >= 70 && ev.veredicto.nivel === 'media', ev.score + ' ' + ev.veredicto.nivel);
+}
+
+console.log('== 20. Categoria de MeLi fijada a mano por producto ==');
+{
+  const fuente = (await import('node:fs')).readFileSync(new URL('../api/analyze.js', import.meta.url), 'utf8');
+  chequear('gel limpiador de teclado: Kits de Limpieza (MLA72688), no Desmaquillantes', /q:'gel limpiador teclado reutilizable'[^}]*cat:'MLA72688'/.test(fuente));
+  const cli = pre.crearCliente('tok-prueba');
+  const bien = await pre.analizarProducto(cli, { q: 'comedero antivoracidad perro', cat: 'MLA32277' });
+  chequear('con la categoria correcta: ofertas y demanda de esa categoria', bien.results.length > 0 && bien.results.every(o => o.category_id === 'MLA32277') && bien.categoria && bien.categoria.id === 'MLA32277');
+  const otra = await pre.analizarProducto(cli, { q: 'comedero antivoracidad perro', cat: 'MLA999999' });
+  chequear('ofertas de otra categoria se descartan (va a Pendientes)', otra.results.length === 0, otra.results.length);
+}
+
 console.log('== 9. Nicho sin pre-analisis ni MeLi: nada inventado ==');
 {
   const r = await llamar({ ...perfilBajo, nicho: 'tecnologia' }, {});
