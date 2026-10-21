@@ -23,16 +23,16 @@ const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, header
 
 // ---- Mercado simulado -----------------------------------------------------
 const MERCADO = {
-  'comedero antivoracidad perro': { total: 1331, precio: 25900, cat: 'MLA32277' },
-  'juguete dispensador premios perro': { total: 5198, precio: 22000, cat: 'MLA417978' },
-  'cepillo quita pelos mascotas': { total: 6125, precio: 12500, cat: 'MLA1', full: true }
+  'comedero antivoracidad perro': { total: 1331, precio: 25900, cat: 'MLA32277', dom: 'MLA-CAT_AND_DOG_DRINKERS_AND_FEEDERS' },
+  'juguete dispensador premios perro': { total: 5198, precio: 22000, cat: 'MLA417978', dom: 'MLA-TREAT_DISPENSING_PET_TOYS' },
+  'cepillo quita pelos mascotas': { total: 6125, precio: 12500, cat: 'MLA432229', full: true }
 };
 const TRENDS = {
   MLA32277: ['dispensador comida automatico perro', 'comedero antivoracidad perro grande', 'comederos para perros'],
   MLA417978: ['lickimat', 'juguete dispensador perro'],
-  MLA1: ['cepillo quita pelusas para ropa']
+  MLA432229: ['cepillo quita pelusas para ropa']
 };
-let llamadas = { apify: 0, apifyRuns: 0, prohibidas: 0, supaPost: [], meli: 0 };
+let llamadas = { apify: 0, apifyRuns: 0, prohibidas: 0, supaPost: [], meli: 0, conDominio: 0, sinDominio: 0 };
 // ---- Supabase en memoria (tablas nuevas) ---------------------------------
 const TABLAS = { buscador_vendidos: [], apify_gasto: [], buscador_sin_ofertas: [], buscador_busquedas: [] };
 let secuencia = 1;
@@ -145,13 +145,15 @@ globalThis.fetch = async (url, init) => {
   if (u.includes('/products/search')) {
     const q = qDe(u), m = MERCADO[q];
     const off = Number((/offset=(\d+)/.exec(u) || [])[1] || 0);
-    if (!m || off > 0) return json({ paging: { total: m ? m.total : 0 }, results: [] });
-    return json({ paging: { total: m.total }, results: Array.from({ length: 10 }, (_, k) => ({ id: 'MLA' + (90000 + k) + String(q.length).padStart(2, '0'), name: q + ' modelo ' + k })) });
+    const dom = decodeURIComponent((/[?&]domain_id=([^&]*)/.exec(u) || [])[1] || '');
+    if (dom) llamadas.conDominio++; else llamadas.sinDominio++;
+    // Con domain_id, MeLi solo devuelve productos de ese dominio.
+    if (!m || off > 0 || (dom && dom !== m.dom)) return json({ paging: { total: m && !(dom && dom !== m.dom) ? m.total : 0 }, results: [] });
+    return json({ paging: { total: m.total }, results: Array.from({ length: 10 }, (_, k) => ({ id: 'MLA' + (90000 + k) + String(Object.keys(MERCADO).indexOf(q)).padStart(2, '0'), name: q + ' modelo ' + k, domain_id: m.dom })) });
   }
   const mi = /\/products\/(MLA\d+)\/items/.exec(u);
   if (mi) {
-    const largo = Number(mi[1].slice(-2));
-    const q = Object.keys(MERCADO).find(x => x.length === largo);
+    const q = Object.keys(MERCADO)[Number(mi[1].slice(-2))];
     const k = Number(mi[1].slice(3, 8)) - 90000;
     if (!q || k % 3 === 2) return json({ message: 'not found' }, 404);   // algunos sin ofertas
     const m = MERCADO[q];
@@ -411,12 +413,36 @@ console.log('== 19. Margen: con menos de 5 precios no se calcula ni entra al sco
 console.log('== 20. Categoria de MeLi fijada a mano por producto ==');
 {
   const fuente = (await import('node:fs')).readFileSync(new URL('../api/analyze.js', import.meta.url), 'utf8');
-  chequear('gel limpiador de teclado: Kits de Limpieza (MLA72688), no Desmaquillantes', /q:'gel limpiador teclado reutilizable'[^}]*cat:'MLA72688'/.test(fuente));
+  chequear('gel limpiador de teclado: Kits de Limpieza (MLA72688), no Desmaquillantes', (await import('../api/_categorias-datos.js')).CATEGORIAS['gel limpiador teclado reutilizable'].cat === 'MLA72688');
   const cli = pre.crearCliente('tok-prueba');
   const bien = await pre.analizarProducto(cli, { q: 'comedero antivoracidad perro', cat: 'MLA32277' });
   chequear('con la categoria correcta: ofertas y demanda de esa categoria', bien.results.length > 0 && bien.results.every(o => o.category_id === 'MLA32277') && bien.categoria && bien.categoria.id === 'MLA32277');
   const otra = await pre.analizarProducto(cli, { q: 'comedero antivoracidad perro', cat: 'MLA999999' });
   chequear('ofertas de otra categoria se descartan (va a Pendientes)', otra.results.length === 0, otra.results.length);
+}
+
+console.log('== 21. Categoria y dominio fijados para todo el catalogo; busqueda filtrada ==');
+{
+  const { CATEGORIAS } = await import('../api/_categorias-datos.js');
+  const fuente = (await import('node:fs')).readFileSync(new URL('../api/analyze.js', import.meta.url), 'utf8');
+  const qs = [...fuente.matchAll(/q:'([^']+)'/g)].map(m => m[1]);
+  const faltan = qs.filter(q => !CATEGORIAS[q]);
+  chequear('los 780 productos de los 65 nichos tienen categoria o estan marcados para revision', qs.length === 780 && faltan.length === 0, qs.length + ' productos, faltan ' + faltan.length);
+  const fijas = Object.values(CATEGORIAS).filter(c => c.cat);
+  chequear('cada categoria fijada tiene id de MeLi (y dominio salvo excepciones documentadas)', fijas.every(c => /^MLA\d+$/.test(c.cat) && (c.dom === null || /^MLA-[A-Z0-9_]+$/.test(c.dom))) && fijas.filter(c => !c.dom).length <= 5, fijas.length + ' fijadas');
+  chequear('las dudosas quedan para revision, sin categoria inventada', Object.values(CATEGORIAS).filter(c => c.revisar).every(c => !c.cat));
+  const cat = await import('../api/_categorias.js');
+  chequear('categoriaDe usa el archivo (gel de teclado -> kits de limpieza de computadoras)', cat.categoriaDe({ q: 'gel limpiador teclado reutilizable' }).dom === 'MLA-COMPUTER_CLEANING_KITS');
+  const cli = pre.crearCliente('tok-prueba');
+  const antes = llamadas.conDominio;
+  const r = await pre.analizarProducto(cli, { q: 'comedero antivoracidad perro' });
+  chequear('/products/search se pide con domain_id del producto', llamadas.conDominio > antes && r.results.length > 0 && r.categoria.id === 'MLA32277');
+  const largo = await pre.analizarProducto(cli, { q: 'comedero antivoracidad perro grande', cat: 'MLA32277', dom: 'MLA-CAT_AND_DOG_DRINKERS_AND_FEEDERS' });
+  chequear('dentro del dominio, si no trae nada se sacan palabras del final', largo && largo.results.length > 0, largo && largo.results.length);
+  const ajeno = await pre.analizarProducto(cli, { q: 'comedero antivoracidad perro', cat: 'MLA999999', dom: 'MLA-OTRO_DOMINIO' });
+  chequear('un dominio que no corresponde no trae productos de otro rubro', !ajeno || ajeno.results.length === 0);
+  const sinIndice = await pre.analizarProducto(cli, { q: 'comedero antivoracidad perro', cat: 'MLA32277', dom: 'MLA-DOMINIO_SIN_INDICE' });
+  chequear('si el dominio no trae nada, busca sin filtro y se queda solo con las ofertas de la categoria', sinIndice && sinIndice.results.length > 0 && sinIndice.results.every(o => o.category_id === 'MLA32277'));
 }
 
 console.log('== 9. Nicho sin pre-analisis ni MeLi: nada inventado ==');

@@ -10,11 +10,14 @@
 import { resolveUserId, anthropicHeaders } from './_meli.js';
 import { esCliente, tokenDe, leerToken, esAdmin, cronAdmitido } from './_sesion.js';
 import { cotizacionDolar, tipoDeCambio, DOLAR_TIPO_DEFAULT } from './_dolar.js';
+import { resolverCategoria } from './_categorias.js';
+import { CATEGORIAS } from './_categorias-datos.js';
 import { evaluarProducto, ordenar, CAPITAL_LABEL, estadisticasCompetencia, limpiarMuestra, puntajeDemanda, puntajeSaturacion, costoImportacion, acotarPorCosto } from './_oportunidad.js';
 import { cosechar, encolar, arrancarCola, historialDe, ITEMS_POR_PRODUCTO, estadoPresupuesto } from './_rotacion.js';
 import { probarEndpoints, tokenDeCorridaValido, MELI_USER_PRECALCULO, crearCliente, analizarNicho, VERSION_MERCADO } from './_precalculo.js';
 
 const USD_ARS_FALLBACK = 1510;
+const MELI_API_BUSCADOR = 'https://api.mercadolibre.com';
 const LIMITE_GRATIS = 3;
 
 // El costo puesto, el margen, el score y el veredicto ahora salen de
@@ -24,18 +27,18 @@ const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 
 const CATALOGO = {
   tecnologia: { label: 'Tecnología / Gadgets', icon: '💻', productos: [
-    { nombre:'Soporte magnético para cable bajo escritorio (clip)', q:'clip organizador cable bajo escritorio', keyword_en:'under desk cable management clip', cat:'MLA414091', volCm3:150, costoMin:0.4, costoMax:1.1, pesoG:30, nota:'Nicho oficina en casa' },
+    { nombre:'Soporte magnético para cable bajo escritorio (clip)', q:'clip organizador cable bajo escritorio', keyword_en:'under desk cable management clip', volCm3:150, costoMin:0.4, costoMax:1.1, pesoG:30, nota:'Nicho oficina en casa' },
     { nombre:'Soporte para tablet ajustable de escritorio', q:'soporte tablet escritorio ajustable', keyword_en:'adjustable desktop tablet stand', volCm3:1200, costoMin:1.2, costoMax:3, pesoG:130, nota:'Menos saturado que celular' },
     { nombre:'Lector microSD USB-C a tipo C rapido', q:'lector microsd usb c tipo c', keyword_en:'usb c micro sd card reader', volCm3:60, costoMin:0.8, costoMax:2, pesoG:15, nota:'Diminuto, recompra' },
     { nombre:'Aro de luz para celular con clip (mini)', q:'aro luz celular clip', keyword_en:'clip on phone ring light', volCm3:350, costoMin:1.2, costoMax:3, pesoG:60, nota:'Tendencia contenido' },
-    { nombre:'Soporte colgante para auriculares bajo escritorio', q:'soporte auricular gancho bajo escritorio', keyword_en:'under desk headphone hook holder', cat:'MLA456571', volCm3:500, costoMin:1, costoMax:2.5, pesoG:70, nota:'Gamer setup' },
+    { nombre:'Soporte colgante para auriculares bajo escritorio', q:'soporte auricular gancho bajo escritorio', keyword_en:'under desk headphone hook holder', volCm3:500, costoMin:1, costoMax:2.5, pesoG:70, nota:'Gamer setup' },
     { nombre:'Grip anillo adhesivo para celular', q:'soporte anillo celular adhesivo', keyword_en:'phone ring holder grip', volCm3:60, costoMin:0.2, costoMax:0.7, pesoG:20, nota:'Barato, recompra' },
-    { nombre:'Limpiador de teclado gel reutilizable', q:'gel limpiador teclado reutilizable', keyword_en:'reusable keyboard cleaning gel', cat:'MLA72688', volCm3:300, costoMin:0.5, costoMax:1.5, pesoG:60, nota:'Consumible, recompra' },
-    { nombre:'Splitter auxiliar 3.5mm para compartir audio', q:'splitter auxiliar 3.5mm audio', keyword_en:'3.5mm audio splitter', cat:'MLA431802', volCm3:80, costoMin:0.6, costoMax:1.8, pesoG:25, nota:'Accesorio de nicho' },
+    { nombre:'Limpiador de teclado gel reutilizable', q:'gel limpiador teclado reutilizable', keyword_en:'reusable keyboard cleaning gel', volCm3:300, costoMin:0.5, costoMax:1.5, pesoG:60, nota:'Consumible, recompra' },
+    { nombre:'Splitter auxiliar 3.5mm para compartir audio', q:'splitter auxiliar 3.5mm audio', keyword_en:'3.5mm audio splitter', volCm3:80, costoMin:0.6, costoMax:1.8, pesoG:25, nota:'Accesorio de nicho' },
     { nombre:'Soporte notebook plegable de aluminio', q:'soporte notebook aluminio plegable', keyword_en:'foldable aluminum laptop stand', volCm3:1800, costoMin:3, costoMax:7, pesoG:300, nota:'Ergonomía' },
     { nombre:'Mouse pad XL antideslizante', q:'mousepad gamer xl', keyword_en:'xl gaming mouse pad', volCm3:2500, costoMin:1, costoMax:3, pesoG:250, nota:'Liviano' },
-    { nombre:'Etiquetadores de cable de silicona (set)', q:'etiquetas cables silicona set', keyword_en:'silicone cable labels set', cat:'MLA414091', volCm3:150, costoMin:0.5, costoMax:1.5, pesoG:40, nota:'Home office prolijo' },
-    { nombre:'Enrollador retractil para cable de carga', q:'enrollador retractil cable carga', keyword_en:'retractable charging cable winder', cat:'MLA414091', volCm3:150, costoMin:0.7, costoMax:2, pesoG:40, nota:'Viajero, liviano' },
+    { nombre:'Etiquetadores de cable de silicona (set)', q:'etiquetas cables silicona set', keyword_en:'silicone cable labels set', volCm3:150, costoMin:0.5, costoMax:1.5, pesoG:40, nota:'Home office prolijo' },
+    { nombre:'Enrollador retractil para cable de carga', q:'enrollador retractil cable carga', keyword_en:'retractable charging cable winder', volCm3:150, costoMin:0.7, costoMax:2, pesoG:40, nota:'Viajero, liviano' },
   ]},
   hogar: { label: 'Hogar y Deco', icon: '🏠', productos: [
     { nombre:'Soporte cepillo de dientes magnetico adhesivo', q:'soporte cepillo dientes magnetico adhesivo', keyword_en:'magnetic adhesive toothbrush holder', volCm3:300, costoMin:0.6, costoMax:1.8, pesoG:60, nota:'Bano, novedoso' },
@@ -44,12 +47,12 @@ const CATALOGO = {
     { nombre:'Tira LED USB para ambiente (2m)', q:'tira led usb ambiente', keyword_en:'usb led strip light', volCm3:400, costoMin:0.8, costoMax:2.5, pesoG:80, nota:'Deco tendencia' },
     { nombre:'Rociador presurizado para plantas', q:'rociador presion plantas', keyword_en:'pressure plant sprayer', volCm3:1800, costoMin:1.5, costoMax:3.5, pesoG:180, nota:'Jardín interior' },
     { nombre:'Bolsas al vacío para ropa (set)', q:'bolsas vacio ropa', keyword_en:'vacuum storage bags clothes', volCm3:1500, costoMin:1, costoMax:3, pesoG:150, nota:'Ahorro espacio' },
-    { nombre:'Colgador apilable de carteras y bolsos', q:'colgador apilable carteras placard', keyword_en:'stackable closet handbag hanger', cat:'MLA120357', volCm3:1200, costoMin:1.2, costoMax:3, pesoG:150, nota:'Placard, nicho' },
-    { nombre:'Difusor de aromas mini USB', q:'difusor aromas usb mini', keyword_en:'mini usb aroma diffuser', cat:'MLA381270', volCm3:800, costoMin:1.5, costoMax:4, pesoG:150, nota:'Deco + bienestar' },
+    { nombre:'Colgador apilable de carteras y bolsos', q:'colgador apilable carteras placard', keyword_en:'stackable closet handbag hanger', volCm3:1200, costoMin:1.2, costoMax:3, pesoG:150, nota:'Placard, nicho' },
+    { nombre:'Difusor de aromas mini USB', q:'difusor aromas usb mini', keyword_en:'mini usb aroma diffuser', volCm3:800, costoMin:1.5, costoMax:4, pesoG:150, nota:'Deco + bienestar' },
     { nombre:'Burlete adhesivo bajo puerta anti ruido', q:'burlete adhesivo bajo puerta', keyword_en:'adhesive door draft stopper', volCm3:1500, costoMin:1, costoMax:2.5, pesoG:120, nota:'Ahorro energia, nicho' },
     { nombre:'Set de utensilios de silicona', q:'utensilios silicona cocina set', keyword_en:'silicone kitchen utensils set', volCm3:3500, costoMin:2, costoMax:5, pesoG:400, nota:'No frágil' },
-    { nombre:'Reloj proyector de techo mini', q:'reloj proyector techo mini', keyword_en:'mini ceiling projection clock', cat:'MLA3949', volCm3:900, costoMin:2, costoMax:4, pesoG:150, nota:'Novedoso dormitorio' },
-    { nombre:'Organizador de cosméticos giratorio', q:'organizador cosmeticos giratorio', keyword_en:'rotating makeup organizer', cat:'MLA402976', volCm3:6000, costoMin:2, costoMax:5, pesoG:350, nota:'Público femenino' },
+    { nombre:'Reloj proyector de techo mini', q:'reloj proyector techo mini', keyword_en:'mini ceiling projection clock', volCm3:900, costoMin:2, costoMax:4, pesoG:150, nota:'Novedoso dormitorio' },
+    { nombre:'Organizador de cosméticos giratorio', q:'organizador cosmeticos giratorio', keyword_en:'rotating makeup organizer', volCm3:6000, costoMin:2, costoMax:5, pesoG:350, nota:'Público femenino' },
   ]},
   deportes: { label: 'Deportes / Fitness', icon: '🏋️', productos: [
     { nombre:'Mini bandas de gluteos de tela (set)', q:'banda tela gluteos set', keyword_en:'fabric booty resistance bands set', volCm3:700, costoMin:1.5, costoMax:3.5, pesoG:150, nota:'Tendencia fitness femenino' },
@@ -83,7 +86,7 @@ const CATALOGO = {
     { nombre:'Cepillo quita pelos para mascotas', q:'cepillo quita pelos mascotas', keyword_en:'pet hair remover brush', volCm3:700, costoMin:1, costoMax:3, pesoG:120, nota:'Recompra' },
     { nombre:'Comedero antivoracidad para perros', q:'comedero antivoracidad perro', keyword_en:'slow feeder dog bowl', volCm3:2500, costoMin:1.5, costoMax:4, pesoG:200, nota:'No frágil' },
     { nombre:'Juguete dispensador de premios', q:'juguete dispensador premios perro', keyword_en:'dog treat dispenser toy', volCm3:1000, costoMin:1.5, costoMax:4, pesoG:150, nota:'Tendencia' },
-    { nombre:'Cortauñas para mascotas con lima', q:'cortauñas mascotas', keyword_en:'pet nail clipper with file', cat:'MLA81651', volCm3:250, costoMin:0.8, costoMax:2.5, pesoG:80, nota:'Chico' },
+    { nombre:'Cortauñas para mascotas con lima', q:'cortauñas mascotas', keyword_en:'pet nail clipper with file', volCm3:250, costoMin:0.8, costoMax:2.5, pesoG:80, nota:'Chico' },
     { nombre:'Alfombra de lameteo antiestres para perros', q:'alfombra lameteo lick mat perro', keyword_en:'dog lick mat', volCm3:600, costoMin:1.5, costoMax:3.5, pesoG:150, nota:'Tendencia bienestar animal' },
     { nombre:'Collar LED recargable de seguridad', q:'collar led perro recargable', keyword_en:'rechargeable led dog collar', volCm3:300, costoMin:1.5, costoMax:4, pesoG:80, nota:'Seguridad' },
     { nombre:'Bolsas biodegradables para heces', q:'bolsas caca perro biodegradables', keyword_en:'biodegradable dog poop bags', volCm3:600, costoMin:0.5, costoMax:2, pesoG:100, nota:'Consumible' },
@@ -1169,6 +1172,76 @@ async function manejarPrecalculo(req, res, url) {
   const tk = await getMeliToken(MELI_USER_PRECALCULO());
   if (!tk || !tk.token) {
     return res.status(503).json({ ok: false, error: 'No hay token vigente de MercadoLibre para ' + MELI_USER_PRECALCULO() + (tk && tk.expired ? ' (vencido y no se pudo renovar)' : '') + '.' });
+  }
+  // Resuelve la categoria de MeLi de un tramo del catalogo (todos los nichos)
+  // y la guarda en buscador_categorias para revisarla. Solo lectura de MeLi.
+  if (modo === 'categorias') {
+    const todos = [];
+    Object.keys(CATALOGO).forEach(k => CATALOGO[k].productos.forEach(p => todos.push({ k, p })));
+    const desde = Math.max(0, Number(sp.get('desde')) || 0);
+    const n = Math.max(1, Math.min(150, Number(sp.get('n')) || 60));
+    const tramo = todos.slice(desde, desde + n);
+    const cli = crearCliente(tk.token, { deadline: Date.now() + 50000 });
+    const rutas = {};
+    const filas = [];
+    for (let i = 0; i < tramo.length; i += 4) {
+      const lote = tramo.slice(i, i + 4);
+      const rs = await Promise.all(lote.map(x => resolverCategoria(cli, x.p, x.k, rutas).catch(e => ({ q: x.p.q, nicho: x.k, nombre: x.p.nombre, estado: 'revisar', motivo: 'error: ' + e.message }))));
+      rs.forEach(r => filas.push(Object.assign(r, { actualizado: new Date().toISOString() })));
+    }
+    let guardadas = false;
+    if (SUPA_KEY && filas.length) {
+      const r = await fetch(SUPA_URL + '/rest/v1/buscador_categorias?on_conflict=q', {
+        method: 'POST', headers: supaHeaders({ 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' }),
+        body: JSON.stringify(filas) }).catch(() => null);
+      guardadas = !!(r && r.ok);
+    }
+    return res.status(200).json({ ok: true, via, desde, procesados: filas.length, total: todos.length, siguiente: desde + filas.length < todos.length ? desde + filas.length : null,
+      ok_: filas.filter(f => f.estado === 'ok').length, revisar: filas.filter(f => f.estado === 'revisar').length, guardadas,
+      llamadas: cli.estado.llamadas, respuestas429: cli.estado.limitado, cortadas: cli.estado.cortadasPorTiempo || 0 });
+  }
+  // Mide cuantos productos estaban mal con la busqueda vieja (sin filtro): de
+  // los 10 primeros productos de catalogo de la busqueda por palabras, cuantos
+  // son del dominio fijado. Lo guarda en buscador_categorias.
+  if (modo === 'compararcategorias') {
+    const todos = Object.keys(CATEGORIAS).filter(q => CATEGORIAS[q].cat);
+    const desde = Math.max(0, Number(sp.get('desde')) || 0);
+    const n = Math.max(1, Math.min(200, Number(sp.get('n')) || 100));
+    const tramo = todos.slice(desde, desde + n);
+    const cli = crearCliente(tk.token, { deadline: Date.now() + 50000 });
+    const filas = [];
+    for (let i = 0; i < tramo.length; i += 4) {
+      const lote = tramo.slice(i, i + 4);
+      const rs = await Promise.all(lote.map(q => cli.get('products/search', MELI_API_BUSCADOR + '/products/search?status=active&site_id=MLA&limit=10&q=' + encodeURIComponent(q))));
+      rs.forEach((r, k) => {
+        const res0 = r.ok && r.json && Array.isArray(r.json.results) ? r.json.results : null;
+        if (!res0) return;
+        const cuenta = {};
+        res0.forEach(x => { cuenta[x.domain_id] = (cuenta[x.domain_id] || 0) + 1; });
+        const mayor = Object.keys(cuenta).sort((a, b) => cuenta[b] - cuenta[a])[0] || null;
+        filas.push({ q: lote[k], sin_filtro_resultados: res0.length, sin_filtro_en_dominio: cuenta[CATEGORIAS[lote[k]].dom] || 0, sin_filtro_dominio_mayoritario: mayor });
+      });
+    }
+    let guardadas = 0;
+    for (let i = 0; i < filas.length; i += 20) {
+      const rs = await Promise.all(filas.slice(i, i + 20).map(f => fetch(SUPA_URL + '/rest/v1/buscador_categorias?q=eq.' + encodeURIComponent(f.q), { method: 'PATCH',
+        headers: supaHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }), body: JSON.stringify(f) }).catch(() => null)));
+      guardadas += rs.filter(r => r && r.ok).length;
+    }
+    return res.status(200).json({ ok: true, via, desde, procesados: filas.length, total: todos.length, siguiente: desde + tramo.length < todos.length ? desde + tramo.length : null, guardadas, cortadas: cli.estado.cortadasPorTiempo || 0 });
+  }
+  // Prueba si /products/search acepta filtro por dominio o categoria.
+  if (modo === 'probarfiltro') {
+    const q = encodeURIComponent(sp.get('q') || 'gel limpiador teclado');
+    const base = MELI_API_BUSCADOR + '/products/search?status=active&site_id=MLA&limit=10&q=' + q;
+    const variantes = { sinFiltro: base, domain_id: base + '&domain_id=' + encodeURIComponent(sp.get('dom') || ''), category: base + '&category=' + encodeURIComponent(sp.get('cat') || '') };
+    const out = {};
+    for (const [nombre, url] of Object.entries(variantes)) {
+      const r = await fetch(url, { headers: { Authorization: 'Bearer ' + tk.token } }).catch(() => null);
+      const j = r ? await r.json().catch(() => null) : null;
+      out[nombre] = { status: r && r.status, total: j && j.paging && j.paging.total, dominios: j && Array.isArray(j.results) ? j.results.map(x => x.domain_id) : null, nombres: j && Array.isArray(j.results) ? j.results.slice(0, 4).map(x => String(x.name).slice(0, 50)) : null };
+    }
+    return res.status(200).json({ ok: true, via, ...out });
   }
   if (modo === 'probar') {
     return res.status(200).json({ ok: true, via, usuario: MELI_USER_PRECALCULO(), ...(await probarEndpoints(tk.token, sp.get('q'), sp.get('item'))) });

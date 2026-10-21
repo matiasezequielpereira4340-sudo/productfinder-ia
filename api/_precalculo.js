@@ -13,6 +13,7 @@
 
 import { MELI_API, fetchJson, palabrasSignificativas, puntajeDeTitulo } from './_meli.js';
 import { esMarca } from './_radar.js';
+import { categoriaDe } from './_categorias.js';
 
 export const MELI_USER_PRECALCULO = () => process.env.BUSCADOR_MELI_USER || 'matypereira';
 
@@ -274,10 +275,27 @@ export async function anotarSinOfertas(ids) {
 
 export async function analizarProducto(cli, prod) {
   const q = prod.q;
-  const qq = encodeURIComponent(q);
+  // Categoria y dominio de MeLi fijados para el producto (api/_categorias-datos.js).
+  // Con dominio, /products/search trae solo productos de ese dominio: ya no
+  // entran geles faciales cuando se busca un gel limpiador de teclado.
+  const fija = categoriaDe(prod);
+  const filtroDominio = fija && fija.dom ? '&domain_id=' + encodeURIComponent(fija.dom) : '';
+  // Dentro del dominio muchos productos de catalogo no tienen ofertas (404):
+  // se mira una pagina mas para llegar a las ofertas comparables.
+  const buscar = (texto, filtro) => Promise.all(Array.from({ length: CATALOGO_PAGINAS + (filtro ? 1 : 0) }, (_, k) =>
+    cli.get('products/search', MELI_API + '/products/search?status=active&site_id=MLA&limit=10&offset=' + (k * 10) + '&q=' + encodeURIComponent(texto) + filtro)));
+  const vacia = ps => ps.every(r => !r.ok || !r.json || !(r.json.results || []).length);
   // 1. Catalogo: total y productos.
-  const paginas = await Promise.all(Array.from({ length: CATALOGO_PAGINAS }, (_, k) =>
-    cli.get('products/search', MELI_API + '/products/search?status=active&site_id=MLA&limit=10&offset=' + (k * 10) + '&q=' + qq)));
+  let paginas = await buscar(q, filtroDominio);
+  // Dentro del dominio, una busqueda larga puede no traer nada: se prueba
+  // sacando palabras del final, nunca menos de 2. Si igual no trae nada (hay
+  // dominios que /products/search casi no indexa), se busca sin el filtro y
+  // las ofertas de otra categoria se descartan igual mas abajo.
+  if (filtroDominio) {
+    let pal = q.split(/\s+/);
+    while (vacia(paginas) && pal.length > 2) { pal = pal.slice(0, -1); paginas = await buscar(pal.join(' '), filtroDominio); }
+    if (vacia(paginas)) paginas = await buscar(q, '');
+  }
   let catalogoTotal = null;
   const catalogo = [];
   const vistos = new Set();
@@ -325,12 +343,10 @@ export async function analizarProducto(cli, prod) {
     });
   }
   if (nuevos404.length) await anotarSinOfertas(nuevos404);
-  // Categoria fijada a mano en el catalogo (prod.cat): MeLi a veces devuelve
-  // productos de otro rubro para la busqueda (gel limpiador de teclado ->
-  // Desmaquillantes). Se descartan las ofertas de otras categorias, y la
+  // Con categoria fijada se descartan las ofertas de otras categorias, y la
   // demanda y la comision salen de la categoria correcta.
-  if (prod.cat) {
-    const deLaCategoria = ofertas.filter(o => o.category_id === prod.cat);
+  if (fija) {
+    const deLaCategoria = ofertas.filter(o => o.category_id === fija.cat);
     ofertas.length = 0;
     deLaCategoria.forEach(o => ofertas.push(o));
   }
@@ -342,7 +358,7 @@ export async function analizarProducto(cli, prod) {
   const cuenta = {};
   let catId = null;
   for (const o of ofertas) if (o.category_id) { cuenta[o.category_id] = (cuenta[o.category_id] || 0) + 1; if (!catId || cuenta[o.category_id] > cuenta[catId]) catId = o.category_id; }
-  if (prod.cat) catId = prod.cat;
+  if (fija) catId = fija.cat;
   const precioRef = Math.round(mediana(ofertas.map(o => o.price)));
   // (Ya no se piden /users: la rotacion sale de vendidos reales, ver _rotacion.js.)
   const [cat, lp] = await Promise.all([
