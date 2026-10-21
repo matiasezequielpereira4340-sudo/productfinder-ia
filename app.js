@@ -787,7 +787,11 @@ function pfCard(p, opts){
   var mn = p.margenNeto;
   h += '<div class="product-stats pf2-plata">';
   h += '<div class="stat"><span class="stat-l" title="' + pfEsc((p.canal && p.canal.notaPrecio) || 'Mediana de publicaciones comparables en MercadoLibre') + '">Precio de venta</span><span class="stat-v">' + (p.precioVentaARS ? pfArs(p.precioVentaARS) : 'Sin dato') + '</span></div>';
-  h += '<div class="stat pf2-sem pf2-sem-' + pfEsc(sem.color) + '"><span class="stat-l">Margen neto</span><span class="stat-v">' + (mn ? pfPct(mn.pct) : '—') + '</span><span class="pf2-sub">' + (mn ? pfArs(mn.netoARS) + ' por unidad · ' + pfEsc(sem.label) : 'Sin precio real') + '</span></div>';
+  if(mn && mn.pocosPrecios != null){
+    h += '<div class="stat pf2-sem pf2-sem-gris"><span class="stat-l">Margen neto</span><span class="stat-v">—</span><span class="pf2-sub">Margen: pocos precios para calcular (' + mn.pocosPrecios + ')</span></div>';
+  } else {
+    h += '<div class="stat pf2-sem pf2-sem-' + pfEsc(sem.color) + '"><span class="stat-l">Margen neto</span><span class="stat-v">' + (mn ? pfPct(mn.pct) : '—') + '</span><span class="pf2-sub">' + (mn ? pfArs(mn.netoARS) + ' por unidad · ' + pfEsc(sem.label) : 'Sin precio real') + '</span></div>';
+  }
   h += '<div class="stat"><span class="stat-l" title="' + pfEsc(costo.detalle || '') + '">FOB estimado</span><span class="stat-v">USD ' + pfNum(costo.fobMinUSD) + '\u2013' + pfNum(costo.fobMaxUSD) + '</span><span class="pf2-sub">estimado por categoría</span></div>';
   h += '<div class="stat"><span class="stat-l" title="' + pfEsc(costo.detalle || '') + '">Costo puesto</span><span class="stat-v">' + pfArs(costo.costoPuestoARS) + '</span><span class="pf2-sub">' + pfUsd(costo.costoPuestoUSD) + ' \u00b7 flete: ' + PF_NF.format(costo.volCm3 || 0) + ' cm\u00b3/u estimado</span></div>';
   h += '</div>';

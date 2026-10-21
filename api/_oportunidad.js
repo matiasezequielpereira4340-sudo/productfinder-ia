@@ -480,6 +480,9 @@ export function puntajeMargen(pct) {
   return 100;
 }
 
+// Con menos de 5 precios la mediana no es confiable: no hay margen ni entra al score.
+export const MIN_PRECIOS_MARGEN = 5;
+
 export function semaforoMargen(pct) {
   if (pct == null) return { color: 'gris', label: 'Margen sin calcular' };
   if (pct >= MARGEN_MIN_ALTA) return { color: 'verde', label: 'Margen sano' };
@@ -499,7 +502,8 @@ export function evaluar(e) {
     { clave: 'rotacion', label: 'Rotación', valor: rot.valor, peso: pesos.rotacion, detalle: rot.detalle },
     { clave: 'saturacion', label: 'Saturación (invertida)', valor: sat.valor == null ? null : 100 - sat.valor, peso: pesos.saturacion, detalle: sat.detalle },
     { clave: 'margen', label: 'Margen neto', valor: puntajeMargen(e.margenPct), peso: pesos.margen,
-      detalle: e.margenPct != null ? e.margenPct.toLocaleString('es-AR') + '% neto sobre el precio de venta' : 'Sin precio de venta real' },
+      detalle: e.margenPct != null ? e.margenPct.toLocaleString('es-AR') + '% neto sobre el precio de venta'
+        : e.pocosPrecios != null ? 'Margen: pocos precios para calcular (' + e.pocosPrecios + ')' : 'Sin precio de venta real' },
     { clave: 'riesgo', label: 'Riesgo (operativo y de capital)', valor: e.riesgo.valor, peso: pesos.riesgo, detalle: e.riesgo.detalle }
   ];
   const usados = componentes.filter(c => c.valor != null);
@@ -517,22 +521,25 @@ export function evaluar(e) {
   }
 
   // Sin margen calculable no hay score: no se puede decidir una compra.
-  if (e.margenPct == null) {
+  if (e.margenPct == null && e.pocosPrecios == null) {
     return { score: null, componentes, ajustes,
       veredicto: { nivel: 'sin_dato', label: 'Sin datos de mercado', motivos: ['No hay precio de venta real para calcular el margen.'] },
       semaforo: semaforoMargen(null) };
   }
   const base = pesoUsado ? usados.reduce((a, c) => a + c.valor * c.peso, 0) / pesoUsado : 0;
   const score = Math.max(0, Math.min(100, Math.round(base + ajustes.reduce((a, x) => a + x.puntos, 0))));
-  const semaforo = semaforoMargen(e.margenPct);
+  const semaforo = e.pocosPrecios != null
+    ? { color: 'gris', label: 'Margen: pocos precios para calcular (' + e.pocosPrecios + ')' }
+    : semaforoMargen(e.margenPct);
 
   const motivos = [];
   let nivel;
-  if (e.margenPct < MARGEN_MIN_VIABLE) {
+  if (e.pocosPrecios != null) motivos.push('Margen: pocos precios para calcular (' + e.pocosPrecios + '): sin margen no puede ser oportunidad alta.');
+  if (e.margenPct != null && e.margenPct < MARGEN_MIN_VIABLE) {
     nivel = 'baja';
     motivos.push('Margen neto de ' + e.margenPct.toLocaleString('es-AR') + '%: no cubre imprevistos.');
   } else {
-    if (e.margenPct < MARGEN_MIN_ALTA) motivos.push('Margen neto menor a ' + MARGEN_MIN_ALTA + '%.');
+    if (e.margenPct != null && e.margenPct < MARGEN_MIN_ALTA) motivos.push('Margen neto menor a ' + MARGEN_MIN_ALTA + '%.');
     if (e.demanda.valor == null) motivos.push('Falta validar la demanda.');
     if (rot.valor == null) motivos.push('Rotación pendiente: sin vendidos medidos no puede ser oportunidad alta.');
     else if (e.demanda.valor < 55) motivos.push('Demanda baja: no está entre lo más buscado de su categoría.');
@@ -544,7 +551,7 @@ export function evaluar(e) {
     else if (score >= 50) nivel = 'media';
     else { nivel = 'baja'; if (!motivos.length) motivos.push('Score menor a 50.'); }
   }
-  const labels = { alta: 'Oportunidad alta', media: 'Oportunidad media', baja: e.margenPct < MARGEN_MIN_VIABLE ? 'No conviene' : 'Requiere validación' };
+  const labels = { alta: 'Oportunidad alta', media: 'Oportunidad media', baja: e.margenPct != null && e.margenPct < MARGEN_MIN_VIABLE ? 'No conviene' : 'Requiere validación' };
   return { score, componentes, ajustes, veredicto: { nivel, label: labels[nivel], motivos }, semaforo };
 }
 
@@ -626,12 +633,13 @@ export function evaluarProducto(prod, nichoKey, mercado, perfil, usdArs, histori
   const precios = estadisticasCompetencia(acotados, mercado.catalogoTotal);
   const comp = Object.assign({}, oferta, { precioMin: precios.precioMin, precioMediana: precios.precioMediana, precioMax: precios.precioMax, muestraPrecios: precios.muestra });
   const cond = condicionesCanal(perfil.canal, comp.precioMediana, prod.pesoG, mercado.comision);
-  const mn = margenNeto(cond, costo);
+  const pocos = comp.muestraPrecios < MIN_PRECIOS_MARGEN ? comp.muestraPrecios : null;
+  const mn = pocos != null ? { pct: null, netoARS: null, pocosPrecios: pocos } : margenNeto(cond, costo);
   const dem = puntajeDemanda(comp, mercado);
   const rot = puntajeRotacion(historial);
   const sat = puntajeSaturacion(comp, dem.valor);
   const riesgo = puntajeRiesgo(prod, comp, certs, perfil.experiencia, capacidad);
-  const ev = evaluar({ margenPct: mn.pct, demanda: dem, rotacion: rot, saturacion: sat, riesgo, riesgoTolerancia: perfil.riesgo, capacidad });
+  const ev = evaluar({ margenPct: mn.pct, pocosPrecios: pocos, demanda: dem, rotacion: rot, saturacion: sat, riesgo, riesgoTolerancia: perfil.riesgo, capacidad });
   const m = x => ({ nivel: x.nivel, valor: x.valor, numero: x.numero, detalle: x.detalle, como: x.como });
   return Object.assign(base, {
     fuente: 'MercadoLibre (API oficial)',

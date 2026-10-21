@@ -24,18 +24,18 @@ const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 
 const CATALOGO = {
   tecnologia: { label: 'Tecnología / Gadgets', icon: '💻', productos: [
-    { nombre:'Soporte magnético para cable bajo escritorio (clip)', q:'clip organizador cable bajo escritorio', keyword_en:'under desk cable management clip', volCm3:150, costoMin:0.4, costoMax:1.1, pesoG:30, nota:'Nicho oficina en casa' },
+    { nombre:'Soporte magnético para cable bajo escritorio (clip)', q:'clip organizador cable bajo escritorio', keyword_en:'under desk cable management clip', cat:'MLA414091', volCm3:150, costoMin:0.4, costoMax:1.1, pesoG:30, nota:'Nicho oficina en casa' },
     { nombre:'Soporte para tablet ajustable de escritorio', q:'soporte tablet escritorio ajustable', keyword_en:'adjustable desktop tablet stand', volCm3:1200, costoMin:1.2, costoMax:3, pesoG:130, nota:'Menos saturado que celular' },
     { nombre:'Lector microSD USB-C a tipo C rapido', q:'lector microsd usb c tipo c', keyword_en:'usb c micro sd card reader', volCm3:60, costoMin:0.8, costoMax:2, pesoG:15, nota:'Diminuto, recompra' },
     { nombre:'Aro de luz para celular con clip (mini)', q:'aro luz celular clip', keyword_en:'clip on phone ring light', volCm3:350, costoMin:1.2, costoMax:3, pesoG:60, nota:'Tendencia contenido' },
-    { nombre:'Soporte colgante para auriculares bajo escritorio', q:'soporte auricular gancho bajo escritorio', keyword_en:'under desk headphone hook holder', volCm3:500, costoMin:1, costoMax:2.5, pesoG:70, nota:'Gamer setup' },
+    { nombre:'Soporte colgante para auriculares bajo escritorio', q:'soporte auricular gancho bajo escritorio', keyword_en:'under desk headphone hook holder', cat:'MLA456571', volCm3:500, costoMin:1, costoMax:2.5, pesoG:70, nota:'Gamer setup' },
     { nombre:'Grip anillo adhesivo para celular', q:'soporte anillo celular adhesivo', keyword_en:'phone ring holder grip', volCm3:60, costoMin:0.2, costoMax:0.7, pesoG:20, nota:'Barato, recompra' },
-    { nombre:'Limpiador de teclado gel reutilizable', q:'gel limpiador teclado reutilizable', keyword_en:'reusable keyboard cleaning gel', volCm3:300, costoMin:0.5, costoMax:1.5, pesoG:60, nota:'Consumible, recompra' },
-    { nombre:'Splitter auxiliar 3.5mm para compartir audio', q:'splitter auxiliar 3.5mm audio', keyword_en:'3.5mm audio splitter', volCm3:80, costoMin:0.6, costoMax:1.8, pesoG:25, nota:'Accesorio de nicho' },
+    { nombre:'Limpiador de teclado gel reutilizable', q:'gel limpiador teclado reutilizable', keyword_en:'reusable keyboard cleaning gel', cat:'MLA72688', volCm3:300, costoMin:0.5, costoMax:1.5, pesoG:60, nota:'Consumible, recompra' },
+    { nombre:'Splitter auxiliar 3.5mm para compartir audio', q:'splitter auxiliar 3.5mm audio', keyword_en:'3.5mm audio splitter', cat:'MLA431802', volCm3:80, costoMin:0.6, costoMax:1.8, pesoG:25, nota:'Accesorio de nicho' },
     { nombre:'Soporte notebook plegable de aluminio', q:'soporte notebook aluminio plegable', keyword_en:'foldable aluminum laptop stand', volCm3:1800, costoMin:3, costoMax:7, pesoG:300, nota:'Ergonomía' },
     { nombre:'Mouse pad XL antideslizante', q:'mousepad gamer xl', keyword_en:'xl gaming mouse pad', volCm3:2500, costoMin:1, costoMax:3, pesoG:250, nota:'Liviano' },
-    { nombre:'Etiquetadores de cable de silicona (set)', q:'etiquetas cables silicona set', keyword_en:'silicone cable labels set', volCm3:150, costoMin:0.5, costoMax:1.5, pesoG:40, nota:'Home office prolijo' },
-    { nombre:'Enrollador retractil para cable de carga', q:'enrollador retractil cable carga', keyword_en:'retractable charging cable winder', volCm3:150, costoMin:0.7, costoMax:2, pesoG:40, nota:'Viajero, liviano' },
+    { nombre:'Etiquetadores de cable de silicona (set)', q:'etiquetas cables silicona set', keyword_en:'silicone cable labels set', cat:'MLA414091', volCm3:150, costoMin:0.5, costoMax:1.5, pesoG:40, nota:'Home office prolijo' },
+    { nombre:'Enrollador retractil para cable de carga', q:'enrollador retractil cable carga', keyword_en:'retractable charging cable winder', cat:'MLA414091', volCm3:150, costoMin:0.7, costoMax:2, pesoG:40, nota:'Viajero, liviano' },
   ]},
   hogar: { label: 'Hogar y Deco', icon: '🏠', productos: [
     { nombre:'Soporte cepillo de dientes magnetico adhesivo', q:'soporte cepillo dientes magnetico adhesivo', keyword_en:'magnetic adhesive toothbrush holder', volCm3:300, costoMin:0.6, costoMax:1.8, pesoG:60, nota:'Bano, novedoso' },
@@ -44,12 +44,12 @@ const CATALOGO = {
     { nombre:'Tira LED USB para ambiente (2m)', q:'tira led usb ambiente', keyword_en:'usb led strip light', volCm3:400, costoMin:0.8, costoMax:2.5, pesoG:80, nota:'Deco tendencia' },
     { nombre:'Rociador presurizado para plantas', q:'rociador presion plantas', keyword_en:'pressure plant sprayer', volCm3:1800, costoMin:1.5, costoMax:3.5, pesoG:180, nota:'Jardín interior' },
     { nombre:'Bolsas al vacío para ropa (set)', q:'bolsas vacio ropa', keyword_en:'vacuum storage bags clothes', volCm3:1500, costoMin:1, costoMax:3, pesoG:150, nota:'Ahorro espacio' },
-    { nombre:'Colgador apilable de carteras y bolsos', q:'colgador apilable carteras placard', keyword_en:'stackable closet handbag hanger', volCm3:1200, costoMin:1.2, costoMax:3, pesoG:150, nota:'Placard, nicho' },
-    { nombre:'Difusor de aromas mini USB', q:'difusor aromas usb mini', keyword_en:'mini usb aroma diffuser', volCm3:800, costoMin:1.5, costoMax:4, pesoG:150, nota:'Deco + bienestar' },
+    { nombre:'Colgador apilable de carteras y bolsos', q:'colgador apilable carteras placard', keyword_en:'stackable closet handbag hanger', cat:'MLA120357', volCm3:1200, costoMin:1.2, costoMax:3, pesoG:150, nota:'Placard, nicho' },
+    { nombre:'Difusor de aromas mini USB', q:'difusor aromas usb mini', keyword_en:'mini usb aroma diffuser', cat:'MLA381270', volCm3:800, costoMin:1.5, costoMax:4, pesoG:150, nota:'Deco + bienestar' },
     { nombre:'Burlete adhesivo bajo puerta anti ruido', q:'burlete adhesivo bajo puerta', keyword_en:'adhesive door draft stopper', volCm3:1500, costoMin:1, costoMax:2.5, pesoG:120, nota:'Ahorro energia, nicho' },
     { nombre:'Set de utensilios de silicona', q:'utensilios silicona cocina set', keyword_en:'silicone kitchen utensils set', volCm3:3500, costoMin:2, costoMax:5, pesoG:400, nota:'No frágil' },
-    { nombre:'Reloj proyector de techo mini', q:'reloj proyector techo mini', keyword_en:'mini ceiling projection clock', volCm3:900, costoMin:2, costoMax:4, pesoG:150, nota:'Novedoso dormitorio' },
-    { nombre:'Organizador de cosméticos giratorio', q:'organizador cosmeticos giratorio', keyword_en:'rotating makeup organizer', volCm3:6000, costoMin:2, costoMax:5, pesoG:350, nota:'Público femenino' },
+    { nombre:'Reloj proyector de techo mini', q:'reloj proyector techo mini', keyword_en:'mini ceiling projection clock', cat:'MLA3949', volCm3:900, costoMin:2, costoMax:4, pesoG:150, nota:'Novedoso dormitorio' },
+    { nombre:'Organizador de cosméticos giratorio', q:'organizador cosmeticos giratorio', keyword_en:'rotating makeup organizer', cat:'MLA402976', volCm3:6000, costoMin:2, costoMax:5, pesoG:350, nota:'Público femenino' },
   ]},
   deportes: { label: 'Deportes / Fitness', icon: '🏋️', productos: [
     { nombre:'Mini bandas de gluteos de tela (set)', q:'banda tela gluteos set', keyword_en:'fabric booty resistance bands set', volCm3:700, costoMin:1.5, costoMax:3.5, pesoG:150, nota:'Tendencia fitness femenino' },
@@ -83,7 +83,7 @@ const CATALOGO = {
     { nombre:'Cepillo quita pelos para mascotas', q:'cepillo quita pelos mascotas', keyword_en:'pet hair remover brush', volCm3:700, costoMin:1, costoMax:3, pesoG:120, nota:'Recompra' },
     { nombre:'Comedero antivoracidad para perros', q:'comedero antivoracidad perro', keyword_en:'slow feeder dog bowl', volCm3:2500, costoMin:1.5, costoMax:4, pesoG:200, nota:'No frágil' },
     { nombre:'Juguete dispensador de premios', q:'juguete dispensador premios perro', keyword_en:'dog treat dispenser toy', volCm3:1000, costoMin:1.5, costoMax:4, pesoG:150, nota:'Tendencia' },
-    { nombre:'Cortauñas para mascotas con lima', q:'cortauñas mascotas', keyword_en:'pet nail clipper with file', volCm3:250, costoMin:0.8, costoMax:2.5, pesoG:80, nota:'Chico' },
+    { nombre:'Cortauñas para mascotas con lima', q:'cortauñas mascotas', keyword_en:'pet nail clipper with file', cat:'MLA81651', volCm3:250, costoMin:0.8, costoMax:2.5, pesoG:80, nota:'Chico' },
     { nombre:'Alfombra de lameteo antiestres para perros', q:'alfombra lameteo lick mat perro', keyword_en:'dog lick mat', volCm3:600, costoMin:1.5, costoMax:3.5, pesoG:150, nota:'Tendencia bienestar animal' },
     { nombre:'Collar LED recargable de seguridad', q:'collar led perro recargable', keyword_en:'rechargeable led dog collar', volCm3:300, costoMin:1.5, costoMax:4, pesoG:80, nota:'Seguridad' },
     { nombre:'Bolsas biodegradables para heces', q:'bolsas caca perro biodegradables', keyword_en:'biodegradable dog poop bags', volCm3:600, costoMin:0.5, costoMax:2, pesoG:100, nota:'Consumible' },
@@ -1183,7 +1183,10 @@ async function manejarPrecalculo(req, res, url) {
     const antes = sp.get('antes') && !isNaN(Date.parse(sp.get('antes'))) ? Date.parse(sp.get('antes')) : null;
     // Reparto del presupuesto de Apify por noche: solo en el cron. Una corrida
     // a mano (admin o token) puede usar lo que quede del tope mensual.
-    const r = await precalcularTanda({ token: tk.token, solo, antes, hechos, repartir: via === 'cron' });
+    // sinApify=1: recalcula con MeLi y reusa la rotacion ya guardada, sin
+    // encolar ni arrancar corridas de Apify (para correcciones a mano).
+    const sinApify = sp.get('sinApify') === '1';
+    const r = await precalcularTanda({ token: tk.token, solo, antes, hechos, repartir: via === 'cron', sinApify });
     // El cron encadena la tanda siguiente mientras queden nichos de esta noche
     // o corridas de Apify por cosechar. Cada invocacion es una funcion nueva.
     let encadenada = false;
@@ -1281,7 +1284,7 @@ function rankingParaRotacion(nichoKey, mercado) {
 // Una tanda: 1) cosecha corridas de Apify terminadas; 2) procesa UN nicho
 // (MEDIDO: 30-40 s a 8 llamadas/s) y encola su top 3 para rotacion; 3) cuando
 // no quedan nichos esta noche, arranca UNA corrida de Apify con toda la cola.
-async function precalcularTanda({ token, solo, antes, hechos, repartir }) {
+async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify }) {
   const inicio = Date.now();
   // Corte duro a los 50 s de la invocacion: nunca llegar al timeout de 60 s.
   const cli = crearCliente(token, { deadline: inicio + 50000 });
@@ -1312,7 +1315,7 @@ async function precalcularTanda({ token, solo, antes, hechos, repartir }) {
       guardado = await guardarCacheNicho(k, mercado);
     }
     let encolados = null;
-    if (guardado && !cortado) {
+    if (guardado && !cortado && !sinApify) {
       try { encolados = await encolar(k, rankingParaRotacion(k, mercado)); } catch (e) { encolados = { error: e.message }; }
     }
     hechosAhora.push({ nicho: k, conDatos, de: CATALOGO[k].productos.length, llamadas: cli.estado.llamadas - antesLl,
@@ -1321,7 +1324,7 @@ async function precalcularTanda({ token, solo, antes, hechos, repartir }) {
   }
   const nichosPendientes = Math.max(0, cola.length - hechosAhora.length);
   // Sin nichos pendientes esta noche: una sola corrida de Apify para toda la cola.
-  if (!nichosPendientes) {
+  if (!nichosPendientes && !sinApify) {
     try { rot.arranque = await arrancarCola({ repartir }); } catch (e) { rot.arranque = { error: e.message }; }
   }
   // Corridas por cosechar: si no hubo nicho que procesar, se espera un rato
@@ -1512,8 +1515,9 @@ export default async function handler(req, res) {
     // nombre y links, nada mas.
     const conDatos = ordenar(productos.filter(p => !p.sinDatos));
     const pendientes = productos.filter(p => p.sinDatos).map(p => ({ nombre: p.nombre, query: p.query, links: p.links, motivo: p.motivoSinDatos }));
-    // TOP PICK solo si de verdad es una oportunidad: nunca un "no conviene" ni un producto con rotacion medida baja.
-    const top = conDatos.find(p => p.veredicto && (p.veredicto.nivel === 'alta' || p.veredicto.nivel === 'media') && p.capacidad.escenario !== 'ninguno' &&
+    // TOP PICK solo si de verdad es una oportunidad: nunca un "no conviene", ni un
+    // producto con rotacion medida baja, ni uno sin margen (pocos precios).
+    const top = conDatos.find(p => p.veredicto && (p.veredicto.nivel === 'alta' || p.veredicto.nivel === 'media') && p.capacidad.escenario !== 'ninguno' && p.margen != null &&
       !(p.metricas && p.metricas.rotacion && p.metricas.rotacion.nivel === 'Baja'));
     if (top) top.topPick = true;
     const conDato = conDatos.length;
