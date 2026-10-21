@@ -174,7 +174,7 @@ export const CATEGORIAS = {
   "cepillo inodoro base cerrada": { cat: 'MLA413440', dom: 'MLA-TOILET_BRUSHES' },
   "cepillo limpiador rejillas auto detailing": { revisar: true },
   "cepillo limpiar bombilla mate": { cat: 'MLA392280', dom: 'MLA-MATE_STRAWS' },
-  "cepillo quita pelos mascotas": { cat: 'MLA81645', dom: 'MLA-PET_BRUSHES' },
+  "cepillo quita pelos mascotas": { cat: 'MLA432229', dom: null },  // quitapelusas: sus ofertas reales estan en "Manuales" (Hogar); MeLi sugeria cepillos de aseo
   "cepillo ranuras juntas limpieza": { cat: 'MLA127693', dom: 'MLA-HOME_CLEANING_BRUSHES' },
   "cepillo secador voluminizador": { cat: 'MLA409559', dom: 'MLA-ELECTRIC_HAIR_BRUSHES' },
   "cesto plegable ropa sucia": { cat: 'MLA393046', dom: 'MLA-LAUNDRY_BASKETS' },

@@ -280,16 +280,21 @@ export async function analizarProducto(cli, prod) {
   // entran geles faciales cuando se busca un gel limpiador de teclado.
   const fija = categoriaDe(prod);
   const filtroDominio = fija && fija.dom ? '&domain_id=' + encodeURIComponent(fija.dom) : '';
-  const buscar = texto => Promise.all(Array.from({ length: CATALOGO_PAGINAS }, (_, k) =>
-    cli.get('products/search', MELI_API + '/products/search?status=active&site_id=MLA&limit=10&offset=' + (k * 10) + '&q=' + encodeURIComponent(texto) + filtroDominio)));
+  // Dentro del dominio muchos productos de catalogo no tienen ofertas (404):
+  // se mira una pagina mas para llegar a las ofertas comparables.
+  const buscar = (texto, filtro) => Promise.all(Array.from({ length: CATALOGO_PAGINAS + (filtro ? 1 : 0) }, (_, k) =>
+    cli.get('products/search', MELI_API + '/products/search?status=active&site_id=MLA&limit=10&offset=' + (k * 10) + '&q=' + encodeURIComponent(texto) + filtro)));
   const vacia = ps => ps.every(r => !r.ok || !r.json || !(r.json.results || []).length);
   // 1. Catalogo: total y productos.
-  let paginas = await buscar(q);
+  let paginas = await buscar(q, filtroDominio);
   // Dentro del dominio, una busqueda larga puede no traer nada: se prueba
-  // sacando palabras del final, nunca menos de 2.
+  // sacando palabras del final, nunca menos de 2. Si igual no trae nada (hay
+  // dominios que /products/search casi no indexa), se busca sin el filtro y
+  // las ofertas de otra categoria se descartan igual mas abajo.
   if (filtroDominio) {
     let pal = q.split(/\s+/);
-    while (vacia(paginas) && pal.length > 2) { pal = pal.slice(0, -1); paginas = await buscar(pal.join(' ')); }
+    while (vacia(paginas) && pal.length > 2) { pal = pal.slice(0, -1); paginas = await buscar(pal.join(' '), filtroDominio); }
+    if (vacia(paginas)) paginas = await buscar(q, '');
   }
   let catalogoTotal = null;
   const catalogo = [];
