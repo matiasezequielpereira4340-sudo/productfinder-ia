@@ -1223,10 +1223,10 @@ async function manejarPrecalculo(req, res, url) {
       });
     }
     let guardadas = 0;
-    for (const f of filas) {
-      const r = await fetch(SUPA_URL + '/rest/v1/buscador_categorias?q=eq.' + encodeURIComponent(f.q), { method: 'PATCH',
-        headers: supaHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }), body: JSON.stringify(f) }).catch(() => null);
-      if (r && r.ok) guardadas++;
+    for (let i = 0; i < filas.length; i += 20) {
+      const rs = await Promise.all(filas.slice(i, i + 20).map(f => fetch(SUPA_URL + '/rest/v1/buscador_categorias?q=eq.' + encodeURIComponent(f.q), { method: 'PATCH',
+        headers: supaHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }), body: JSON.stringify(f) }).catch(() => null)));
+      guardadas += rs.filter(r => r && r.ok).length;
     }
     return res.status(200).json({ ok: true, via, desde, procesados: filas.length, total: todos.length, siguiente: desde + tramo.length < todos.length ? desde + tramo.length : null, guardadas, cortadas: cli.estado.cortadasPorTiempo || 0 });
   }
