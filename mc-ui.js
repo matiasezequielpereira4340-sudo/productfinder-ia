@@ -835,6 +835,71 @@
     safe(initTracking, "medicion");
   }
 
+  // ------------------------------------------------------------------
+  // Validacion de la sesion contra el servidor, en TODAS las paginas.
+  // Antes la sesion se restauraba solo con pf_user/pf_role del navegador: con
+  // el token vencido (dura 30 dias) o firmado con otra clave, la pantalla
+  // seguia diciendo "admin" mientras el servidor no reconocia a nadie, y el
+  // buscador le ponia el candado al dueño sin explicar nada.
+  // ------------------------------------------------------------------
+  var SESION_KEYS = ["pf_role", "pf_premium", "pf_expiry", "pf_token"];
+  function avisoSesionVencida() {
+    if (document.getElementById("pfSesionVencida")) return;
+    var d = document.createElement("div");
+    d.id = "pfSesionVencida";
+    d.setAttribute("role", "alert");
+    d.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);top:12px;z-index:9999;max-width:calc(100% - 32px);background:#3a1d1d;color:#ffe3e3;border:1px solid #c0392b;border-radius:10px;padding:10px 14px;font:600 14px/1.4 system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.35);display:flex;gap:10px;align-items:center;flex-wrap:wrap";
+    d.innerHTML = '<span>Tu sesión venció, volvé a entrar.</span>' +
+      '<button type="button" id="pfSesionReentrar" style="background:#c0392b;color:#fff;border:0;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer">Volver a entrar</button>' +
+      '<button type="button" aria-label="Cerrar" id="pfSesionCerrar" style="background:none;border:0;color:inherit;font-size:18px;cursor:pointer">×</button>';
+    (document.body || document.documentElement).appendChild(d);
+    document.getElementById("pfSesionReentrar").addEventListener("click", function () {
+      if (typeof window.showLogin === "function" && document.getElementById("loginScreen")) { d.remove(); window.showLogin(); }
+      else window.location.href = "/login.html";
+    });
+    document.getElementById("pfSesionCerrar").addEventListener("click", function () { d.remove(); });
+  }
+  // Deja la pantalla como visitante (sin admin falso) y avisa.
+  window.pfSesionVencida = function () {
+    try { SESION_KEYS.concat(["pf_user"]).forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
+    try { if (typeof currentRole !== "undefined") currentRole = null; } catch (e) {}
+    Array.prototype.forEach.call(document.querySelectorAll(".mc-admin-item"), function (el) { el.style.display = "none"; });
+    try { if (typeof window.setupTopbar === "function") window.setupTopbar(""); } catch (e) {}
+    var eb = document.getElementById("mcEnterBtn"), ub = document.getElementById("mcUserBox"), lb = document.getElementById("mcLogoutBtn");
+    if (eb) eb.style.display = ""; if (ub) ub.style.display = "none"; if (lb) lb.style.display = "none";
+    window.__pfSesion = { estado: "invalida" };
+    try { document.dispatchEvent(new CustomEvent("pf:sesion", { detail: window.__pfSesion })); } catch (e) {}
+    avisoSesionVencida();
+  };
+  window.pfGuardarTokenRenovado = function (t) { if (t) { try { localStorage.setItem("pf_token", t); } catch (e) {} } };
+  function validarSesion() {
+    var rol = "", token = "", usuario = "";
+    try { rol = localStorage.getItem("pf_role") || ""; token = localStorage.getItem("pf_token") || ""; usuario = localStorage.getItem("pf_user") || ""; } catch (e) {}
+    // Visitante o invitado: no hay nada que validar.
+    if (!usuario || !rol || rol === "guest") { window.__pfSesion = { estado: "ausente" }; return; }
+    // Dice estar logueado pero no tiene token firmado: el servidor no lo reconoce.
+    if (!token) { window.pfSesionVencida(); return; }
+    fetch("/api/auth?sesion=1", { headers: { Authorization: "Bearer " + token }, cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        // Error de red, del servidor o respuesta sin "estado" (backend viejo
+        // durante un deploy): no se desloguea a nadie por eso.
+        if (!d || !d.estado) return;
+        if (d.estado === "invalida" || d.estado === "ausente") { window.pfSesionVencida(); return; }
+        if (d.estado !== "valida") return;
+        window.pfGuardarTokenRenovado(d.tokenRenovado);
+        // El rol que vale es el del servidor.
+        try { localStorage.setItem("pf_role", d.role); localStorage.setItem("pf_premium", d.premium ? "1" : "0"); } catch (e) {}
+        Array.prototype.forEach.call(document.querySelectorAll(".mc-admin-item"), function (el) { el.style.display = d.role === "admin" ? "" : "none"; });
+        try { if (typeof currentRole !== "undefined") currentRole = d.role; } catch (e) {}
+        window.__pfSesion = d;
+        try { document.dispatchEvent(new CustomEvent("pf:sesion", { detail: d })); } catch (e) {}
+      })
+      .catch(function () {});
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { try { validarSesion(); } catch (e) {} });
+  else { try { validarSesion(); } catch (e) {} }
+
   // Esto NO puede esperar a boot(): mc-ui.js se parsea despues de app.js,
   // pero antes de que corra ningun DOMContentLoaded. Envolvemos fetch aca
   // para que la primera llamada de cualquier pagina ya lleve la sesion.

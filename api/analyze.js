@@ -8,13 +8,16 @@
 // ============================================================
 
 import { resolveUserId, anthropicHeaders } from './_meli.js';
-import { esCliente, tokenDe, leerToken, esAdmin, cronAdmitido } from './_sesion.js';
+import { esCliente, tokenDe, leerToken, esAdmin, cronAdmitido, estadoSesion } from './_sesion.js';
 import { cotizacionDolar, tipoDeCambio, DOLAR_TIPO_DEFAULT } from './_dolar.js';
 import { resolverCategoria } from './_categorias.js';
 import { CATEGORIAS } from './_categorias-datos.js';
 import { evaluarProducto, ordenar, CAPITAL_LABEL, estadisticasCompetencia, limpiarMuestra, puntajeDemanda, puntajeSaturacion, costoImportacion, acotarPorCosto } from './_oportunidad.js';
 import { cosechar, encolar, arrancarCola, historialDe, ITEMS_POR_PRODUCTO, estadoPresupuesto } from './_rotacion.js';
-import { probarEndpoints, tokenDeCorridaValido, MELI_USER_PRECALCULO, crearCliente, analizarNicho, VERSION_MERCADO } from './_precalculo.js';
+import { probarEndpoints, tokenDeCorridaValido, MELI_USER_PRECALCULO, crearCliente, analizarNicho, analizarProducto, VERSION_MERCADO } from './_precalculo.js';
+import { poolDe, filtrarPorPerfil, MOSTRAR_MAX, OBJETIVO_RONDA, SEMANAS_SIN_REPETIR } from './_pool.js';
+import { procesarNicho, leerFilaRubro, prefijoEntorno } from './_ronda.js';
+import { renovarSiHaceFalta, usuarioEsAdmin } from './_sesion.js';
 
 const USD_ARS_FALLBACK = 1510;
 const MELI_API_BUSCADOR = 'https://api.mercadolibre.com';
@@ -989,7 +992,7 @@ function resolverNicho(entrada){
 
 function listarNichos(){
   return Object.keys(CATALOGO).map(function(v){
-    return { v: v, l: CATALOGO[v].label, icon: CATALOGO[v].icon, productos: CATALOGO[v].productos.length };
+    return { v: v, l: CATALOGO[v].label, icon: CATALOGO[v].icon, productos: poolDe(v, CATALOGO[v].productos, []).length };
   });
 }
 
@@ -1056,17 +1059,11 @@ function supaHeaders(extra) {
 
 async function leerCacheNicho(nicho) {
   if (!SUPA_KEY || !CACHE_HORAS) return null;
-  try {
-    const r = await fetch(SUPA_URL + '/rest/v1/buscador_cache?nicho=eq.' + encodeURIComponent(nicho) + '&select=mercado,created_at&limit=1',
-      { headers: supaHeaders() });
-    if (!r.ok) return null;
-    const filas = await r.json();
-    const f = Array.isArray(filas) && filas[0];
-    if (!f || !f.mercado || typeof f.mercado !== 'object') return null;
-    const edadMs = Date.now() - new Date(f.created_at).getTime();
-    if (!(edadMs >= 0) || edadMs > CACHE_HORAS * 3600 * 1000) return null;
-    return { mercado: f.mercado, creadoEn: f.created_at };
-  } catch (e) { return null; }
+  const f = await leerFilaRubro(nicho);
+  if (!f) return null;
+  const edadMs = Date.now() - new Date(f.creadoEn).getTime();
+  if (!(edadMs >= 0) || edadMs > CACHE_HORAS * 3600 * 1000) return null;
+  return { mercado: f.mercado, creadoEn: f.creadoEn };
 }
 
 async function guardarCacheNicho(nicho, mercado) {
@@ -1259,11 +1256,13 @@ async function manejarPrecalculo(req, res, url) {
     // sinApify=1: recalcula con MeLi y reusa la rotacion ya guardada, sin
     // encolar ni arrancar corridas de Apify (para correcciones a mano).
     const sinApify = sp.get('sinApify') === '1';
-    const r = await precalcularTanda({ token: tk.token, solo, antes, hechos, repartir: via === 'cron', sinApify });
+    // forzar=1: solo con un rubro (solo=) y solo admin (no el cron).
+    const forzar = sp.get('forzar') === '1' && solo && solo.length === 1 && via !== 'cron';
+    const r = await precalcularTanda({ token: tk.token, solo, antes, hechos, repartir: via === 'cron', sinApify, forzar });
     // El cron encadena la tanda siguiente mientras queden nichos de esta noche
     // o corridas de Apify por cosechar. Cada invocacion es una funcion nueva.
     let encadenada = false;
-    if (via === 'cron' && r.pendientes > 0 && hop < 120) encadenada = await encadenarTanda(hop + 1, solo, hechos + r.procesados.length);
+    if (via === 'cron' && r.pendientes > 0 && hop < 120) encadenada = await encadenarTanda(hop + 1, solo, hechos + (r.completados || 0));
     return res.status(200).json({ ok: true, via, usuario: MELI_USER_PRECALCULO(), hop, encadenada, ...r });
   }
   if (modo === 'presupuesto') {
@@ -1277,9 +1276,18 @@ async function fechasCacheNichos() {
   const out = {};
   if (!SUPA_KEY) return out;
   try {
-    const r = await fetch(SUPA_URL + '/rest/v1/buscador_cache?select=nicho,created_at,v:mercado->__v,parcial:mercado->__parcial', { headers: supaHeaders() });
+    const r = await fetch(SUPA_URL + '/rest/v1/buscador_cache?select=nicho,created_at,v:mercado->__v,parcial:mercado->__parcial,terminado:mercado->__terminado', { headers: supaHeaders() });
     if (!r.ok) return out;
-    for (const f of await r.json()) out[f.nicho] = { creado: f.created_at, v: f.v, parcial: f.parcial === true };
+    // Fuera de produccion solo cuentan las filas "preview:" (ver _ronda.js).
+    const pref = prefijoEntorno();
+    const filas = (await r.json()).filter(f => pref ? String(f.nicho).indexOf(pref) === 0 : String(f.nicho).indexOf('preview:') !== 0);
+    const wips = {};
+    for (const f of filas) {
+      const n = String(f.nicho).slice(pref.length);
+      if (/~wip$/.test(n)) { if (f.terminado !== true) wips[n.replace(/~wip$/, '')] = true; continue; }
+      out[n] = { creado: f.created_at, v: f.v, parcial: f.parcial === true };
+    }
+    Object.keys(wips).forEach(n => { out[n] = Object.assign(out[n] || {}, { wip: true }); });
   } catch (e) {}
   return out;
 }
@@ -1313,12 +1321,15 @@ async function registrarBusqueda(nicho) {
   } catch (e) {}
 }
 
+export const __CATALOGO = CATALOGO;
 export function agendaDeNichos(claves, fechas, busquedas, opts) {
   const o = opts || {};
   const ahora = o.ahora || Date.now();
   const dias = k => fechas[k] && fechas[k].v === VERSION_MERCADO && !fechas[k].parcial ? (ahora - new Date(fechas[k].creado).getTime()) / 86400e3 : Infinity;
   const creado = k => fechas[k] && fechas[k].v === VERSION_MERCADO && !fechas[k].parcial ? new Date(fechas[k].creado).getTime() : 0;
   let cola;
+  // Una ronda a medias (otra tanda la dejo por la mitad) va primero siempre.
+  const aMedias = claves.filter(k => fechas[k] && fechas[k].wip);
   if (o.antes != null) cola = claves.filter(k => creado(k) < o.antes).sort((a, b) => dias(b) - dias(a));
   else {
     const buscados = claves.filter(k => (busquedas[k] || 0) > 0 && dias(k) >= DIAS_REFRESCO_BUSCADO)
@@ -1326,13 +1337,14 @@ export function agendaDeNichos(claves, fechas, busquedas, opts) {
     const resto = claves.filter(k => buscados.indexOf(k) < 0 && dias(k) >= DIAS_REFRESCO).sort((a, b) => dias(b) - dias(a));
     cola = buscados.concat(resto);
   }
-  return cola;
+  return aMedias.concat(cola.filter(k => aMedias.indexOf(k) < 0));
 }
 
 // Ranking para la rotacion: demanda + (100 - saturacion), con datos gratis.
 function rankingParaRotacion(nichoKey, mercado) {
   const out = [];
-  for (const prod of CATALOGO[nichoKey].productos) {
+  const lista = Array.isArray(mercado.__seleccion) ? mercado.__seleccion : CATALOGO[nichoKey].productos;
+  for (const prod of lista) {
     const m = mercado[prod.q];
     if (!m || !Array.isArray(m.results)) continue;
     const limpios = limpiarMuestra(m.results);
@@ -1354,10 +1366,18 @@ function rankingParaRotacion(nichoKey, mercado) {
   return out.sort((a, b) => b.puntaje - a.puntaje);
 }
 
+async function usdArsActual() {
+  let v = parseFloat(process.env.USD_ARS) || USD_ARS_FALLBACK;
+  try { const t = await tipoDeCambio(DOLAR_TIPO_DEFAULT); if (t.valor != null) v = t.valor; } catch (e) {}
+  return v;
+}
+
 // Una tanda: 1) cosecha corridas de Apify terminadas; 2) procesa UN nicho
 // (MEDIDO: 30-40 s a 8 llamadas/s) y encola su top 3 para rotacion; 3) cuando
 // no quedan nichos esta noche, arranca UNA corrida de Apify con toda la cola.
-async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify }) {
+async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify, forzar }) {
+  // En un preview nunca se gasta Apify (los previews comparten la cuenta).
+  if (prefijoEntorno()) sinApify = true;
   const inicio = Date.now();
   // Corte duro a los 50 s de la invocacion: nunca llegar al timeout de 60 s.
   const cli = crearCliente(token, { deadline: inicio + 50000 });
@@ -1368,34 +1388,33 @@ async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify
   let claves = Object.keys(CATALOGO);
   if (solo && solo.length) claves = claves.filter(k => solo.indexOf(k) > -1);
   const cupo = solo && solo.length ? claves.length : Math.max(0, NICHOS_POR_NOCHE() - (hechos || 0));
-  const cola = agendaDeNichos(claves, fechas, busquedas, { antes }).slice(0, cupo);
+  // forzar (boton de admin "Forzar actualizacion de este rubro"): ronda nueva
+  // ya, sin mirar la fecha del cache.
+  const cola = forzar && solo && solo.length ? solo.slice(0, 1) : agendaDeNichos(claves, fechas, busquedas, { antes }).slice(0, cupo);
   const hechosAhora = [];
   const k = cola[0];
+  let completados = 0;
   if (k) {
     const t0 = Date.now();
     const antesLl = cli.estado.llamadas;
-    const mercado = await analizarNicho(cli, CATALOGO[k].productos);
-    const conDatos = Object.values(mercado).filter(m => m && Array.isArray(m.results) && m.results.length >= 3).length;
-    // Cortado por tiempo: queda incompleto. Se guarda marcado como parcial (la
-    // tanda siguiente lo rehace) y solo si no habia uno completo del formato
-    // actual, para no pisar datos buenos con datos a medias.
-    const cortado = (cli.estado.cortadasPorTiempo || 0) > 0;
-    const habiaCompleto = fechas[k] && fechas[k].v === VERSION_MERCADO && !fechas[k].parcial;
-    let guardado = false;
-    if (conDatos > 0 && !(cortado && habiaCompleto)) {
-      mercado.__v = VERSION_MERCADO;
-      if (cortado) mercado.__parcial = true;
-      guardado = await guardarCacheNicho(k, mercado);
-    }
+    const usdArs = await usdArsActual();
+    // Ronda del pool (api/_ronda.js): elige candidatos, reemplaza los que no
+    // tienen datos y, si no llega en esta tanda, sigue en la proxima.
+    const r = await procesarNicho(cli, { nichoKey: k, base: CATALOGO[k].productos, usdArs, forzar: !!forzar,
+      analizar: analizarProducto, version: VERSION_MERCADO });
     let encolados = null;
-    if (guardado && !cortado && !sinApify) {
-      try { encolados = await encolar(k, rankingParaRotacion(k, mercado)); } catch (e) { encolados = { error: e.message }; }
+    if (r.terminado && r.guardado && !sinApify) {
+      try { encolados = await encolar(k, rankingParaRotacion(k, r.mercado)); } catch (e) { encolados = { error: e.message }; }
     }
-    hechosAhora.push({ nicho: k, conDatos, de: CATALOGO[k].productos.length, llamadas: cli.estado.llamadas - antesLl,
-      salteados404: cli.estado.salteados404 || 0, ms: Date.now() - t0, guardado, cortadoPorTiempo: cortado,
+    if (r.terminado) completados = 1;
+    hechosAhora.push({ nicho: k, terminado: r.terminado, conDatos: r.conDatos, objetivo: r.objetivo, de: r.poolTotal,
+      candidatosRevisados: r.candidatosRevisados, descartados: r.descartados, nuevos: r.nuevos != null ? r.nuevos : null,
+      ronda: r.ronda, descubrimiento: r.descubrimiento, llamadas: cli.estado.llamadas - antesLl,
+      salteados404: cli.estado.salteados404 || 0, ms: Date.now() - t0, guardado: !!r.guardado, cortadoPorTiempo: !r.terminado,
       buscadoEstaSemana: busquedas[k] || 0, rotacionEncolada: encolados });
   }
-  const nichosPendientes = Math.max(0, cola.length - hechosAhora.length);
+  // Un rubro a medias cuenta como pendiente: la tanda siguiente lo sigue.
+  const nichosPendientes = Math.max(0, cola.length - completados);
   // Sin nichos pendientes esta noche: una sola corrida de Apify para toda la cola.
   if (!nichosPendientes && !sinApify) {
     try { rot.arranque = await arrancarCola({ repartir }); } catch (e) { rot.arranque = { error: e.message }; }
@@ -1413,7 +1432,7 @@ async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify
     } else if (rot.arranque && rot.arranque.arrancada) porCosechar = Math.max(porCosechar, rot.arranque.productos);
   }
   return {
-    procesados: hechosAhora, pendientes: nichosPendientes + porCosechar,
+    procesados: hechosAhora, completados, pendientes: nichosPendientes + porCosechar,
     nichosPendientes, rotacionPorCosechar: porCosechar, nichosTotales: Object.keys(CATALOGO).length, cupoNoche: NICHOS_POR_NOCHE(),
     rotacion: rot,
     llamadas: cli.estado.llamadas, porEndpoint: cli.estado.porEndpoint, errores: cli.estado.errores,
@@ -1558,7 +1577,6 @@ export default async function handler(req, res) {
     // 1. Cache del nicho (lo llena el pre-analisis nocturno; 24 h). Si esta, no
     //    se le pide nada a MercadoLibre. Solo vale el formato actual: un cache
     //    del formato anterior no tiene demanda/rotacion y se trata como pendiente.
-    const lista = niche.productos;
     let mercadoPorQ = null, datosDe = null, desdeCache = false;
     const enCache = await leerCacheNicho(nichoKey);
     if (enCache && enCache.mercado.__v === VERSION_MERCADO) { mercadoPorQ = enCache.mercado; datosDe = enCache.creadoEn; desdeCache = true; }
@@ -1567,54 +1585,77 @@ export default async function handler(req, res) {
     const token = tk && tk.token ? tk.token : null;
     const tokenExpired = tk && tk.expired ? true : false;
 
-    // 2. Sin cache y con MeLi conectado: el mismo recolector del proceso
-    //    nocturno, con el token del visitante (gratis, nunca Apify).
+    // 2. Sin cache y con MeLi conectado: la misma ronda del proceso nocturno,
+    //    con el token del visitante (gratis, nunca Apify) y con corte a los 45 s.
+    //    Si no termina, se muestra lo que ya tiene datos y la noche la sigue.
     if (!mercadoPorQ && token) {
-      const cli = crearCliente(token, { rps: 12 });
-      mercadoPorQ = await analizarNicho(cli, lista);
-      datosDe = new Date().toISOString();
-      if (Object.values(mercadoPorQ).some(m => m && Array.isArray(m.results) && m.results.length >= 3)) {
-        mercadoPorQ.__v = VERSION_MERCADO;
-        await guardarCacheNicho(nichoKey, mercadoPorQ);
+      const cli = crearCliente(token, { rps: 12, deadline: Date.now() + 45000 });
+      const r = await procesarNicho(cli, { nichoKey, base: niche.productos, usdArs, analizar: analizarProducto, version: VERSION_MERCADO, motivo: 'visitante' });
+      if (r.mercado && Array.isArray(r.mercado.__seleccion) && r.mercado.__seleccion.length) {
+        mercadoPorQ = r.mercado; mercadoPorQ.__v = VERSION_MERCADO;
+        datosDe = new Date().toISOString();
       }
     }
 
+    // Formato 2 (pool con rotacion): la lista es la seleccion de la ronda.
+    // Formato viejo (12 fijos): el catalogo original, como antes.
+    const formato2 = !!(mercadoPorQ && mercadoPorQ.__formato === 2 && Array.isArray(mercadoPorQ.__seleccion));
+    const lista = formato2 ? mercadoPorQ.__seleccion : niche.productos;
+
     // 3. Perfil encima del mercado: cuenta local, sin red.
-    // Vendidos medidos (rotacion) y registro de la busqueda (prioriza el nicho
-    // en el proceso nocturno). Las dos cosas en paralelo, sin frenar la respuesta.
     const [historial] = await Promise.all([historialDe(lista.map(p => p.q)), registrarBusqueda(nichoKey)]);
     const productos = lista.map(prod => evaluarProducto(prod, nichoKey, mercadoPorQ ? (mercadoPorQ[prod.q] || null) : null, perfil, usdArs, historial[prod.q] || null));
-    // Sin datos reales no hay tarjeta: van a "Pendientes de analisis" con
-    // nombre y links, nada mas.
-    const conDatos = ordenar(productos.filter(p => !p.sinDatos));
-    const pendientes = productos.filter(p => p.sinDatos).map(p => ({ nombre: p.nombre, query: p.query, links: p.links, motivo: p.motivoSinDatos }));
-    // TOP PICK solo si de verdad es una oportunidad: nunca un "no conviene", ni un
-    // producto con rotacion medida baja, ni uno sin margen (pocos precios).
+    const conDatosTodos = ordenar(productos.filter(p => !p.sinDatos));
+    // El perfil filtra de verdad (experiencia, riesgo, capital) y despues se
+    // toman los 12 mejores para ESE perfil.
+    const { quedan, fuera } = filtrarPorPerfil(conDatosTodos, perfil);
+    const conDatos = quedan.slice(0, MOSTRAR_MAX);
+    const nuevosSet = new Set(formato2 ? (mercadoPorQ.__nuevos || []) : []);
+    const anteriorSet = new Set(formato2 ? (mercadoPorQ.__anterior || []) : []);
+    conDatos.forEach(p => {
+      p.nuevo = formato2 && nuevosSet.has(p.query);
+      p.nuevoVsAnterior = formato2 && anteriorSet.size > 0 && !anteriorSet.has(p.query);
+    });
+    // Pendientes: solo en el formato viejo. En el nuevo, los que no tienen
+    // datos ya se reemplazaron por otros del pool; se informa cuantos.
+    const pendientes = formato2 ? [] : productos.filter(p => p.sinDatos).map(p => ({ nombre: p.nombre, query: p.query, links: p.links, motivo: p.motivoSinDatos }));
     const top = conDatos.find(p => p.veredicto && (p.veredicto.nivel === 'alta' || p.veredicto.nivel === 'media') && p.capacidad.escenario !== 'ninguno' && p.margen != null &&
       !(p.metricas && p.metricas.rotacion && p.metricas.rotacion.nivel === 'Baja'));
     if (top) top.topPick = true;
-    const conDato = conDatos.length;
 
-    // El recorte se decide ACA, no en el navegador: sin token firmado de
-    // cliente, los productos bloqueados directamente no salen del servidor.
-    // Se recortan solo los que tienen datos; los pendientes no tienen nada que
-    // esconder.
-    const cliente = esCliente(tokenDe(req));
+    // El recorte se decide ACA. Sesion: se informa su estado para que el front
+    // no muestre "admin" con un token vencido.
+    const tokSesion = tokenDe(req);
+    const sesion = estadoSesion(tokSesion);
+    const admin = sesion.estado === 'valida' && sesion.role === 'admin';
+    // "Ver como usuario free": solo lo puede pedir un admin, para probar el candado.
+    const verComoFree = admin && !!(req.body && req.body.verComoFree);
+    const cliente = esCliente(tokSesion) && !verComoFree;
     const totalDisponibles = conDatos.length;
     let filtrados = conDatos;
-    if (!cliente && filtrados.length > LIMITE_GRATIS) {
-      filtrados = filtrados.slice(0, LIMITE_GRATIS);
-    }
+    if (!cliente && filtrados.length > LIMITE_GRATIS) filtrados = filtrados.slice(0, LIMITE_GRATIS);
     const edadHoras = datosDe ? Math.max(0, (Date.now() - new Date(datosDe).getTime()) / 3600000) : null;
+    const tokenRenovado = sesion.estado === 'valida' ? renovarSiHaceFalta(tokSesion) : null;
     return res.status(200).json({
       nicho: nichoKey, nichoLabel: niche.label, icon: niche.icon, usdArs: usdArs,
       nichoSolicitado: nicho || null, nichoAproximado: !resuelto.exacto,
       perfil: Object.assign({}, perfil, { capitalLabel: CAPITAL_LABEL[perfil.capital] }),
-      totalEvaluados: productos.length, conDatoReal: conDato,
-      esCliente: cliente, productosMostrados: filtrados.length, productosTotales: totalDisponibles,
-      // Con cache no se mira el token (no hace falta): se informa como conectado
-      // para no mostrar el aviso de "precios estimados" sobre datos reales.
-      meliConectado: !!token || conDato > 0, meliTokenExpirado: tokenExpired,
+      // Conteo honesto: cuantos se evaluaron en la ronda, cuantos tienen datos,
+      // cuantos saco el perfil y cuantos se muestran.
+      totalEvaluados: formato2 ? (mercadoPorQ.__candidatosRevisados || productos.length) : productos.length,
+      conDatoReal: conDatos.length, conDatoRealRonda: conDatosTodos.length,
+      objetivo: MOSTRAR_MAX, objetivoRonda: formato2 ? (mercadoPorQ.__objetivo || OBJETIVO_RONDA()) : null,
+      filtradosPorPerfil: fuera,
+      descartadosSinDatos: formato2 ? (mercadoPorQ.__descartados || []).length : pendientes.length,
+      poolTotal: formato2 ? (mercadoPorQ.__poolTotal || null) : poolDe(nichoKey, niche.productos, []).length,
+      ronda: formato2 ? Object.assign({}, mercadoPorQ.__ronda, { parcial: !!mercadoPorQ.__parcial }) : null,
+      formato: formato2 ? 2 : 1,
+      nuevosVsAnterior: conDatos.filter(p => p.nuevoVsAnterior).length,
+      nuevosPrimeraVez: conDatos.filter(p => p.nuevo).length,
+      semanasSinRepetir: SEMANAS_SIN_REPETIR,
+      esCliente: cliente, esAdmin: admin, verComoFree, sesion: sesion.estado, tokenRenovado: tokenRenovado || undefined,
+      productosMostrados: filtrados.length, productosTotales: totalDisponibles,
+      meliConectado: !!token || conDatos.length > 0, meliTokenExpirado: tokenExpired,
       datosDe: datosDe, desdeCache: desdeCache, edadHoras: edadHoras != null ? Math.round(edadHoras * 10) / 10 : null,
       edadDias: edadHoras != null ? Math.floor(edadHoras / 24) : null,
       cacheHoras: CACHE_HORAS,

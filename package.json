@@ -13,7 +13,9 @@
     "test:crons": "node pruebas/crons.mjs",
     "test:competencia": "node pruebas/competencia.mjs",
     "test:radar": "node pruebas/radar-filtros.mjs",
-    "test:buscador": "node pruebas/buscador.mjs"
+    "test:buscador": "node pruebas/buscador.mjs",
+    "test:pool": "node pruebas/pool.mjs",
+    "dev:local": "node pruebas/dev-local.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

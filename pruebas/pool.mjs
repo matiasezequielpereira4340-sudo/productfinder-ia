@@ -1,0 +1,227 @@
+// pruebas/pool.mjs
+// Se corre con: npm run test:pool
+//
+// Pool con rotacion semanal, perfil que cambia la seleccion, variantes de
+// busqueda, conteo honesto y acceso de admin. MeLi y Supabase simulados en
+// memoria: cualquier busqueda trae ofertas (precio ~4x el costo puesto del
+// producto), salvo las que terminan en "sinofertas" o las de la lista SIN_DATOS.
+process.env.SUPABASE_SERVICE_KEY = 'supa-de-prueba';
+process.env.SESSION_SECRET = 'secreto-de-prueba';
+process.env.CRON_SECRET = 'cron-de-prueba';
+process.env.BUSCADOR_MELI_RPS = '1000';
+process.env.APP_USER = 'matypereira';
+process.env.APP_PASS = 'clave-de-prueba';
+delete process.env.APIFY_TOKEN;
+
+let fallos = 0, oks = 0;
+function chequear(n, c, extra) {
+  console.log((c ? '  ok    ' : '  FALLA ') + n + (extra != null ? ' -> ' + extra : ''));
+  if (c) oks++; else fallos++;
+}
+const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { 'content-type': 'application/json' } });
+
+const filas = {};           // buscador_cache en memoria
+const SIN_DATOS = new Set(); // busquedas que MeLi no tiene (para probar reemplazo y variantes)
+let precioDe = () => 20000;
+let llamadasMeli = 0;
+const qDe = u => decodeURIComponent((/[?&]q=([^&]*)/.exec(u) || [])[1] || '').replace(/\+/g, ' ');
+function idDe(q) { let h = 7; for (const c of q) h = (h * 31 + c.charCodeAt(0)) >>> 0; return 'MLA' + (h % 90000000 + 10000000); }
+const porId = {};
+
+globalThis.fetch = async (url, init) => {
+  const u = String(url), metodo = (init && init.method) || 'GET';
+  if (u.includes('dolarapi')) return json({ compra: 1480, venta: 1500, casa: 'bolsa' });
+  if (u.includes('supabase.co')) {
+    if (u.includes('/buscador_cache')) {
+      if (metodo === 'POST') { const b = JSON.parse(init.body); filas[b.nicho] = b; return new Response('', { status: 201 }); }
+      if (/select=nicho,created_at,v:/.test(u)) return json(Object.values(filas).map(f => ({ nicho: f.nicho, created_at: f.created_at, v: f.mercado.__v, parcial: f.mercado.__parcial, terminado: f.mercado.__terminado })));
+      const n = decodeURIComponent((/nicho=eq\.([^&]*)/.exec(u) || [])[1] || '');
+      return json(filas[n] ? [filas[n]] : []);
+    }
+    if (u.includes('/meli_tokens')) return json([{ access_token: 'tok', refresh_token: 'r', expires_at: new Date(Date.now() + 3600e3).toISOString() }]);
+    if (metodo !== 'GET') return new Response('', { status: 201 });
+    return json([]);
+  }
+  if (u.includes('api.mercadolibre.com')) llamadasMeli++;
+  if (/\/highlights\/|\/sites\/MLA\/search|\/items\?ids|\/reviews\//.test(u)) return json({}, 403);
+  if (u.includes('/listing_prices')) return json([{ sale_fee_details: { percentage_fee: 15, fixed_fee: 0 } }]);
+  if (/\/trends\/MLA\//.test(u)) return json([{ keyword: 'organizador cables magnetico' }, { keyword: 'samsung galaxy funda' }, { keyword: 'yerba mate 1kg' }, { keyword: 'soporte celular moto impermeable' }, { keyword: 'lampara escritorio recargable plegable' }]);
+  if (/\/categories\//.test(u)) return json({ id: 'MLA1', name: 'Categoria', total_items_in_this_category: 5000 });
+  if (u.includes('/products/search')) {
+    const q = qDe(u), off = Number((/offset=(\d+)/.exec(u) || [])[1] || 0);
+    if (off > 0 || SIN_DATOS.has(q) || /sinofertas$/.test(q)) return json({ paging: { total: 0 }, results: [] });
+    return json({ paging: { total: 900 }, results: Array.from({ length: 6 }, (_, k) => { const id = idDe(q + k); porId[id] = q; return { id, name: q + ' modelo ' + k }; }) });
+  }
+  const mi = /\/products\/(MLA\d+)\/items/.exec(u);
+  if (mi) {
+    const q = porId[mi[1]];
+    const p = precioDe(q);
+    return json({ results: Array.from({ length: 3 }, (_, j) => ({ item_id: mi[1] + j, price: Math.round(p * (0.9 + j * 0.1)), seller_id: 100 + j + (mi[1].charCodeAt(5) % 7), category_id: null, shipping: { logistic_type: 'cross_docking' }, official_store_id: null })) });
+  }
+  return json({}, 404);
+};
+
+const { emitirToken, estadoSesion, esCliente, renovarSiHaceFalta } = await import('../api/_sesion.js');
+const pool = await import('../api/_pool.js');
+const op = await import('../api/_oportunidad.js');
+const analyze = await import('../api/analyze.js');
+const handler = analyze.default;
+const auth = (await import('../api/auth.js')).default;
+const CAT = analyze.__CATALOGO;
+
+// Precio ~4x el costo puesto del producto del pool (asi todos tienen margen sano).
+const indice = {};
+Object.keys(CAT).forEach(k => pool.poolDe(k, CAT[k].productos, []).forEach(p => { indice[pool.normalizar(p.q)] = { p, k }; }));
+precioDe = q => {
+  const base = indice[pool.normalizar(q)] || Object.values(indice).find(x => pool.normalizar(q).startsWith(pool.normalizar(x.p.q).split(' ').slice(0, 2).join(' ')));
+  if (!base) return 20000;
+  return Math.round(op.costoImportacion(base.p, 1500, base.k).costoPuestoARS * 4);
+};
+
+function llamar(h, body, headers, metodo, url) {
+  return new Promise(resolve => {
+    const res = { statusCode: 200, headers: {}, setHeader(k, v) { this.headers[k] = v; },
+      status(c) { this.statusCode = c; return this; }, json(o) { resolve({ status: this.statusCode, body: o }); return this; }, end() { resolve({ status: this.statusCode }); } };
+    h({ method: metodo || 'POST', url: url || '/api/analyze', headers: headers || {}, body }, res);
+  });
+}
+const cron = { authorization: 'Bearer cron-de-prueba', 'user-agent': 'vercel-cron/1.0' };
+const perfil = (o) => Object.assign({ nicho: 'celulares', capital: 'medio', experiencia: 'media', canal: 'mercadolibre', riesgo: 'medio', user_id: '' }, o || {});
+async function rondaCompleta(nicho, extra) {
+  let r, n = 0;
+  do { r = await llamar(handler, undefined, cron, 'GET', '/api/analyze?precalcular=tanda&solo=' + nicho + (n === 0 && extra ? extra : '')); n++; }
+  while (r.body.procesados && r.body.procesados[0] && r.body.procesados[0].terminado === false && n < 10);
+  return r;
+}
+
+console.log('== A. Acceso: sesion, admin y "ver como free" ==');
+{
+  const tAdmin = emitirToken({ user: 'matypereira', role: 'admin', premium: true });
+  const tUserMaty = emitirToken({ user: ' Matypereira ', role: 'user', premium: false });
+  const tComun = emitirToken({ user: 'cliente@x.com', role: 'user', premium: false });
+  chequear('admin es cliente', esCliente(tAdmin));
+  chequear('matypereira con rol user (login por la lista) igual es admin y cliente', esCliente(tUserMaty) && estadoSesion(tUserMaty).role === 'admin');
+  chequear('usuario comun sin premium no es cliente', !esCliente(tComun));
+  // Token vencido: se arma uno valido con exp en el pasado.
+  const crypto = await import('node:crypto');
+  const b64 = b => Buffer.from(b).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const cuerpo = b64(JSON.stringify({ u: 'matypereira', r: 'admin', p: true, exp: Date.now() - 1000 }));
+  const vencido = cuerpo + '.' + b64(crypto.createHmac('sha256', 'secreto-de-prueba').update(cuerpo).digest());
+  chequear('token vencido -> sesion "invalida" (no "ausente")', estadoSesion(vencido).estado === 'invalida');
+  const s = await llamar(auth, undefined, { authorization: 'Bearer ' + vencido }, 'GET', '/api/auth?sesion=1');
+  chequear('GET /api/auth?sesion=1 informa el vencimiento', s.status === 200 && s.body.estado === 'invalida', JSON.stringify(s.body));
+  const s2 = await llamar(auth, undefined, { authorization: 'Bearer ' + tAdmin }, 'GET', '/api/auth?sesion=1');
+  chequear('con token valido: estado valida y rol admin', s2.body.estado === 'valida' && s2.body.role === 'admin');
+  const casi = (() => { const c = b64(JSON.stringify({ u: 'matypereira', r: 'admin', p: true, exp: Date.now() + 2 * 86400e3 })); return c + '.' + b64(crypto.createHmac('sha256', 'secreto-de-prueba').update(c).digest()); })();
+  chequear('token por vencer (2 dias): se renueva', !!renovarSiHaceFalta(casi));
+  chequear('token nuevo: no se renueva', !renovarSiHaceFalta(tAdmin));
+}
+
+{
+  // Sin ADMIN_KEY (como en un preview): el login funciona y la gestion de usuarios NO queda abierta.
+  const k = process.env.ADMIN_KEY; delete process.env.ADMIN_KEY;
+  const authSinKey = (await import('../api/auth.js?sinkey=' + Date.now())).default;
+  const lg = await llamar(authSinKey, { username: 'Matypereira ', password: 'clave-de-prueba', action: 'login' }, {}, 'POST', '/api/auth');
+  chequear('sin ADMIN_KEY: login de admin funciona (usuario sin distinguir mayusculas)', lg.status === 200 && lg.body.role === 'admin' && !!lg.body.token, lg.status + ' ' + lg.body.role);
+  const us = await llamar(authSinKey, undefined, {}, 'GET', '/api/users');
+  chequear('sin ADMIN_KEY: /api/users NO queda abierto', us.status === 500 || us.status === 401, us.status);
+  if (k) process.env.ADMIN_KEY = k;
+}
+
+console.log('== B. Ronda semanal del pool (celulares) ==');
+const r1 = await rondaCompleta('celulares');
+const p1 = r1.body.procesados[0];
+chequear('ronda terminada y guardada', p1 && p1.terminado && p1.guardado, p1 && (p1.conDatos + '/' + p1.objetivo + ' con datos, pool ' + p1.de));
+chequear('pool del rubro >= 40', p1.de >= 40, p1.de);
+const f1 = filas.celulares.mercado;
+chequear('fila formato 2 con seleccion, historial y ronda', f1.__formato === 2 && f1.__seleccion.length === pool.OBJETIVO_RONDA() && f1.__historial.rondas.length >= 1 && f1.__ronda.id);
+chequear('descubrimiento: solo tendencias aceptables (sin marcas ni alimentos)', (f1.__descubrimiento.nuevos || []).every(q => !/samsung|yerba/.test(q)), JSON.stringify(f1.__descubrimiento.nuevos));
+const base12 = new Set(CAT.celulares.productos.map(p => p.q));
+const repetidosPrimera = f1.__seleccion.filter(p => base12.has(p.q)).length;
+chequear('la primera ronda evita los 12 fijos que se venian mostrando', repetidosPrimera === 0, repetidosPrimera + ' de los 12 viejos');
+
+// Admin ve todo, sin candado.
+const tAdmin = { authorization: 'Bearer ' + emitirToken({ user: 'matypereira', role: 'admin', premium: true }) };
+const vAdmin = await llamar(handler, perfil(), tAdmin);
+chequear('admin: 12 productos, esCliente true, esAdmin true', vAdmin.body.products.length === 12 && vAdmin.body.esCliente === true && vAdmin.body.esAdmin === true, vAdmin.body.products.length);
+chequear('primera ronda: todos "nuevo"', vAdmin.body.products.every(p => p.nuevo === true), vAdmin.body.nuevosPrimeraVez);
+const vFree = await llamar(handler, perfil({ verComoFree: true }), tAdmin);
+chequear('admin con "ver como free": candado (3 y esCliente false)', vFree.body.products.length === 3 && vFree.body.esCliente === false && vFree.body.verComoFree === true);
+const vAnon = await llamar(handler, perfil({ verComoFree: false }), {});
+chequear('sin sesion: 3 productos y sesion "ausente"', vAnon.body.products.length === 3 && vAnon.body.sesion === 'ausente');
+const tComun = { authorization: 'Bearer ' + emitirToken({ user: 'x@y.com', role: 'user', premium: true }) };
+const vPrem = await llamar(handler, perfil({ verComoFree: true }), tComun);
+chequear('un no-admin no puede pedir "ver como free" (se ignora)', vPrem.body.verComoFree === false && vPrem.body.products.length === 12);
+
+console.log('== C. El perfil cambia la seleccion ==');
+const qs = r => r.body.products.map(p => p.query);
+const bajo = await llamar(handler, perfil({ capital: 'bajo' }), tAdmin);
+const medio = await llamar(handler, perfil({ capital: 'medio' }), tAdmin);
+const alto = await llamar(handler, perfil({ capital: 'alto' }), tAdmin);
+const dif = (a, b) => qs(a).filter(q => qs(b).indexOf(q) < 0).length;
+chequear('capital bajo vs alto: productos distintos', dif(bajo, alto) > 0, dif(bajo, alto) + ' distintos');
+chequear('capital medio vs alto: no identicos (productos u orden)', dif(medio, alto) > 0 || qs(medio).join() !== qs(alto).join(), dif(medio, alto) + ' distintos, orden ' + (qs(medio).join() === qs(alto).join() ? 'igual' : 'distinto'));
+const sinExp = await llamar(handler, perfil({ experiencia: 'ninguna' }), tAdmin);
+chequear('experiencia "ninguna": ningun producto con certificaciones', sinExp.body.products.every(p => !(p.certificaciones || []).length), 'fuera: ' + JSON.stringify(sinExp.body.filtradosPorPerfil));
+const riesgoBajo = await llamar(handler, perfil({ riesgo: 'bajo' }), tAdmin);
+chequear('riesgo bajo: ningun producto de riesgo Alto', riesgoBajo.body.products.every(p => p.riesgo !== 'Alto'));
+chequear('conteo honesto: conDatoReal = productos que se muestran a un cliente', sinExp.body.conDatoReal === sinExp.body.products.length, sinExp.body.conDatoReal + ' de objetivo ' + sinExp.body.objetivo);
+
+console.log('== D/E. Forzar: ronda nueva, rotacion y badge "Nuevo" ==');
+const antes = new Set(f1.__seleccion.map(p => p.q));
+const r2 = await rondaCompleta('celulares', '&forzar=1');
+// forzar solo vale para admin, no para el cron: se pide como admin.
+const rf = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=celulares&forzar=1');
+let pf = rf.body.procesados[0], n = 0;
+while (pf && pf.terminado === false && n++ < 10) { const x = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=celulares'); pf = x.body.procesados[0] || pf; if (!x.body.procesados.length) break; }
+chequear('el cron no puede forzar (la ronda fresca no se rehace)', !r2.body.procesados.length || r2.body.procesados[0].ronda.id === f1.__ronda.id);
+const f2 = filas.celulares.mercado;
+chequear('admin forzo: ronda nueva', f2.__ronda.id !== f1.__ronda.id && f2.__ronda.motivo === 'forzada');
+const repetidos = f2.__seleccion.filter(p => antes.has(p.q)).length;
+chequear('la ronda nueva no repite lo de la ronda anterior (pool alcanza)', repetidos === 0, repetidos + ' repetidos');
+const v2 = await llamar(handler, perfil(), tAdmin);
+chequear('banner: nuevos vs semana anterior = todos', v2.body.nuevosVsAnterior === v2.body.products.length, v2.body.nuevosVsAnterior);
+const vistosAntes = new Set(f1.__historial.vistos);
+chequear('badge "Nuevo" solo en los que entran por primera vez', v2.body.products.every(p => p.nuevo === !vistosAntes.has(p.query)) && v2.body.nuevosPrimeraVez >= 10,
+  v2.body.nuevosPrimeraVez + ' de ' + v2.body.products.length + ' nuevos (el resto: ya se habian mostrado antes)');
+chequear('fecha real de los datos en la respuesta', !!v2.body.datosDe && !isNaN(Date.parse(v2.body.datosDe)), v2.body.datosDe);
+
+console.log('== D. Sin datos: variantes y reemplazo ==');
+{
+  const prod = { nombre: 'Funda de silicona con anillo', q: 'funda silicona anillo sinofertas', costoMin: 1, costoMax: 2.5, volCm3: 200, pesoG: 50 };
+  const vs = pool.variantesDe(prod);
+  chequear('2-3 variantes (sinonimo / mas generica / nucleo)', vs.length >= 2 && vs.length <= 3, JSON.stringify(vs));
+  const pre = await import('../api/_precalculo.js');
+  const cli = pre.crearCliente('tok', { rps: 1000 });
+  const r = await pool.analizarConVariantes(cli, prod, pre.analizarProducto, { nichoKey: 'celulares', usdArs: 1500 });
+  chequear('si la busqueda original no trae datos, una variante si', !!r.consulta && r.consulta !== prod.q && r.intentos.length >= 2, r.consulta + ' (' + r.intentos.length + ' intentos)');
+  // Reemplazo: un rubro donde la mitad del pool no tiene datos igual llega al objetivo.
+  pool.poolDe('mascotas', CAT.mascotas.productos, []).forEach((p, i) => { if (i % 2 === 0) { SIN_DATOS.add(p.q); pool.variantesDe(p).forEach(v => SIN_DATOS.add(v)); } });
+  const rm = await rondaCompleta('mascotas');
+  const pm = rm.body.procesados[0];
+  const fm = filas.mascotas.mercado;
+  chequear('con la mitad sin datos: reemplaza con el pool', fm.__seleccion.length > 0 && fm.__descartados.length > 0, fm.__seleccion.length + ' con datos, ' + fm.__descartados.length + ' descartados');
+  const vm = await llamar(handler, perfil({ nicho: 'mascotas' }), tAdmin);
+  chequear('el numero mostrado es el real (sin pendientes inventados)', vm.body.products.length === vm.body.conDatoReal && vm.body.pendientes.length === 0 && vm.body.descartadosSinDatos === fm.__descartados.length,
+    vm.body.products.length + ' mostrados, ' + vm.body.descartadosSinDatos + ' descartados');
+}
+
+console.log('== F. Formato viejo y preview ==');
+{
+  // Una fila del formato viejo (12 fijos) se sigue leyendo como antes.
+  const viejo = { __v: 4 };
+  filas.hogar = { nicho: 'hogar', mercado: viejo, created_at: new Date().toISOString() };
+  const v = await llamar(handler, perfil({ nicho: 'hogar' }), tAdmin);
+  chequear('fila del formato viejo: responde sin romper (formato 1)', v.status === 200 && v.body.formato === 1);
+  // Preview: escribe en filas "preview:" y no toca la de produccion.
+  process.env.VERCEL_ENV = 'preview';
+  const antesProd = JSON.stringify(filas.celulares);
+  const x = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=celulares&forzar=1');
+  chequear('preview: escribe en "preview:celulares"', Object.keys(filas).some(k => k.indexOf('preview:celulares') === 0), Object.keys(filas).filter(k => k.startsWith('preview')).join(','));
+  chequear('preview: la fila de produccion queda igual', JSON.stringify(filas.celulares) === antesProd);
+  delete process.env.VERCEL_ENV;
+  chequear('preview nunca usa Apify', x.body.procesados[0] && x.body.procesados[0].rotacionEncolada == null);
+}
+
+console.log('\n' + oks + ' ok, ' + fallos + ' fallas');
+process.exit(fallos ? 1 : 0);

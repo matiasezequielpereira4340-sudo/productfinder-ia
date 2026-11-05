@@ -453,6 +453,34 @@ export function puntajeRiesgo(prod, comp, certs, experiencia, capacidad) {
   return { valor: v, detalle: notas.length ? notas.join(' · ') : 'Te alcanza el capital, liviano y sin certificaciones previas detectadas' };
 }
 
+// Escala del capital: con mucho capital, un producto cuyo pedido minimo usa
+// 2-3% del presupuesto no aprovecha la ventaja de poder comprar volumen (y es
+// justo donde compiten todos los que arrancan con poco). Con poco capital, lo
+// que entra con el MOQ y deja resto para reponer es lo mejor. Sin esto, capital
+// medio y alto daban exactamente el mismo ranking: los dos entraban en todo.
+// r = inversion del MOQ / presupuesto por producto (60% del capital).
+const ESCALA = {
+  bajo:    { chico: null, bonoDesde: 0, bonoHasta: 0.6, bono: 3, penal: 0 },
+  medio:   { chico: 0.03, bonoDesde: 0.15, bonoHasta: 1, bono: 4, penal: -4 },
+  alto:    { chico: 0.04, bonoDesde: 0.1, bonoHasta: 1, bono: 5, penal: -6 },
+  premium: { chico: 0.03, bonoDesde: 0.08, bonoHasta: 1, bono: 5, penal: -8 }
+};
+export function ajusteEscala(capacidad, capitalKey) {
+  const k = ESCALA[capitalKey];
+  if (!k || !capacidad || capacidad.escenario !== 'moq' || !(capacidad.presupuestoUSD > 0)) return null;
+  const r = capacidad.inversionMoqUSD / capacidad.presupuestoUSD;
+  const pct = Math.round(r * 1000) / 10;
+  if (k.chico != null && r < k.chico) {
+    return { puntos: k.penal, label: 'El pedido mínimo usa solo ' + pct.toLocaleString('es-AR') + '% de tu presupuesto por producto: con tu capital podés apuntar a productos de más ticket, donde compiten menos vendedores.' };
+  }
+  if (r >= k.bonoDesde && r <= k.bonoHasta) {
+    return { puntos: k.bono, label: capitalKey === 'bajo'
+      ? 'Entra el pedido mínimo (' + pct.toLocaleString('es-AR') + '% del presupuesto por producto) y te queda resto para reponer.'
+      : 'Aprovecha tu capital: el pedido mínimo usa ' + pct.toLocaleString('es-AR') + '% de tu presupuesto por producto.' };
+  }
+  return null;
+}
+
 export function riesgoDe(valor) { return valor >= 70 ? 'Bajo' : valor >= 45 ? 'Medio' : 'Alto'; }
 
 // ------------------------------------------------------------
@@ -519,6 +547,8 @@ export function evaluar(e) {
     ajustes.push({ label: 'Ni un pedido de prueba de ' + e.capacidad.prueba.unidades + ' u (USD ' +
       e.capacidad.prueba.inversionUSD.toLocaleString('es-AR') + ') entra en el ' + Math.round(FRACCION_POR_PRODUCTO * 100) + '% de tu capital', puntos: -15 });
   }
+  const esc = ajusteEscala(e.capacidad, e.capital);
+  if (esc) ajustes.push(esc);
 
   // Sin margen calculable no hay score: no se puede decidir una compra.
   if (e.margenPct == null && e.pocosPrecios == null) {
@@ -620,7 +650,8 @@ export function evaluarProducto(prod, nichoKey, mercado, perfil, usdArs, histori
   const base = {
     nombre: prod.nombre, query: prod.q, keyword_en: prod.keyword_en || null, nota: prod.nota, pesoG: prod.pesoG,
     costo, certificaciones: certs, capacidad, links,
-    categoria: (mercado && mercado.categoryName) || null
+    categoria: (mercado && mercado.categoryName) || null,
+    origen: prod.origen || 'catalogo', consultaUsada: (mercado && mercado.consultaUsada) || null
   };
   // Sin 3 ofertas comparables con precio no hay producto para mostrar: va a
   // "Pendientes de analisis" (solo nombre y links), no a una tarjeta vacia.
@@ -639,7 +670,7 @@ export function evaluarProducto(prod, nichoKey, mercado, perfil, usdArs, histori
   const rot = puntajeRotacion(historial);
   const sat = puntajeSaturacion(comp, dem.valor);
   const riesgo = puntajeRiesgo(prod, comp, certs, perfil.experiencia, capacidad);
-  const ev = evaluar({ margenPct: mn.pct, pocosPrecios: pocos, demanda: dem, rotacion: rot, saturacion: sat, riesgo, riesgoTolerancia: perfil.riesgo, capacidad });
+  const ev = evaluar({ margenPct: mn.pct, pocosPrecios: pocos, demanda: dem, rotacion: rot, saturacion: sat, riesgo, riesgoTolerancia: perfil.riesgo, capacidad, capital: perfil.capital });
   const m = x => ({ nivel: x.nivel, valor: x.valor, numero: x.numero, detalle: x.detalle, como: x.como });
   return Object.assign(base, {
     fuente: 'MercadoLibre (API oficial)',

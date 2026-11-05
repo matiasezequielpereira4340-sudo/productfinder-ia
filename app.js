@@ -641,13 +641,15 @@ async function doAnalyze(){
     canal: document.getElementById('selCanal').value,
     nicho: document.getElementById('selNicho').value,
     riesgo: document.getElementById('selRiesgo').value,
-    user_id: localStorage.getItem('pf_user') || ''
+    user_id: localStorage.getItem('pf_user') || '',
+    // Solo lo respeta el servidor si la sesion es de admin (para probar el candado).
+    verComoFree: pfVerComoFree()
   };
   localStorage.setItem('pf_nicho', params.nicho);
   return (async function(){
     if(btn){ btn.disabled = true; btn.dataset.old = btn.innerHTML; btn.innerHTML = ' Analizando el mercado real...'; }
     const grid = document.getElementById('productsGrid');
-    if(grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">Consultando precios y competencia en MercadoLibre...<br><small>Esto puede tardar unos segundos porque analizo 12 productos reales.</small></div>';
+    if(grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">Consultando precios y competencia en MercadoLibre...<br><small>Busco hasta 12 productos con datos reales de MercadoLibre para tu perfil. Puede tardar unos segundos.</small></div>';
     const results = document.getElementById('resultsSection');
     if(results) results.style.display = 'block';
     try{
@@ -657,6 +659,10 @@ async function doAnalyze(){
       const data = await res.json();
       if(!res.ok){ throw new Error(data.error || 'Error al analizar'); }
       window.__lastAnalysis = data;
+      // Sesion: token renovado (para que no venza en uso) o vencido (aviso y
+      // fuera el "admin" falso).
+      if(data.tokenRenovado && window.pfGuardarTokenRenovado) window.pfGuardarTokenRenovado(data.tokenRenovado);
+      if(data.sesion === 'invalida' && window.pfSesionVencida) window.pfSesionVencida();
       renderResults(data);
     }catch(err){
         if (window.__v7showError) { window.__v7showError(err && err.message ? err.message : ''); }
@@ -686,6 +692,37 @@ function pfNum(n){ return n == null ? '\u2014' : Number(n).toLocaleString('es-AR
 function pfUsd(n){ return n == null ? '—' : 'USD ' + Number(n).toLocaleString('es-AR', { maximumFractionDigits: 2 }); }
 function pfPct(n){ return n == null ? '—' : Number(n).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + '%'; }
 function pfKey(p){ return String((window.__lastAnalysis && window.__lastAnalysis.nicho) || 'nicho') + '::' + String(p.query || p.nombre || ''); }
+
+// "Ver como usuario free": toggle solo para admin, se recuerda en este navegador.
+function pfVerComoFree(){ try{ return localStorage.getItem('pf_ver_free') === '1'; }catch(e){ return false; } }
+function pfFechaCorta(iso){ var d = new Date(iso); if(isNaN(d)) return ''; return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0'); }
+
+// Forzar actualizacion de un rubro (solo admin): ronda nueva del pool con la
+// API de MeLi. Puede llevar varias tandas de ~50 s; se encadenan desde aca.
+async function pfForzarRubro(nicho, btn){
+  if(!nicho) return;
+  var tk = null; try{ tk = localStorage.getItem('pf_token'); }catch(e){}
+  if(!tk){ if(window.pfSesionVencida) window.pfSesionVencida(); return; }
+  var txt = btn ? btn.innerHTML : '';
+  var paso = function(m){ if(btn) btn.innerHTML = m; };
+  if(btn) btn.disabled = true;
+  try{
+    var url = '/api/analyze?precalcular=tanda&solo=' + encodeURIComponent(nicho) + '&forzar=1';
+    for(var i = 0; i < 8; i++){
+      paso('Actualizando rubro\u2026 tanda ' + (i + 1));
+      var r = await fetch(url, { headers: { Authorization: 'Bearer ' + tk }, cache: 'no-store' });
+      var d = await r.json().catch(function(){ return {}; });
+      if(r.status === 401){ if(window.pfSesionVencida) window.pfSesionVencida(); return; }
+      if(!r.ok){ alert('No se pudo actualizar: ' + (d.error || ('HTTP ' + r.status))); return; }
+      var p0 = (d.procesados || [])[0];
+      if(!p0 || p0.terminado !== false) break;
+      url = '/api/analyze?precalcular=tanda&solo=' + encodeURIComponent(nicho);   // sigue la misma ronda
+    }
+    paso('Listo, recargando\u2026');
+    await doAnalyze();
+  } catch(e){ alert('No se pudo actualizar el rubro: ' + (e && e.message || e)); }
+  finally { if(btn){ btn.disabled = false; btn.innerHTML = txt; } }
+}
 
 function pfLinkBtn(href, txt, title){
   if(!href) return '';
@@ -733,6 +770,7 @@ function pfCard(p, opts){
   var h = '';
   h += '<article class="product-card pf2-card pf2-' + pfEsc(v.nivel) + (p.topPick ? ' top-pick' : '') + '" data-key="' + pfEsc(pfKey(p)) + '">';
   if(p.topPick) h += '<span class="top-badge"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> TOP PICK</span>';
+  if(p.nuevo) h += '<span class="pf2-nuevo" title="Primera vez que este producto entra en la selección del rubro">Nuevo esta semana</span>';
   h += '<div class="product-name">' + pfEsc(p.nombre) + '</div>';
   h += '<div class="pf2-meta">' + pfEsc([p.categoria, p.nota].filter(Boolean).join(' · ')) + '</div>';
 
@@ -919,6 +957,13 @@ function pfMostrarLista(){
   box.hidden = false;
 }
 
+function pfBindAdmin(){
+  var _vf = document.getElementById('pfVerFree');
+  if(_vf) _vf.addEventListener('change', function(){ try{ localStorage.setItem('pf_ver_free', _vf.checked ? '1' : '0'); }catch(e){} doAnalyze(); });
+  var _fz = document.getElementById('pfForzar');
+  if(_fz) _fz.addEventListener('click', function(){ pfForzarRubro(_fz.getAttribute('data-nicho'), _fz); });
+}
+
 function renderResults(data){
   const grid = document.getElementById('productsGrid');
   if(!grid) return;
@@ -929,19 +974,44 @@ function renderResults(data){
   if(data.nichoAproximado && data.nichoSolicitado){
     banner += '<div class="ml-banner pf2-banner">No tengo un cat&#225;logo propio para <strong>'+pfEsc(data.nichoSolicitado)+'</strong>, as&#237; que te muestro <strong>'+pfEsc(data.nichoLabel)+'</strong>, que es lo m&#225;s parecido que puedo analizar hoy.</div>';
   }
+  // Herramientas de admin: ver como free y forzar actualizacion del rubro.
+  if(data.esAdmin || data.verComoFree){
+    banner += '<div class="pf2-admin" role="group" aria-label="Herramientas de administrador"><span class="pf2-admin-t">Admin</span>' +
+      '<label class="pf2-admin-tg"><input type="checkbox" id="pfVerFree"' + (data.verComoFree ? ' checked' : '') + '> Ver como usuario free</label>' +
+      '<button type="button" class="pf2-btn" id="pfForzar" data-nicho="' + pfEsc(data.nicho) + '">Forzar actualización de este rubro</button>' +
+      (data.ronda ? '<span class="pf2-admin-n">Ronda ' + pfEsc(data.ronda.id) + ' (' + pfEsc(data.ronda.motivo || '') + ')</span>' : '') + '</div>';
+  }
   var pendientes = (data && data.pendientes) || [];
   // Nicho entero sin datos: un mensaje claro y nada mas (ni tarjetas vacias ni
   // listas de nombres sin numeros).
   if(!products.length){
     grid.innerHTML = banner + '<div class="ml-banner pf2-banner pf2-banner-warn pf2-vacio"><strong><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> Este rubro todav&iacute;a no tiene datos de MercadoLibre.</strong><br>Cada noche se analizan unos 10 rubros con la API oficial de MercadoLibre, primero los m&aacute;s buscados: tu b&uacute;squeda ya puso este en la cola. Prob&aacute; con otro rubro o volv&eacute; ma&ntilde;ana' +
       (data.meliTokenExpirado ? '. Tu conexi&oacute;n con MercadoLibre expir&oacute;: <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">reconectala</a> para analizarlo ahora.' : (!pfTieneSesion() ? '.' : ', o <a href="/meli-connect.html" style="color:var(--gold);font-weight:700">conect&aacute; tu MercadoLibre</a> para analizarlo ahora.')) + '</div>';
+    pfBindAdmin();
     return;
   }
   {
     var edad = data.edadHoras;
     // El cache dura 7 dias: se muestra en dias (en horas el primer dia).
     var edadTxt = edad == null ? '' : (edad < 1 ? 'de hace menos de 1 h' : edad < 24 ? 'de hace ' + nf.format(Math.round(edad)) + ' h' : 'de hace ' + nf.format(Math.floor(edad / 24)) + (Math.floor(edad / 24) === 1 ? ' d\u00eda' : ' d\u00edas'));
-    banner += '<div class="ml-banner pf2-banner pf2-banner-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> Datos de la API oficial de MercadoLibre '+edadTxt+(data.desdeCache?' (cada rubro se actualiza una vez por semana)':'')+'. <strong>'+data.conDatoReal+'</strong> de <strong>'+data.totalEvaluados+'</strong> productos con datos. 1 USD ≈ $'+nf.format(data.usdArs)+'. Perfil: capital '+pfEsc(data.perfil && data.perfil.capitalLabel)+', '+pfEsc(data.perfil && data.perfil.experiencia)+' experiencia, canal '+pfEsc(data.perfil && data.perfil.canal)+', riesgo '+pfEsc(data.perfil && data.perfil.riesgo)+'.</div>';
+    // Fecha REAL de los datos y conteo honesto: cuantos con datos se muestran,
+    // cuantos son nuevos respecto de la semana anterior y cuantos saco el perfil.
+    var fecha = data.datosDe ? pfFechaCorta(data.datosDe) : '';
+    var fuera = data.filtradosPorPerfil || {};
+    var sacados = [];
+    if(fuera.certificaciones) sacados.push(fuera.certificaciones + ' por requerir certificaciones');
+    if(fuera.riesgo) sacados.push(fuera.riesgo + ' por riesgo alto');
+    if(fuera.capital) sacados.push(fuera.capital + ' porque no te alcanza el capital');
+    var conteo = data.formato === 2
+      ? '<strong>' + data.conDatoReal + '</strong> productos con datos reales para tu perfil' + (data.conDatoReal < (data.objetivo || 12) ? ' (no llegamos a ' + (data.objetivo || 12) + ': es lo que hay con datos esta semana)' : '') +
+        ' · revisamos ' + data.totalEvaluados + ' candidatos de un pool de ' + (data.poolTotal || '—') + (data.descartadosSinDatos ? ', ' + data.descartadosSinDatos + ' sin datos suficientes en MeLi' : '') +
+        (sacados.length ? ' · tu perfil sacó ' + sacados.join(', ') : '') +
+        '. <strong>' + (data.nuevosVsAnterior || 0) + '</strong> nuevos respecto de la semana anterior' + (data.nuevosPrimeraVez ? ' (' + data.nuevosPrimeraVez + ' entran por primera vez)' : '') + '.'
+      : '<strong>'+data.conDatoReal+'</strong> de <strong>'+data.totalEvaluados+'</strong> productos con datos.';
+    banner += '<div class="ml-banner pf2-banner pf2-banner-ok"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg> ' +
+      (fecha ? '<strong>Datos del ' + fecha + '</strong> (' + edadTxt.replace(/^de /, '') + ')' : 'Datos') + ', API oficial de MercadoLibre' +
+      (data.ronda && data.ronda.parcial ? ' · selección de esta semana todavía en curso' : '') + '. ' + conteo +
+      ' 1 USD ≈ $'+nf.format(data.usdArs)+'. Perfil: capital '+pfEsc(data.perfil && data.perfil.capitalLabel)+', '+pfEsc(data.perfil && data.perfil.experiencia)+' experiencia, canal '+pfEsc(data.perfil && data.perfil.canal)+', riesgo '+pfEsc(data.perfil && data.perfil.riesgo)+'.</div>';
   }
   banner += '<div id="pfListaPanel" class="pf2-panel" hidden></div>';
   const cards = products.map(function(p){ return pfCard(p); }).join('');
@@ -960,7 +1030,7 @@ function renderResults(data){
         '<div class="pf-candado-ico"><svg class="ic" aria-hidden="true"><use href="#i-lock"></use></svg></div>' +
         '<h4>' + bloqueados + ' productos m&aacute;s de este rubro, reservados para clientes</h4>' +
         '<p>' + (data.conDatoReal > 0
-          ? 'Analic&eacute; los ' + data.productosTotales + ' productos del rubro y te muestro los ' + products.length + ' mejor ubicados para tu perfil.'
+          ? 'Para tu perfil hay ' + data.productosTotales + ' productos con datos reales y te muestro los ' + products.length + ' mejor ubicados.'
           : 'Sin datos de mercado no hay orden: te muestro ' + products.length + ' de los ' + data.productosTotales + ' sin ranking.') +
           ' Los clientes de asesor&iacute;a ven la lista completa.</p>' +
         '<button class="pf-candado-btn" type="button" id="pfCandadoBtn"><svg class="ic" aria-hidden="true"><use href="#i-rocket"></use></svg> Ver c&oacute;mo trabajamos</button>' +
@@ -1000,6 +1070,7 @@ function renderResults(data){
   Array.prototype.forEach.call(grid.querySelectorAll('.pf2-guardar'), function(b){
     b.addEventListener('click', function(){ pfToggleLista(b.getAttribute('data-key'), b); });
   });
+  pfBindAdmin();
   var _cb = document.getElementById('pfCandadoBtn');
   if(_cb) _cb.addEventListener('click', function(){
     var cs = document.querySelector('.contact-section');

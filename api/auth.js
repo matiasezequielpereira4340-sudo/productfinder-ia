@@ -1,5 +1,5 @@
 // ProductFinder IA - Auth API
-import { emitirToken } from './_sesion.js';
+import { emitirToken, estadoSesion, renovarSiHaceFalta, tokenDe, usuarioEsAdmin } from './_sesion.js';
 import { hashearClave, verificarClave } from './_clave.js';
 // Admin: matypereira (never expires, full access)
 // Regular users: expire after N days from activation
@@ -42,7 +42,7 @@ function isExpired(u) {
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'https://productfinder-ia.vercel.app');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,x-admin-key');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,x-admin-key,Authorization');
 }
 
 async function persistUsers(users) {
@@ -73,9 +73,27 @@ export default async function handler(req, res) {
   cors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  if (!ADMIN_USER || !ADMIN_PASS || !ADMIN_KEY) return res.status(500).json({ success:false, error:'Servidor mal configurado' });
+  // GET /api/auth?sesion=1 - el front valida pf_token al arrancar. Va antes del
+  // chequeo de configuracion: solo necesita la clave de firma, no ADMIN_KEY. Devuelve el
+  // estado real de la sesion y, si le queda poco, un token renovado.
+  if ((req.url || '').split('?')[0].endsWith('/auth') && req.method === 'GET' && /[?&]sesion=1/.test(req.url || '')) {
+    res.setHeader('Cache-Control', 'no-store');
+    const t = tokenDe(req);
+    const e = estadoSesion(t);
+    if (e.estado === 'valida') { const n = renovarSiHaceFalta(t); if (n) e.tokenRenovado = n; }
+    return res.status(200).json(e);
+  }
+
+  // El login solo necesita APP_USER/APP_PASS (y la clave de firma de sesiones).
+  // Antes tambien exigia ADMIN_KEY, asi que en un entorno sin ADMIN_KEY (los
+  // previews) no entraba nadie. Las rutas que administran usuarios SI la exigen
+  // aparte: sin ADMIN_KEY, "header !== ADMIN_KEY" daria undefined !== undefined
+  // = false y quedarian abiertas.
+  if (!ADMIN_USER || !ADMIN_PASS) return res.status(500).json({ success:false, error:'Servidor mal configurado' });
 
   const path = (req.url || '').split('?')[0];
+  const esLogin = path.endsWith('/auth') && req.method === 'POST';
+  if (!esLogin && !ADMIN_KEY) return res.status(500).json({ success:false, error:'Servidor mal configurado' });
 
   // POST /api/auth - login
   if (path.endsWith('/auth') && req.method === 'POST') {
@@ -97,9 +115,15 @@ export default async function handler(req, res) {
       return res.status(201).json({ success: true, pending: true, message: 'Cuenta creada. Queda pendiente de aprobacion del administrador.' });
     }
 
-    if (username === ADMIN_USER && password === ADMIN_PASS) {
-      return res.status(200).json({ success: true, role: 'admin', user: username,
-          premium: true, token: emitirToken({ user: username, role: 'admin', premium: true }) });
+    // Usuario de admin sin distinguir mayusculas ni espacios (la contraseña si, exacta).
+    const esUserAdmin = ADMIN_USER && String(username || '').trim().toLowerCase() === String(ADMIN_USER).trim().toLowerCase();
+    if (esUserAdmin && password === ADMIN_PASS) {
+      const tk = emitirToken({ user: String(username).trim(), role: 'admin', premium: true });
+      return res.status(200).json({ success: true, role: 'admin', user: String(username).trim(),
+          premium: true, token: tk,
+          // Sin clave de firma en este entorno no hay sesion para el servidor:
+          // se avisa en vez de dejar entrar con un "admin" que nadie reconoce.
+          aviso: tk ? undefined : 'Este entorno no tiene clave de firma de sesiones (SESSION_SECRET o ADMIN_KEY): el servidor no te va a reconocer como admin.' });
     }
 
     const users = await getUsers();
@@ -120,6 +144,11 @@ export default async function handler(req, res) {
     if (!user.active) return res.status(403).json({ success: false, error: 'Usuario desactivado. Contactá al administrador.' });
     if (isExpired(user)) return res.status(403).json({ success: false, error: 'Acceso expirado. Contactá al administrador.' });
 
+    // Un usuario de la lista que figura como admin (ADMIN_USERS / dueño de MeLi) entra como admin.
+    if (usuarioEsAdmin(username)) {
+      return res.status(200).json({ success: true, role: 'admin', user: username, premium: true,
+        token: emitirToken({ user: username, role: 'admin', premium: true }) });
+    }
     return res.status(200).json({
         success: true, role: 'user', user: username, premium: !!user.premium,
         expiryDays: user.expiryDays, createdAt: user.createdAt,

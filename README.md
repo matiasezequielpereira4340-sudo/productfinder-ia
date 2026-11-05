@@ -791,6 +791,43 @@ pre-analizado en `buscador_cache` con la **API oficial de MeLi, sin Apify**.
 - **Ritmo:** adaptativo, arranca en `BUSCADOR_MELI_RPS` (8/s) y se frena solo
   ante 429. Medido el 20/10/2026: MeLi devolvió 429 a ~50/s y también a ~12/s.
 
+### Pool por rubro y rotación semanal (5/11/2026)
+
+Antes cada rubro tenía 12 productos fijos y el refresco semanal solo actualizaba precios de esos
+mismos 12. Ahora:
+
+- **Pool ≥ 40 por rubro** (`api/_pool-extra*.js`, 2.658 candidatos en 65 rubros): los 12 del
+  catálogo + ~29 importables nuevos + los **descubiertos** en `/trends/MLA/{cat}` de MeLi en cada
+  ronda (hasta 8 por ronda, sin marcas, alimentos ni medicamentos; FOB/volumen estimados con la
+  mediana del rubro y marcados en la tarjeta). `/highlights` (más vendidos) sigue dando 403: solo se
+  prueba con `BUSCADOR_PROBAR_HIGHLIGHTS=1`.
+- **Ronda** (`api/_ronda.js`): cada semana se eligen candidatos priorizando los **no mostrados en las
+  últimas 3 semanas** (nunca mostrados primero, después el mostrado hace más tiempo), intercalados por
+  tramo de inversión. Se analizan hasta tener `BUSCADOR_SELECCION` (15) con datos reales; los que no
+  traen datos se reintentan con 2-3 variantes de búsqueda y, si siguen sin datos, se **reemplazan** por
+  el siguiente del pool. Si el pool se agota, se muestra el número real.
+- **Varias tandas**: una ronda que no termina en 50 s queda en la fila `<nicho>~wip` y la tanda
+  siguiente la sigue. La fila del rubro solo se pisa al terminar.
+- **Historial sin migración**: ronda, seleccionados, historial (8 rondas), vistos y descubiertos viven
+  dentro de `mercado` en la fila de `buscador_cache` del rubro (`__ronda`, `__seleccion`,
+  `__historial`, `__descubiertos`). Las filas del formato viejo se siguen leyendo.
+- **Perfil**: de los 15 se muestran 12 para el perfil. "Sin experiencia" saca los que requieren
+  certificaciones; riesgo bajo saca los de riesgo Alto; capital saca lo que no entra ni con pedido de
+  prueba, y el score suma/resta por escala (`ajusteEscala`: con capital alto un MOQ que usa < 4% del
+  presupuesto resta). El banner dice cuántos sacó el perfil y por qué.
+- **Badge "Nuevo esta semana"**: producto que entra por primera vez en la selección del rubro. El
+  banner muestra la fecha real de los datos y cuántos son nuevos respecto de la ronda anterior.
+- **Admin** (sesión de admin): "Ver como usuario free" (prueba el candado) y "Forzar actualización de
+  este rubro" (`precalcular=tanda&solo=<k>&forzar=1`; el cron no puede forzar).
+- **Previews**: comparten Supabase con producción, así que fuera de producción se escribe en filas
+  `preview:<nicho>` y nunca se usa Apify.
+
+Sesión: el front valida `pf_token` contra `GET /api/auth?sesion=1` al arrancar; si venció muestra
+"Tu sesión venció, volvé a entrar" y deja de mostrar admin. Un token con menos de 10 días se renueva
+solo. Admin = rol firmado o usuario en `APP_USER` / `ADMIN_USERS` / `BUSCADOR_MELI_USER`.
+
+Local: `npm run dev:local` (handlers reales, MeLi y Supabase **simulados**). Pruebas: `npm run test:pool`.
+
 ### Categoría de MeLi fijada por producto
 
 Cada producto del catálogo (780, 65 nichos) tiene su categoría y dominio de MeLi en

@@ -58,14 +58,52 @@ export function leerToken(token) {
   let datos;
   try { datos = JSON.parse(desdeB64url(cuerpo).toString('utf8')); } catch (_) { return null; }
   if (!datos || typeof datos.exp !== 'number' || Date.now() > datos.exp) return null;
-  return { user: datos.u, role: datos.r, premium: !!datos.p };
+  return { user: datos.u, role: datos.r, premium: !!datos.p, exp: datos.exp };
+}
+
+// Usuarios que son admin por nombre, ademas del rol firmado en el token: el
+// usuario del login de admin (APP_USER), los de ADMIN_USERS (separados por
+// coma) y el dueño de la conexion de MeLi del buscador (BUSCADOR_MELI_USER,
+// por defecto matypereira). Sin distinguir mayusculas ni espacios: antes un
+// "Matypereira " entraba por la lista de usuarios comunes, como rol user y sin
+// premium, y el buscador le ponia el candado al dueño.
+export function usuariosAdmin() {
+  const lista = [process.env.APP_USER, process.env.BUSCADOR_MELI_USER || 'matypereira']
+    .concat(String(process.env.ADMIN_USERS || '').split(','));
+  return new Set(lista.map(x => String(x || '').trim().toLowerCase()).filter(Boolean));
+}
+export function usuarioEsAdmin(user) {
+  return usuariosAdmin().has(String(user || '').trim().toLowerCase());
+}
+
+// Estado de la sesion tal como lo ve el servidor, para que el front no siga
+// mostrando "admin" con un token vencido (ver /api/auth?sesion=1).
+//   'ausente'  no mando token
+//   'invalida' mando uno, pero vencio o lo firmo otra clave
+//   'valida'
+export function estadoSesion(token) {
+  if (!token) return { estado: 'ausente' };
+  const s = leerToken(token);
+  if (!s) return { estado: 'invalida' };
+  const admin = s.role === 'admin' || usuarioEsAdmin(s.user);
+  return { estado: 'valida', user: s.user, role: admin ? 'admin' : s.role, premium: admin || s.premium, exp: s.exp };
+}
+
+// Renovacion deslizante: si al token le quedan menos de 10 dias, se emite uno
+// nuevo con los mismos datos. Asi una sesion en uso no vence a los 30 dias
+// (que es lo que dejaba al dueño con el candado sin aviso).
+const RENOVAR_ANTES_MS = 10 * 24 * 60 * 60 * 1000;
+export function renovarSiHaceFalta(token) {
+  const s = leerToken(token);
+  if (!s || !s.exp || s.exp - Date.now() > RENOVAR_ANTES_MS) return null;
+  return emitirToken({ user: s.user, role: s.role, premium: s.premium });
 }
 
 // Un cliente es el admin o un usuario marcado como premium.
 export function esCliente(token) {
   const s = leerToken(token);
   if (!s) return false;
-  return s.role === 'admin' || s.premium === true;
+  return s.role === 'admin' || s.premium === true || usuarioEsAdmin(s.user);
 }
 
 // Hay una sesion valida (cualquier usuario logueado, no hace falta que sea
@@ -79,7 +117,7 @@ export function haySesion(token) {
 // entorno estan cargadas.
 export function esAdmin(token) {
   const s = leerToken(token);
-  return !!s && s.role === 'admin';
+  return !!s && (s.role === 'admin' || usuarioEsAdmin(s.user));
 }
 
 // Respuesta unica para lo que necesita sesion, en criollo.

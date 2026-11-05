@@ -13,6 +13,7 @@ process.env.SUPABASE_SERVICE_KEY = 'supa-de-prueba';
 process.env.APIFY_TOKEN = 'apify-de-prueba';
 process.env.SESSION_SECRET = 'secreto-de-prueba';
 process.env.CRON_SECRET = 'cron-de-prueba';
+process.env.BUSCADOR_MELI_RPS = '1000';   // el mock responde al instante: sin esto cada tanda tarda 50 s
 
 let fallos = 0, oks = 0;
 function chequear(n, c, extra) {
@@ -117,7 +118,7 @@ globalThis.fetch = async (url, init) => {
     }
     if (u.includes('/buscador_cache')) {
       if (metodo === 'POST') { const b = JSON.parse(init.body); llamadas.supaPost.push(b.nicho); cacheNicho[b.nicho] = b; return new Response('', { status: 201 }); }
-      if (/select=nicho,created_at,v:/.test(u)) return json(Object.values(cacheNicho).map(f => ({ nicho: f.nicho, created_at: f.created_at, v: f.mercado.__v })));
+      if (/select=nicho,created_at,v:/.test(u)) return json(Object.values(cacheNicho).map(f => ({ nicho: f.nicho, created_at: f.created_at, v: f.mercado.__v, terminado: f.mercado.__terminado })));
       const n = decodeURIComponent((/nicho=eq\.([^&]*)/.exec(u) || [])[1] || '');
       return json(cacheNicho[n] ? [cacheNicho[n]] : []);
     }
@@ -257,6 +258,7 @@ console.log('== 6. Pre-analisis: autorizacion ==');
 console.log('== 7. Pre-analisis: tanda de Mascotas con CRON_SECRET (+ rotacion con Apify) ==');
 const cron = { authorization: 'Bearer cron-de-prueba', 'user-agent': 'vercel-cron/1.0' };
 const t1 = await llamar(undefined, cron, 'GET', '/api/analyze?precalcular=tanda&solo=mascotas');
+if (process.env.DEBUG_T1) console.log(JSON.stringify(t1.body.procesados, null, 1).slice(0, 3000));
 chequear('responde 200', t1.status === 200, t1.status + ' ' + JSON.stringify(t1.body).slice(0, 160));
 chequear('proceso mascotas', t1.body.procesados && t1.body.procesados[0] && t1.body.procesados[0].nicho === 'mascotas');
 chequear('guardo el cache', llamadas.supaPost.includes('mascotas'));
@@ -291,8 +293,10 @@ chequear('no consulta MeLi ni Apify (sale del cache)', llamadas.meli === meliAnt
 chequear('registra la busqueda (prioridad nocturna)', TABLAS.buscador_busquedas.some(b => b.nicho === 'mascotas'));
 const prods = r1.body.products || [];
 chequear('solo productos con datos como tarjeta', prods.length > 0 && prods.every(p => !p.sinDatos && p.metricas), prods.length);
-chequear('el resto va a pendientes (solo nombre y links)', (r1.body.pendientes || []).length > 0 &&
-  r1.body.pendientes.every(x => x.nombre && x.links && x.links.meli && x.score === undefined), (r1.body.pendientes || []).length);
+// Formato nuevo (pool): los que no tienen datos se reemplazan por otros del
+// pool; no hay lista de pendientes, se informa cuantos se descartaron.
+chequear('sin datos: reemplazados y contados, no listados', (r1.body.pendientes || []).length === 0 && r1.body.descartadosSinDatos > 0 && r1.body.formato === 2,
+  'descartados ' + r1.body.descartadosSinDatos + ', revisados ' + r1.body.totalEvaluados);
 chequear('limite gratis: 3 tarjetas como mucho', prods.length <= 3);
 const comedero = prods.find(p => p.query === 'comedero antivoracidad perro') ||
   (await llamar({ ...perfilBajo }, { authorization: 'Bearer ' + emitirToken({ user: 'u1', role: 'admin' }) })).body.products.find(p => p.query === 'comedero antivoracidad perro');
