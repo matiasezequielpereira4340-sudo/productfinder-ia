@@ -1425,8 +1425,13 @@ async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify
   }
   const nichosPendientes = Math.max(0, cola.length - hechosAhora.length);
   // Sin nichos pendientes esta noche: una sola corrida de Apify para toda la cola.
+  // Solo si queda tiempo: con 2 rubros la tanda puede ir por los 50 s y las
+  // consultas a Apify esperan hasta 10 s. Si no hay tiempo, arranca en la
+  // primera tanda de la noche siguiente.
   if (!nichosPendientes && !sinApify) {
-    try { rot.arranque = await arrancarCola({ repartir }); } catch (e) { rot.arranque = { error: e.message }; }
+    if (Date.now() - inicio < 40000) {
+      try { rot.arranque = await arrancarCola({ repartir }); } catch (e) { rot.arranque = { error: e.message }; }
+    } else rot.arranque = { arrancada: false, motivo: 'sin tiempo en esta tanda: arranca en la primera de la noche siguiente' };
   }
   // Corridas por cosechar: si no hubo nicho que procesar, se espera un rato
   // aca adentro (una corrida tarda 1-3 min) para no encadenar tandas vacias.
@@ -1452,7 +1457,8 @@ async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify
 
 // Devuelve { ok, resultado, status, ms }:
 //   'timeout-3s'   no hubo respuesta en 3 s: lo esperado (la tanda siguiente
-//                  tarda ~25 s); se confirma con su fila 'inicio' en el log
+//                  tarda ~25 s). Se confirma con la fila del hop siguiente en
+//                  buscador_cron_log: si no esta, esa tanda no termino.
 //   'respondio'    contesto en menos de 3 s: casi seguro un error (status)
 //   'error'        el pedido no salio (red, DNS)
 async function encadenarTanda(hop, solo, hechos) {
