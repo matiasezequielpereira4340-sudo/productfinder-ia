@@ -651,7 +651,8 @@ export function evaluarProducto(prod, nichoKey, mercado, perfil, usdArs, histori
     nombre: prod.nombre, query: prod.q, keyword_en: prod.keyword_en || null, nota: prod.nota, pesoG: prod.pesoG,
     costo, certificaciones: certs, capacidad, links,
     categoria: (mercado && mercado.categoryName) || null,
-    origen: prod.origen || 'catalogo', consultaUsada: (mercado && mercado.consultaUsada) || null
+    origen: prod.origen || 'catalogo', consultaUsada: (mercado && mercado.consultaUsada) || null,
+    fijo: !!prod.fijo, motivoFijo: prod.motivoFijo || null
   };
   // Sin 3 ofertas comparables con precio no hay producto para mostrar: va a
   // "Pendientes de analisis" (solo nombre y links), no a una tarjeta vacia.

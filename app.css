@@ -1098,3 +1098,6 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 .pf2-admin-tg{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
 .pf2-admin-n{opacity:.7;font-size:12px}
 .pf2-admin .pf2-btn[disabled]{opacity:.6;cursor:wait}
+.pf2-fijo{display:inline-block;margin:0 0 6px 6px;padding:3px 8px;border-radius:999px;background:#2a3550;color:#dfe8ff;font-size:11px;font-weight:700}
+.pf2-estimado{margin:10px 0;padding:10px 12px;border-radius:10px;background:#3b2f0b;border:1px solid #c9a227;color:#ffeeb8;font-size:14px;line-height:1.4}
+.pf2-estimado b{color:#fff3c4}

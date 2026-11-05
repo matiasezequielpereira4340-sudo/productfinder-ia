@@ -23,9 +23,33 @@ const MELI_API = 'https://api.mercadolibre.com';
 // Cuantos productos con datos reales se buscan por ronda. Se analizan mas de
 // los 12 que se muestran para que el perfil (capital, experiencia, riesgo)
 // pueda elegir: con exactamente 12 el perfil solo reordenaba la misma lista.
-// 15 y no mas porque el pool es de ~40: con 18 por ronda, dos rondas seguidas
-// ya no entran sin repetir (12 fijos + 18 + 18 > 43).
-export const OBJETIVO_RONDA = () => Math.max(12, Math.min(30, Number(process.env.BUSCADOR_SELECCION || 15)));
+// 24: con 15 el perfil solo podia cambiar 3 de 12 (capital bajo vs alto
+// difería en 1-2 productos). El costo es mas llamadas a MeLi (ver README).
+export const OBJETIVO_RONDA = () => Math.max(12, Math.min(30, Number(process.env.BUSCADOR_SELECCION || 24)));
+// Cuantos de la ronda anterior se quedan fijos (los mejores con medicion de
+// vendidos hecha o en curso), para que lleguen a la 2.a medicion y puedan ser
+// "Oportunidad alta". El resto rota.
+export const FIJOS_POR_RONDA = () => Math.max(0, Math.min(12, Number(process.env.BUSCADOR_FIJOS || 6)));
+
+// Elige los que se quedan fijos. prev: seleccion de la ronda anterior (con su
+// mercado), hist: historialDe() de _rotacion.js. Primero los que ya tienen 2
+// mediciones, despues 1, despues en curso; dentro, por vendidos medidos.
+export function elegirFijos(prev, hist, n) {
+  const estadoDe = q => {
+    const h = hist && hist[q];
+    if (!h) return null;
+    const c = (h.cosechadas || []).length;
+    if (c >= 2) return 3;
+    if (c === 1) return 2;
+    if (h.ultimo && /^(en_cola|arrancada)$/.test(h.ultimo.estado)) return 1;
+    return null;
+  };
+  return (prev || []).map(p => ({ p, e: estadoDe(p.q), v: hist && hist[p.q] && hist[p.q].cosechadas[0] ? (hist[p.q].cosechadas[0].vendidos_total || 0) : 0 }))
+    .filter(x => x.e != null)
+    .sort((a, b) => (b.e - a.e) || (b.v - a.v))
+    .slice(0, n)
+    .map(x => Object.assign({}, x.p, { fijo: true, motivoFijo: x.e === 3 ? 'ventas por mes medidas' : x.e === 2 ? 'falta la 2.a medición' : 'medición en curso' }));
+}
 export const MOSTRAR_MAX = 12;
 export const SEMANAS_SIN_REPETIR = 3;
 const RONDAS_GUARDADAS = 8;
@@ -62,6 +86,20 @@ export function poolDe(nichoKey, base, descubiertos) {
   extraDe(nichoKey).forEach(p => sumar(p, 'ampliado'));
   (descubiertos || []).forEach(p => sumar(p, 'descubierto'));
   return out;
+}
+
+// Solo se puede MOSTRAR un producto con categoria de MeLi asignada: fijada a
+// mano (_categorias-datos.js), validada para el pool (_categorias-pool.js) o,
+// si se descubrio en /trends, la categoria de donde salio. Lo demas queda
+// fuera de la seleccion (sin categoria no hay forma de saber si la busqueda
+// trae el producto correcto).
+export function tieneCategoria(p) {
+  if (!p) return false;
+  if (p.origen === 'descubierto') return !!p.cat;
+  return !!categoriaDe(p);
+}
+export function poolElegible(nichoKey, base, descubiertos) {
+  return poolDe(nichoKey, base, descubiertos).filter(tieneCategoria);
 }
 
 // Tramo de inversion del pedido minimo (USD, desembolso con tributos): sirve
@@ -141,7 +179,10 @@ export function ordenarCandidatos(pool, historial, opts) {
       for (const t of orden) if (porTramo[t].length) out.push(porTramo[t].shift());
     }
   }
-  return out.map(x => Object.assign({}, x.p, { tramo: x.tramo, recienMostrado: x.g === 3 }));
+  const fijos = (o.fijos || []).filter(f => pool.some(p => p.q === f.q));
+  const qsFijos = new Set(fijos.map(f => f.q));
+  return fijos.map(f => Object.assign({}, pool.find(p => p.q === f.q), f, { tramo: tramoDe(inversionMinima(f, o.nichoKey, o.usdArs)) }))
+    .concat(out.filter(x => !qsFijos.has(x.p.q)).map(x => Object.assign({}, x.p, { tramo: x.tramo, recienMostrado: x.g === 3 })));
 }
 
 // ------------------------------------------------------------

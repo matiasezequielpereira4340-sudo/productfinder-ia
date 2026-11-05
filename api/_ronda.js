@@ -9,8 +9,8 @@
 //
 // No es un endpoint (api/ ya tiene 12 funciones, el tope del plan Hobby).
 
-import { poolDe, ordenarCandidatos, historialDesdeFila, cerrarRonda, analizarConVariantes, descubrir,
-  sumarDescubiertos, OBJETIVO_RONDA, normalizar } from './_pool.js';
+import { poolDe, poolElegible, ordenarCandidatos, historialDesdeFila, cerrarRonda, analizarConVariantes, descubrir,
+  sumarDescubiertos, OBJETIVO_RONDA, FIJOS_POR_RONDA, elegirFijos, normalizar } from './_pool.js';
 
 const SUPA_URL = () => process.env.SUPABASE_URL || 'https://qglieqpcmmffgxijbysb.supabase.co';
 const SUPA_KEY = () => process.env.SUPABASE_SERVICE_KEY || '';
@@ -78,7 +78,7 @@ function idRonda(ahora) {
 export async function procesarNicho(cli, o) {
   const ahora = o.ahora || Date.now();
   const k = o.nichoKey;
-  const objetivo = OBJETIVO_RONDA();
+  const objetivo = o.objetivo || OBJETIVO_RONDA();
   const prefijo = prefijoEntorno();
   let wip = o.forzar ? null : await leerWip(k);
   let estado;
@@ -93,13 +93,21 @@ export async function procesarNicho(cli, o) {
     const pool0 = poolDe(k, o.base, previos);
     try { descubrimiento = await descubrir(cli, k, pool0, { ahora }); } catch (e) { descubrimiento = { nuevos: [], error: e.message }; }
     const descubiertos = sumarDescubiertos(previos, descubrimiento.nuevos);
-    const pool = poolDe(k, o.base, descubiertos);
+    // Solo productos con categoria de MeLi asignada (ver tieneCategoria).
+    const pool = poolElegible(k, o.base, descubiertos);
     const ronda = { id: idRonda(ahora), fecha: new Date(ahora).toISOString(), motivo: o.motivo || (o.forzar ? 'forzada' : 'semanal') };
-    const orden = ordenarCandidatos(pool, historial, { ahora, semilla: ronda.id, nichoKey: k, usdArs: o.usdArs });
+    // Fijos: los mejores de la ronda anterior con medicion de vendidos hecha o
+    // en curso, para que lleguen a la 2.a medicion. El resto rota.
+    const prevSel = fila && fila.mercado && Array.isArray(fila.mercado.__seleccion) ? fila.mercado.__seleccion : [];
+    let fijos = [];
+    if (prevSel.length && o.historialDe && FIJOS_POR_RONDA()) {
+      try { fijos = elegirFijos(prevSel, await o.historialDe(prevSel.map(p => p.q)), FIJOS_POR_RONDA()); } catch (e) { fijos = []; }
+    }
+    const orden = ordenarCandidatos(pool, historial, { ahora, semilla: ronda.id, nichoKey: k, usdArs: o.usdArs, fijos });
     estado = {
       __ronda: ronda, __historialPrevio: historial, __descubiertos: descubiertos,
       __descubrimiento: { nuevos: descubrimiento.nuevos.map(p => p.q), fuentes: descubrimiento.fuentes || null, categorias: descubrimiento.categorias || null, error: descubrimiento.error || null },
-      __orden: orden, __hechos: [], __conDatos: [], __descartados: [], __poolTotal: pool.length,
+      __orden: orden, __hechos: [], __conDatos: [], __descartados: [], __poolTotal: pool.length, __fijos: fijos.map(f => f.q),
       __anterior: historial.rondas[0] ? historial.rondas[0].qs : []
     };
   }
@@ -145,7 +153,8 @@ export async function procesarNicho(cli, o) {
     __v: o.version, __formato: 2, __ronda: estado.__ronda, __objetivo: objetivo,
     __seleccion: seleccion, __nuevos: qs.filter(q => !vistosAntes.has(q)), __anterior: estado.__anterior,
     __descartados: estado.__descartados, __candidatosRevisados: estado.__hechos.length, __poolTotal: estado.__poolTotal,
-    __historial: historial, __descubiertos: estado.__descubiertos, __descubrimiento: estado.__descubrimiento
+    __historial: historial, __descubiertos: estado.__descubiertos, __descubrimiento: estado.__descubrimiento,
+    __fijos: (estado.__fijos || []).filter(q => qs.indexOf(q) > -1)
   };
   seleccion.forEach(p => { final[p.q] = estado[p.q]; });
   let guardado = false;

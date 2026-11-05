@@ -15,7 +15,7 @@ import { CATEGORIAS } from './_categorias-datos.js';
 import { evaluarProducto, ordenar, CAPITAL_LABEL, estadisticasCompetencia, limpiarMuestra, puntajeDemanda, puntajeSaturacion, costoImportacion, acotarPorCosto } from './_oportunidad.js';
 import { cosechar, encolar, arrancarCola, historialDe, ITEMS_POR_PRODUCTO, estadoPresupuesto } from './_rotacion.js';
 import { probarEndpoints, tokenDeCorridaValido, MELI_USER_PRECALCULO, crearCliente, analizarNicho, analizarProducto, VERSION_MERCADO } from './_precalculo.js';
-import { poolDe, filtrarPorPerfil, MOSTRAR_MAX, OBJETIVO_RONDA, SEMANAS_SIN_REPETIR } from './_pool.js';
+import { poolDe, poolElegible, filtrarPorPerfil, MOSTRAR_MAX, OBJETIVO_RONDA, SEMANAS_SIN_REPETIR } from './_pool.js';
 import { procesarNicho, leerFilaRubro, prefijoEntorno } from './_ronda.js';
 import { renovarSiHaceFalta, usuarioEsAdmin } from './_sesion.js';
 
@@ -992,7 +992,7 @@ function resolverNicho(entrada){
 
 function listarNichos(){
   return Object.keys(CATALOGO).map(function(v){
-    return { v: v, l: CATALOGO[v].label, icon: CATALOGO[v].icon, productos: poolDe(v, CATALOGO[v].productos, []).length };
+    return { v: v, l: CATALOGO[v].label, icon: CATALOGO[v].icon, productos: poolElegible(v, CATALOGO[v].productos, []).length };
   });
 }
 
@@ -1173,8 +1173,15 @@ async function manejarPrecalculo(req, res, url) {
   // Resuelve la categoria de MeLi de un tramo del catalogo (todos los nichos)
   // y la guarda en buscador_categorias para revisarla. Solo lectura de MeLi.
   if (modo === 'categorias') {
+    // Todo el POOL (catalogo + ampliado). Por defecto solo los que no tienen
+    // categoria fijada a mano en _categorias-datos.js (esos ya se revisaron y
+    // su fila no se pisa); con todos=1, tambien esos.
     const todos = [];
-    Object.keys(CATALOGO).forEach(k => CATALOGO[k].productos.forEach(p => todos.push({ k, p })));
+    const incluirFijados = sp.get('todos') === '1';
+    Object.keys(CATALOGO).forEach(k => poolDe(k, CATALOGO[k].productos, []).forEach(p => {
+      if (!incluirFijados && CATEGORIAS[p.q]) return;
+      todos.push({ k, p });
+    }));
     const desde = Math.max(0, Number(sp.get('desde')) || 0);
     const n = Math.max(1, Math.min(150, Number(sp.get('n')) || 60));
     const tramo = todos.slice(desde, desde + n);
@@ -1258,7 +1265,9 @@ async function manejarPrecalculo(req, res, url) {
     const sinApify = sp.get('sinApify') === '1';
     // forzar=1: solo con un rubro (solo=) y solo admin (no el cron).
     const forzar = sp.get('forzar') === '1' && solo && solo.length === 1 && via !== 'cron';
-    const r = await precalcularTanda({ token: tk.token, solo, antes, hechos, repartir: via === 'cron', sinApify, forzar });
+    // objetivo=N (solo admin, 12-30): probar otro tamaño de ronda sin redeploy.
+    const objetivo = via !== 'cron' && Number(sp.get('objetivo')) >= 12 ? Math.min(30, Number(sp.get('objetivo'))) : null;
+    const r = await precalcularTanda({ token: tk.token, solo, antes, hechos, repartir: via === 'cron', sinApify, forzar, objetivo });
     // El cron encadena la tanda siguiente mientras queden nichos de esta noche
     // o corridas de Apify por cosechar. Cada invocacion es una funcion nueva.
     let encadenada = false;
@@ -1361,9 +1370,15 @@ function rankingParaRotacion(nichoKey, mercado) {
     const ids = [], vistosCat = new Set();
     for (const x of limpios) if (x.id && !vistosCat.has(x.catalog_product_id)) { vistosCat.add(x.catalog_product_id); ids.push(x.id); }
     for (const x of limpios) if (x.id && ids.indexOf(x.id) < 0) ids.push(x.id);
-    out.push({ q: prod.q, puntaje, itemIds: ids.slice(0, ITEMS_POR_PRODUCTO()) });
+    out.push({ q: prod.q, puntaje, itemIds: ids.slice(0, ITEMS_POR_PRODUCTO()), fijo: !!prod.fijo });
   }
-  return out.sort((a, b) => b.puntaje - a.puntaje);
+  // Prioridad: los fijos y el top 3 por demanda + saturacion (son los que
+  // estan o van a estar en pantalla). El resto se mide "de fondo", aunque no
+  // se muestre, para que cuando entre ya tenga su primera (o segunda) medicion.
+  out.sort((a, b) => (Number(b.fijo) - Number(a.fijo)) || (b.puntaje - a.puntaje));
+  let top = 0;
+  out.forEach(x => { x.prioridad = x.fijo || (top++ < 3); });
+  return out;
 }
 
 async function usdArsActual() {
@@ -1375,7 +1390,7 @@ async function usdArsActual() {
 // Una tanda: 1) cosecha corridas de Apify terminadas; 2) procesa UN nicho
 // (MEDIDO: 30-40 s a 8 llamadas/s) y encola su top 3 para rotacion; 3) cuando
 // no quedan nichos esta noche, arranca UNA corrida de Apify con toda la cola.
-async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify, forzar }) {
+async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify, forzar, objetivo }) {
   // En un preview nunca se gasta Apify (los previews comparten la cuenta).
   if (prefijoEntorno()) sinApify = true;
   const inicio = Date.now();
@@ -1400,7 +1415,7 @@ async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify
     const usdArs = await usdArsActual();
     // Ronda del pool (api/_ronda.js): elige candidatos, reemplaza los que no
     // tienen datos y, si no llega en esta tanda, sigue en la proxima.
-    const r = await procesarNicho(cli, { nichoKey: k, base: CATALOGO[k].productos, usdArs, forzar: !!forzar,
+    const r = await procesarNicho(cli, { nichoKey: k, base: CATALOGO[k].productos, usdArs, forzar: !!forzar, historialDe, objetivo,
       analizar: analizarProducto, version: VERSION_MERCADO });
     let encolados = null;
     if (r.terminado && r.guardado && !sinApify) {
@@ -1590,7 +1605,7 @@ export default async function handler(req, res) {
     //    Si no termina, se muestra lo que ya tiene datos y la noche la sigue.
     if (!mercadoPorQ && token) {
       const cli = crearCliente(token, { rps: 12, deadline: Date.now() + 45000 });
-      const r = await procesarNicho(cli, { nichoKey, base: niche.productos, usdArs, analizar: analizarProducto, version: VERSION_MERCADO, motivo: 'visitante' });
+      const r = await procesarNicho(cli, { nichoKey, base: niche.productos, usdArs, analizar: analizarProducto, version: VERSION_MERCADO, motivo: 'visitante', historialDe });
       if (r.mercado && Array.isArray(r.mercado.__seleccion) && r.mercado.__seleccion.length) {
         mercadoPorQ = r.mercado; mercadoPorQ.__v = VERSION_MERCADO;
         datosDe = new Date().toISOString();
@@ -1647,7 +1662,7 @@ export default async function handler(req, res) {
       objetivo: MOSTRAR_MAX, objetivoRonda: formato2 ? (mercadoPorQ.__objetivo || OBJETIVO_RONDA()) : null,
       filtradosPorPerfil: fuera,
       descartadosSinDatos: formato2 ? (mercadoPorQ.__descartados || []).length : pendientes.length,
-      poolTotal: formato2 ? (mercadoPorQ.__poolTotal || null) : poolDe(nichoKey, niche.productos, []).length,
+      poolTotal: formato2 ? (mercadoPorQ.__poolTotal || null) : poolElegible(nichoKey, niche.productos, []).length,
       ronda: formato2 ? Object.assign({}, mercadoPorQ.__ronda, { parcial: !!mercadoPorQ.__parcial }) : null,
       formato: formato2 ? 2 : 1,
       nuevosVsAnterior: conDatos.filter(p => p.nuevoVsAnterior).length,

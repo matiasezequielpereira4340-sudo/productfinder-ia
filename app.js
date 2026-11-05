@@ -771,6 +771,7 @@ function pfCard(p, opts){
   h += '<article class="product-card pf2-card pf2-' + pfEsc(v.nivel) + (p.topPick ? ' top-pick' : '') + '" data-key="' + pfEsc(pfKey(p)) + '">';
   if(p.topPick) h += '<span class="top-badge"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> TOP PICK</span>';
   if(p.nuevo) h += '<span class="pf2-nuevo" title="Primera vez que este producto entra en la selección del rubro">Nuevo esta semana</span>';
+  if(p.fijo) h += '<span class="pf2-fijo" title="Se mantiene de la semana pasada para completar la medici\u00f3n de ventas">Se mantiene: ' + pfEsc(p.motivoFijo || 'medici\u00f3n en curso') + '</span>';
   h += '<div class="product-name">' + pfEsc(p.nombre) + '</div>';
   h += '<div class="pf2-meta">' + pfEsc([p.categoria, p.nota].filter(Boolean).join(' · ')) + '</div>';
 
@@ -821,6 +822,9 @@ function pfCard(p, opts){
     h += '</table></details>';
   }
 
+  // FOB y volumen NO son una cotizacion: se avisa en grande, no en letra chica.
+  h += '<div class="pf2-estimado" role="note"><svg class="ic" aria-hidden="true"><use href="#i-warn"></use></svg> <b>Costo estimado, valid\u00e1 con proveedor.</b> ' +
+    (p.origen === 'descubierto' ? 'FOB y volumen calculados con la mediana del rubro (producto descubierto en tendencias de MeLi).' : 'FOB y volumen son t\u00edpicos de la categor\u00eda, no una cotizaci\u00f3n.') + '</div>';
   // Numeros de plata: UN solo margen. Va despues de las metricas y mas chico.
   var mn = p.margenNeto;
   h += '<div class="product-stats pf2-plata">';
