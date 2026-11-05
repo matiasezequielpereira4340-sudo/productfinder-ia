@@ -35,6 +35,11 @@ const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, header
 const qDe = u => decodeURIComponent((/[?&]q=([^&]*)/.exec(u) || [])[1] || '').replace(/\+/g, ' ');
 const h = t => { let x = 2166136261; for (const c of String(t)) { x ^= c.charCodeAt(0); x = Math.imul(x, 16777619); } return x >>> 0; };
 const porId = {};
+const catDeId = {};
+// Categoria que "tiene" la busqueda en el simulador: la del dominio pedido, o la
+// fijada para esa busqueda, o una generica. Asi el filtro por categoria del
+// recolector funciona igual que con MeLi.
+let catPara = () => 'MLAPOOL';
 let precioDe = () => 20000;
 const fetchReal = globalThis.fetch;
 globalThis.fetch = async (url, init) => {
@@ -60,12 +65,12 @@ globalThis.fetch = async (url, init) => {
       const q = qDe(u), off = Number((/offset=(\d+)/.exec(u) || [])[1] || 0);
       // ~1 de cada 5 busquedas "no existe" en el simulador: para ver variantes, reemplazos y el conteo honesto.
       if (off > 0 || h(q) % 5 === 0) return json({ paging: { total: 0 }, results: [] });
-      return json({ paging: { total: 200 + h(q) % 4000 }, results: Array.from({ length: 6 }, (_, k) => { const id = 'MLA' + (h(q + k) % 90000000 + 10000000); porId[id] = q; return { id, name: q + ' modelo ' + k }; }) });
+      return json({ paging: { total: 200 + h(q) % 4000 }, results: Array.from({ length: 6 }, (_, k) => { const id = 'MLA' + (h(q + k) % 90000000 + 10000000); porId[id] = q; catDeId[id] = catPara(q, u); return { id, name: q + ' modelo ' + k }; }) });
     }
     const mi = /\/products\/(MLA\d+)\/items/.exec(u);
     if (mi) {
       const q = porId[mi[1]], p = precioDe(q);
-      return json({ results: Array.from({ length: 3 }, (_, j) => ({ item_id: mi[1] + j, price: Math.round(p * (0.85 + j * 0.12)), seller_id: 100 + (h(mi[1]) + j) % 9, category_id: null, shipping: { free_shipping: j === 0, logistic_type: j === 0 ? 'fulfillment' : 'cross_docking' }, official_store_id: null })) });
+      return json({ results: Array.from({ length: 3 }, (_, j) => ({ item_id: mi[1] + j, price: Math.round(p * (0.85 + j * 0.12)), seller_id: 100 + (h(mi[1]) + j) % 9, category_id: catDeId[mi[1]] || null, shipping: { free_shipping: j === 0, logistic_type: j === 0 ? 'fulfillment' : 'cross_docking' }, official_store_id: null })) });
     }
     return json({}, 404);
   }
@@ -73,6 +78,23 @@ globalThis.fetch = async (url, init) => {
   return fetchReal(url, init);
 };
 
+
+// Categorias: si _categorias-pool.js todavia esta vacio (antes de clasificar en
+// MeLi), el simulador le asigna una categoria generica a todo el ampliado.
+{
+  const { CATEGORIAS_POOL } = await import('../api/_categorias-pool.js');
+  const { CATEGORIAS } = await import('../api/_categorias-datos.js');
+  const { EXTRA } = await import('../api/_pool-extra.js');
+  if (!Object.keys(CATEGORIAS_POOL).length) Object.values(EXTRA).forEach(l => l.forEach(a => { if (!CATEGORIAS[a[1]]) CATEGORIAS_POOL[a[1]] = { cat: 'MLAPOOL', dom: 'MLA-POOL' }; }));
+  const domCat = {};
+  [CATEGORIAS, CATEGORIAS_POOL].forEach(m => Object.values(m).forEach(c => { if (c && c.dom) domCat[c.dom] = c.cat; }));
+  catPara = (q, u) => {
+    const dom = decodeURIComponent((/[?&]domain_id=([^&]*)/.exec(u) || [])[1] || '');
+    if (dom && domCat[dom]) return domCat[dom];
+    const c = CATEGORIAS[q] || CATEGORIAS_POOL[q];
+    return c && c.cat ? c.cat : 'MLAPOOL';
+  };
+}
 const pool = await import('../api/_pool.js');
 const op = await import('../api/_oportunidad.js');
 const analyze = await import('../api/analyze.js');

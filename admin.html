@@ -166,6 +166,21 @@
           <div id="precalcOut" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;word-break:break-word;background:#0f0f0f;color:#ddd;border-radius:8px;padding:12px;max-height:60vh;overflow:auto">Corre todas las noches a las 04:00 (Argentina). Este bot&oacute;n hace lo mismo a mano, por tandas, hasta terminar.</div>
         </div>
 
+        <!-- Pool del buscador: categorias, costo de ronda y medicion -->
+        <div class="section">
+          <div class="section-title">
+            <span>Buscador: pool y rondas</span>
+            <span style="color:#555;font-size:12px;text-transform:none;font-weight:400">API oficial de MeLi con tu sesi&oacute;n de admin. No usa Apify.</span>
+          </div>
+          <div style="padding:12px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <button class="btn btn-yellow" type="button" onclick="clasificarPool()">1. Clasificar categor&iacute;as del pool (~20 min)</button>
+            <input type="text" id="rondaNicho" value="celulares" style="width:130px;background:#0f0f0f;border:1px solid #333;color:#ddd;border-radius:8px;padding:8px 10px">
+            <button class="btn btn-ghost" type="button" onclick="compararRondas()">2. Medir llamadas: ronda de 15 vs 24</button>
+            <button class="btn btn-ghost" type="button" onclick="verPresupuestoRotacion()">3. Estado de la medici&oacute;n de ventas</button>
+          </div>
+          <div id="poolOut" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;word-break:break-word;background:#0f0f0f;color:#ddd;border-radius:8px;padding:12px;max-height:60vh;overflow:auto">1 resuelve la categor&iacute;a de MeLi de los productos nuevos del pool y la guarda en buscador_categorias (no toca las ya revisadas). 2 corre dos rondas forzadas del rubro y cuenta las llamadas a MeLi (en un preview escribe en filas preview:). 3 solo lee.</div>
+        </div>
+
         <!-- Gasto del proveedor pago (Apify) -->
         <div class="section">
           <div class="section-title">
@@ -662,6 +677,49 @@
     // 1,4 segundos, tapando campos del formulario.
   })();
   </script>
-<script defer src="mc-ui.js?v=20261105a"></script>
+<script defer src="mc-ui.js?v=20261105a">
+  // ===== Buscador: pool y rondas =====
+  // Con la sesion de admin (mc-ui.js agrega Authorization): no pide ADMIN_KEY,
+  // asi funciona tambien en un preview, donde ADMIN_KEY no esta cargada.
+  function poolLog(t){ var o=document.getElementById('poolOut'); o.textContent=t; o.scrollTop=o.scrollHeight; }
+  async function clasificarPool(){
+    var log=['Clasificando el pool (tramos de 80)...'], desde=0, ok=0, rev=0, tot=null, n=0;
+    while(desde!==null && n<60){
+      n++;
+      try{
+        var r=await fetch('/api/analyze?precalcular=categorias&n=80&desde='+desde), j=await r.json();
+        if(!r.ok||!j.ok){ log.push('Error: '+(j.error||r.status)); break; }
+        ok+=j.ok_||0; rev+=j.revisar||0; tot=j.total;
+        log.push('desde '+desde+': '+j.procesados+' procesados ('+(j.ok_||0)+' ok, '+(j.revisar||0)+' a revisar) guardadas='+j.guardadas+(j.cortadas?' cortadas por tiempo: '+j.cortadas:''));
+        desde = j.siguiente; poolLog(log.join('\n'));
+      }catch(e){ log.push('Error de red: '+e.message+' (reintento)'); poolLog(log.join('\n')); }
+    }
+    log.push('\nListo: '+(ok+rev)+' de '+tot+' ('+ok+' ok, '+rev+' a revisar). Avisale a Claude para generar el archivo.');
+    poolLog(log.join('\n'));
+  }
+  async function rondaForzada(nicho, objetivo, log){
+    var url='/api/analyze?precalcular=tanda&solo='+encodeURIComponent(nicho)+'&forzar=1&objetivo='+objetivo, llam=0, tandas=0, ult=null;
+    for(var i=0;i<10;i++){
+      var r=await fetch(url), j=await r.json();
+      if(!r.ok){ log.push('Error: '+(j.error||r.status)); return null; }
+      tandas++; llam+=j.llamadas||0; ult=(j.procesados||[])[0]||ult;
+      log.push('  tanda '+tandas+': '+(j.llamadas||0)+' llamadas'+(ult?' · '+ult.conDatos+'/'+ult.objetivo+' con datos, '+ult.candidatosRevisados+' revisados':'')); poolLog(log.join('\n'));
+      if(!ult||ult.terminado!==false) break;
+      url='/api/analyze?precalcular=tanda&solo='+encodeURIComponent(nicho)+'&objetivo='+objetivo;
+    }
+    return { llamadas: llam, tandas: tandas, ult: ult };
+  }
+  async function compararRondas(){
+    var nicho=document.getElementById('rondaNicho').value.trim()||'celulares', log=['Rubro '+nicho+':'];
+    log.push('Ronda de 15:'); var a=await rondaForzada(nicho,15,log);
+    log.push('Ronda de 24:'); var b=await rondaForzada(nicho,24,log);
+    if(a&&b) log.push('\nResultado: 15 -> '+a.llamadas+' llamadas en '+a.tandas+' tandas; 24 -> '+b.llamadas+' llamadas en '+b.tandas+' tandas ('+(a.llamadas?Math.round(b.llamadas/a.llamadas*100)/100:'?')+'x).');
+    poolLog(log.join('\n'));
+  }
+  async function verPresupuestoRotacion(){
+    var r=await fetch('/api/analyze?precalcular=presupuesto'), j=await r.json();
+    poolLog(JSON.stringify(j,null,2));
+  }
+</script>
 </body>
 </html>

@@ -114,6 +114,7 @@ export async function procesarNicho(cli, o) {
 
   // Analizar candidatos en lotes de 4 hasta llegar al objetivo o quedarse sin
   // pool o sin tiempo.
+  const llamadasAntes = cli.estado.llamadas;
   const hechos = new Set(estado.__hechos);
   const pendientes = () => estado.__orden.filter(p => !hechos.has(p.q));
   let cortado = false;
@@ -136,6 +137,9 @@ export async function procesarNicho(cli, o) {
     });
   }
   estado.__hechos = Array.from(hechos);
+  // Llamadas a MeLi de la ronda (suma de todas sus tandas): el costo real.
+  estado.__llamadas = (estado.__llamadas || 0) + (cli.estado.llamadas - llamadasAntes);
+  estado.__tandas = (estado.__tandas || 0) + 1;
   const terminado = !cortado && (estado.__conDatos.length >= objetivo || !pendientes().length);
 
   if (!terminado) {
@@ -154,13 +158,15 @@ export async function procesarNicho(cli, o) {
     __seleccion: seleccion, __nuevos: qs.filter(q => !vistosAntes.has(q)), __anterior: estado.__anterior,
     __descartados: estado.__descartados, __candidatosRevisados: estado.__hechos.length, __poolTotal: estado.__poolTotal,
     __historial: historial, __descubiertos: estado.__descubiertos, __descubrimiento: estado.__descubrimiento,
-    __fijos: (estado.__fijos || []).filter(q => qs.indexOf(q) > -1)
+    __fijos: (estado.__fijos || []).filter(q => qs.indexOf(q) > -1),
+    __llamadas: estado.__llamadas, __tandas: estado.__tandas
   };
   seleccion.forEach(p => { final[p.q] = estado[p.q]; });
   let guardado = false;
   if (seleccion.length) guardado = await guardarFila(prefijo + k, final);
   await guardarFila(prefijo + k + WIP, { __terminado: true, __ronda: estado.__ronda });
   return { terminado: true, guardado, conDatos: seleccion.length, objetivo, ronda: estado.__ronda, nuevos: final.__nuevos.length,
+    llamadasRonda: estado.__llamadas, tandasRonda: estado.__tandas, fijos: final.__fijos.length,
     descartados: estado.__descartados.length, candidatosRevisados: estado.__hechos.length, poolTotal: estado.__poolTotal,
     descubrimiento: estado.__descubrimiento, mercado: final };
 }

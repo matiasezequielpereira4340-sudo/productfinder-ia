@@ -459,24 +459,31 @@ export function puntajeRiesgo(prod, comp, certs, experiencia, capacidad) {
 // que entra con el MOQ y deja resto para reponer es lo mejor. Sin esto, capital
 // medio y alto daban exactamente el mismo ranking: los dos entraban en todo.
 // r = inversion del MOQ / presupuesto por producto (60% del capital).
+// Tramos por capital. r = inversion del MOQ / presupuesto por producto.
+//   chico: r por debajo -> "producto chico para tu capital" (resta)
+//   muyChico: r por debajo -> resta el doble
+//   bono: r dentro de [bonoDesde, bonoHasta] -> suma
+//   pesado: r por encima (y entra) -> "te deja sin resto para reponer" (resta)
+// Calibrado con el simulador para que capital bajo y alto difieran en ~4-5 de
+// 12 productos con 24 candidatos por ronda (ver pruebas/pool.mjs).
 const ESCALA = {
-  bajo:    { chico: null, bonoDesde: 0, bonoHasta: 0.6, bono: 3, penal: 0 },
-  medio:   { chico: 0.03, bonoDesde: 0.15, bonoHasta: 1, bono: 4, penal: -4 },
-  alto:    { chico: 0.04, bonoDesde: 0.1, bonoHasta: 1, bono: 5, penal: -6 },
-  premium: { chico: 0.03, bonoDesde: 0.08, bonoHasta: 1, bono: 5, penal: -8 }
+  bajo:    { muyChico: null, chico: null, bonoDesde: 0, bonoHasta: 0.35, bono: 8, pesado: 0.6, penalPesado: -8, penal: 0 },
+  medio:   { muyChico: 0.02, chico: 0.05, bonoDesde: 0.15, bonoHasta: 0.8, bono: 5, pesado: null, penal: -5 },
+  alto:    { muyChico: 0.03, chico: 0.08, bonoDesde: 0.12, bonoHasta: 1, bono: 8, pesado: null, penal: -7 },
+  premium: { muyChico: 0.02, chico: 0.05, bonoDesde: 0.08, bonoHasta: 1, bono: 8, pesado: null, penal: -8 }
 };
 export function ajusteEscala(capacidad, capitalKey) {
   const k = ESCALA[capitalKey];
   if (!k || !capacidad || capacidad.escenario !== 'moq' || !(capacidad.presupuestoUSD > 0)) return null;
   const r = capacidad.inversionMoqUSD / capacidad.presupuestoUSD;
-  const pct = Math.round(r * 1000) / 10;
-  if (k.chico != null && r < k.chico) {
-    return { puntos: k.penal, label: 'El pedido mínimo usa solo ' + pct.toLocaleString('es-AR') + '% de tu presupuesto por producto: con tu capital podés apuntar a productos de más ticket, donde compiten menos vendedores.' };
-  }
+  const pct = (Math.round(r * 1000) / 10).toLocaleString('es-AR');
+  if (k.muyChico != null && r < k.muyChico) return { puntos: k.penal * 2, label: 'El pedido mínimo usa solo ' + pct + '% de tu presupuesto por producto: con tu capital conviene apuntar a productos de más ticket, donde compiten menos vendedores.' };
+  if (k.chico != null && r < k.chico) return { puntos: k.penal, label: 'El pedido mínimo usa solo ' + pct + '% de tu presupuesto por producto: no aprovecha tu capital.' };
+  if (k.pesado != null && r > k.pesado) return { puntos: k.penalPesado, label: 'El pedido mínimo se lleva ' + pct + '% de tu presupuesto por producto: te deja poco resto para reponer y publicitar.' };
   if (r >= k.bonoDesde && r <= k.bonoHasta) {
     return { puntos: k.bono, label: capitalKey === 'bajo'
-      ? 'Entra el pedido mínimo (' + pct.toLocaleString('es-AR') + '% del presupuesto por producto) y te queda resto para reponer.'
-      : 'Aprovecha tu capital: el pedido mínimo usa ' + pct.toLocaleString('es-AR') + '% de tu presupuesto por producto.' };
+      ? 'Entra el pedido mínimo (' + pct + '% del presupuesto por producto) y te queda resto para reponer.'
+      : 'Aprovecha tu capital: el pedido mínimo usa ' + pct + '% de tu presupuesto por producto.' };
   }
   return null;
 }

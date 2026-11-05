@@ -822,6 +822,27 @@ mismos 12. Ahora:
 - **Previews**: comparten Supabase con producción, así que fuera de producción se escribe en filas
   `preview:<nicho>` y nunca se usa Apify.
 
+**Cambios del 5/11 (segunda vuelta):**
+
+- **Ronda de 24** (`BUSCADOR_SELECCION`, antes 15): con 15 el perfil solo podía cambiar 3 de 12. En el
+  simulador, capital bajo vs alto difiere en 6 de 12 y medio vs alto en 3-4. Costo: ~1,6× llamadas a MeLi
+  por rubro (simulador: 149 → 243). El número real se mide con `admin.html` → "Medir llamadas: ronda de
+  15 vs 24" y queda en `mercado.__llamadas` de cada ronda.
+- **Fijos** (`BUSCADOR_FIJOS`, 6): los mejores de la ronda anterior con medición de vendidos hecha o en
+  curso se quedan (2 mediciones > 1 > en curso), para que lleguen a la 2.ª medición y puedan ser
+  "Oportunidad alta". La tarjeta dice "Se mantiene: falta la 2.ª medición". El resto rota.
+- **Medición de fondo**: se encola en Apify TODO lo analizado con datos (no solo el top 3). Prioridad
+  (fijos + top 3, 5 publicaciones) va antes que el fondo (3 publicaciones, `BUSCADOR_ROTACION_ITEMS_FONDO`):
+  con presupuesto chico el fondo nunca le saca lugar a lo que está en pantalla. Costo estimado si se midiera
+  todo: ~USD 0,35 por rubro por semana → ~USD 23/semana para 65 rubros, contra el tope actual de USD 5/mes
+  (`APIFY_MONTHLY_BUDGET_USD`). Con el tope actual se mide la prioridad y lo que alcance.
+- **Sin categoría no se muestra**: un producto del pool solo entra a la ronda si tiene categoría de MeLi:
+  fijada a mano (`_categorias-datos.js`), validada para el pool (`_categorias-pool.js`, generado por
+  `pruebas/generar-categorias-pool.mjs` con la regla: estado "ok" + raíz de la ruta coherente con el rubro)
+  o la de la tendencia de donde se descubrió. Para regenerar: `admin.html` → "Clasificar categorías del
+  pool", exportar `buscador_categorias` a JSON y correr el generador.
+- **Costo estimado visible** en cada tarjeta: "Costo estimado, validá con proveedor".
+
 Sesión: el front valida `pf_token` contra `GET /api/auth?sesion=1` al arrancar; si venció muestra
 "Tu sesión venció, volvé a entrar" y deja de mostrar admin. Un token con menos de 10 días se renueva
 solo. Admin = rol firmado o usuario en `APP_USER` / `ADMIN_USERS` / `BUSCADOR_MELI_USER`.
