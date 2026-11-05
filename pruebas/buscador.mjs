@@ -37,6 +37,7 @@ let llamadas = { apify: 0, apifyRuns: 0, prohibidas: 0, supaPost: [], meli: 0, c
 // ---- Supabase en memoria (tablas nuevas) ---------------------------------
 const TABLAS = { buscador_vendidos: [], apify_gasto: [], buscador_sin_ofertas: [], buscador_busquedas: [] };
 let secuencia = 1;
+const CRON_LOG = [];
 function filtrar(filas, u) {
   const qs = new URL(u).searchParams;
   let out = filas.slice();
@@ -110,6 +111,13 @@ globalThis.fetch = async (url, init) => {
     if (/\/datasets\/ds\d+$/.test(u.split('?')[0])) return json({ data: { itemCount: 1 } });
     return json({}, 404);
   }
+  // El encadenado del cron: la tanda siguiente tarda ~25 s, asi que en 3 s no
+  // contesta y se corta (lo esperado). Se anota para revisarlo.
+  if (u.includes('productfinder-ia.vercel.app/api/analyze')) {
+    llamadas.encadenados = (llamadas.encadenados || 0) + 1;
+    return new Promise((_, rej) => init.signal.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' }))));
+  }
+  if (u.includes('/buscador_cron_log')) { CRON_LOG.push(JSON.parse(init.body)); return new Response('', { status: 201 }); }
   if (u.includes('dolarapi')) return json({ compra: 1480, venta: 1500, casa: 'bolsa' });
   if (u.includes('supabase.co')) {
     if (u.includes('/buscador_job_tokens')) {
@@ -274,6 +282,8 @@ chequear('por productIds, enriquecida, sin busqueda por termino', input1 && inpu
   input1 && input1.productIds.split(',').length + ' publicaciones');
 chequear('anoto la reserva en apify_gasto con origen propio', TABLAS.apify_gasto.some(g => g.origen === 'buscador:rotacion' && g.estado === 'arrancada'));
 chequear('quedan corridas por cosechar -> el cron encadena', t1.body.pendientes > 0 && t1.body.encadenada === true);
+chequear('registra la tanda del cron en buscador_cron_log (con el resultado del encadenado)', CRON_LOG.length === 1 && CRON_LOG[0].hop === 0 && CRON_LOG[0].encadenado === 'timeout-3s' && CRON_LOG[0].procesados.includes('mascotas'), JSON.stringify(CRON_LOG[0] && { hop: CRON_LOG[0].hop, encadenado: CRON_LOG[0].encadenado, procesados: CRON_LOG[0].procesados }));
+chequear('la primera tanda (hop 0) intenta arrancar Apify al principio', !!t1.body.rotacion.arranqueInicial, JSON.stringify(t1.body.rotacion.arranqueInicial).slice(0, 120));
 const t2 = await llamar(undefined, cron, 'GET', '/api/analyze?precalcular=tanda&solo=mascotas');
 chequear('segunda tanda: nicho fresco no se rehace', t2.body.procesados.length === 0);
 chequear('cosecho los vendidos', t2.body.rotacion.cosecha && t2.body.rotacion.cosecha.cosechadas === 3, JSON.stringify(t2.body.rotacion.cosecha && t2.body.rotacion.cosecha.costos));
@@ -343,7 +353,7 @@ console.log('== 15. Rotacion: tope mensual de USD ==');
 {
   const rot = await import('../api/_rotacion.js');
   usoApify = 4.99;   // casi todo el presupuesto de USD 5 usado
-  TABLAS.buscador_vendidos.push({ id: secuencia++, query: 'producto de prueba tope', nicho: 'x', estado: 'en_cola', item_ids: ['MLA1', 'MLA2'], creado: new Date().toISOString() });
+  TABLAS.buscador_vendidos.push({ id: secuencia++, query: 'producto de prueba tope', nicho: 'mascotas', estado: 'en_cola', item_ids: ['MLA1', 'MLA2'], creado: new Date().toISOString() });
   const antesRuns = llamadas.apifyRuns;
   const r = await rot.arrancarCola({ repartir: false });
   chequear('no arranca corrida', !r.arrancada && llamadas.apifyRuns === antesRuns, r.motivo);
@@ -501,6 +511,23 @@ console.log('== 13. GET ?nicho= (solo cache, nunca MeLi) ==');
   chequear('sin llamadas a MeLi', llamadas.meli === antes);
   const sin = await llamar(undefined, {}, 'GET', '/api/analyze?nicho=tecnologia');
   chequear('nicho sin cache: 0 productos y 0 llamadas', sin.body.products.length === 0 && llamadas.meli === antes);
+}
+
+console.log('== 22. Cron: 2 rubros por llamada y solo los rubros medidos ==');
+{
+  const t = await llamar(undefined, cron, 'GET', '/api/analyze?precalcular=tanda&solo=moda,bebes&hop=3');
+  chequear('hasta 2 rubros por llamada si sobra tiempo', t.body.procesados.length === 2, t.body.procesados.map(p => p.nicho).join(','));
+  chequear('solo la primera tanda (hop 0) arranca Apify al principio', t.body.rotacion.arranqueInicial == null);
+  const an = await import('../api/analyze.js');
+  chequear('rubros medidos: los 7 con consultas', an.rubrosMedidos().join(',') === 'tecnologia,celulares,mascotas,hogar,juguetes,deportes,automotor');
+  const rot = await import('../api/_rotacion.js');
+  TABLAS.buscador_vendidos.push({ id: secuencia++, query: 'producto de otro rubro', nicho: 'moda', estado: 'en_cola', item_ids: ['MLA77'], creado: new Date(Date.now() - 86400e3).toISOString() });
+  TABLAS.buscador_vendidos.push({ id: secuencia++, query: 'producto medido', nicho: 'mascotas', estado: 'en_cola', item_ids: ['MLA88'], creado: new Date().toISOString() });
+  const antes = llamadas.apifyRuns;
+  const r = await rot.arrancarCola({ repartir: false });
+  const input = r.arrancada && CORRIDAS['run' + llamadas.apifyRuns].input.productIds;
+  chequear('la cola de un rubro sin medicion no se manda a Apify (ni se toca)', r.arrancada && llamadas.apifyRuns === antes + 1 && input.indexOf('MLA77') < 0 && input.indexOf('MLA88') > -1 &&
+    TABLAS.buscador_vendidos.find(f => f.query === 'producto de otro rubro').estado === 'en_cola', input);
 }
 
 console.log('\n' + oks + ' ok, ' + fallos + ' fallas');

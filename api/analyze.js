@@ -1267,11 +1267,17 @@ async function manejarPrecalculo(req, res, url) {
     const forzar = sp.get('forzar') === '1' && solo && solo.length === 1 && via !== 'cron';
     // objetivo=N (solo admin, 12-30): probar otro tamaño de ronda sin redeploy.
     const objetivo = via !== 'cron' && Number(sp.get('objetivo')) >= 12 ? Math.min(30, Number(sp.get('objetivo'))) : null;
-    const r = await precalcularTanda({ token: tk.token, solo, antes, hechos, repartir: via === 'cron', sinApify, forzar, objetivo });
+    const r = await precalcularTanda({ token: tk.token, solo, antes, hechos, repartir: via === 'cron', sinApify, forzar, objetivo, primera: via === 'cron' && hop === 0 });
     // El cron encadena la tanda siguiente mientras queden nichos de esta noche
     // o corridas de Apify por cosechar. Cada invocacion es una funcion nueva.
     let encadenada = false;
-    if (via === 'cron' && r.pendientes > 0 && hop < 120) encadenada = await encadenarTanda(hop + 1, solo, hechos + (r.completados || 0));
+    let encadenado = null;
+    if (via === 'cron' && r.pendientes > 0 && hop < 120) { encadenado = await encadenarTanda(hop + 1, solo, hechos + (r.completados || 0)); encadenada = encadenado.ok; }
+    // Registro de cada tanda del cron (y de su encadenado) en buscador_cron_log,
+    // para confirmar al otro dia hasta donde llego la noche.
+    if (via === 'cron') await registrarCron({ hop, procesados: r.procesados.map(p => p.nicho), pendientes: r.pendientes,
+      nichosPendientes: r.nichosPendientes, arranqueInicial: r.rotacion && r.rotacion.arranqueInicial, arranque: r.rotacion && r.rotacion.arranque,
+      encadenado, ms: r.ms });
     return res.status(200).json({ ok: true, via, usuario: MELI_USER_PRECALCULO(), hop, encadenada, ...r });
   }
   if (modo === 'presupuesto') {
@@ -1308,6 +1314,16 @@ async function fechasCacheNichos() {
 // semana, con prioridad a los que alguien busco en los ultimos 7 dias. El cache
 // vale 7 dias (BUSCADOR_CACHE_HORAS = 168).
 const NICHOS_POR_NOCHE = () => Math.max(1, Number(process.env.BUSCADOR_NICHOS_POR_NOCHE || 10));
+// El segundo rubro de una llamada solo arranca si van menos de 20 s (cada rubro
+// tarda ~20-25 s y el corte duro es a los 50 s).
+const SEGUNDO_RUBRO_HASTA_MS = 20000;
+// Rubros con medicion de ventas (Apify). Elegidos el 5/11/2026: los 7 con
+// consultas en los ultimos 30 dias. El resto, sin medicion por ahora.
+const RUBROS_MEDIDOS_DEFAULT = 'tecnologia,celulares,mascotas,hogar,juguetes,deportes,automotor';
+export function rubrosMedidos() {
+  return String(process.env.BUSCADOR_ROTACION_RUBROS || RUBROS_MEDIDOS_DEFAULT).split(',').map(x => x.trim()).filter(Boolean);
+}
+function rubroMedido(k) { return rubrosMedidos().indexOf(k) > -1; }
 const DIAS_REFRESCO = 6;          // un nicho sin busquedas se rehace a los 6 dias
 const DIAS_REFRESCO_BUSCADO = 3;  // uno buscado esta semana, a los 3
 
@@ -1390,14 +1406,21 @@ async function usdArsActual() {
 // Una tanda: 1) cosecha corridas de Apify terminadas; 2) procesa UN nicho
 // (MEDIDO: 30-40 s a 8 llamadas/s) y encola su top 3 para rotacion; 3) cuando
 // no quedan nichos esta noche, arranca UNA corrida de Apify con toda la cola.
-async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify, forzar, objetivo }) {
+async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify, forzar, objetivo, primera }) {
   // En un preview nunca se gasta Apify (los previews comparten la cuenta).
   if (prefijoEntorno()) sinApify = true;
   const inicio = Date.now();
   // Corte duro a los 50 s de la invocacion: nunca llegar al timeout de 60 s.
   const cli = crearCliente(token, { deadline: inicio + 50000 });
-  let rot = { cosecha: null, cola: null, arranque: null };
+  let rot = { cosecha: null, cola: null, arranque: null, arranqueInicial: null };
   try { rot.cosecha = await cosechar(); } catch (e) { rot.cosecha = { error: e.message }; }
+  // Apify arranca en la PRIMERA tanda de la noche con la cola acumulada.
+  // Antes arrancaba solo en la ultima, y como la cadena nocturna se corta
+  // antes de llegar (5 rubros como mucho, medido del 21/10 al 5/11), la cola
+  // no arranco nunca desde el 20/10.
+  if (primera && !sinApify) {
+    try { rot.arranqueInicial = await arrancarCola({ repartir }); } catch (e) { rot.arranqueInicial = { error: e.message }; }
+  }
 
   const [fechas, busquedas] = await Promise.all([fechasCacheNichos(), busquedasRecientes()]);
   let claves = Object.keys(CATALOGO);
@@ -1407,9 +1430,14 @@ async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify
   // ya, sin mirar la fecha del cache.
   const cola = forzar && solo && solo.length ? solo.slice(0, 1) : agendaDeNichos(claves, fechas, busquedas, { antes }).slice(0, cupo);
   const hechosAhora = [];
-  const k = cola[0];
+  // Hasta 2 rubros por llamada: el segundo solo si sobra tiempo. Una ronda de
+  // 24 suele llevar mas de una tanda: si el primero no termina, se sigue en la
+  // proxima tanda con el mismo rubro.
+  let k = null;
   let completados = 0;
-  if (k) {
+  for (let iRubro = 0; iRubro < Math.min(2, cola.length); iRubro++) {
+    if (iRubro > 0 && Date.now() - inicio > SEGUNDO_RUBRO_HASTA_MS) break;
+    k = cola[iRubro];
     const t0 = Date.now();
     const antesLl = cli.estado.llamadas;
     const usdArs = await usdArsActual();
@@ -1418,33 +1446,41 @@ async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify
     const r = await procesarNicho(cli, { nichoKey: k, base: CATALOGO[k].productos, usdArs, forzar: !!forzar, historialDe, objetivo,
       analizar: analizarProducto, version: VERSION_MERCADO });
     let encolados = null;
+    // Medicion de ventas solo en los rubros medidos (BUSCADOR_ROTACION_RUBROS).
     if (r.terminado && r.guardado && !sinApify) {
-      try { encolados = await encolar(k, rankingParaRotacion(k, r.mercado)); } catch (e) { encolados = { error: e.message }; }
+      try { encolados = rubroMedido(k) ? await encolar(k, rankingParaRotacion(k, r.mercado)) : { encolados: 0, motivo: 'rubro sin medicion de ventas (BUSCADOR_ROTACION_RUBROS)' }; } catch (e) { encolados = { error: e.message }; }
     }
-    if (r.terminado) completados = 1;
+    if (r.terminado) completados++;
     hechosAhora.push({ nicho: k, terminado: r.terminado, conDatos: r.conDatos, objetivo: r.objetivo, de: r.poolTotal,
       candidatosRevisados: r.candidatosRevisados, descartados: r.descartados, nuevos: r.nuevos != null ? r.nuevos : null,
       ronda: r.ronda, descubrimiento: r.descubrimiento, llamadas: cli.estado.llamadas - antesLl,
       salteados404: cli.estado.salteados404 || 0, ms: Date.now() - t0, guardado: !!r.guardado, cortadoPorTiempo: !r.terminado,
       buscadoEstaSemana: busquedas[k] || 0, rotacionEncolada: encolados });
+    if (!r.terminado) break;
   }
   // Un rubro a medias cuenta como pendiente: la tanda siguiente lo sigue.
   const nichosPendientes = Math.max(0, cola.length - completados);
   // Sin nichos pendientes esta noche: una sola corrida de Apify para toda la cola.
+  // Solo si queda tiempo: con 2 rubros la tanda puede ir por los 50 s y las
+  // consultas a Apify esperan hasta 10 s. Si no hay tiempo, arranca en la
+  // primera tanda de la noche siguiente.
   if (!nichosPendientes && !sinApify) {
-    try { rot.arranque = await arrancarCola({ repartir }); } catch (e) { rot.arranque = { error: e.message }; }
+    if (Date.now() - inicio < 40000) {
+      try { rot.arranque = await arrancarCola({ repartir }); } catch (e) { rot.arranque = { error: e.message }; }
+    } else rot.arranque = { arrancada: false, motivo: 'sin tiempo en esta tanda: arranca en la primera de la noche siguiente' };
   }
   // Corridas por cosechar: si no hubo nicho que procesar, se espera un rato
   // aca adentro (una corrida tarda 1-3 min) para no encadenar tandas vacias.
   let porCosechar = (rot.cosecha && rot.cosecha.pendientes) || 0;
-  if ((rot.arranque && rot.arranque.arrancada) || porCosechar) {
+  if ((rot.arranque && rot.arranque.arrancada) || (rot.arranqueInicial && rot.arranqueInicial.arrancada) || porCosechar) {
     if (!k) {
-      while (Date.now() - inicio < 45000) {
+      while (Date.now() - inicio < 35000) {
         await new Promise(z => setTimeout(z, 8000));
         try { const c = await cosechar(); rot.cosecha = c; porCosechar = c.pendientes || 0; } catch (e) { break; }
         if (!porCosechar) break;
       }
     } else if (rot.arranque && rot.arranque.arrancada) porCosechar = Math.max(porCosechar, rot.arranque.productos);
+    if (rot.arranqueInicial && rot.arranqueInicial.arrancada) porCosechar = Math.max(porCosechar, rot.arranqueInicial.productos);
   }
   return {
     procesados: hechosAhora, completados, pendientes: nichosPendientes + porCosechar,
@@ -1455,22 +1491,44 @@ async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify
   };
 }
 
+// Devuelve { ok, resultado, status, ms }:
+//   'timeout-3s'   no hubo respuesta en 3 s: lo esperado (la tanda siguiente
+//                  tarda ~25 s). Se confirma con la fila del hop siguiente en
+//                  buscador_cron_log: si no esta, esa tanda no termino.
+//   'respondio'    contesto en menos de 3 s: casi seguro un error (status)
+//   'error'        el pedido no salio (red, DNS)
 async function encadenarTanda(hop, solo, hechos) {
   const host = process.env.VERCEL_PROJECT_PRODUCTION_URL || 'productfinder-ia.vercel.app';
   const qs = 'precalcular=tanda&hop=' + hop + '&hechos=' + (hechos || 0) + (solo ? '&solo=' + encodeURIComponent(solo.join(',')) : '');
   const ctrl = new AbortController();
   const corte = setTimeout(() => ctrl.abort(), 3000);
+  const t0 = Date.now();
   try {
     // No se espera la respuesta: alcanza con que el pedido salga. La tanda
     // siguiente corre en su propia invocacion.
-    await fetch('https://' + host + '/api/analyze?' + qs, {
+    const r = await fetch('https://' + host + '/api/analyze?' + qs, {
       headers: { Authorization: 'Bearer ' + (process.env.CRON_SECRET || ''), 'user-agent': 'vercel-cron/1.0 (encadenado)' },
       signal: ctrl.signal
     });
-    return true;
+    let cuerpo = '';
+    try { cuerpo = (await r.text()).slice(0, 200); } catch (_) {}
+    return { ok: r.ok, resultado: 'respondio', status: r.status, cuerpo, ms: Date.now() - t0 };
   } catch (e) {
-    return e && e.name === 'AbortError';   // abortar por tiempo es lo esperado
+    if (e && e.name === 'AbortError') return { ok: true, resultado: 'timeout-3s', ms: Date.now() - t0 };
+    return { ok: false, resultado: 'error', error: String(e && e.message || e).slice(0, 200), ms: Date.now() - t0 };
   } finally { clearTimeout(corte); }
+}
+
+// Una fila por tanda del cron. Si la tabla no existe, no frena nada.
+async function registrarCron(fila) {
+  if (!SUPA_KEY) return;
+  try {
+    await fetch(SUPA_URL + '/rest/v1/buscador_cron_log', { method: 'POST',
+      headers: supaHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
+      body: JSON.stringify({ hop: fila.hop, procesados: fila.procesados, pendientes: fila.pendientes, nichos_pendientes: fila.nichosPendientes,
+        apify_inicial: fila.arranqueInicial || null, apify_final: fila.arranque || null,
+        encadenado: fila.encadenado ? fila.encadenado.resultado : null, encadenado_detalle: fila.encadenado || null, ms: fila.ms }) });
+  } catch (e) {}
 }
 
 // ProductFinder IA - API Handler

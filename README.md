@@ -859,6 +859,22 @@ antes. Con categoría fijada, `/products/search` va con `domain_id` (si no trae 
 sacan palabras del final, mínimo 2) y las ofertas de otra categoría se descartan.
 `precalcular=compararcategorias` mide cuántos daban otro rubro con la búsqueda vieja.
 
+### Cron nocturno: por qué la cola de Apify no arrancaba (arreglado 5/11/2026)
+
+Del 21/10 al 5/11 la cadena nocturna (cada tanda se llama a sí misma) se cortó siempre en 5
+rubros o menos, sin error registrado, y Apify solo arrancaba en la ÚLTIMA tanda: nunca arrancó
+(155 en cola). Cambios:
+
+- Apify arranca en la **primera** tanda de la noche (hop 0) con la cola acumulada.
+- Hasta **2 rubros por llamada** si van menos de 20 s: 10 rubros entran en ~5 saltos.
+- Cada tanda del cron queda en `buscador_cron_log` (rubros, pendientes, resultado del encadenado:
+  `timeout-3s` = esperado, `respondio` + status = error, `error`) y lo que devolvió Apify.
+  Migración: `supabase/buscador_cron_log_migration.sql` (sin ella el cron funciona igual, sin registro).
+- Medición de ventas solo en `BUSCADOR_ROTACION_RUBROS` (default: tecnologia, celulares, mascotas,
+  hogar, juguetes, deportes, automotor), todos sus productos. Lo encolado de otros rubros queda en
+  cola sin tocar.
+- La espera de cosecha en una tanda sin rubro bajó de 45 a 35 s (el 3/11 la primera tanda pasó los 60 s).
+
 ### Rotación con Apify (solo nocturna, con tope en USD)
 
 MeLi no da vendidos de publicaciones ajenas, así que la rotación sale del actor
