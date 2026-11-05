@@ -93,8 +93,10 @@ export async function estadoPresupuesto() {
 // Candidatos: top 3 del nicho por demanda + saturacion
 // ------------------------------------------------------------
 // ranking: [{ q, puntaje, itemIds }]  (lo arma _precalculo con datos gratis)
-export async function encolar(nicho, ranking) {
-  const top = ranking.filter(x => x.itemIds && x.itemIds.length).slice(0, PRODUCTOS_POR_NICHO);
+// opts.todos: todos los productos del rubro con datos (rubros medidos), no solo el top 3.
+export async function encolar(nicho, ranking, opts) {
+  const o = opts || {};
+  const top = ranking.filter(x => x.itemIds && x.itemIds.length).slice(0, o.todos ? 50 : PRODUCTOS_POR_NICHO);
   if (!top.length) return { encolados: 0 };
   // No re-medir lo medido (o en curso) en los ultimos REMEDIR_DIAS dias.
   const desde = new Date(Date.now() - REMEDIR_DIAS * 86400e3).toISOString();
@@ -106,7 +108,7 @@ export async function encolar(nicho, ranking) {
   const ya = new Set((recientes || []).map(r => r.query));
   const nuevos = top.filter(t => !ya.has(t.q)).map(t => ({
     query: t.q, nicho, estado: 'en_cola', item_ids: t.itemIds.slice(0, ITEMS_POR_PRODUCTO()),
-    motivo: 'top ' + PRODUCTOS_POR_NICHO + ' por demanda+saturación (' + t.puntaje + ')'
+    motivo: (o.todos ? 'rubro medido' : 'top ' + PRODUCTOS_POR_NICHO) + ' por demanda+saturación (' + t.puntaje + ')'
   }));
   if (nuevos.length) await sb('buscador_vendidos', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(nuevos) });
   return { encolados: nuevos.length, yaMedidos: top.length - nuevos.length };
@@ -120,7 +122,10 @@ export async function encolar(nicho, ranking) {
 // (y para la segunda medicion, que es la que da la variacion).
 export async function arrancarCola(opts) {
   const o = opts || {};
-  const cola = await sb('buscador_vendidos?select=id,query,nicho,item_ids&estado=eq.en_cola&order=creado.asc&limit=200');
+  // Solo los rubros medidos (BUSCADOR_ROTACION_RUBROS). Lo encolado de otros
+  // rubros queda en cola, sin tocar, por si se vuelven a medir.
+  const rubros = o.rubros || String(process.env.BUSCADOR_ROTACION_RUBROS || 'tecnologia,celulares,mascotas,hogar,juguetes,deportes,automotor').split(',').map(x => x.trim()).filter(Boolean);
+  const cola = await sb('buscador_vendidos?select=id,query,nicho,item_ids&estado=eq.en_cola&nicho=in.(' + listaIn(rubros) + ')&order=creado.asc&limit=200');
   if (!cola || !cola.length) return { arrancada: false, motivo: 'cola vacia' };
   const pres = await estadoPresupuesto();
   if (!pres.ok) return { arrancada: false, motivo: pres.error };
