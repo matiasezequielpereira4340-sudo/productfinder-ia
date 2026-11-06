@@ -798,11 +798,12 @@ pre-analizado en `buscador_cache` con la **API oficial de MeLi, sin Apify**.
 (coleccionables y drones no exigen la de juguetes) y el derecho de importación estimado.
 
 - Eliminados (sus productos salen del pool; solo queda el mapeo de links viejos, sin aviso):
-  sexshop → belleza, vinos y electrodomesticos → cocina, suplementos y ortopedia → deportes.
+  sexshop → belleza, vinos y electrodomesticos → cocina, suplementos y ortopedia → deportes,
+  esoterismo → hogar.
 - Todos los rubros viejos (`ALIAS`) abren el nuevo sin aviso de "aproximado". `GET /api/analyze`
   manda el mapeo y el front traduce `pf_nicho` guardado y links compartidos.
 - Pools de celulares, mascotas y foto/video ampliados a ~80 (`_pool-extra-11.js`).
-- Esoterismo: en Hogar (pendiente de confirmar).
+- Esoterismo: fuera del pool (6/11/2026); sus links viejos abren Hogar.
 
 ### Pool por rubro y rotación semanal (5/11/2026)
 

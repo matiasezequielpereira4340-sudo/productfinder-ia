@@ -13,7 +13,7 @@ export const RUBROS = {
   tecnologia:   { label: 'Tecnología / PC', icon: '💻', absorbe: ['tecnologia', 'informatica', 'domotica', 'smartwatch', 'seguridad'] },
   celulares:    { label: 'Celulares / Accesorios', icon: '📱', absorbe: ['celulares'] },
   gaming:       { label: 'Gaming / Audio / Música', icon: '🎮', absorbe: ['gaming', 'audio', 'musica'] },
-  hogar:        { label: 'Hogar / Deco', icon: '🏠', absorbe: ['hogar', 'decoracion', 'iluminacion', 'muebles', 'esoterismo', 'climatizacion'] },
+  hogar:        { label: 'Hogar / Deco', icon: '🏠', absorbe: ['hogar', 'decoracion', 'iluminacion', 'muebles', 'climatizacion'] },
   organizacion: { label: 'Organización / Limpieza', icon: '📦', absorbe: ['organizacion', 'limpieza'] },
   cocina:       { label: 'Cocina / Bazar', icon: '🍳', absorbe: ['cocina', 'bazar', 'reposteria', 'mate'] },
   mascotas:     { label: 'Mascotas', icon: '🐶', absorbe: ['mascotas'] },
@@ -35,7 +35,8 @@ export const RUBROS = {
 // Rubros eliminados: sus productos salen del pool (aprobado el 5/11/2026).
 // Solo queda el mapeo de los links viejos, sin aviso de "aproximado".
 export const ELIMINADOS = {
-  sexshop: 'belleza', vinos: 'cocina', electrodomesticos: 'cocina', suplementos: 'deportes', ortopedia: 'deportes'
+  sexshop: 'belleza', vinos: 'cocina', electrodomesticos: 'cocina', suplementos: 'deportes', ortopedia: 'deportes',
+  esoterismo: 'hogar'   // sacado del pool el 6/11/2026
 };
 
 // Clave vieja -> clave nueva (absorbidas y eliminadas).

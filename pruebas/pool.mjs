@@ -275,7 +275,7 @@ console.log('== R. 20 rubros: mapeo, eliminados y rubro de origen ==');
   chequear('rubro eliminado (sexshop) abre Belleza sin aviso', s2.body.nicho === 'belleza' && s2.body.nichoAproximado === false);
   const todos = Object.keys(CAT).flatMap(k => pool.poolDe(k, CAT[k].productos, []));
   const eliminados = new Set(Object.keys(R.ELIMINADOS));
-  chequear('ningun producto de sexshop, vinos, electrodomesticos, suplementos u ortopedia en el pool', todos.every(p => !eliminados.has(p.rubroOrigen)), todos.filter(p => eliminados.has(p.rubroOrigen)).length);
+  chequear('ningun producto de sexshop, vinos, electrodomesticos, suplementos, ortopedia ni esoterismo en el pool', todos.every(p => !eliminados.has(p.rubroOrigen)), todos.filter(p => eliminados.has(p.rubroOrigen)).length);
   const jug = pool.poolDe('juguetes', CAT.juguetes.productos, []);
   const exigen = o => jug.filter(p => p.rubroOrigen === o && op.certificaciones(p, 'juguetes').some(c => c.codigo === 'juguetes')).length;
   chequear('juguetes: coleccionables y drones NO exigen la certificacion de juguetes', exigen('coleccionables') === 0 && exigen('drones') === 0 && exigen('juguetes') > 0, 'juguetes ' + exigen('juguetes') + ', coleccionables ' + exigen('coleccionables') + ', drones ' + exigen('drones'));
