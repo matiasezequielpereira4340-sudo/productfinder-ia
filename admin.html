@@ -177,6 +177,7 @@
             <input type="text" id="rondaNicho" value="celulares" style="width:130px;background:#0f0f0f;border:1px solid #333;color:#ddd;border-radius:8px;padding:8px 10px">
             <button class="btn btn-ghost" type="button" onclick="compararRondas()">2. Medir llamadas: ronda de 15 vs 24</button>
             <button class="btn btn-ghost" type="button" onclick="verPresupuestoRotacion()">3. Estado de la medici&oacute;n de ventas</button>
+            <button class="btn btn-yellow" type="button" onclick="reintentarSinRespuesta()">4. Reintentar &quot;sin respuesta&quot; (celulares, mascotas, beb&eacute;s, oficina)</button>
           </div>
           <div id="poolOut" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;word-break:break-word;background:#0f0f0f;color:#ddd;border-radius:8px;padding:12px;max-height:60vh;overflow:auto">1 resuelve la categor&iacute;a de MeLi de los productos nuevos del pool y la guarda en buscador_categorias (no toca las ya revisadas). 2 corre dos rondas forzadas del rubro y cuenta las llamadas a MeLi (en un preview escribe en filas preview:). 3 solo lee.</div>
         </div>
@@ -714,6 +715,23 @@
     log.push('Ronda de 15:'); var a=await rondaForzada(nicho,15,log);
     log.push('Ronda de 24:'); var b=await rondaForzada(nicho,24,log);
     if(a&&b) log.push('\nResultado: 15 -> '+a.llamadas+' llamadas en '+a.tandas+' tandas; 24 -> '+b.llamadas+' llamadas en '+b.tandas+' tandas ('+(a.llamadas?Math.round(b.llamadas/a.llamadas*100)/100:'?')+'x).');
+    poolLog(log.join('\n'));
+  }
+  async function reintentarSinRespuesta(){
+    var log=['Reintentando los "sin respuesta de MeLi" de celulares, mascotas, bebes y oficina (tramos de 40)...'], desde=0, n=0, resueltos=0, ok=0, total=null;
+    while(desde!==null && n<40){
+      n++;
+      try{
+        var r=await fetch('/api/analyze?precalcular=categorias&reintentar=1&rubros=celulares,mascotas,bebes,oficina&n=40&desde='+desde), j=await r.json();
+        if(!r.ok||!j.ok){ log.push('Error: '+(j.error||r.status)); break; }
+        if(total===null) total=j.sinRespuesta;
+        resueltos+=j.conCategoriaAhora||0; ok+=j.ok_||0;
+        log.push('tramo '+n+': '+j.procesados+' reintentados, '+(j.conCategoriaAhora||0)+' con categoria ahora ('+(j.ok_||0)+' ok), guardadas='+j.guardadas+(j.respuestas429?' · 429: '+j.respuestas429:'')+(j.cortadas?' · cortadas: '+j.cortadas:''));
+        desde=j.siguiente; poolLog(log.join('\n'));
+        if(!j.procesados) break;
+      }catch(e){ log.push('Error de red: '+e.message); poolLog(log.join('\n')); }
+    }
+    log.push('\nListo: de '+total+' sin respuesta, '+resueltos+' tienen categoria ahora ('+ok+' ok). Avisale a Claude para regenerar el archivo.');
     poolLog(log.join('\n'));
   }
   async function verPresupuestoRotacion(){

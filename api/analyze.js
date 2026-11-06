@@ -1178,6 +1178,49 @@ async function manejarPrecalculo(req, res, url) {
   }
   // Resuelve la categoria de MeLi de un tramo del catalogo (todos los nichos)
   // y la guarda en buscador_categorias para revisarla. Solo lectura de MeLi.
+  // Reintento SOLO de los que quedaron "sin respuesta de MeLi" (sin fila o con
+  // cat vacia en buscador_categorias) en los rubros pedidos. Mas lento que la
+  // primera pasada (lotes de 2) para no volver a chocar con el limite de MeLi.
+  if (modo === 'categorias' && sp.get('reintentar') === '1') {
+    const rubros = String(sp.get('rubros') || 'celulares,mascotas,bebes,oficina').split(',').map(x => x.trim()).filter(x => CATALOGO[x]);
+    const cands = [];
+    rubros.forEach(k => poolDe(k, CATALOGO[k].productos, []).forEach(p => { if (!CATEGORIAS[p.q]) cands.push({ k, p }); }));
+    const qs = Array.from(new Set(cands.map(c => c.p.q)));
+    const conCat = new Set();
+    for (let i = 0; i < qs.length; i += 80) {
+      const lote = qs.slice(i, i + 80);
+      const r = await fetch(SUPA_URL + '/rest/v1/buscador_categorias?select=q,cat&cat=not.is.null&q=in.(' + lote.map(q => '"' + String(q).replace(/"/g, '') + '"').map(encodeURIComponent).join(',') + ')', { headers: supaHeaders() }).catch(() => null);
+      if (r && r.ok) (await r.json()).forEach(f => conCat.add(f.q));
+    }
+    const vistos = new Set();
+    const todos = cands.filter(c => !conCat.has(c.p.q) && !vistos.has(c.p.q) && vistos.add(c.p.q));
+    const desde = Math.max(0, Number(sp.get('desde')) || 0);
+    const n = Math.max(1, Math.min(60, Number(sp.get('n')) || 40));
+    const tramo = todos.slice(desde, desde + n);
+    const cli = crearCliente(tk.token, { deadline: Date.now() + 50000, rps: 5, concurrencia: 2 });
+    const rutas = {};
+    const filas = [];
+    for (let i = 0; i < tramo.length; i += 2) {
+      const lote = tramo.slice(i, i + 2);
+      const rs = await Promise.all(lote.map(x => resolverCategoria(cli, x.p, x.k, rutas).catch(e => ({ q: x.p.q, nicho: x.k, nombre: x.p.nombre, estado: 'revisar', motivo: 'error: ' + e.message }))));
+      rs.forEach(r => filas.push(Object.assign(r, { actualizado: new Date().toISOString() })));
+    }
+    let guardadas = false;
+    if (SUPA_KEY && filas.length) {
+      const r = await fetch(SUPA_URL + '/rest/v1/buscador_categorias?on_conflict=q', {
+        method: 'POST', headers: supaHeaders({ 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' }),
+        body: JSON.stringify(filas) }).catch(() => null);
+      guardadas = !!(r && r.ok);
+    }
+    // El siguiente tramo arranca en desde+procesados del total ORIGINAL de esta
+    // llamada: los que ahora tienen categoria salen de la lista en la proxima,
+    // asi que se avanza solo por los que siguen sin categoria.
+    const resueltos = filas.filter(f => f.cat).length;
+    const siguiente = desde + filas.length - resueltos < todos.length - resueltos ? desde + filas.length - resueltos : null;
+    return res.status(200).json({ ok: true, via, rubros, sinRespuesta: todos.length, procesados: filas.length, conCategoriaAhora: resueltos,
+      ok_: filas.filter(f => f.estado === 'ok').length, revisar: filas.filter(f => f.estado === 'revisar').length, guardadas,
+      siguiente, llamadas: cli.estado.llamadas, respuestas429: cli.estado.limitado, cortadas: cli.estado.cortadasPorTiempo || 0 });
+  }
   if (modo === 'categorias') {
     // Todo el POOL (catalogo + ampliado). Por defecto solo los que no tienen
     // categoria fijada a mano en _categorias-datos.js (esos ya se revisaron y
