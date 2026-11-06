@@ -14,6 +14,7 @@
 // consultas coinciden, la categoria se da por validada; si no, queda para
 // revision manual (no se adivina).
 import { CATEGORIAS } from './_categorias-datos.js';
+import { CATEGORIAS_POOL } from './_categorias-pool.js';
 
 const MELI_API = 'https://api.mercadolibre.com';
 
@@ -21,7 +22,7 @@ const MELI_API = 'https://api.mercadolibre.com';
 // quedo para revision: ahi se sigue como antes, sin filtro).
 export function categoriaDe(prod) {
   if (prod && prod.cat) return { cat: prod.cat, dom: prod.dom || null };
-  const c = prod && CATEGORIAS[prod.q];
+  const c = prod && (CATEGORIAS[prod.q] || CATEGORIAS_POOL[prod.q]);
   return c && c.cat ? { cat: c.cat, dom: c.dom || null } : null;
 }
 

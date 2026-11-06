@@ -1090,3 +1090,14 @@ body{background:radial-gradient(1200px 600px at 50% -10%,#1c1810 0%,#0a0a0a 55%)
 .pf2-pendientes .pf2-pn{flex:1 1 180px;color:var(--text)}
 .pf2-pendientes .pf2-link{padding:2px 7px;font-size:.68rem}
 @media(max-width:360px){.pf2-met-v{font-size:1.05rem}}
+
+/* ===== Buscador: badge "Nuevo esta semana" y herramientas de admin ===== */
+.pf2-nuevo{display:inline-block;margin:0 0 6px;padding:3px 8px;border-radius:999px;background:#1f6f43;color:#e9fff2;font-size:11px;font-weight:700;letter-spacing:.02em;text-transform:uppercase}
+.pf2-admin{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;margin:0 0 12px;border:1px dashed var(--gold,#c9a227);border-radius:10px;font-size:13px}
+.pf2-admin-t{font-weight:800;color:var(--gold,#c9a227);text-transform:uppercase;font-size:11px;letter-spacing:.06em}
+.pf2-admin-tg{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+.pf2-admin-n{opacity:.7;font-size:12px}
+.pf2-admin .pf2-btn[disabled]{opacity:.6;cursor:wait}
+.pf2-fijo{display:inline-block;margin:0 0 6px 6px;padding:3px 8px;border-radius:999px;background:#2a3550;color:#dfe8ff;font-size:11px;font-weight:700}
+.pf2-estimado{margin:10px 0;padding:10px 12px;border-radius:10px;background:#3b2f0b;border:1px solid #c9a227;color:#ffeeb8;font-size:14px;line-height:1.4}
+.pf2-estimado b{color:#fff3c4}

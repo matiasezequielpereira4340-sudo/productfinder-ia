@@ -180,7 +180,8 @@ export function crearCliente(token, opts) {
       return { ok: false, status: 429, json: null };
     } finally { liberar(); }
   }
-  return { get, estado, cacheCategorias: new Map(), intervaloActual: () => intervalo };
+  // vencido(): queda poco del plazo (3 s): no arrancar un producto nuevo.
+  return { get, estado, cacheCategorias: new Map(), intervaloActual: () => intervalo, vencido: () => !!(o.deadline && Date.now() > o.deadline - 3000) };
 }
 
 function mediana(arr) {

@@ -93,10 +93,15 @@ export async function estadoPresupuesto() {
 // Candidatos: top 3 del nicho por demanda + saturacion
 // ------------------------------------------------------------
 // ranking: [{ q, puntaje, itemIds }]  (lo arma _precalculo con datos gratis)
-// opts.todos: todos los productos del rubro con datos (rubros medidos), no solo el top 3.
+// Items por producto en la medicion de fondo (los de prioridad usan ITEMS_POR_PRODUCTO).
+export const ITEMS_FONDO = () => Math.max(1, Math.min(10, Number(process.env.BUSCADOR_ROTACION_ITEMS_FONDO || 3)));
+// ranking con "prioridad" marcada (formato pool): todo lo analizado, la
+// prioridad (fijos + top 3) con ITEMS_POR_PRODUCTO y el resto "de fondo" con
+// ITEMS_FONDO. Sin marca (formato viejo): opts.todos = todos, si no el top 3.
 export async function encolar(nicho, ranking, opts) {
   const o = opts || {};
-  const top = ranking.filter(x => x.itemIds && x.itemIds.length).slice(0, o.todos ? 50 : PRODUCTOS_POR_NICHO);
+  const marcado = ranking.some(x => x.prioridad != null);
+  const top = ranking.filter(x => x.itemIds && x.itemIds.length).slice(0, marcado || o.todos ? 50 : PRODUCTOS_POR_NICHO);
   if (!top.length) return { encolados: 0 };
   // No re-medir lo medido (o en curso) en los ultimos REMEDIR_DIAS dias.
   const desde = new Date(Date.now() - REMEDIR_DIAS * 86400e3).toISOString();
@@ -106,12 +111,16 @@ export async function encolar(nicho, ranking, opts) {
       '&estado=in.(en_cola,arrancada,cosechada)&query=in.(' + listaIn(top.map(t => t.q)) + ')');
   } catch (e) { return { encolados: 0, error: e.message }; }
   const ya = new Set((recientes || []).map(r => r.query));
-  const nuevos = top.filter(t => !ya.has(t.q)).map(t => ({
-    query: t.q, nicho, estado: 'en_cola', item_ids: t.itemIds.slice(0, ITEMS_POR_PRODUCTO()),
-    motivo: (o.todos ? 'rubro medido' : 'top ' + PRODUCTOS_POR_NICHO) + ' por demanda+saturación (' + t.puntaje + ')'
-  }));
+  const nuevos = top.filter(t => !ya.has(t.q)).map(t => {
+    const prio = !marcado || t.prioridad;
+    return { query: t.q, nicho, estado: 'en_cola', item_ids: t.itemIds.slice(0, prio ? ITEMS_POR_PRODUCTO() : ITEMS_FONDO()),
+      motivo: marcado
+        ? (prio ? 'prioridad: ' + (t.fijo ? 'fijo de la ronda' : 'top ' + PRODUCTOS_POR_NICHO + ' por demanda+saturación') + ' (' + t.puntaje + ')'
+                : 'fondo: medición del pool aunque no se muestre (' + t.puntaje + ')')
+        : (o.todos ? 'rubro medido' : 'top ' + PRODUCTOS_POR_NICHO) + ' por demanda+saturación (' + t.puntaje + ')' };
+  });
   if (nuevos.length) await sb('buscador_vendidos', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(nuevos) });
-  return { encolados: nuevos.length, yaMedidos: top.length - nuevos.length };
+  return { encolados: nuevos.length, prioridad: nuevos.filter(n => /^prioridad/.test(n.motivo)).length, yaMedidos: top.length - nuevos.length };
 }
 
 // ------------------------------------------------------------
@@ -123,9 +132,18 @@ export async function encolar(nicho, ranking, opts) {
 export async function arrancarCola(opts) {
   const o = opts || {};
   // Solo los rubros medidos (BUSCADOR_ROTACION_RUBROS). Lo encolado de otros
-  // rubros queda en cola, sin tocar, por si se vuelven a medir.
+  // rubros queda en cola, sin tocar, por si se vuelven a medir. Dentro, primero
+  // la prioridad (fijos, top 3 y lo encolado antes de la medicion de fondo) y
+  // despues el fondo: con presupuesto chico, el fondo no le saca lugar a lo
+  // que esta en pantalla.
   const rubros = o.rubros || String(process.env.BUSCADOR_ROTACION_RUBROS || 'tecnologia,celulares,mascotas,hogar,juguetes,deportes,automotor').split(',').map(x => x.trim()).filter(Boolean);
-  const cola = await sb('buscador_vendidos?select=id,query,nicho,item_ids&estado=eq.en_cola&nicho=in.(' + listaIn(rubros) + ')&order=creado.asc&limit=200');
+  const enRubros = '&nicho=in.(' + listaIn(rubros) + ')';
+  const [prio, fondo] = await Promise.all([
+    sb('buscador_vendidos?select=id,query,nicho,item_ids,motivo&estado=eq.en_cola' + enRubros + '&or=(motivo.is.null,motivo.not.like.fondo*)&order=creado.asc&limit=200'),
+    sb('buscador_vendidos?select=id,query,nicho,item_ids,motivo&estado=eq.en_cola' + enRubros + '&motivo=like.fondo*&order=creado.asc&limit=200')
+  ]);
+  const vistos = new Set();
+  const cola = (prio || []).concat(fondo || []).filter(f => !vistos.has(f.id) && vistos.add(f.id));
   if (!cola || !cola.length) return { arrancada: false, motivo: 'cola vacia' };
   const pres = await estadoPresupuesto();
   if (!pres.ok) return { arrancada: false, motivo: pres.error };

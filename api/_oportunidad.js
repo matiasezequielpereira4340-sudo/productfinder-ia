@@ -47,7 +47,8 @@ export function costoImportacion(prod, usdArs, nichoKey) {
   const fobMax = Number(prod.costoMax) || fobMin;
   const fob = (fobMin + fobMax) / 2;
   const vol = Number(prod.volCm3) > 0 ? Number(prod.volCm3) : 1000;
-  const di = derechoImportacion(nichoKey);
+  // Derecho por el rubro de ORIGEN del producto (calzado 35%, textil 26%...).
+  const di = derechoImportacion((prod && prod.rubroOrigen) || nichoKey);
   const c = MargenCore.costoImportacion({ fobUSD: fob, volCm3: vol, fleteUsdM3: FLETE_USD_M3(), diPct: di, usdArs });
   return Object.assign(c, {
     fobMinUSD: fobMin, fobMaxUSD: fobMax,
@@ -94,7 +95,10 @@ function normalizar(t) {
   return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
-export function certificaciones(prod, nichoKey) {
+export function certificaciones(prod, nichoKeyRubro) {
+  // Las excepciones van por el rubro de ORIGEN: en "juguetes" conviven
+  // coleccionables y drones, que no exigen la certificacion de juguetes.
+  const nichoKey = (prod && prod.rubroOrigen) || nichoKeyRubro;
   const t = normalizar((prod.nombre || '') + ' ' + (prod.q || ''));
   const out = [];
   for (const r of REGLAS_CERT) {
@@ -453,6 +457,41 @@ export function puntajeRiesgo(prod, comp, certs, experiencia, capacidad) {
   return { valor: v, detalle: notas.length ? notas.join(' · ') : 'Te alcanza el capital, liviano y sin certificaciones previas detectadas' };
 }
 
+// Escala del capital: con mucho capital, un producto cuyo pedido minimo usa
+// 2-3% del presupuesto no aprovecha la ventaja de poder comprar volumen (y es
+// justo donde compiten todos los que arrancan con poco). Con poco capital, lo
+// que entra con el MOQ y deja resto para reponer es lo mejor. Sin esto, capital
+// medio y alto daban exactamente el mismo ranking: los dos entraban en todo.
+// r = inversion del MOQ / presupuesto por producto (60% del capital).
+// Tramos por capital. r = inversion del MOQ / presupuesto por producto.
+//   chico: r por debajo -> "producto chico para tu capital" (resta)
+//   muyChico: r por debajo -> resta el doble
+//   bono: r dentro de [bonoDesde, bonoHasta] -> suma
+//   pesado: r por encima (y entra) -> "te deja sin resto para reponer" (resta)
+// Calibrado con el simulador para que capital bajo y alto difieran en ~4-5 de
+// 12 productos con 24 candidatos por ronda (ver pruebas/pool.mjs).
+const ESCALA = {
+  bajo:    { muyChico: null, chico: null, bonoDesde: 0, bonoHasta: 0.35, bono: 8, pesado: 0.6, penalPesado: -8, penal: 0 },
+  medio:   { muyChico: 0.02, chico: 0.05, bonoDesde: 0.15, bonoHasta: 0.8, bono: 5, pesado: null, penal: -5 },
+  alto:    { muyChico: 0.03, chico: 0.08, bonoDesde: 0.12, bonoHasta: 1, bono: 8, pesado: null, penal: -7 },
+  premium: { muyChico: 0.02, chico: 0.05, bonoDesde: 0.08, bonoHasta: 1, bono: 8, pesado: null, penal: -8 }
+};
+export function ajusteEscala(capacidad, capitalKey) {
+  const k = ESCALA[capitalKey];
+  if (!k || !capacidad || capacidad.escenario !== 'moq' || !(capacidad.presupuestoUSD > 0)) return null;
+  const r = capacidad.inversionMoqUSD / capacidad.presupuestoUSD;
+  const pct = (Math.round(r * 1000) / 10).toLocaleString('es-AR');
+  if (k.muyChico != null && r < k.muyChico) return { puntos: k.penal * 2, label: 'El pedido mínimo usa solo ' + pct + '% de tu presupuesto por producto: con tu capital conviene apuntar a productos de más ticket, donde compiten menos vendedores.' };
+  if (k.chico != null && r < k.chico) return { puntos: k.penal, label: 'El pedido mínimo usa solo ' + pct + '% de tu presupuesto por producto: no aprovecha tu capital.' };
+  if (k.pesado != null && r > k.pesado) return { puntos: k.penalPesado, label: 'El pedido mínimo se lleva ' + pct + '% de tu presupuesto por producto: te deja poco resto para reponer y publicitar.' };
+  if (r >= k.bonoDesde && r <= k.bonoHasta) {
+    return { puntos: k.bono, label: capitalKey === 'bajo'
+      ? 'Entra el pedido mínimo (' + pct + '% del presupuesto por producto) y te queda resto para reponer.'
+      : 'Aprovecha tu capital: el pedido mínimo usa ' + pct + '% de tu presupuesto por producto.' };
+  }
+  return null;
+}
+
 export function riesgoDe(valor) { return valor >= 70 ? 'Bajo' : valor >= 45 ? 'Medio' : 'Alto'; }
 
 // ------------------------------------------------------------
@@ -519,6 +558,8 @@ export function evaluar(e) {
     ajustes.push({ label: 'Ni un pedido de prueba de ' + e.capacidad.prueba.unidades + ' u (USD ' +
       e.capacidad.prueba.inversionUSD.toLocaleString('es-AR') + ') entra en el ' + Math.round(FRACCION_POR_PRODUCTO * 100) + '% de tu capital', puntos: -15 });
   }
+  const esc = ajusteEscala(e.capacidad, e.capital);
+  if (esc) ajustes.push(esc);
 
   // Sin margen calculable no hay score: no se puede decidir una compra.
   if (e.margenPct == null && e.pocosPrecios == null) {
@@ -620,7 +661,9 @@ export function evaluarProducto(prod, nichoKey, mercado, perfil, usdArs, histori
   const base = {
     nombre: prod.nombre, query: prod.q, keyword_en: prod.keyword_en || null, nota: prod.nota, pesoG: prod.pesoG,
     costo, certificaciones: certs, capacidad, links,
-    categoria: (mercado && mercado.categoryName) || null
+    categoria: (mercado && mercado.categoryName) || null,
+    origen: prod.origen || 'catalogo', consultaUsada: (mercado && mercado.consultaUsada) || null,
+    fijo: !!prod.fijo, motivoFijo: prod.motivoFijo || null
   };
   // Sin 3 ofertas comparables con precio no hay producto para mostrar: va a
   // "Pendientes de analisis" (solo nombre y links), no a una tarjeta vacia.
@@ -639,7 +682,7 @@ export function evaluarProducto(prod, nichoKey, mercado, perfil, usdArs, histori
   const rot = puntajeRotacion(historial);
   const sat = puntajeSaturacion(comp, dem.valor);
   const riesgo = puntajeRiesgo(prod, comp, certs, perfil.experiencia, capacidad);
-  const ev = evaluar({ margenPct: mn.pct, pocosPrecios: pocos, demanda: dem, rotacion: rot, saturacion: sat, riesgo, riesgoTolerancia: perfil.riesgo, capacidad });
+  const ev = evaluar({ margenPct: mn.pct, pocosPrecios: pocos, demanda: dem, rotacion: rot, saturacion: sat, riesgo, riesgoTolerancia: perfil.riesgo, capacidad, capital: perfil.capital });
   const m = x => ({ nivel: x.nivel, valor: x.valor, numero: x.numero, detalle: x.detalle, como: x.como });
   return Object.assign(base, {
     fuente: 'MercadoLibre (API oficial)',
