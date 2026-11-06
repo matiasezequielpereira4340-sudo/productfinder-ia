@@ -791,6 +791,19 @@ pre-analizado en `buscador_cache` con la **API oficial de MeLi, sin Apify**.
 - **Ritmo:** adaptativo, arranca en `BUSCADOR_MELI_RPS` (8/s) y se frena solo
   ante 429. Medido el 20/10/2026: MeLi devolvió 429 a ~50/s y también a ~12/s.
 
+### 20 rubros (aprobados el 5/11/2026)
+
+`api/_rubros.js`: los 65 rubros originales se agrupan en 20. El catálogo original queda como datos
+(`CATALOGO_ORIGINAL`) y cada producto conserva su `rubroOrigen`, que decide las certificaciones
+(coleccionables y drones no exigen la de juguetes) y el derecho de importación estimado.
+
+- Eliminados (sus productos salen del pool; solo queda el mapeo de links viejos, sin aviso):
+  sexshop → belleza, vinos y electrodomesticos → cocina, suplementos y ortopedia → deportes.
+- Todos los rubros viejos (`ALIAS`) abren el nuevo sin aviso de "aproximado". `GET /api/analyze`
+  manda el mapeo y el front traduce `pf_nicho` guardado y links compartidos.
+- Pools de celulares, mascotas y foto/video ampliados a ~80 (`_pool-extra-11.js`).
+- Esoterismo: en Hogar (pendiente de confirmar).
+
 ### Pool por rubro y rotación semanal (5/11/2026)
 
 Antes cada rubro tenía 12 productos fijos y el refresco semanal solo actualizaba precios de esos

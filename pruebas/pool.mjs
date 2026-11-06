@@ -213,8 +213,11 @@ const ineditos = f2.__descartados.map(d => d.q).concat(f2.__seleccion.map(p => p
 const poolR2 = pool.poolElegible('celulares', CAT.celulares.productos, f2.__descubiertos);
 const ineditosPool = poolR2.filter(p => !vistosR1.has(p.q)).map(p => p.q);
 const faltan = ineditosPool.filter(q => ineditos.indexOf(q) < 0);
-chequear('ronda nueva: entran todos los ineditos antes de repetir', faltan.length === 0, (ineditosPool.length) + ' ineditos en el pool, faltaron ' + faltan.length);
 const repetidos = f2.__seleccion.filter(p => antes.has(p.q)).length;
+const fijosR2 = new Set(f2.__fijos || []);
+const repetidosNoFijos = f2.__seleccion.filter(p => antes.has(p.q) && !fijosR2.has(p.q)).length;
+if (ineditosPool.length >= f2.__objetivo) chequear('ronda nueva: con ineditos de sobra, solo repite los fijos (medicion en curso)', repetidosNoFijos === 0 && repetidos === fijosR2.size && fijosR2.size <= 6, ineditosPool.length + ' ineditos, ' + repetidos + ' repetidos = ' + fijosR2.size + ' fijos');
+else chequear('ronda nueva: entran todos los ineditos antes de repetir', faltan.length === 0, (ineditosPool.length) + ' ineditos en el pool, faltaron ' + faltan.length);
 console.log('        (repetidos de la ronda anterior: ' + repetidos + ' de ' + f2.__seleccion.length + ', porque el pool tiene ' + poolR2.length + ')');
 const v2 = await llamar(handler, perfil(), tAdmin);
 chequear('banner: nuevos vs semana anterior = los que no estaban', v2.body.nuevosVsAnterior === v2.body.products.filter(p => !antes.has(p.query)).length, v2.body.nuevosVsAnterior);
@@ -260,6 +263,28 @@ console.log('== 3. Costo en llamadas: ronda de 15 vs 24 (simulador) ==');
   const a = await medir(15), b = await medir(24);
   chequear('objetivo= (admin) cambia el tamaño de la ronda', filas.tecnologia.mercado.__objetivo === 24);
   console.log('        simulador: 15 -> ' + a + ' llamadas, 24 -> ' + b + ' llamadas (' + (b / a).toFixed(2) + 'x)');
+}
+
+console.log('== R. 20 rubros: mapeo, eliminados y rubro de origen ==');
+{
+  const R = await import('../api/_rubros.js');
+  chequear('20 rubros, todos los 65 viejos mapeados', Object.keys(CAT).length === 20 && Object.keys(R.ALIAS).length === 65 - 20 + 20, Object.keys(CAT).length + ' rubros, ' + Object.keys(R.ALIAS).length + ' alias');
+  const v = await llamar(handler, perfil({ nicho: 'fitness' }), tAdmin);
+  chequear('link viejo (fitness) abre Deportes sin aviso de aproximado', v.body.nicho === 'deportes' && v.body.nichoAproximado === false);
+  const s2 = await llamar(handler, perfil({ nicho: 'sexshop' }), tAdmin);
+  chequear('rubro eliminado (sexshop) abre Belleza sin aviso', s2.body.nicho === 'belleza' && s2.body.nichoAproximado === false);
+  const todos = Object.keys(CAT).flatMap(k => pool.poolDe(k, CAT[k].productos, []));
+  const eliminados = new Set(Object.keys(R.ELIMINADOS));
+  chequear('ningun producto de sexshop, vinos, electrodomesticos, suplementos u ortopedia en el pool', todos.every(p => !eliminados.has(p.rubroOrigen)), todos.filter(p => eliminados.has(p.rubroOrigen)).length);
+  const jug = pool.poolDe('juguetes', CAT.juguetes.productos, []);
+  const exigen = o => jug.filter(p => p.rubroOrigen === o && op.certificaciones(p, 'juguetes').some(c => c.codigo === 'juguetes')).length;
+  chequear('juguetes: coleccionables y drones NO exigen la certificacion de juguetes', exigen('coleccionables') === 0 && exigen('drones') === 0 && exigen('juguetes') > 0, 'juguetes ' + exigen('juguetes') + ', coleccionables ' + exigen('coleccionables') + ', drones ' + exigen('drones'));
+  const zap = pool.poolDe('moda', CAT.moda.productos, []).find(p => p.rubroOrigen === 'calzado');
+  chequear('derecho de importacion por rubro de origen (calzado 35%)', op.costoImportacion(zap, 1500, 'moda').diPct === 35);
+  chequear('celulares, mascotas y foto/video con ~80 candidatos', ['celulares', 'mascotas', 'fotografia'].every(k => pool.poolDe(k, CAT[k].productos, []).length >= 80),
+    ['celulares', 'mascotas', 'fotografia'].map(k => k + ' ' + pool.poolDe(k, CAT[k].productos, []).length).join(', '));
+  const g = await llamar(handler, undefined, {}, 'GET', '/api/analyze');
+  chequear('GET /api/analyze: 20 rubros + alias para el front', g.body.nichos.length === 20 && g.body.alias && g.body.alias.fitness === 'deportes');
 }
 
 console.log('== D. Sin datos: variantes y reemplazo ==');

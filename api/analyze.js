@@ -17,6 +17,7 @@ import { cosechar, encolar, arrancarCola, historialDe, ITEMS_POR_PRODUCTO, estad
 import { probarEndpoints, tokenDeCorridaValido, MELI_USER_PRECALCULO, crearCliente, analizarNicho, analizarProducto, VERSION_MERCADO } from './_precalculo.js';
 import { poolDe, poolElegible, filtrarPorPerfil, MOSTRAR_MAX, OBJETIVO_RONDA, SEMANAS_SIN_REPETIR } from './_pool.js';
 import { procesarNicho, leerFilaRubro, prefijoEntorno } from './_ronda.js';
+import { armarCatalogo, ALIAS } from './_rubros.js';
 import { renovarSiHaceFalta, usuarioEsAdmin } from './_sesion.js';
 
 const USD_ARS_FALLBACK = 1510;
@@ -28,7 +29,9 @@ const LIMITE_GRATIS = 3;
 const SUPA_URL = process.env.SUPABASE_URL || 'https://qglieqpcmmffgxijbysb.supabase.co';
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 
-const CATALOGO = {
+// Los 65 rubros originales: se conservan como DATOS. El buscador usa los 20
+// de api/_rubros.js, armados a partir de estos (cada producto con su rubro de origen).
+const CATALOGO_ORIGINAL = {
   tecnologia: { label: 'Tecnología / Gadgets', icon: '💻', productos: [
     { nombre:'Soporte magnético para cable bajo escritorio (clip)', q:'clip organizador cable bajo escritorio', keyword_en:'under desk cable management clip', volCm3:150, costoMin:0.4, costoMax:1.1, pesoG:30, nota:'Nicho oficina en casa' },
     { nombre:'Soporte para tablet ajustable de escritorio', q:'soporte tablet escritorio ajustable', keyword_en:'adjustable desktop tablet stand', volCm3:1200, costoMin:1.2, costoMax:3, pesoG:130, nota:'Menos saturado que celular' },
@@ -940,6 +943,7 @@ const CATALOGO = {
     { nombre:'Ejercitador de mano para rehabilitacion', q:'ejercitador mano rehabilitacion', keyword_en:'hand exerciser rehabilitation', volCm3:300, costoMin:0.8, costoMax:2.5, pesoG:100, nota:'Chico, poco saturado' },
   ]},
 };
+const CATALOGO = armarCatalogo(CATALOGO_ORIGINAL);
 
 // ------------------------------------------------------------
 // Resolutor de nichos (guardrail)
@@ -976,6 +980,8 @@ const _INDICE_NICHOS = (function(){
 
 function resolverNicho(entrada){
   if(entrada && CATALOGO[entrada]) return { key: entrada, exacto: true };
+  // Rubro viejo (de los 65): va al nuevo que lo absorbio, sin aviso.
+  if(entrada && ALIAS[entrada] && CATALOGO[ALIAS[entrada]]) return { key: ALIAS[entrada], exacto: true };
   const s = _slugNicho(entrada);
   if(!s) return { key: NICHO_POR_DEFECTO, exacto: false };
   if(_INDICE_NICHOS[s]) return { key: _INDICE_NICHOS[s], exacto: true };
@@ -1620,6 +1626,8 @@ export default async function handler(req, res) {
     }
     return res.status(200).json({
       nichos: nichos, total: nichos.length, porDefecto: NICHO_POR_DEFECTO,
+      // Rubros viejos (de los 65) -> nuevo: para links y selecciones guardadas.
+      alias: ALIAS,
       dolar: dolar, dolarFuente: dolarFuente, dolarTipo: dolarTipo,
       cotizaciones: await cotizacionDolar()
     });
@@ -1673,7 +1681,10 @@ export default async function handler(req, res) {
     // Formato 2 (pool con rotacion): la lista es la seleccion de la ronda.
     // Formato viejo (12 fijos): el catalogo original, como antes.
     const formato2 = !!(mercadoPorQ && mercadoPorQ.__formato === 2 && Array.isArray(mercadoPorQ.__seleccion));
-    const lista = formato2 ? mercadoPorQ.__seleccion : niche.productos;
+    // Formato viejo: los productos que trae la fila (eran los 12 del rubro
+    // original); sin fila, los del rubro de origen igual a la clave.
+    const lista = formato2 ? mercadoPorQ.__seleccion
+      : niche.productos.filter(p => mercadoPorQ ? Object.prototype.hasOwnProperty.call(mercadoPorQ, p.q) : (p.rubroOrigen || nichoKey) === nichoKey);
 
     // 3. Perfil encima del mercado: cuenta local, sin red.
     const [historial] = await Promise.all([historialDe(lista.map(p => p.q)), registrarBusqueda(nichoKey)]);

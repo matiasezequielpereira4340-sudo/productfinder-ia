@@ -440,73 +440,22 @@ async function runHeroDemo(term,esEjemplo){
 
 // ===== COMBOBOX DE NICHOS (Task 8) =====
 (function(){
+  // Lista de arranque (sin red). La real la manda el backend: los 20 rubros
+  // de api/_rubros.js. ALIAS traduce los rubros viejos (de los 65) guardados en
+  // el navegador o en links compartidos.
   var NICHOS = [
-    {v:'tecnologia',l:'Tecnología / Gadgets'},
-    {v:'hogar',l:'Hogar y Deco'},
-    {v:'deportes',l:'Deportes / Fitness'},
-    {v:'moda',l:'Moda / Indumentaria'},
-    {v:'mascotas',l:'Mascotas'},
-    {v:'bebes',l:'Bebés / Niños'},
-    {v:'belleza',l:'Salud y Belleza'},
-    {v:'cocina',l:'Cocina / Gastronomía'},
-    {v:'automotor',l:'Automotor / Moto'},
-    {v:'herramientas',l:'Herramientas / Bricolaje'},
-    {v:'camping',l:'Camping / Outdoor'},
-    {v:'oficina',l:'Papelería / Oficina'},
-    {v:'domotica',l:'Domótica / Casa Inteligente'},
-    {v:'jardineria',l:'Jardinería / Plantas'},
-    {v:'joyeria',l:'Joyería / Bijouterie'},
-    {v:'relojes',l:'Relojes'},
-    {v:'iluminacion',l:'Iluminación / LED'},
-    {v:'gaming',l:'Gaming / Consolas'},
-    {v:'ferreteria',l:'Ferretería / Construcción'},
-    {v:'musica',l:'Música / Instrumentos'},
-    {v:'arte',l:'Arte / Manualidades'},
-    {v:'energiasolar',l:'Energía Solar / Portátil'},
-    {v:'fotografia',l:'Fotografía / Drones'},
-    {v:'viajes',l:'Viajes / Valijas'},
-    {v:'libreria',l:'Librería / Libros'},
-    {v:'juguetes',l:'Juguetes / Juegos'},
-    {v:'audio',l:'Audio / Parlantes'},
-    {v:'celulares',l:'Celulares / Accesorios'},
-    {v:'informatica',l:'Informática / PC'},
-    {v:'electrodomesticos',l:'Electrodomésticos'},
-    {v:'climatizacion',l:'Climatización / Ventilación'},
-    {v:'pesca',l:'Pesca / Náutica'},
-    {v:'bicicletas',l:'Bicicletas / Ciclismo'},
-    {v:'sexshop',l:'Sex Shop / Intimidad'},
-    {v:'esoterismo',l:'Esoterismo / Velas'},
-    {v:'seguridad',l:'Seguridad / Cámaras'},
-    {v:'pintura',l:'Pinturería'},
-    {v:'textil',l:'Textil / Merceria'},
-    {v:'calzado',l:'Calzado / Zapatillas'},
-    {v:'reposteria',l:'Repostería / Panadería'},
-    {v:'vinos',l:'Vinos / Bebidas'},
-    {v:'limpieza',l:'Limpieza / Hogar'},
-    {v:'organizacion',l:'Organización / Guardado'},
-    {v:'maquillaje',l:'Maquillaje / Uñas'},
-    {v:'cuidadopersonal',l:'Cuidado Personal'},
-    {v:'suplementos',l:'Suplementos / Nutrición'},
-    {v:'tejido',l:'Tejido / Lana'},
-    {v:'agro',l:'Agro / Campo'},
-    {v:'motos',l:'Motos / Repuestos'},
-    {v:'ferrmanuales',l:'Herramientas Manuales'},
-    {v:'maternidad',l:'Maternidad / Embarazo'},
-    {v:'pilates',l:'Yoga / Pilates'},
-    {v:'coleccionables',l:'Coleccionables / Figuras'},
-    {v:'drones',l:'Drones / RC'},
-    {v:'smartwatch',l:'Smartwatch / Wearables'},
-    {v:'bazar',l:'Bazar / Vajilla'},
-    {v:'muebles',l:'Muebles'},
-    {v:'decoracion',l:'Decoración / Cuadros'},
-    {v:'plantas',l:'Plantas / Suculentas'},
-    {v:'mate',l:'Mate / Termos'},
-    {v:'fitness',l:'Running / Fitness'},
-    {v:'natacion',l:'Natación / Pileta'},
-    {v:'golf',l:'Golf'},
-    {v:'festejos',l:'Cotillón / Fiestas'},
-    {v:'ortopedia',l:'Ortopedia / Rehabilitación'}
+    {v:'tecnologia',l:'Tecnología / PC'}, {v:'celulares',l:'Celulares / Accesorios'},
+    {v:'gaming',l:'Gaming / Audio / Música'}, {v:'hogar',l:'Hogar / Deco'},
+    {v:'organizacion',l:'Organización / Limpieza'}, {v:'cocina',l:'Cocina / Bazar'},
+    {v:'mascotas',l:'Mascotas'}, {v:'deportes',l:'Deportes / Fitness'},
+    {v:'camping',l:'Camping / Pesca / Solar'}, {v:'automotor',l:'Auto / Moto'},
+    {v:'herramientas',l:'Herramientas / Ferretería'}, {v:'jardineria',l:'Jardín / Plantas / Campo'},
+    {v:'moda',l:'Moda / Calzado / Viajes'}, {v:'joyeria',l:'Bijou / Relojes'},
+    {v:'belleza',l:'Belleza / Cuidado personal'}, {v:'bebes',l:'Bebés / Maternidad'},
+    {v:'juguetes',l:'Juguetes / Fiestas / Colección'}, {v:'arte',l:'Arte / Mercería / Tejido'},
+    {v:'oficina',l:'Oficina / Librería'}, {v:'fotografia',l:'Foto / Video para creadores'}
   ];
+  var ALIAS = {};
   var TOP8 = ['tecnologia','hogar','celulares','deportes','moda','mascotas','bebes','gaming'];
   var byValue = {};
   NICHOS.forEach(function(n){ byValue[n.v] = n.l; });
@@ -605,6 +554,8 @@ async function runHeroDemo(term,esEjemplo){
   renderChips();
   var storedNicho = null;
   try{ storedNicho = localStorage.getItem('pf_nicho'); }catch(e){}
+  function traducir(v){ return (v && !byValue[v] && ALIAS[v]) ? ALIAS[v] : v; }
+  storedNicho = traducir(storedNicho);
   selectNicho((storedNicho && byValue[storedNicho]) ? storedNicho : 'tecnologia', false);
 
   // La lista de arriba es solo el arranque offline. La lista REAL la define el
@@ -620,13 +571,15 @@ async function runHeroDemo(term,esEjemplo){
         if(corta) clearTimeout(corta);
         if(!d || !Array.isArray(d.nichos) || d.nichos.length < 5) return;
         var elegido = sel.value;
+        if(d.alias && typeof d.alias === 'object') ALIAS = d.alias;
         NICHOS = d.nichos.map(function(n){ return { v:n.v, l:n.l }; });
         byValue = {};
         NICHOS.forEach(function(n){ byValue[n.v] = n.l; });
         sel.innerHTML = NICHOS.map(function(n){ return '<option value="'+n.v+'">'+n.l+'</option>'; }).join('');
         TOP8 = TOP8.filter(function(v){ return byValue[v]; });
         renderChips();
-        selectNicho(byValue[elegido] ? elegido : NICHOS[0].v, false);
+        elegido = byValue[elegido] ? elegido : (ALIAS[elegido] && byValue[ALIAS[elegido]] ? ALIAS[elegido] : NICHOS[0].v);
+        selectNicho(elegido, false);
       })
       .catch(function(){ if(corta) clearTimeout(corta); /* sin red: queda la lista local */ });
   })();

@@ -15,5 +15,9 @@ import { EXTRA_7 } from './_pool-extra-7.js';
 import { EXTRA_8 } from './_pool-extra-8.js';
 import { EXTRA_9 } from './_pool-extra-9.js';
 import { EXTRA_10 } from './_pool-extra-10.js';
+import { EXTRA_11 } from './_pool-extra-11.js';
 
-export const EXTRA = Object.assign({}, EXTRA_1, EXTRA_2, EXTRA_3, EXTRA_4, EXTRA_5, EXTRA_6, EXTRA_7, EXTRA_8, EXTRA_9, EXTRA_10);
+// Las partes se SUMAN por rubro (la 11 amplia celulares, mascotas y fotografia).
+export const EXTRA = {};
+[EXTRA_1, EXTRA_2, EXTRA_3, EXTRA_4, EXTRA_5, EXTRA_6, EXTRA_7, EXTRA_8, EXTRA_9, EXTRA_10, EXTRA_11]
+  .forEach(parte => Object.keys(parte).forEach(k => { EXTRA[k] = (EXTRA[k] || []).concat(parte[k]); }));

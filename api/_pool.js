@@ -14,6 +14,7 @@
 // rubro (mercado.__historial, mercado.__ronda): no hace falta tabla nueva.
 
 import { EXTRA } from './_pool-extra.js';
+import { absorbidos } from './_rubros.js';
 import { costoImportacion, moqTipico, limpiarMuestra, acotarPorCosto } from './_oportunidad.js';
 import { esMarca } from './_radar.js';
 import { categoriaDe } from './_categorias.js';
@@ -68,8 +69,9 @@ function desdeCompacto(a) {
   return { nombre: a[0], q: a[1], keyword_en: a[2], volCm3: a[3], costoMin: a[4], costoMax: a[5], pesoG: a[6], nota: a[7] || null };
 }
 
+// Pool ampliado del rubro nuevo = el de cada rubro viejo que absorbe, con su origen.
 export function extraDe(nichoKey) {
-  return (EXTRA[nichoKey] || []).map(desdeCompacto);
+  return absorbidos(nichoKey).flatMap(v => (EXTRA[v] || []).map(a => Object.assign(desdeCompacto(a), { rubroOrigen: v })));
 }
 
 // base: productos del CATALOGO original del rubro. descubiertos: los que ya se
@@ -122,7 +124,9 @@ export function historialDesdeFila(fila, base) {
     return { rondas: m.__historial.rondas.slice(0, RONDAS_GUARDADAS), vistos: Array.isArray(m.__historial.vistos) ? m.__historial.vistos.slice() : [] };
   }
   if (m && typeof m === 'object') {
-    const qs = (base || []).map(p => p.q);
+    // Formato viejo: lo que se mostro son los productos que tiene la fila.
+    const enFila = Object.keys(m).filter(q => q.indexOf('__') !== 0);
+    const qs = enFila.length ? enFila : (base || []).map(p => p.q);
     return { rondas: [{ id: 'catalogo-fijo', fecha: fila.created_at || new Date().toISOString(), qs }], vistos: qs.slice() };
   }
   // Sin fila: los 12 del catalogo fijo son los que se venian mostrando.

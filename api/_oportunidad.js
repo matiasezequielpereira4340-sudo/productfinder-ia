@@ -47,7 +47,8 @@ export function costoImportacion(prod, usdArs, nichoKey) {
   const fobMax = Number(prod.costoMax) || fobMin;
   const fob = (fobMin + fobMax) / 2;
   const vol = Number(prod.volCm3) > 0 ? Number(prod.volCm3) : 1000;
-  const di = derechoImportacion(nichoKey);
+  // Derecho por el rubro de ORIGEN del producto (calzado 35%, textil 26%...).
+  const di = derechoImportacion((prod && prod.rubroOrigen) || nichoKey);
   const c = MargenCore.costoImportacion({ fobUSD: fob, volCm3: vol, fleteUsdM3: FLETE_USD_M3(), diPct: di, usdArs });
   return Object.assign(c, {
     fobMinUSD: fobMin, fobMaxUSD: fobMax,
@@ -94,7 +95,10 @@ function normalizar(t) {
   return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
-export function certificaciones(prod, nichoKey) {
+export function certificaciones(prod, nichoKeyRubro) {
+  // Las excepciones van por el rubro de ORIGEN: en "juguetes" conviven
+  // coleccionables y drones, que no exigen la certificacion de juguetes.
+  const nichoKey = (prod && prod.rubroOrigen) || nichoKeyRubro;
   const t = normalizar((prod.nombre || '') + ' ' + (prod.q || ''));
   const out = [];
   for (const r of REGLAS_CERT) {

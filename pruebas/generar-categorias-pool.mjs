@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const filas = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const { CATEGORIAS } = await import('../api/_categorias-datos.js');
-const { EXTRA } = await import('../api/_pool-extra.js');
+const { extraDe } = await import('../api/_pool.js');
 const analyze = await import('../api/analyze.js');
 const CAT = analyze.__CATALOGO;
 const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
@@ -35,7 +35,8 @@ for (const k of Object.keys(CAT)) {
     const f = porQ[p.q];
     return f && f.cat === CATEGORIAS[p.q].cat ? raizDe(f.ruta) : (f ? raizDe(f.ruta) : null);
   }).filter(Boolean));
-  const extra = (EXTRA[k] || []).map(a => a[1]).filter(q => !CATEGORIAS[q]);
+  // Los 20 rubros: el ampliado de todos los rubros viejos que absorbe.
+  const extra = Array.from(new Set(extraDe(k).map(p => p.q))).filter(q => !CATEGORIAS[q]);
   if (!raices.size) {
     const cuenta = {};
     extra.forEach(q => { const f = porQ[q]; if (f && f.estado === 'ok' && raizDe(f.ruta)) cuenta[raizDe(f.ruta)] = (cuenta[raizDe(f.ruta)] || 0) + 1; });
