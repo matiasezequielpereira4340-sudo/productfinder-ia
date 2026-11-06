@@ -115,7 +115,7 @@ function llamar(h, body, headers, metodo, url) {
   });
 }
 const cron = { authorization: 'Bearer cron-de-prueba', 'user-agent': 'vercel-cron/1.0' };
-const perfil = (o) => Object.assign({ nicho: 'celulares', capital: 'medio', experiencia: 'media', canal: 'mercadolibre', riesgo: 'medio', user_id: '' }, o || {});
+const perfil = (o) => Object.assign({ nicho: 'tecnologia', capital: 'medio', experiencia: 'media', canal: 'mercadolibre', riesgo: 'medio', user_id: '' }, o || {});
 async function rondaCompleta(nicho, extra) {
   let r, n = 0;
   do { r = await llamar(handler, undefined, cron, 'GET', '/api/analyze?precalcular=tanda&solo=' + nicho + (n === 0 && extra ? extra : '')); n++; }
@@ -157,15 +157,15 @@ console.log('== A. Acceso: sesion, admin y "ver como free" ==');
   if (k) process.env.ADMIN_KEY = k;
 }
 
-console.log('== B. Ronda semanal del pool (celulares) ==');
-const r1 = await rondaCompleta('celulares');
+console.log('== B. Ronda semanal del pool (tecnologia) ==');
+const r1 = await rondaCompleta('tecnologia');
 const p1 = r1.body.procesados[0];
 chequear('ronda terminada y guardada', p1 && p1.terminado && p1.guardado, p1 && (p1.conDatos + '/' + p1.objetivo + ' con datos, pool ' + p1.de));
 chequear('pool del rubro >= 40', p1.de >= 40, p1.de);
-const f1 = filas.celulares.mercado;
+const f1 = filas.tecnologia.mercado;
 chequear('fila formato 2 con seleccion, historial y ronda', f1.__formato === 2 && f1.__seleccion.length === pool.OBJETIVO_RONDA() && f1.__historial.rondas.length >= 1 && f1.__ronda.id);
 chequear('descubrimiento: solo tendencias aceptables (sin marcas ni alimentos)', (f1.__descubrimiento.nuevos || []).every(q => !/samsung|yerba/.test(q)), JSON.stringify(f1.__descubrimiento.nuevos));
-const base12 = new Set(CAT.celulares.productos.map(p => p.q));
+const base12 = new Set(CAT.tecnologia.productos.map(p => p.q));
 const repetidosPrimera = f1.__seleccion.filter(p => base12.has(p.q)).length;
 chequear('la primera ronda evita los 12 fijos que se venian mostrando', repetidosPrimera === 0, repetidosPrimera + ' de los 12 viejos');
 
@@ -198,19 +198,19 @@ chequear('conteo honesto: conDatoReal = productos que se muestran a un cliente',
 
 console.log('== D/E. Forzar: ronda nueva, rotacion y badge "Nuevo" ==');
 const antes = new Set(f1.__seleccion.map(p => p.q));
-const r2 = await rondaCompleta('celulares', '&forzar=1');
+const r2 = await rondaCompleta('tecnologia', '&forzar=1');
 // forzar solo vale para admin, no para el cron: se pide como admin.
-const rf = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=celulares&forzar=1');
+const rf = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=tecnologia&forzar=1');
 let pf = rf.body.procesados[0], n = 0;
-while (pf && pf.terminado === false && n++ < 10) { const x = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=celulares'); pf = x.body.procesados[0] || pf; if (!x.body.procesados.length) break; }
+while (pf && pf.terminado === false && n++ < 10) { const x = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=tecnologia'); pf = x.body.procesados[0] || pf; if (!x.body.procesados.length) break; }
 chequear('el cron no puede forzar (la ronda fresca no se rehace)', !r2.body.procesados.length || r2.body.procesados[0].ronda.id === f1.__ronda.id);
-const f2 = filas.celulares.mercado;
+const f2 = filas.tecnologia.mercado;
 chequear('admin forzo: ronda nueva', f2.__ronda.id !== f1.__ronda.id && f2.__ronda.motivo === 'forzada');
 // Con 24 por ronda y un pool de ~40 no alcanzan los ineditos: la regla es que
 // entren TODOS los que nunca se mostraron antes de repetir alguno.
 const vistosR1 = new Set(f1.__historial.vistos);
 const ineditos = f2.__descartados.map(d => d.q).concat(f2.__seleccion.map(p => p.q));
-const poolR2 = pool.poolElegible('celulares', CAT.celulares.productos, f2.__descubiertos);
+const poolR2 = pool.poolElegible('tecnologia', CAT.tecnologia.productos, f2.__descubiertos);
 const ineditosPool = poolR2.filter(p => !vistosR1.has(p.q)).map(p => p.q);
 const faltan = ineditosPool.filter(q => ineditos.indexOf(q) < 0);
 const repetidos = f2.__seleccion.filter(p => antes.has(p.q)).length;
@@ -229,17 +229,17 @@ chequear('fecha real de los datos en la respuesta', !!v2.body.datosDe && !isNaN(
 console.log('== 1. Fijos por medicion de ventas + medicion de fondo ==');
 {
   // 3 productos de la ronda actual con medicion (1 con dos, 1 con una, 1 en cola).
-  const sel = filas.celulares.mercado.__seleccion.map(p => p.q);
+  const sel = filas.tecnologia.mercado.__seleccion.map(p => p.q);
   const hace = d => new Date(Date.now() - d * 86400e3).toISOString();
   VENDIDOS.push({ query: sel[5], estado: 'cosechada', vendidos_total: 900, medido_en: hace(1), creado: hace(1), items: [] });
   VENDIDOS.push({ query: sel[5], estado: 'cosechada', vendidos_total: 700, medido_en: hace(8), creado: hace(8), items: [] });
   VENDIDOS.push({ query: sel[7], estado: 'cosechada', vendidos_total: 300, medido_en: hace(2), creado: hace(2), items: [] });
   VENDIDOS.push({ query: sel[9], estado: 'en_cola', creado: hace(1) });
-  const f = pool.elegirFijos(filas.celulares.mercado.__seleccion, { [sel[5]]: { cosechadas: [{ vendidos_total: 900 }, {}], ultimo: { estado: 'cosechada' } }, [sel[7]]: { cosechadas: [{ vendidos_total: 300 }], ultimo: { estado: 'cosechada' } }, [sel[9]]: { cosechadas: [], ultimo: { estado: 'en_cola' } } }, 6);
+  const f = pool.elegirFijos(filas.tecnologia.mercado.__seleccion, { [sel[5]]: { cosechadas: [{ vendidos_total: 900 }, {}], ultimo: { estado: 'cosechada' } }, [sel[7]]: { cosechadas: [{ vendidos_total: 300 }], ultimo: { estado: 'cosechada' } }, [sel[9]]: { cosechadas: [], ultimo: { estado: 'en_cola' } } }, 6);
   chequear('elegirFijos: ordena 2 mediciones > 1 > en curso', f.map(x => x.q).join() === [sel[5], sel[7], sel[9]].join() && f.every(x => x.fijo), f.map(x => x.motivoFijo).join(' / '));
-  let r = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=celulares&forzar=1'), n = 0;
-  while (r.body.procesados[0] && r.body.procesados[0].terminado === false && n++ < 10) r = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=celulares');
-  const f3 = filas.celulares.mercado;
+  let r = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=tecnologia&forzar=1'), n = 0;
+  while (r.body.procesados[0] && r.body.procesados[0].terminado === false && n++ < 10) r = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=tecnologia');
+  const f3 = filas.tecnologia.mercado;
   chequear('la ronda nueva mantiene primero los medidos (fijos)', [sel[5], sel[7]].every(q => f3.__fijos.includes(q) && f3.__seleccion.some(p => p.q === q)) && f3.__fijos.length <= 6, f3.__fijos.length + ' fijos');
   const v = await llamar(handler, perfil(), tAdmin);
   chequear('la tarjeta del fijo lo dice ("Se mantiene")', v.body.products.filter(p => p.fijo).every(p => p.motivoFijo), v.body.products.filter(p => p.fijo).length + ' fijos en pantalla');
@@ -249,7 +249,7 @@ console.log('== 1. Fijos por medicion de ventas + medicion de fondo ==');
   process.env.SUPABASE_SERVICE_KEY = 'supa-de-prueba';
   const ranking = f3.__seleccion.map((p, i) => ({ q: 'prueba fondo ' + p.q, puntaje: 100 - i, itemIds: ['MLA1' + i, 'MLA2' + i, 'MLA3' + i, 'MLA4' + i, 'MLA5' + i], fijo: !!p.fijo, prioridad: !!p.fijo || i < 3 }));
   const antesV = VENDIDOS.length;
-  const e = await rot.encolar('celulares', ranking);
+  const e = await rot.encolar('tecnologia', ranking);
   const nuevos = VENDIDOS.slice(antesV);
   chequear('se encola TODO lo analizado (no solo el top 3)', nuevos.length >= 20, nuevos.length + ' encolados, ' + e.prioridad + ' con prioridad');
   chequear('el fondo usa menos publicaciones por producto (cuesta menos)', nuevos.filter(x => /^fondo/.test(x.motivo)).every(x => x.item_ids.length === 3) && nuevos.filter(x => /^prioridad/.test(x.motivo)).every(x => x.item_ids.length === 5));
@@ -257,11 +257,11 @@ console.log('== 1. Fijos por medicion de ventas + medicion de fondo ==');
 
 console.log('== 3. Costo en llamadas: ronda de 15 vs 24 (simulador) ==');
 {
-  const medir = async obj => { let r = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=tecnologia&forzar=1&objetivo=' + obj), n = 0;
-    while (r.body.procesados[0] && r.body.procesados[0].terminado === false && n++ < 10) r = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=tecnologia&objetivo=' + obj);
-    return filas.tecnologia.mercado.__llamadas; };
+  const medir = async obj => { let r = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=hogar&forzar=1&objetivo=' + obj), n = 0;
+    while (r.body.procesados[0] && r.body.procesados[0].terminado === false && n++ < 10) r = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=hogar&objetivo=' + obj);
+    return filas.hogar.mercado.__llamadas; };
   const a = await medir(15), b = await medir(24);
-  chequear('objetivo= (admin) cambia el tamaño de la ronda', filas.tecnologia.mercado.__objetivo === 24);
+  chequear('objetivo= (admin) cambia el tamaño de la ronda', filas.hogar.mercado.__objetivo === 24);
   console.log('        simulador: 15 -> ' + a + ' llamadas, 24 -> ' + b + ' llamadas (' + (b / a).toFixed(2) + 'x)');
 }
 
@@ -294,7 +294,7 @@ console.log('== D. Sin datos: variantes y reemplazo ==');
   chequear('2-3 variantes (sinonimo / mas generica / nucleo)', vs.length >= 2 && vs.length <= 3, JSON.stringify(vs));
   const pre = await import('../api/_precalculo.js');
   const cli = pre.crearCliente('tok', { rps: 1000 });
-  const r = await pool.analizarConVariantes(cli, prod, pre.analizarProducto, { nichoKey: 'celulares', usdArs: 1500 });
+  const r = await pool.analizarConVariantes(cli, prod, pre.analizarProducto, { nichoKey: 'tecnologia', usdArs: 1500 });
   chequear('si la busqueda original no trae datos, una variante si', !!r.consulta && r.consulta !== prod.q && r.intentos.length >= 2, r.consulta + ' (' + r.intentos.length + ' intentos)');
   // Reemplazo: un rubro donde la mitad del pool no tiene datos igual llega al objetivo.
   pool.poolDe('mascotas', CAT.mascotas.productos, []).forEach((p, i) => { if (i % 2 === 0) { SIN_DATOS.add(p.q); pool.variantesDe(p).forEach(v => SIN_DATOS.add(v)); } });
@@ -311,15 +311,15 @@ console.log('== F. Formato viejo y preview ==');
 {
   // Una fila del formato viejo (12 fijos) se sigue leyendo como antes.
   const viejo = { __v: 4 };
-  filas.hogar = { nicho: 'hogar', mercado: viejo, created_at: new Date().toISOString() };
-  const v = await llamar(handler, perfil({ nicho: 'hogar' }), tAdmin);
+  filas.oficina = { nicho: 'oficina', mercado: viejo, created_at: new Date().toISOString() };
+  const v = await llamar(handler, perfil({ nicho: 'oficina' }), tAdmin);
   chequear('fila del formato viejo: responde sin romper (formato 1)', v.status === 200 && v.body.formato === 1);
   // Preview: escribe en filas "preview:" y no toca la de produccion.
   process.env.VERCEL_ENV = 'preview';
-  const antesProd = JSON.stringify(filas.celulares);
-  const x = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=celulares&forzar=1');
-  chequear('preview: escribe en "preview:celulares"', Object.keys(filas).some(k => k.indexOf('preview:celulares') === 0), Object.keys(filas).filter(k => k.startsWith('preview')).join(','));
-  chequear('preview: la fila de produccion queda igual', JSON.stringify(filas.celulares) === antesProd);
+  const antesProd = JSON.stringify(filas.tecnologia);
+  const x = await llamar(handler, undefined, tAdmin, 'GET', '/api/analyze?precalcular=tanda&solo=tecnologia&forzar=1');
+  chequear('preview: escribe en "preview:tecnologia"', Object.keys(filas).some(k => k.indexOf('preview:tecnologia') === 0), Object.keys(filas).filter(k => k.startsWith('preview')).join(','));
+  chequear('preview: la fila de produccion queda igual', JSON.stringify(filas.tecnologia) === antesProd);
   delete process.env.VERCEL_ENV;
   chequear('preview nunca usa Apify', x.body.procesados[0] && x.body.procesados[0].rotacionEncolada == null);
 }
