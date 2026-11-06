@@ -22,6 +22,14 @@
     {
       "path": "/api/analyze?precalcular=tanda",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/analyze?precalcular=tanda",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/analyze?precalcular=tanda",
+      "schedule": "0 10 * * *"
     }
   ]
 }
