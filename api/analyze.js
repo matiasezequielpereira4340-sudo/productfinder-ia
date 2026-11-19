@@ -1294,6 +1294,30 @@ async function manejarPrecalculo(req, res, url) {
   }
   // Descubrir productos para UN rubro ahora (boton del admin "Descubrir
   // productos ahora"). Ignora la espera semanal; nunca gasta Apify.
+  // Cron del descubrimiento (?precalcular=descubrir&auto=1): hasta 2 rubros
+  // vencidos por llamada (~23 s cada uno) y se encadena mientras queden, hasta
+  // 5 saltos por dia = 10 rubros/dia, los 65 en una semana. Va aparte de la
+  // tanda porque un rubro de 18 productos tarda 31-50 s (medido 19/11) y no
+  // deja lugar para la llamada al modelo.
+  if (modo === 'descubrir' && sp.get('auto') === '1') {
+    const hop = Math.max(0, Math.min(10, Number(sp.get('hop')) || 0));
+    const inicio = Date.now();
+    const cli = crearCliente(tk.token, { deadline: inicio + 50000 });
+    const [ult, busq] = await Promise.all([corridasPorNicho(), busquedasRecientes()]);
+    const vencidos = Object.keys(CATALOGO).filter(x => !ult[x] || Date.now() - ult[x] >= DIAS_ENTRE_DESCUBRIMIENTOS * 86400e3)
+      .sort((a, b) => ((busq[b] || 0) - (busq[a] || 0)) || ((ult[a] || 0) - (ult[b] || 0)));
+    const hechos = [];
+    for (const x of vencidos.slice(0, 2)) {
+      const transcurrido = Date.now() - inicio;
+      if (hechos.length && transcurrido > 22000) break;
+      hechos.push(await descubrirRubro(cli, x, CATALOGO, { timeoutMs: Math.max(8000, 46000 - transcurrido) }));
+    }
+    const quedan = vencidos.length - hechos.length;
+    let encadenado = null;
+    if (via === 'cron' && quedan > 0 && hop < 4 && hechos.length) encadenado = await encadenar('precalcular=descubrir&auto=1&hop=' + (hop + 1));
+    return res.status(200).json({ ok: true, via, hop, vencidos: vencidos.length, quedan, encadenado,
+      resultados: hechos.map(h => ({ nicho: h.nicho, ok: h.ok, nuevos: (h.nuevos || []).length, error: h.error || null, salteado: h.salteado || null })), ms: Date.now() - inicio });
+  }
   if (modo === 'descubrir') {
     const nicho = sp.get('nicho');
     if (!nicho || !CATALOGO[nicho]) return res.status(400).json({ ok: false, error: 'Rubro desconocido.' });
@@ -1566,8 +1590,10 @@ async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify
 //   'respondio'    contesto en menos de 3 s: casi seguro un error (status)
 //   'error'        el pedido no salio (red, DNS)
 async function encadenarTanda(hop, solo, hechos) {
+  return encadenar('precalcular=tanda&hop=' + hop + '&hechos=' + (hechos || 0) + (solo ? '&solo=' + encodeURIComponent(solo.join(',')) : ''));
+}
+async function encadenar(qs) {
   const host = process.env.VERCEL_PROJECT_PRODUCTION_URL || 'productfinder-ia.vercel.app';
-  const qs = 'precalcular=tanda&hop=' + hop + '&hechos=' + (hechos || 0) + (solo ? '&solo=' + encodeURIComponent(solo.join(',')) : '');
   const ctrl = new AbortController();
   const corte = setTimeout(() => ctrl.abort(), 3000);
   const t0 = Date.now();
