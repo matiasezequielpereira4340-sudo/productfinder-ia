@@ -124,10 +124,22 @@ export async function probarEndpoints(token, q, itemForzado) {
 // Por eso no hay vendidos, reseñas ni visitas por publicacion con la API
 // oficial: la rotacion (vendidos reales) sale de Apify, ver api/_rotacion.js.
 
-export const VERSION_MERCADO = 4;
+// 5: respaldo por categoria padre y paginas extra de catalogo (datoAproximado).
+export const VERSION_MERCADO = 5;
+// El formato 4 tiene los mismos campos (solo le falta datoAproximado): se sigue
+// MOSTRANDO mientras el proceso nocturno lo regenera, asi subir la version no
+// deja todos los rubros en "Pendientes" durante la semana que tarda la vuelta.
+export const VERSION_MERCADO_LECTURA_MIN = 4;
 const CATALOGO_PAGINAS = 2;          // 2 x 10 productos de catalogo
 const MAX_PRODUCTOS_CON_ITEMS = 12;  // a cuantos productos se les piden ofertas (medido: ~70% da 404, sin ofertas)
 const OFERTAS_OBJETIVO = 15;
+const MIN_OFERTAS = 3;               // menos que esto, el producto va a Pendientes
+const PAGINAS_EXTRA = 2;             // paginas de /products/search de respaldo
+const MAX_ITEMS_EXTRA = 8;
+// Umbral para pedir las paginas extra. Por defecto OFERTAS_OBJETIVO (lo
+// pedido); se puede bajar con BUSCADOR_OBJETIVO_RESPALDO si el rubro empieza a
+// cortarse por tiempo.
+const OBJETIVO_RESPALDO = () => Math.max(MIN_OFERTAS, Number(process.env.BUSCADOR_OBJETIVO_RESPALDO || OFERTAS_OBJETIVO));           // tope de /products/{id}/items en el respaldo
 const VENDEDORES_TOP = 5;
 
 // Cliente con contador de llamadas, reintento unico ante 429 y concurrencia
@@ -180,7 +192,7 @@ export function crearCliente(token, opts) {
       return { ok: false, status: 429, json: null };
     } finally { liberar(); }
   }
-  return { get, estado, cacheCategorias: new Map(), intervaloActual: () => intervalo };
+  return { get, estado, cacheCategorias: new Map(), cacheRutas: new Map(), intervaloActual: () => intervalo };
 }
 
 function mediana(arr) {
@@ -188,6 +200,41 @@ function mediana(arr) {
   if (!s.length) return null;
   const m = Math.floor(s.length / 2);
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+// /categories/{id}: nombre, total y ruta desde la raiz. Una vez por corrida.
+function infoCategoria(cli, catId) {
+  if (!catId) return Promise.resolve(null);
+  if (!cli.cacheRutas) cli.cacheRutas = new Map();
+  if (cli.cacheRutas.has(catId)) return cli.cacheRutas.get(catId);
+  const p = cli.get('categories', MELI_API + '/categories/' + catId).then(ca => ca.ok && ca.json ? {
+    nombre: ca.json.name || null,
+    totalPublicaciones: typeof ca.json.total_items_in_this_category === 'number' ? ca.json.total_items_in_this_category : null,
+    ruta: Array.isArray(ca.json.path_from_root) ? ca.json.path_from_root.map(x => x && x.id).filter(Boolean) : null
+  } : null).catch(() => null);
+  cli.cacheRutas.set(catId, p);
+  return p;
+}
+
+// Categoria padre (penultimo eslabon de path_from_root), o null si es raiz.
+async function padreDe(cli, catId) {
+  const info = await infoCategoria(cli, catId);
+  const r = info && info.ruta;
+  if (!r || r.length < 2) return null;
+  return { id: r[r.length - 2], nombre: null };
+}
+
+// Ofertas de categorias hermanas: las que cuelgan del mismo padre que la
+// categoria fijada. Se mira la ruta de cada categoria distinta (pocas por
+// producto, y cacheadas por corrida).
+async function ofertasDeHermanas(cli, ofertas, fija, padreId) {
+  const otras = Array.from(new Set(ofertas.filter(o => o.category_id && o.category_id !== fija.cat).map(o => o.category_id)));
+  const ok = new Set();
+  await Promise.all(otras.map(async c => {
+    const info = await infoCategoria(cli, c);
+    if (info && Array.isArray(info.ruta) && info.ruta.indexOf(padreId) > -1) ok.add(c);
+  }));
+  return ofertas.filter(o => ok.has(o.category_id));
 }
 
 // Datos de la categoria: tendencias (con posicion) y total de publicaciones.
@@ -198,19 +245,20 @@ async function datosCategoria(cli, catId) {
   const p = (async () => {
     const [tr, ca] = await Promise.all([
       cli.get('trends/category', MELI_API + '/trends/MLA/' + catId),
-      cli.get('categories', MELI_API + '/categories/' + catId)
+      infoCategoria(cli, catId)
     ]);
     const tendencias = tr.ok && Array.isArray(tr.json) ? tr.json.map(x => x && x.keyword).filter(Boolean) : null;
     return {
       id: catId,
-      nombre: ca.ok && ca.json ? ca.json.name : null,
-      totalPublicaciones: ca.ok && ca.json && typeof ca.json.total_items_in_this_category === 'number' ? ca.json.total_items_in_this_category : null,
+      nombre: ca ? ca.nombre : null,
+      totalPublicaciones: ca ? ca.totalPublicaciones : null,
       tendencias
     };
   })();
   cli.cacheCategorias.set(catId, p);
   return p;
 }
+export { datosCategoria };
 
 // Posicion del producto en las tendencias de su categoria (/trends/MLA/{cat}).
 // Coincide solo si TODAS las palabras significativas de la busqueda en
@@ -287,6 +335,7 @@ export async function analizarProducto(cli, prod) {
   const vacia = ps => ps.every(r => !r.ok || !r.json || !(r.json.results || []).length);
   // 1. Catalogo: total y productos.
   let paginas = await buscar(q, filtroDominio);
+  let sinFiltroYa = !filtroDominio;
   // Dentro del dominio, una busqueda larga puede no traer nada: se prueba
   // sacando palabras del final, nunca menos de 2. Si igual no trae nada (hay
   // dominios que /products/search casi no indexa), se busca sin el filtro y
@@ -294,7 +343,7 @@ export async function analizarProducto(cli, prod) {
   if (filtroDominio) {
     let pal = q.split(/\s+/);
     while (vacia(paginas) && pal.length > 2) { pal = pal.slice(0, -1); paginas = await buscar(pal.join(' '), filtroDominio); }
-    if (vacia(paginas)) paginas = await buscar(q, '');
+    if (vacia(paginas)) { paginas = await buscar(q, ''); sinFiltroYa = true; }
   }
   let catalogoTotal = null;
   const catalogo = [];
@@ -322,36 +371,97 @@ export async function analizarProducto(cli, prod) {
   // 2. Ofertas activas por producto de catalogo (404 = sin ofertas).
   const ofertas = [];
   const nuevos404 = [];
+  const pedidos = new Set();
   let conOfertas = 0, revisados = 0;
-  for (let i = 0; i < ordenados.length && ofertas.length < OFERTAS_OBJETIVO; i += 4) {
-    const lote = ordenados.slice(i, i + 4);
-    const rs = await Promise.all(lote.map(c => cli.get('products/items', MELI_API + '/products/' + c.id + '/items?limit=10')));
-    rs.forEach((r, k) => {
-      revisados++;
-      if (r.status === 404) nuevos404.push(lote[k].id);
-      const lista = r.ok && r.json && Array.isArray(r.json.results) ? r.json.results : [];
-      if (lista.length) conOfertas++;
-      lista.filter(it => it && typeof it.price === 'number' && it.price > 0).forEach(it => ofertas.push({
-        id: it.item_id, title: lote[k].name, price: it.price,
-        seller: { id: it.seller_id || null },
-        shipping: { free_shipping: !!(it.shipping && it.shipping.free_shipping),
-          logistic_type: it.shipping && typeof it.shipping.logistic_type === 'string' ? it.shipping.logistic_type : null },
-        official_store_id: it.official_store_id || null,
-        category_id: it.category_id || null,
-        catalog_product_id: lote[k].id
-      }));
-    });
+  async function pedirOfertas(lista, tope, hasta) {
+    let n = 0;
+    for (let i = 0; i < lista.length && n < tope && hasta(); i += 4) {
+      const lote = lista.slice(i, i + 4).filter(c => !pedidos.has(c.id)).slice(0, tope - n);
+      if (!lote.length) continue;
+      lote.forEach(c => pedidos.add(c.id));
+      n += lote.length;
+      const rs = await Promise.all(lote.map(c => cli.get('products/items', MELI_API + '/products/' + c.id + '/items?limit=10')));
+      rs.forEach((r, k) => {
+        revisados++;
+        if (r.status === 404) nuevos404.push(lote[k].id);
+        const items = r.ok && r.json && Array.isArray(r.json.results) ? r.json.results : [];
+        if (items.length) conOfertas++;
+        items.filter(it => it && typeof it.price === 'number' && it.price > 0).forEach(it => ofertas.push({
+          id: it.item_id, title: lote[k].name, price: it.price,
+          seller: { id: it.seller_id || null },
+          shipping: { free_shipping: !!(it.shipping && it.shipping.free_shipping),
+            logistic_type: it.shipping && typeof it.shipping.logistic_type === 'string' ? it.shipping.logistic_type : null },
+          official_store_id: it.official_store_id || null,
+          category_id: it.category_id || null,
+          catalog_product_id: lote[k].id
+        }));
+      });
+    }
+  }
+  await pedirOfertas(ordenados, MAX_PRODUCTOS_CON_ITEMS, () => ofertas.length < OFERTAS_OBJETIVO);
+
+  // Con categoria fijada se descartan las ofertas de otras categorias, y la
+  // demanda y la comision salen de la categoria correcta. Si quedan menos de
+  // 3, se usan de respaldo las de categorias hermanas (mismo padre en
+  // path_from_root) en vez de descartarlas: el producto sale con
+  // datoAproximado.
+  let padre = null, padreBuscado = false;
+  const validas = () => ofertas.filter(o => !esMarca(o.title || ''));
+  async function filtrar() {
+    if (!fija) return { usadas: ofertas.slice(), exactas: ofertas.length, respaldo: 0 };
+    const exactas = ofertas.filter(o => o.category_id === fija.cat);
+    const nExactas = exactas.filter(o => !esMarca(o.title || '')).length;
+    if (nExactas >= MIN_OFERTAS) return { usadas: exactas, exactas: exactas.length, respaldo: 0 };
+    if (!padreBuscado) { padreBuscado = true; padre = await padreDe(cli, fija.cat); }
+    if (!padre) return { usadas: exactas, exactas: exactas.length, respaldo: 0 };
+    const hermanas = await ofertasDeHermanas(cli, ofertas, fija, padre.id);
+    return { usadas: exactas.concat(hermanas), exactas: exactas.length, respaldo: hermanas.length };
+  }
+  const util = f => f.usadas.filter(o => !esMarca(o.title || '')).length;
+  const exactasAntes = fija ? ofertas.filter(o => o.category_id === fija.cat && !esMarca(o.title || '')).length : validas().length;
+  let f = await filtrar();
+  let rescate = null;
+  if (exactasAntes < MIN_OFERTAS && util(f) >= MIN_OFERTAS) rescate = 'categoriaPadre';
+
+  // Si siguen sin llegar a OFERTAS_OBJETIVO: 2 paginas mas de catalogo (con y
+  // sin dominio) antes de rendirse. Los productos nuevos pasan por el mismo
+  // filtro de nombre; el tope de /items extra cuida el tiempo de la funcion.
+  let paginasExtra = 0;
+  if (util(f) < OBJETIVO_RESPALDO()) {
+    const yaPaginas = CATALOGO_PAGINAS + (filtroDominio ? 1 : 0);
+    const urls = [];
+    if (!(filtroDominio && sinFiltroYa)) for (let k = 0; k < PAGINAS_EXTRA; k++) urls.push(filtroDominio + '&offset=' + ((yaPaginas + k) * 10));
+    // Sin dominio: si la busqueda inicial ya fue sin filtro, se sigue desde
+    // donde quedo; si no, se piden las primeras paginas sin el filtro.
+    if (filtroDominio) for (let k = 0; k < PAGINAS_EXTRA; k++) urls.push('&offset=' + ((sinFiltroYa ? CATALOGO_PAGINAS + k : k) * 10));
+    const rs = await Promise.all(urls.map(extra => cli.get('products/search', MELI_API + '/products/search?status=active&site_id=MLA&limit=10&q=' + encodeURIComponent(q) + extra)));
+    paginasExtra = rs.length;
+    const nuevos = [];
+    for (const r of rs) {
+      if (!r.ok || !r.json) continue;
+      for (const x of (r.json.results || [])) if (x && x.id && !vistos.has(x.id)) { vistos.add(x.id); nuevos.push({ id: x.id, name: x.name || '' }); }
+    }
+    const pn = nuevos.map(c => ({ c, p: puntajeDeTitulo(c.name, palabras) })).filter(x => x.p > 0);
+    const sin404b = await conocidosSinOfertas(pn.map(x => x.c.id));
+    const extra = pn.filter(x => !sin404b.has(x.c.id)).sort((a, b) => b.p - a.p).map(x => x.c);
+    if (extra.length) {
+      const antes = util(f);
+      await pedirOfertas(extra, MAX_ITEMS_EXTRA, () => true);
+      f = await filtrar();
+      if (antes < MIN_OFERTAS && util(f) >= MIN_OFERTAS && !rescate) rescate = 'paginasExtra';
+    }
   }
   if (nuevos404.length) await anotarSinOfertas(nuevos404);
-  // Con categoria fijada se descartan las ofertas de otras categorias, y la
-  // demanda y la comision salen de la categoria correcta.
-  if (fija) {
-    const deLaCategoria = ofertas.filter(o => o.category_id === fija.cat);
-    ofertas.length = 0;
-    deLaCategoria.forEach(o => ofertas.push(o));
-  }
+  ofertas.length = 0;
+  f.usadas.forEach(o => ofertas.push(o));
+  const datoAproximado = f.respaldo > 0;
+  cli.estado.pasos = cli.estado.pasos || { categoriaPadre: 0, paginasExtra: 0, aproximados: 0, paginasPedidas: 0 };
+  if (rescate) cli.estado.pasos[rescate]++;
+  if (datoAproximado) cli.estado.pasos.aproximados++;
+  cli.estado.pasos.paginasPedidas += paginasExtra;
+  const respaldo = { exactas: f.exactas, deCategoriasHermanas: f.respaldo, categoriaPadre: padre ? padre.id : null, paginasExtra, rescate };
   if (!ofertas.length) {
-    return { v: VERSION_MERCADO, catalogoTotal, catalogoRevisados: revisados, conOfertas: 0, results: [] };
+    return { v: VERSION_MERCADO, catalogoTotal, catalogoRevisados: revisados, conOfertas: 0, results: [], respaldo };
   }
 
   // 3. Categoria (la mas repetida) y comision real.
@@ -379,6 +489,8 @@ export async function analizarProducto(cli, prod) {
     categoryName: cat && cat.nombre || null,
     tendencia: cat ? posicionEnTendencias(q, cat.tendencias) : null,
     comision,
+    datoAproximado,
+    respaldo,
     guardadoEn: new Date().toISOString()
   };
 }
