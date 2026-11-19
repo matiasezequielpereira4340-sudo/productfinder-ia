@@ -94,6 +94,15 @@ console.log('== 2. Paginas extra de catalogo ==');
   chequear('los 404 no impiden seguir', m.catalogoRevisados >= 5, m.catalogoRevisados);
 }
 
+console.log('== 2b. Corte por tiempo a mitad de producto ==');
+{
+  const base = cliFalso({ catalogo: () => ['P1', 'P2'], items: () => [item('a1', 'MLA_HOJA', 9000)] });
+  let n = 0;
+  const cli = Object.assign({}, base, { get: async (nombre, url) => (nombre === 'products/items' && ++n > 1) ? { ok: false, status: 0, json: null, cortada: true } : base.get(nombre, url) });
+  const m = await analizarProducto(cli, PROD);
+  chequear('si le cortaron una llamada, el producto vuelve null (lo retoma la tanda siguiente)', m === null);
+}
+
 console.log('== 3. Descubrimiento: filtros y validacion ==');
 chequear('servicio no se importa', D.esNoImportable('reparacion de celulares', 'celulares'));
 chequear('usado no se importa', D.esNoImportable('celular usado', 'celulares'));

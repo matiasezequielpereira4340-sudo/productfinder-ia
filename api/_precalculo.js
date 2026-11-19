@@ -136,10 +136,13 @@ const OFERTAS_OBJETIVO = 15;
 const MIN_OFERTAS = 3;               // menos que esto, el producto va a Pendientes
 const PAGINAS_EXTRA = 2;             // paginas de /products/search de respaldo
 const MAX_ITEMS_EXTRA = 8;
-// Umbral para pedir las paginas extra. Por defecto OFERTAS_OBJETIVO (lo
-// pedido); se puede bajar con BUSCADOR_OBJETIVO_RESPALDO si el rubro empieza a
-// cortarse por tiempo.
-const OBJETIVO_RESPALDO = () => Math.max(MIN_OFERTAS, Number(process.env.BUSCADOR_OBJETIVO_RESPALDO || OFERTAS_OBJETIVO));           // tope de /products/{id}/items en el respaldo
+// Umbral para pedir las paginas extra. MEDIDO 19/11/2026 en celulares (preview):
+// con el umbral en OFERTAS_OBJETIVO (15) se pidieron 42 paginas y ~100 /items
+// extra para 18 productos, la tanda llego a 49,9 s y se corto; los 4 productos
+// que las paginas rescataron tenian todos menos de 3 ofertas. Con 6 se conservan
+// esos rescates sin pagarlo en cada producto. BUSCADOR_OBJETIVO_RESPALDO=15
+// vuelve al umbral original.
+const OBJETIVO_RESPALDO = () => Math.max(MIN_OFERTAS, Number(process.env.BUSCADOR_OBJETIVO_RESPALDO || 6));           // tope de /products/{id}/items en el respaldo
 const VENDEDORES_TOP = 5;
 
 // Cliente con contador de llamadas, reintento unico ante 429 y concurrencia
@@ -170,7 +173,7 @@ export function crearCliente(token, opts) {
   // Plazo duro: pasado o.deadline no se llama mas a MeLi (la funcion tiene 60 s
   // y un nicho a 8 llamadas/s tarda ~30-40 s).
   async function get(nombre, url, timeoutMs) {
-    if (o.deadline && Date.now() > o.deadline) { estado.cortadasPorTiempo = (estado.cortadasPorTiempo || 0) + 1; return { ok: false, status: 0, json: null }; }
+    if (o.deadline && Date.now() > o.deadline) { estado.cortadasPorTiempo = (estado.cortadasPorTiempo || 0) + 1; return { ok: false, status: 0, json: null, cortada: true }; }
     if (activos >= MAX) await new Promise(r => cola.push(r));
     activos++;
     try {
@@ -321,7 +324,19 @@ export async function anotarSinOfertas(ids) {
   } catch (e) {}
 }
 
-export async function analizarProducto(cli, prod) {
+export async function analizarProducto(cliReal, prod) {
+  // Si a este producto le cortaron alguna llamada por tiempo, sus datos estan
+  // incompletos (menos ofertas de las que hay): se devuelve null y lo retoma la
+  // tanda siguiente, en vez de guardarlo como analizado.
+  let huboCorte = false;
+  const cli = Object.assign(Object.create(cliReal), {
+    get: (...a) => cliReal.get(...a).then(r => { if (r && r.cortada) huboCorte = true; return r; })
+  });
+  const r = await analizarProductoInterno(cli, prod);
+  return huboCorte ? null : r;
+}
+
+async function analizarProductoInterno(cli, prod) {
   const q = prod.q;
   // Categoria y dominio de MeLi fijados para el producto (api/_categorias-datos.js).
   // Con dominio, /products/search trae solo productos de ese dominio: ya no
