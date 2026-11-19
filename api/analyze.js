@@ -1444,7 +1444,10 @@ async function precalcularTanda({ token, solo, antes, hechos, repartir, sinApify
     // parcial (cortado por tiempo), primero los que no tienen dato del formato
     // actual: asi cada tanda avanza en vez de cortarse siempre en el mismo lugar.
     const [previo, descubiertos] = await Promise.all([leerCacheNicho(k), leerDescubiertos(k)]);
-    const prevM = previo && versionLegible(previo.mercado) ? previo.mercado : {};
+    // Re-analisis forzado (antes=<fecha>, "Forzar todos"): el formato viejo no
+    // se usa ni para completar huecos; solo cuenta lo del formato actual.
+    const prevUsable = previo && (antes != null ? previo.mercado.__v === VERSION_MERCADO : versionLegible(previo.mercado));
+    const prevM = prevUsable ? previo.mercado : {};
     const prevParcial = prevM.__parcial === true;
     let lista = armarLista(CATALOGO[k].productos, descubiertos);
     if (prevParcial) {
