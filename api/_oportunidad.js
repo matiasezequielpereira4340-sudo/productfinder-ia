@@ -620,7 +620,10 @@ export function evaluarProducto(prod, nichoKey, mercado, perfil, usdArs, histori
   const base = {
     nombre: prod.nombre, query: prod.q, keyword_en: prod.keyword_en || null, nota: prod.nota, pesoG: prod.pesoG,
     costo, certificaciones: certs, capacidad, links,
-    categoria: (mercado && mercado.categoryName) || null
+    categoria: (mercado && mercado.categoryName) || null,
+    // Parte de las ofertas comparables son de una categoria hermana (respaldo
+    // de api/_precalculo.js): la tarjeta lo avisa.
+    datoAproximado: !!(mercado && mercado.datoAproximado)
   };
   // Sin 3 ofertas comparables con precio no hay producto para mostrar: va a
   // "Pendientes de analisis" (solo nombre y links), no a una tarjeta vacia.

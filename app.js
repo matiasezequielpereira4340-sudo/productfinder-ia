@@ -211,6 +211,94 @@ function mrCabeceras(){
   return c;
 }
 window.mrCabeceras = mrCabeceras;
+
+// ===== Sesion vencida =====
+// El token firmado (pf_token) dura 30 dias. Antes, cuando vencia, el servidor
+// lo rechazaba y trataba al usuario como gratis (el admin veia 3 productos),
+// pero esta pantalla lo seguia mostrando logueado porque solo miraba
+// localStorage. Ahora se mira el vencimiento del token (campo exp del
+// payload, base64url) al iniciar y antes de cada consulta al buscador, y
+// cualquier 401 con el token puesto se confirma con el servidor.
+var PF_MSG_SESION_VENCIDA = 'Tu sesión venció, volvé a entrar';
+function pfPayloadToken(t){
+  try{
+    var partes = String(t || '').split('.');
+    if(partes.length !== 2) return null;
+    var b = partes[0].replace(/-/g, '+').replace(/_/g, '/');
+    while(b.length % 4) b += '=';
+    return JSON.parse(atob(b));
+  }catch(e){ return null; }
+}
+// true si hay alguien logueado (no invitado) y su token falta, no se puede
+// leer o ya vencio. Un visitante o invitado nunca tiene token: no cuenta.
+function pfTokenVencido(){
+  try{
+    var rol = localStorage.getItem('pf_role');
+    if(!rol || rol === 'guest' || !localStorage.getItem('pf_user')) return false;
+    var p = pfPayloadToken(localStorage.getItem('pf_token'));
+    return !p || typeof p.exp !== 'number' || Date.now() >= p.exp;
+  }catch(e){ return false; }
+}
+var _pfSaliendo = false;
+function pfSesionVencida(){
+  if(_pfSaliendo) return;
+  _pfSaliendo = true;
+  try{ ['pf_token','pf_role','pf_premium','pf_expiry','pf_user'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
+  try{ currentRole = null; sessionExpiry = null; }catch(e){}
+  try{ setupTopbar(''); }catch(e){}
+  try{ showScreen('loginScreen'); }catch(e){}
+  try{ var er = document.getElementById('loginError'); if(er) er.textContent = PF_MSG_SESION_VENCIDA; }catch(e){}
+  setTimeout(function(){ _pfSaliendo = false; }, 1500);
+}
+// Para llamar antes de una consulta: si el token vencio, saca al usuario y
+// devuelve false.
+function pfSesionOk(){
+  if(pfTokenVencido()){ pfSesionVencida(); return false; }
+  return true;
+}
+window.pfSesionVencida = pfSesionVencida;
+window.pfTokenVencido = pfTokenVencido;
+
+// Cualquier fetch a /api/ con "Authorization: Bearer" que vuelve 401.
+// No todo 401 es sesion vencida (los diagnosticos de admin dan 401 a un
+// usuario comun con sesion valida), asi que se confirma con el servidor
+// (GET /api/analyze?sesion=1) antes de sacar a nadie.
+(function(){
+  if(typeof window.fetch !== 'function' || window.__pfFetch401) return;
+  window.__pfFetch401 = true;
+  var original = window.fetch.bind(window);
+  function tieneAuth(init, input){
+    try{
+      var h = (init && init.headers) || (input && typeof input === 'object' && input.headers) || null;
+      if(!h) return false;
+      if(typeof Headers !== 'undefined' && h instanceof Headers) return /^Bearer /i.test(h.get('Authorization') || '');
+      for(var k in h){ if(/^authorization$/i.test(k) && /^Bearer /i.test(String(h[k]))) return true; }
+    }catch(e){}
+    return false;
+  }
+  function esApi(input){
+    try{ var u = typeof input === 'string' ? input : (input && input.url) || ''; return /(^|\/\/[^\/]+)\/api\//.test(u) || /^\/api\//.test(u); }catch(e){ return false; }
+  }
+  var verificando = null;
+  function confirmar(){
+    if(verificando) return verificando;
+    var t = ''; try{ t = localStorage.getItem('pf_token') || ''; }catch(e){}
+    verificando = original('/api/analyze?sesion=1', { headers: { Authorization: 'Bearer ' + t }, cache: 'no-store' })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(j){ if(j && j.valida === false) pfSesionVencida(); })
+      .catch(function(){})
+      .then(function(){ verificando = null; });
+    return verificando;
+  }
+  window.fetch = function(input, init){
+    var p = original(input, init);
+    if(!esApi(input) || !tieneAuth(init, input)) return p;
+    return p.then(function(r){
+      if(r && r.status === 401){ if(pfTokenVencido()) pfSesionVencida(); else confirmar(); }
+      return r;
+    });
+  };
+})();
 function doGuest(){currentRole='guest';sessionExpiry=null;localStorage.setItem('pf_user','Invitado');localStorage.setItem('pf_role','guest');localStorage.removeItem('pf_premium');localStorage.removeItem('pf_expiry');localStorage.removeItem('pf_token');showScreen('menuScreen');setupTopbar('Invitado');var ab=document.getElementById('btnAdminPanel');if(ab)ab.style.display='none';var ex=document.getElementById('topbarExpiry');if(ex)ex.style.display='none';} function doLogout(){
   try{ localStorage.removeItem('pf_token'); }catch(e){}
   currentRole=null;sessionExpiry=null;analysisResults=null;mrData={};mrCurrentProduct='';
@@ -644,10 +732,11 @@ async function doAnalyze(){
     user_id: localStorage.getItem('pf_user') || ''
   };
   localStorage.setItem('pf_nicho', params.nicho);
+  if(!pfSesionOk()) return;
   return (async function(){
     if(btn){ btn.disabled = true; btn.dataset.old = btn.innerHTML; btn.innerHTML = ' Analizando el mercado real...'; }
     const grid = document.getElementById('productsGrid');
-    if(grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">Consultando precios y competencia en MercadoLibre...<br><small>Esto puede tardar unos segundos porque analizo 12 productos reales.</small></div>';
+    if(grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">Consultando precios y competencia en MercadoLibre...<br><small>Esto puede tardar unos segundos porque analizo hasta 20 productos reales.</small></div>';
     const results = document.getElementById('resultsSection');
     if(results) results.style.display = 'block';
     try{
@@ -655,6 +744,9 @@ async function doAnalyze(){
       try{ var _tk = localStorage.getItem('pf_token'); if(_tk) _cab['Authorization'] = 'Bearer ' + _tk; }catch(e){}
       const res = await fetch('/api/analyze', { method:'POST', headers:_cab, body: JSON.stringify(params) });
       const data = await res.json();
+      // Llego un token que el servidor no acepto (vencido o con otra firma):
+      // mismo tratamiento que un 401, en vez de mostrar 3 productos callado.
+      if(data && data.sesionInvalida){ pfSesionVencida(); return; }
       if(!res.ok){ throw new Error(data.error || 'Error al analizar'); }
       window.__lastAnalysis = data;
       renderResults(data);
@@ -733,8 +825,11 @@ function pfCard(p, opts){
   var h = '';
   h += '<article class="product-card pf2-card pf2-' + pfEsc(v.nivel) + (p.topPick ? ' top-pick' : '') + '" data-key="' + pfEsc(pfKey(p)) + '">';
   if(p.topPick) h += '<span class="top-badge"><svg class="ic" aria-hidden="true"><use href="#i-star"></use></svg> TOP PICK</span>';
-  h += '<div class="product-name">' + pfEsc(p.nombre) + '</div>';
+  h += '<div class="product-name">' + (p.nuevo ? '<span class="pf2-nuevo" title="Producto descubierto en las búsquedas en tendencia de MercadoLibre en los últimos 14 días">NUEVO</span> ' : '') + pfEsc(p.nombre) + '</div>';
   h += '<div class="pf2-meta">' + pfEsc([p.categoria, p.nota].filter(Boolean).join(' · ')) + '</div>';
+  // Parte de las ofertas comparables salieron de una categoria hermana
+  // (respaldo cuando la categoria exacta no tenia 3).
+  if(p.datoAproximado) h += '<div class="pf2-aprox" title="La categoría exacta del producto no tenía suficientes ofertas en MercadoLibre: el precio y la competencia incluyen publicaciones de categorías del mismo rubro.">Datos de categoría cercana</div>';
 
   // Certificaciones: arriba, porque cambian la decision.
   if(p.certificaciones && p.certificaciones.length){
@@ -871,6 +966,7 @@ function pfResumen(p){
 }
 async function pfCargarLista(){
   if(!pfTieneSesion()){ pfListaCache = pfListaLocal(); return pfListaCache; }
+  if(!pfSesionOk()){ pfListaCache = pfListaLocal(); return pfListaCache; }
   try{
     var r = await fetch('/api/analyze?lista=1', { headers: pfCab(), cache: 'no-store' });
     var d = await r.json();
@@ -886,7 +982,7 @@ async function pfToggleLista(key, btn){
   var ya = pfEnLista(key);
   if(btn){ btn.disabled = true; }
   var remoto = false;
-  if(pfTieneSesion()){
+  if(pfTieneSesion() && pfSesionOk()){
     try{
       var r = await fetch('/api/analyze', { method: 'POST', headers: pfCab(), body: JSON.stringify(ya
         ? { accion: 'lista_borrar', key: key }
@@ -972,7 +1068,7 @@ function renderResults(data){
     pend = '<div class="pf2-pendientes"><div class="pf2-bt">Pendientes de an\u00e1lisis <span class="pf2-tag">se analizan por la noche, ~10 rubros por noche</span></div><ul>' +
       pendientes.map(function(x){
         var L = x.links || {};
-        return '<li><span class="pf2-pn" title="' + pfEsc(x.motivo || '') + '">' + pfEsc(x.nombre) + '</span>' +
+        return '<li>' + (x.nuevo ? '<span class="pf2-nuevo">NUEVO</span> ' : '') + '<span class="pf2-pn" title="' + pfEsc(x.motivo || '') + '">' + pfEsc(x.nombre) + '</span>' +
           pfLinkBtn(L.meli, 'MeLi') + pfLinkBtn(L.alibaba, 'Alibaba') + pfLinkBtn(L.tendencia, 'Tendencia') + '</li>';
       }).join('') + '</ul></div>';
   }
@@ -2462,6 +2558,8 @@ window.addEventListener('DOMContentLoaded',()=>{
   const savedRole=localStorage.getItem('pf_role');
   const savedExpiry=localStorage.getItem('pf_expiry');
   if(savedUser&&savedRole){
+    // Token vencido o faltante: afuera, con el aviso en la pantalla de login.
+    if(pfTokenVencido()){ pfSesionVencida(); return; }
     if(savedExpiry&&savedRole!=='admin'){
       const exp=new Date(savedExpiry);
       if(exp<=new Date()){doLogout();return;}

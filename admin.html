@@ -163,6 +163,11 @@
             <input type="text" id="precalcSolo" placeholder="solo: mascotas,hogar (opcional)" style="flex:1;min-width:180px;background:#0f0f0f;border:1px solid #333;color:#ddd;border-radius:8px;padding:8px 10px">
             <button class="btn btn-ghost" type="button" onclick="probarEndpointsMeli()">Probar endpoints de MeLi</button>
           </div>
+          <div style="padding:0 0 12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <select id="descubrirNicho" style="background:#0f0f0f;border:1px solid #333;color:#ddd;border-radius:8px;padding:8px 10px;min-width:200px"><option value="">Cargando rubros...</option></select>
+            <button class="btn btn-yellow" type="button" id="btnDescubrir" onclick="descubrirAhora()">Descubrir productos ahora</button>
+            <span style="color:#777;font-size:12px">Busca productos nuevos en las tendencias de MeLi del rubro (m&aacute;x. 6) y los suma al pool. Usa la API de Anthropic, no Apify.</span>
+          </div>
           <div id="precalcOut" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;word-break:break-word;background:#0f0f0f;color:#ddd;border-radius:8px;padding:12px;max-height:60vh;overflow:auto">Corre todas las noches a las 04:00 (Argentina). Este bot&oacute;n hace lo mismo a mano, por tandas, hasta terminar.</div>
         </div>
 
@@ -246,15 +251,47 @@
       for(var i=0;i<60;i++){
         var url='/api/analyze?precalcular=tanda'+(antes?'&antes='+encodeURIComponent(antes):'')+(solo?'&solo='+encodeURIComponent(solo):'');
         out.textContent=log.concat(['Tanda '+(i+1)+'...']).join('\n');
-        var res=await adminFetch(url), j=await res.json();
+        var res=await adminFetch(url, { headers: cabAdmin() }), j=await res.json();
         if(!res.ok){ log.push('Error '+res.status+': '+(j&&j.error||'')); break; }
         total+=j.llamadas||0;
-        (j.procesados||[]).forEach(function(p){ nichos++; log.push(p.nicho+': '+p.conDatos+'/'+p.de+' con datos, '+p.llamadas+' llamadas, '+(p.ms/1000).toFixed(1)+' s'+(p.guardado?'':' (no guardado)')); });
+        (j.procesados||[]).forEach(function(p){ nichos++; log.push(p.nicho+': '+p.conDatos+'/'+p.de+' con datos'+(p.conTarjeta?' (con tarjeta: fijos '+p.conTarjeta.fijos+', descubiertos '+p.conTarjeta.descubiertos+', aproximados '+p.conTarjeta.aproximados+')':'')+', '+p.llamadas+' llamadas, '+(p.ms/1000).toFixed(1)+' s'+(p.guardado?'':' (no guardado)')+(p.parcial?' (parcial)':'')); });
+        (j.descubrimiento||[]).forEach(function(d){ if(d && !d.salteado) log.push('  descubrimiento '+(d.nicho||'')+': '+((d.nuevos||[]).length)+' nuevos'+(d.error?' (error: '+d.error+')':'')); });
         if(j.respuestas429) log.push('OJO: MeLi limito '+j.respuestas429+' pedidos (429).');
         if(!j.pendientes || !(j.procesados||[]).length){ log.push('\nListo: '+nichos+' nichos, '+total+' llamadas a la API. Pendientes: '+(j.pendientes||0)); break; }
       }
     }catch(e){ log.push('Error: '+e.message); }
     out.textContent=log.join('\n');
+    if(btn) btn.disabled=false;
+  }
+  // Descubrimiento de productos para un rubro (sin esperar al cron). Va con la
+  // sesion firmada de admin (esAdmin en el servidor) y, si esta, la ADMIN_KEY.
+  function cabAdmin(){ var h={}; try{ var t=localStorage.getItem('pf_token'); if(t) h.Authorization='Bearer '+t; }catch(e){} return h; }
+  (function cargarRubros(){
+    fetch('/api/analyze').then(function(r){ return r.ok?r.json():null; }).then(function(d){
+      var sel=document.getElementById('descubrirNicho'); if(!sel||!d||!d.nichos) return;
+      sel.innerHTML=d.nichos.map(function(n){ return '<option value="'+n.v+'">'+n.l+'</option>'; }).join('');
+      if(d.nichos.some(function(n){return n.v==='celulares';})) sel.value='celulares';
+    }).catch(function(){});
+  })();
+  async function descubrirAhora(){
+    var out=document.getElementById('precalcOut'), btn=document.getElementById('btnDescubrir');
+    var nicho=document.getElementById('descubrirNicho').value;
+    if(!nicho){ out.textContent='Elegí un rubro.'; return; }
+    if(btn) btn.disabled=true;
+    out.textContent='Descubriendo productos para '+nicho+'... (tarda 15-40 s)';
+    try{
+      var res=await adminFetch('/api/analyze?precalcular=descubrir&nicho='+encodeURIComponent(nicho), { headers: cabAdmin() }), j=await res.json();
+      var l=[];
+      if(!res.ok||!j.ok) l.push('Error '+res.status+': '+(j&&j.error||'')); 
+      if(j.salteado) l.push('Salteado: '+j.salteado);
+      l.push(nicho+': '+(j.tendencias||0)+' búsquedas en tendencia en '+(j.categorias||0)+' categorías, '+(j.candidatos||0)+' candidatos');
+      if(j.descartes) l.push('Descartados: '+JSON.stringify(j.descartes));
+      (j.nuevos||[]).forEach(function(n){ l.push('  NUEVO  '+n.nombre+'  ('+n.q+', FOB USD '+n.costo+')'); });
+      if(!(j.nuevos||[]).length) l.push('Sin productos nuevos.');
+      (j.rechazados||[]).forEach(function(r){ l.push('  descartado  '+r.keyword+': '+r.motivo); });
+      l.push('\nLos nuevos se analizan en la próxima tanda del rubro (o con "Correr ahora" poniendo solo: '+nicho+').');
+      out.textContent=l.join('\n');
+    }catch(e){ out.textContent='Error: '+e.message; }
     if(btn) btn.disabled=false;
   }
   async function probarEndpointsMeli(){
