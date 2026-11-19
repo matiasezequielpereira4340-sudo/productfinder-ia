@@ -29,6 +29,7 @@ export const DIAS_NUEVO = 14;          // badge "NUEVO" en la tarjeta
 export const DIAS_PRIORIDAD = 30;      // descubiertos recientes van primero
 export const TOPE_POR_CONSULTA = 20;   // fijos + descubiertos, por tiempo de Vercel
 export const FALLOS_PARA_DESACTIVAR = 2;
+export const DIAS_ENTRE_ANALISIS = 3;     // menos que esto, es el mismo analisis
 const MAX_CANDIDATOS_IA = 14;          // lo que se le manda al modelo por corrida
 const MODELO = () => process.env.BUSCADOR_DESCUBRIR_MODELO || 'claude-opus-5-5';
 
@@ -391,13 +392,19 @@ export async function registrarAnalisisDescubiertos(evaluados, filasActuales) {
     const fila = porId.get(e.descubiertoId);
     if (!fila) return;
     const malo = e.sinDatos || /no conviene/i.test(e.veredictoLabel || '');
-    const fallos = malo ? (Number(fila.fallos) || 0) + 1 : 0;
+    // Solo cuenta como un analisis nuevo si pasaron DIAS_ENTRE_ANALISIS desde
+    // el anterior: dos corridas seguidas (un "Forzar" a mano despues del cron)
+    // son el mismo analisis y no pueden desactivar un producto. Medido el
+    // 19/11: dos corridas a 5 minutos desactivaron 5 descubiertos de celulares.
+    const previo = fila.actualizado ? Date.parse(fila.actualizado) : 0;
+    const cuenta = !previo || Date.now() - previo >= DIAS_ENTRE_ANALISIS * 86400e3;
+    const fallos = !cuenta ? (Number(fila.fallos) || 0) : malo ? (Number(fila.fallos) || 0) + 1 : 0;
     const activo = fallos < FALLOS_PARA_DESACTIVAR;
     if (!activo) desactivados.push(fila.q);
     const r = await fetch(url + '/rest/v1/buscador_descubiertos?id=eq.' + encodeURIComponent(fila.id), {
       method: 'PATCH', headers: cab({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
-      body: JSON.stringify({ analisis: (Number(fila.analisis) || 0) + 1, fallos, activo,
-        ultimo_estado: e.sinDatos ? 'sin datos' : (e.veredictoLabel || 'evaluado'), actualizado: new Date().toISOString() })
+      body: JSON.stringify({ analisis: (Number(fila.analisis) || 0) + (cuenta ? 1 : 0), fallos, activo,
+        ultimo_estado: e.sinDatos ? 'sin datos' : (e.veredictoLabel || 'evaluado'), actualizado: cuenta ? new Date().toISOString() : fila.actualizado })
     }).catch(() => null);
     if (r && r.ok) actualizados++;
   }));
